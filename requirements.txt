@@ -1,0 +1,25 @@
+# --- Core ---
+pyyaml>=6.0
+pydantic>=2.0
+
+# --- CLI ---
+click>=8.1
+
+# --- Data engines ---
+pandas>=2.0
+duckdb>=0.10
+
+# --- Database connectors ---
+mysql-connector-python>=8.3
+
+# --- Logging / utils ---
+python-dotenv>=1.0
+
+# --- Tests ---
+pytest>=8.0
+
+
+# --- Code quality ---
+black>=24.0
+pre-commit>=3.7
+

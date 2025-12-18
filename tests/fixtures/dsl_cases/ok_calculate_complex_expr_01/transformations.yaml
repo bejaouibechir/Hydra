@@ -1,0 +1,7 @@
+steps:
+  - calculate:
+      column: "total"
+      expr: "(price * qty) - (discount ?? 0)"
+  - calculate:
+      column: "label"
+      expr: "concat('ORD-', cast(id as str))"

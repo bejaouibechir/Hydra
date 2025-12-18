@@ -1,8 +1,13 @@
-# Hydra ETL - package interne (implementation)
+"""
+Package interne SmartETL / Hydra.
 
-"Placeholder - a completer"
+Contient l'implémentation (non publique) :
+- connecteurs
+- parser
+- runner
+- engines
+- etc.
 
+Ne doit pas être importé directement par l'utilisateur final.
+"""
 
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError

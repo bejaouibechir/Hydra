@@ -1,8 +1,7 @@
-# Config + secrets
+"""
+Sous-package config.
 
-"Placeholder - a completer"
-
-
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError
+Contient :
+- loader : lecture des YAML (sources/destinations/pipeline)
+- secrets : substitution ${ENV:...} et ${SECRET:...}
+"""

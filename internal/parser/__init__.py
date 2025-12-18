@@ -1,8 +1,7 @@
-# Parser : charge/valide le DSL
+"""
+Sous-package parser.
 
-"Placeholder - a completer"
-
-
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError
+Rôle :
+- Charger + valider les YAML (sources / destinations / pipeline)
+- Produire des structures Python strictes (Pydantic) utilisables par l'executor
+"""

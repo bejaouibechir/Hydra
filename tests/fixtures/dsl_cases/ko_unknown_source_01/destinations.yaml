@@ -1,0 +1,9 @@
+destinations:
+  dest_ok:
+    type: mariadb
+    connection:
+      host: ${ENV:DB_HOST}
+    load:
+      table: t2
+      mode: append
+      batch_size: 1000

@@ -1,8 +1,5 @@
-# Connecteurs internes
+"""
+Sous-package connector.
 
-"Placeholder - a completer"
-
-
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError
+Expose les contrats et implémentations de connecteurs (DB, CSV, JSON...).
+"""

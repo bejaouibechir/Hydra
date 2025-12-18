@@ -1,32 +1,18 @@
 """
-CSVConnector (MVP) — Source/Destination CSV sans dépendances externes.
+Connecteur CSV pour Hydra ETL.
 
-Objectif de l'étape 4 :
-- Avoir un pipeline concret "end-to-end" basé sur CSV (lecture + écriture)
-- Fonctionner sans Pandas, sans driver DB, sans libs tierces
-- Supporter :
-  - extraction par chunks (batch_size)
-  - chargement en mode append / replace
+Fonctionnalités MVP :
+- Lecture streaming par batches
+- Écriture streaming (append/replace)
+- Validation schéma optionnelle (strict_schema)
+- Gestion base_path pour chemins relatifs
 
-Convention :
-- Le paramètre `table` représente un chemin de fichier CSV :
-    - absolu  : C:\data\input.csv
-    - relatif : input.csv  (résolu via config["base_path"] si fourni)
-
-Configuration (config dict) acceptée (optionnelle) :
-- base_path : dossier racine pour les fichiers relatifs
-- delimiter : séparateur CSV (par défaut ",")
-- encoding  : encodage (par défaut "utf-8")
-- newline   : newline pour l'écriture (par défaut "")
-- quotechar : caractère de quote (par défaut '"')
-- lineterminator : fin de ligne (par défaut "\\n")
-- strict_schema : validation stricte des colonnes (par défaut False) [NOUVEAU]
-
-CORRECTIONS APPLIQUÉES (v1.1) :
-================================
-1. ✅ Race condition need_header : vérification AVANT open() du fichier
-2. ✅ Validation schéma : paramètre strict_schema pour fail-fast sur colonnes manquantes/supplémentaires
-3. ✅ Encodage None : gestion explicite de config.get() retournant None
+Version : 1.2 (Correctif Étape 7)
+Correctifs appliqués :
+- Lecture unifiée base_path (racine ou connection.base_path)
+- Fallback automatique sur job_dir
+- Création automatique dossiers parents
+- Messages d'erreur enrichis
 """
 
 from __future__ import annotations
@@ -39,21 +25,23 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 from internal.connector.interface import Batch, Connector, Row
 
-# Logger pour diagnostics
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class _CsvSettings:
-    """Paramètres normalisés de lecture/écriture CSV (issus de config)."""
-
+    """
+    Settings normalisés du connecteur CSV.
+    
+    Immuable (frozen) pour éviter modifications accidentelles.
+    """
     base_path: Optional[Path]
     delimiter: str
     encoding: str
     newline: str
     quotechar: str
     lineterminator: str
-    strict_schema: bool  # ✅ NOUVEAU : validation stricte des colonnes
+    strict_schema: bool
 
 
 class CSVConnector(Connector):
@@ -65,22 +53,32 @@ class CSVConnector(Connector):
     - load_batches() écrit au fil de l'eau.
     - Les erreurs I/O sont normalisées en ValueError pour rester cohérent côté core.
     
-    Version : 1.1 (corrections appliquées)
+    Version : 1.2 (Correctif Étape 7)
     """
 
-    def __init__(self, name: str, config: Dict[str, Any]) -> None:
+    def __init__(self, name: str, config: Dict[str, Any], job_dir: Optional[str] = None) -> None:
+        """
+        Args:
+            name: Nom du connecteur (ex: 'src_csv', 'dest_csv')
+            config: Configuration depuis YAML (connection + autres params)
+            job_dir: Répertoire du job (pour résolution chemins relatifs)
+                     Si None, utilise Path.cwd() comme fallback
+        """
         # On appelle le constructeur du contrat de base.
         super().__init__(name=name, config=config)
+        
+        # ✅ CORRECTIF ÉTAPE 7 : Conserver job_dir pour résolution chemins
+        self._job_dir = Path(job_dir).resolve() if job_dir else Path.cwd()
 
         # On normalise les settings une seule fois (plus simple + plus sûr).
-        self._settings = self._normalize_settings(config)
+        self._settings = self._normalize_settings(config, self._job_dir)
 
     # ---------------------------------------------------------------------
     # Helpers internes
     # ---------------------------------------------------------------------
 
     @staticmethod
-    def _normalize_settings(config: Dict[str, Any]) -> _CsvSettings:
+    def _normalize_settings(config: Dict[str, Any], job_dir: Path) -> _CsvSettings:
         """
         Normalise et valide la config.
 
@@ -89,9 +87,13 @@ class CSVConnector(Connector):
         - delimiter : 1 caractère (souvent "," ou ";")
         - strict_schema : validation stricte des colonnes (défaut False)
         
-        ✅ CORRECTION #3 : Gestion explicite de None pour éviter str(None) = "None"
+        ✅ CORRECTIF ÉTAPE 7 :
+        - Lecture unifiée base_path (racine OU connection.base_path)
+        - Fallback automatique sur job_dir si base_path absent
         """
-        base_path_raw = config.get("base_path")
+        # ✅ Lecture unifiée : racine config OU config.connection.base_path
+        base_path_raw = config.get("base_path") or config.get("connection", {}).get("base_path")
+        
         base_path: Optional[Path] = None
 
         if base_path_raw is not None:
@@ -100,8 +102,12 @@ class CSVConnector(Connector):
                 raise ValueError(f"CSVConnector: base_path introuvable: {base_path}")
             if not base_path.is_dir():
                 raise ValueError(f"CSVConnector: base_path n'est pas un dossier: {base_path}")
+        else:
+            # ✅ FALLBACK : Utiliser job_dir si base_path absent
+            # Garantit que les chemins relatifs sont résolus correctement
+            base_path = job_dir
 
-        # ✅ CORRECTION #3 : Gérer None explicitement
+        # ✅ Gérer None explicitement pour éviter str(None) = "None"
         delimiter_raw = config.get("delimiter")
         delimiter = "," if delimiter_raw is None else str(delimiter_raw)
         if len(delimiter) != 1:
@@ -121,7 +127,7 @@ class CSVConnector(Connector):
         lineterminator_raw = config.get("lineterminator")
         lineterminator = "\n" if lineterminator_raw is None else str(lineterminator_raw)
 
-        # ✅ CORRECTION #2 : Support strict_schema
+        # Support strict_schema
         strict_schema = bool(config.get("strict_schema", False))
 
         return _CsvSettings(
@@ -140,7 +146,7 @@ class CSVConnector(Connector):
 
         Cas :
         - table est un chemin absolu -> utilisé tel quel
-        - table est relatif -> résolu via base_path si fourni, sinon relatif au cwd
+        - table est relatif -> résolu via base_path (toujours défini maintenant)
         """
         if not isinstance(table, str) or not table.strip():
             raise ValueError("CSVConnector: 'table' doit être un chemin non vide (string).")
@@ -204,9 +210,21 @@ class CSVConnector(Connector):
         csv_path = self._resolve_path(table)
 
         if not csv_path.exists():
-            raise ValueError(f"CSVConnector: fichier source introuvable: {csv_path}")
+            # ✅ CORRECTIF ÉTAPE 7 : Message d'erreur enrichi
+            raise ValueError(
+                f"CSVConnector [{self.name}]: Fichier source introuvable.\n"
+                f"  Chemin demandé : {table}\n"
+                f"  Chemin résolu : {csv_path}\n"
+                f"  base_path effectif : {self._settings.base_path}\n"
+                f"  job_dir : {self._job_dir}\n"
+                f"  CWD actuel : {Path.cwd()}\n"
+                f"  Conseil : Vérifiez que le fichier existe ou que base_path est correct."
+            )
         if not csv_path.is_file():
-            raise ValueError(f"CSVConnector: la source n'est pas un fichier: {csv_path}")
+            raise ValueError(
+                f"CSVConnector [{self.name}]: La source n'est pas un fichier (peut-être un dossier ?).\n"
+                f"  Chemin : {csv_path}"
+            )
 
         try:
             with csv_path.open("r", encoding=self._settings.encoding, newline="") as f:
@@ -236,9 +254,21 @@ class CSVConnector(Connector):
         except ValueError:
             # On laisse passer nos ValueError (messages déjà clairs).
             raise
+        except FileNotFoundError as e:
+            # ✅ CORRECTIF ÉTAPE 7 : Message enrichi pour FileNotFoundError
+            raise ValueError(
+                f"CSVConnector [{self.name}]: Fichier introuvable lors de l'ouverture.\n"
+                f"  Chemin : {csv_path}\n"
+                f"  Erreur système : {e}"
+            ) from e
         except Exception as e:
-            # Normalisation : aucune exception "brute" ne doit fuiter.
-            raise ValueError(f"CSVConnector: échec lecture CSV ({csv_path}): {e}")
+            # ✅ CORRECTIF ÉTAPE 7 : Message enrichi pour autres erreurs
+            raise ValueError(
+                f"CSVConnector [{self.name}]: Échec lecture CSV.\n"
+                f"  Chemin : {csv_path}\n"
+                f"  base_path : {self._settings.base_path}\n"
+                f"  Erreur : {type(e).__name__}: {e}"
+            ) from e
 
     def load_batches(
         self,
@@ -259,8 +289,10 @@ class CSVConnector(Connector):
         - `key` ignoré (upsert non supporté en MVP).
         - On déduit les colonnes depuis le premier batch non vide.
         
-        ✅ CORRECTION #1 : need_header déterminé AVANT open() du fichier
-        ✅ CORRECTION #2 : Validation stricte des colonnes si strict_schema=True
+        ✅ CORRECTIONS :
+        - need_header déterminé AVANT open() du fichier
+        - Validation stricte des colonnes si strict_schema=True
+        - Création automatique du dossier parent (Étape 7)
         """
         if key is not None:
             # On refuse explicitement : pas d'upsert en MVP CSV.
@@ -275,11 +307,16 @@ class CSVConnector(Connector):
 
         csv_path = self._resolve_path(table)
 
-        # On s'assure que le dossier parent existe.
+        # ✅ CORRECTIF ÉTAPE 7 : Création automatique du dossier parent
         try:
             csv_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            raise ValueError(f"CSVConnector: impossible de créer le dossier destination ({csv_path.parent}): {e}")
+            raise ValueError(
+                f"CSVConnector [{self.name}]: Impossible de créer le dossier destination.\n"
+                f"  Chemin cible : {csv_path}\n"
+                f"  Dossier parent : {csv_path.parent}\n"
+                f"  Erreur système : {e}"
+            )
 
         # On prépare un itérateur sur batches (sans consommer tout en mémoire).
         it = iter(batches)
@@ -302,7 +339,7 @@ class CSVConnector(Connector):
 
         fieldnames = list(first_row.keys())
 
-        # ✅ CORRECTION #1 : Déterminer need_header AVANT d'ouvrir le fichier
+        # Déterminer need_header AVANT d'ouvrir le fichier
         # En mode append, open("a") crée le fichier, donc on doit check AVANT !
         need_header = False
         if mode_norm == "replace":
@@ -339,8 +376,27 @@ class CSVConnector(Connector):
 
         except ValueError:
             raise
+        except FileNotFoundError as e:
+            # ✅ CORRECTIF ÉTAPE 7 : Message ultra-détaillé
+            raise ValueError(
+                f"CSVConnector [{self.name}]: Impossible de créer/ouvrir le fichier destination.\n"
+                f"  Chemin demandé : {table}\n"
+                f"  Chemin résolu : {csv_path}\n"
+                f"  Dossier parent : {csv_path.parent} (existe: {csv_path.parent.exists()})\n"
+                f"  base_path effectif : {self._settings.base_path}\n"
+                f"  job_dir : {self._job_dir}\n"
+                f"  CWD actuel : {Path.cwd()}\n"
+                f"  Erreur système : {e}\n"
+                f"  Conseil : Le dossier parent devrait être créé automatiquement. "
+                f"Vérifiez les permissions d'écriture."
+            ) from e
         except Exception as e:
-            raise ValueError(f"CSVConnector: échec écriture CSV ({csv_path}): {e}")
+            raise ValueError(
+                f"CSVConnector [{self.name}]: Échec écriture CSV.\n"
+                f"  Chemin : {csv_path}\n"
+                f"  Mode : {mode_norm}\n"
+                f"  Erreur : {type(e).__name__}: {e}"
+            ) from e
 
     # ---------------------------------------------------------------------
     # Ecriture par batch
@@ -356,7 +412,7 @@ class CSVConnector(Connector):
           * strict_schema=False : extrasaction="ignore" les ignore (silencieux)
           * strict_schema=True  : lève ValueError (fail-fast)
         
-        ✅ CORRECTION #2 : Validation stricte des colonnes si activée
+        ✅ Validation stricte des colonnes si activée
         """
         expected_cols = set(fieldnames)
 
@@ -364,7 +420,7 @@ class CSVConnector(Connector):
             if not isinstance(row, dict):
                 raise ValueError("CSVConnector: chaque ligne d'un batch doit être un dict.")
 
-            # ✅ CORRECTION #2 : Validation stricte si activée
+            # Validation stricte si activée
             if self._settings.strict_schema:
                 row_cols = set(row.keys())
                 extra = row_cols - expected_cols

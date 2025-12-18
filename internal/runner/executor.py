@@ -1,8 +1,8 @@
 """
-JobExecutor — VERSION FINALE CORRIGÉE
+JobExecutor — VERSION FINALE CORRIGÉE (Étape 7 - FIX COMPLET)
 
-FIX CRITIQUE : Pour vider un fichier en mode replace, on doit créer un DataFrame
-avec colonnes mais sans lignes, pas un batch vide.
+FIX CRITIQUE Étape 7 : Mode replace doit utiliser le connecteur pour résoudre les chemins,
+pas accéder directement au filesystem avec Path().
 """
 
 from __future__ import annotations
@@ -101,12 +101,10 @@ class JobExecutor:
                 )
 
             # ==================================================================
-            # 🔥 FIX FINAL : En mode replace, VIDER LE FICHIER EN DIRECT
+            # 🔥 FIX ÉTAPE 7 : Mode replace via le connecteur (pas Path direct)
             # ==================================================================
-            if load_mode == "replace":
-                logger.info(f"Mode REPLACE - vidage fichier destination: {load_table}")
-                # Créer un CSV vide (avec header) en écrivant directement
-                Path(load_table).write_text("", encoding="utf-8")
+            first_batch_written = False
+            effective_mode = load_mode  # "replace" pour le premier batch, "append" ensuite
             
             # 5) Streaming batch par batch
             for batch in source_connector.extract_batches(
@@ -129,8 +127,18 @@ class JobExecutor:
                 if not out_batch:
                     continue
 
-                # Load (TOUJOURS en append car déjà vidé si replace)
-                dest_connector.load_batches([out_batch], table=load_table, mode="append", key=None)
+                # Load avec le bon mode
+                dest_connector.load_batches(
+                    [out_batch], 
+                    table=load_table, 
+                    mode=effective_mode,  # "replace" puis "append"
+                    key=None
+                )
+                
+                # Après le premier batch, passer en append
+                if not first_batch_written:
+                    first_batch_written = True
+                    effective_mode = "append"
 
             duration = time.monotonic() - start
             
@@ -273,8 +281,8 @@ class JobExecutor:
 
         if not isinstance(config, dict):
             raise ValueError(f"JobExecutor: connection invalide pour '{name}' (dict attendu)")
-
-        return CSVConnector(name=name, config=config)
+        
+        return CSVConnector(name=name, config=config, job_dir=str(self.job_dir))
 
     def _source_extract_params(self, src_def: Any) -> Tuple[str, int, Optional[str]]:
         extract = getattr(src_def, "extract", None)

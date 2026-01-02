@@ -1,0 +1,5 @@
+# pipeline.yaml - Exemple CSV → MySQL Upsert
+
+pipeline:
+  from: csv_employees
+  to: mysql_employees

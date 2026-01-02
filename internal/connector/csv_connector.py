@@ -106,6 +106,7 @@ class CSVConnector(Connector):
             # ✅ FALLBACK : Utiliser job_dir si base_path absent
             # Garantit que les chemins relatifs sont résolus correctement
             base_path = job_dir
+        
 
         # ✅ Gérer None explicitement pour éviter str(None) = "None"
         delimiter_raw = config.get("delimiter")

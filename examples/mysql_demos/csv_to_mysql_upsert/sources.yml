@@ -1,0 +1,10 @@
+# sources.yaml - Exemple CSV → MySQL Upsert
+# Lecture fichier CSV contenant des employés
+
+sources:
+  csv_employees:
+    type: csv
+    connection: {}
+    extract:
+      table: data/employees.csv
+      batch_size: 1000

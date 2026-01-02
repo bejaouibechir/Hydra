@@ -1,0 +1,8 @@
+# Sources pour démo : CSV -> MySQL
+
+sources:
+  csv_new_employees:
+    type: csv
+    extract:
+      table: ./data/new_employees.csv
+      batch_size: 100

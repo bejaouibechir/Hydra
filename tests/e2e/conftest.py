@@ -37,10 +37,17 @@ def pg_connection2():
 
 @pytest.fixture(scope="function", autouse=True)
 def cleanup_pg_tables(pg_connection):
-    """Auto-cleanup tables PostgreSQL e2e_*."""
+    """
+    Auto-cleanup tables PostgreSQL e2e_*.
+    
+    FIX: Gère le cas où pg_connection est None (tests MongoDB).
+    """
     yield
-    cursor = pg_connection.cursor()
-    cursor.execute("TRUNCATE TABLE e2e_users RESTART IDENTITY CASCADE")
-    cursor.execute("TRUNCATE TABLE e2e_inventory RESTART IDENTITY CASCADE")
-    cursor.execute("TRUNCATE TABLE e2e_employees RESTART IDENTITY CASCADE")
-    pg_connection.commit()
+    
+    # ✅ FIX: Vérifier si pg_connection existe avant de l'utiliser
+    if pg_connection is not None:
+        cursor = pg_connection.cursor()
+        cursor.execute("TRUNCATE TABLE e2e_users RESTART IDENTITY CASCADE")
+        cursor.execute("TRUNCATE TABLE e2e_inventory RESTART IDENTITY CASCADE")
+        cursor.execute("TRUNCATE TABLE e2e_employees RESTART IDENTITY CASCADE")
+        pg_connection.commit()

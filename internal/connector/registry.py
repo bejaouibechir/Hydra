@@ -1,98 +1,83 @@
 """
-Registry des connecteurs disponibles - Pattern Factory.
+Connector registry - Factory pattern pour instancier les connecteurs.
 
-Changements v1.1 (Sprint 1):
-- Passage de Dict[str, Type] à Dict[str, Factory]
-- Élimination dispatch hardcodé (if ctype == "csv")
-- Chaque factory encapsule sa logique d'instanciation
-- Ajout nouveau connecteur = +1 ligne registry
+Extensibilité maximale : +1 ligne = nouveau type de connecteur.
 """
 
-from typing import Dict, Type, Any, Callable, Protocol
-from internal.connector.interface import Connector
-from internal.connector.csv_connector import CSVConnector
-from internal.connector.mysql_mariadb_connector import MySQLMariaDBConnector
+from typing import Dict, Callable, Any
+
+from .interface import Connector
+from .csv_connector import CSVConnector
+from .mysql_mariadb_connector import MySQLMariaDBConnector
+
+# Import MongoDB connector
+from plugins.connectors.mongodb import MongoDBConnector
+
+#Import Parquet connector
+from internal.connector.parquet_connector import ParquetConnector
+
+# ============================================================
+# Type Alias
+# ============================================================
+
+ConnectorFactory = Callable[[str, Dict[str, Any]], Connector]
+"""
+Signature d'une factory de connecteur.
+
+Args:
+    name: Nom du connecteur
+    config: Configuration complète
+
+Returns:
+    Instance de Connector
+"""
 
 
 # ============================================================
-# Protocol Factory : signature commune pour toutes les factories
+# Factories spécifiques
 # ============================================================
 
-class ConnectorFactory(Protocol):
+def _build_csv_connector(name: str, config: Dict[str, Any]) -> CSVConnector:
     """
-    Protocol pour factories de connecteurs.
-    
-    Chaque factory sait comment instancier son type de connecteur
-    avec les paramètres spécifiques dont il a besoin.
-    """
-    def __call__(self, name: str, config: Dict[str, Any]) -> Connector:
-        """
-        Instancie un connecteur.
-        
-        Args:
-            name: Nom du connecteur (ex: 'src_orders')
-            config: Configuration complète du connecteur
-        
-        Returns:
-            Instance du connecteur
-        
-        Raises:
-            ValueError: Si configuration invalide
-        """
-        ...
-
-
-# ============================================================
-# Factories concrètes : une factory par type de connecteur
-# ============================================================
-
-def _build_csv_connector(name: str, config: Dict[str, Any]) -> Connector:
-    """
-    Factory pour CSVConnector.
-    
-    CSV nécessite 'job_dir' pour résoudre les chemins relatifs.
-    L'executor doit l'injecter via config['job_dir'].
+    Factory pour CSVConnector (nécessite job_dir).
     
     Args:
         name: Nom du connecteur
-        config: Configuration avec 'job_dir' obligatoire
+        config: Configuration incluant job_dir
     
     Returns:
-        Instance CSVConnector
+        Instance de CSVConnector
     
     Raises:
         ValueError: Si job_dir manquant
-    
-    Exemple config:
-        {
-            "type": "csv",
-            "job_dir": "/path/to/job",  # Injecté par executor
-            "extract": {...}
-        }
     """
-    job_dir = config.get("job_dir")
-    if job_dir is None:
+    # Validation spécifique CSV
+    if "job_dir" not in config:
         raise ValueError(
-            f"CSV Connector '{name}' requires 'job_dir' in config. "
-            f"Executor must inject it via config['job_dir']."
+            f"CSVConnector '{name}' requires 'job_dir' in config"
         )
-    return CSVConnector(name=name, config=config, job_dir=job_dir)
-
-
-def _build_db_connector(connector_class: Type[Connector]) -> ConnectorFactory:
-    """
-    Factory générique pour connecteurs DB (signature standard).
     
-    Tous les connecteurs SQL (MySQL, PostgreSQL, etc.) utilisent
-    la même signature : __init__(name, config).
+    return CSVConnector(
+        name=name,
+        job_dir=config["job_dir"],
+        config=config
+    )
+
+
+def _build_db_connector(connector_class: type) -> ConnectorFactory:
+    """
+    Factory générique pour connecteurs base de données.
+    
+    Génère une factory pour une classe de connecteur qui suit
+    la signature standard (name, config).
     
     Args:
         connector_class: Classe du connecteur (ex: MySQLMariaDBConnector)
     
     Returns:
-        Factory function pour ce connecteur
+        Factory function pour ce type de connecteur
     
-    Exemple:
+    Exemples:
         mysql_factory = _build_db_connector(MySQLMariaDBConnector)
         connector = mysql_factory("src_db", {"type": "mysql", ...})
     """
@@ -113,10 +98,8 @@ CONNECTOR_REGISTRY: Dict[str, ConnectorFactory] = {
     "mysql": _build_db_connector(MySQLMariaDBConnector),
     "mariadb": _build_db_connector(MySQLMariaDBConnector),
     
-    # Futurs connecteurs (exemples commentés):
-    # "postgresql": _build_db_connector(PostgreSQLConnector),
-    # "mongodb": _build_mongo_connector,  # Factory custom si besoin
-    # "kafka": _build_kafka_connector,    # Factory custom si besoin
+    # NoSQL Databases
+    "mongodb": _build_db_connector(MongoDBConnector),
 }
 
 
@@ -152,6 +135,13 @@ def build_connector(*, name: str, config: Dict[str, Any]) -> Connector:
         ...     config={"type": "mysql", "connection": {...}}
         ... )
         <MySQLMariaDBConnector(name='src_db')>
+        
+        >>> # MongoDB
+        >>> build_connector(
+        ...     name="src_mongo",
+        ...     config={"type": "mongodb", "connection": {...}}
+        ... )
+        <MongoDBConnector(name='src_mongo')>
     """
     # Validation type
     ctype = config.get("type")
@@ -175,6 +165,5 @@ def build_connector(*, name: str, config: Dict[str, Any]) -> Connector:
         return factory(name, config)
     except Exception as e:
         raise ValueError(
-            f"Connector '{name}' (type={ctype}): "
-            f"factory failed with {type(e).__name__}: {e}"
+            f"Connector '{name}': factory failed for type '{ctype}': {e}"
         ) from e

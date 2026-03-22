@@ -1,79 +1,89 @@
-version: "3.9"
-
-# Environnement Docker de test Hydra (Étape 8)
-# Objectif :
-# - Avoir 2 moteurs DB disponibles en parallèle :
-#   1) MySQL (pour valider le connecteur sur MySQL)
-#   2) MariaDB (pour valider le connecteur sur MariaDB)
-# - Précharger une base + tables + données via scripts SQL (initdb)
-# - Fournir des healthchecks pour attendre que les DB soient prêtes
 
 services:
-  mysql_test:
-    image: mysql:8.0
-    container_name: hydra_mysql_test
-    restart: unless-stopped
 
-    # Variables d'initialisation MySQL
-    environment:
-      # Mot de passe root (obligatoire)
-      MYSQL_ROOT_PASSWORD: root
-      # Base créée automatiquement au démarrage
-      MYSQL_DATABASE: hydra_test
-      # User applicatif (optionnel mais pratique)
-      MYSQL_USER: hydra
-      MYSQL_PASSWORD: hydra
-
-    # Exposition du port pour inspection (Workbench, etc.)
-    # Astuce : évitez 3306 si déjà utilisé sur votre machine
+  # ============================================================
+  # MongoDB Service - SANS AUTHENTIFICATION
+  # ============================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: hydra_test_mongodb
     ports:
-      - "3307:3306"
+      - "27017:27017"
+    command: ["mongod", "--bind_ip_all"]
+    volumes:
+      - ./mongodb/init:/docker-entrypoint-initdb.d:ro
+      - ./mongodb/seed:/seed:ro
+    networks:
+      - hydra_test_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-    # Scripts SQL exécutés automatiquement au 1er démarrage
-    # Tous les fichiers *.sql dans ce dossier seront exécutés
+  # ============================================================
+  # MySQL Service - SANS USER APPLICATIF
+  # ============================================================
+  mysql:
+    image: mysql:8.0
+    container_name: hydra_test_mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: hydra_test_db
     volumes:
       - ./sql/mysql:/docker-entrypoint-initdb.d:ro
-
-    # Healthcheck : on attend que MySQL réponde
+    networks:
+      - hydra_test_network
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-    # Petit durcissement / confort
-    command:
-      # Force l'encodage et collation en utf8mb4 (utile pour tests réalistes)
-      - "--character-set-server=utf8mb4"
-      - "--collation-server=utf8mb4_unicode_ci"
-
-  mariadb_test:
-    image: mariadb:11.4
-    container_name: hydra_mariadb_test
-    restart: unless-stopped
-
-    # Variables d'initialisation MariaDB
-    environment:
-      MARIADB_ROOT_PASSWORD: root
-      MARIADB_DATABASE: hydra_test
-      MARIADB_USER: hydra
-      MARIADB_PASSWORD: hydra
-
-    # Exposition du port pour inspection
+  # ============================================================
+  # MariaDB Service - SANS USER APPLICATIF
+  # ============================================================
+  mariadb:
+    image: mariadb:11.2
+    container_name: hydra_test_mariadb
     ports:
-      - "3308:3306"
-
-    # Scripts SQL exécutés automatiquement au 1er démarrage
+      - "3307:3306"
+    environment:
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+      MARIADB_DATABASE: hydra_test_db
     volumes:
       - ./sql/mariadb:/docker-entrypoint-initdb.d:ro
-
-    # Healthcheck : ping MariaDB
+    networks:
+      - hydra_test_network
     healthcheck:
-      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -uroot -proot --silent"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-    command:
-      - "--character-set-server=utf8mb4"
-      - "--collation-server=utf8mb4_unicode_ci"
+  # ============================================================
+  # PostgreSQL Service - MODE TRUST
+  # ============================================================
+  postgresql:
+    image: postgres:16
+    container_name: hydra_test_postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: hydra_test_db
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ./sql/postgresql:/docker-entrypoint-initdb.d:ro
+    networks:
+      - hydra_test_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  hydra_test_network:
+    driver: bridge

@@ -1,0 +1,122 @@
+# ============================================================
+# Exemple sources.yaml avec MongoDB et section schema
+# ============================================================
+
+sources:
+  # ============================================================
+  # Exemple 1: MongoDB avec auto-detection (mode simple)
+  # ============================================================
+  mongodb_users:
+    type: mongodb
+    connection:
+      uri: "mongodb://hydra_app:hydra_app_pwd@localhost:27017/"
+      database: hydra_test_db
+    extract:
+      collection: users_flat
+      batch_size: 1000
+
+  # ============================================================
+  # Exemple 2: MongoDB avec schema manuel (nested fields)
+  # ============================================================
+  mongodb_orders:
+    type: mongodb
+    connection:
+      uri: "mongodb://hydra_app:hydra_app_pwd@localhost:27017/"
+      database: hydra_test_db
+    extract:
+      collection: orders_nested
+      batch_size: 500
+    
+    # Configuration du schéma (optionnel mais recommandé)
+    schema:
+      mode: manual
+      
+      # Définition des champs
+      fields:
+        # Champ simple
+        - name: order_id
+          path: order_id
+          type: string
+          required: true
+        
+        # Champ nested (flatten automatique)
+        - name: customer_name
+          path: customer.name
+          type: string
+          required: true
+        
+        - name: customer_email
+          path: customer.email
+          type: string
+        
+        - name: customer_city
+          path: customer.address.city
+          type: string
+        
+        # Champ numérique
+        - name: total
+          path: total
+          type: float
+          required: true
+        
+        - name: status
+          path: status
+          type: string
+        
+        # Array field (on le garde comme JSON pour simplicité)
+        - name: items
+          path: items
+          type: array
+          array_handling: json
+      
+      # Politique de drift
+      drift_policy: warn
+      
+      # Politique de validation
+      validation_policy: best_effort
+
+  # ============================================================
+  # Exemple 3: MongoDB avec inférence stricte
+  # ============================================================
+  mongodb_products:
+    type: mongodb
+    connection:
+      uri: "mongodb://hydra_app:hydra_app_pwd@localhost:27017/"
+      database: hydra_test_db
+    extract:
+      collection: products_mixed
+    
+    schema:
+      mode: infer_strict
+      sample_size: 50
+      drift_policy: warn
+      validation_policy: best_effort
+
+  # ============================================================
+  # Exemple 4: MongoDB avec filtres
+  # ============================================================
+  mongodb_active_users:
+    type: mongodb
+    connection:
+      uri: "mongodb://hydra_app:hydra_app_pwd@localhost:27017/"
+      database: hydra_test_db
+    extract:
+      collection: users_flat
+      filter:
+        active: true
+      limit: 100
+
+  # ============================================================
+  # Exemple 5: Source MySQL classique (inchangé)
+  # ============================================================
+  mysql_employees:
+    type: mysql
+    connection:
+      host: localhost
+      port: 3306
+      user: hydra_test
+      password: hydra_test_pwd
+      database: hydra_test_db
+    extract:
+      table: employees
+      batch_size: 5000

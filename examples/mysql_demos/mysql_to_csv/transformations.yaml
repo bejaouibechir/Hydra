@@ -1,0 +1,6 @@
+# Transformations pour démo : MySQL -> CSV
+# MVP : Aucune transformation (export direct)
+
+steps:
+  - select:
+      columns: ["id", "full_name", "email", "age", "created_at"]

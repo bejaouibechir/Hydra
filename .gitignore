@@ -57,3 +57,6 @@ secrets.yml
 cache/
 tmp/
 data/tmp/
+gendoc.py
+test.txt
+code_structure_report.txt

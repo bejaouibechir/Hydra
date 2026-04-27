@@ -1,8 +1,10 @@
-# Hydra ETL - package public (API stable)
+"""
+Package public SmartETL / Hydra.
 
-"Placeholder - a completer"
+Expose l'API stable (engine, types...).
+"""
 
+from etl.engine import Engine
+from etl.types import JobResult
 
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError
+__all__ = ["Engine", "JobResult"]

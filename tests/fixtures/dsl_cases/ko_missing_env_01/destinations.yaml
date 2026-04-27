@@ -1,0 +1,9 @@
+destinations:
+  dest_dwh:
+    type: mariadb
+    connection:
+      host: localhost
+    load:
+      table: orders_dwh
+      mode: append
+      batch_size: 1000

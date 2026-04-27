@@ -1,0 +1,15 @@
+# Destinations pour démo : CSV -> MySQL
+# IMPORTANT : Utilise ${ENV:...} pour résoudre les secrets depuis .env
+
+destinations:
+  mysql_employees:
+    type: mysql
+    connection:
+      host: ${ENV:MYSQL_HOST}
+      port: ${ENV:MYSQL_PORT}
+      user: ${ENV:MYSQL_USER}
+      password: ${ENV:MYSQL_PASSWORD}
+      database: ${ENV:MYSQL_DATABASE}
+    load:
+      table: employees
+      mode: append

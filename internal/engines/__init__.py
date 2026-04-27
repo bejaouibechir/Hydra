@@ -1,8 +1,9 @@
-# Engines de transformation
+"""
+Sous-package internal.engines.
 
-"Placeholder - a completer"
+Expose un registry minimal pour récupérer/instancier des engines.
+"""
 
+from internal.engines.registry import EngineRegistry, registry
 
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError
+__all__ = ["EngineRegistry", "registry"]

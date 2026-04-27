@@ -1,0 +1,18 @@
+version: "1.0"
+
+transformations:
+  steps:
+    - cast:
+        mapping:
+          id: int
+          customer_id: int
+          price: float
+          qty: int
+    - filter:
+        expr: "price > 0"
+    - calculate:
+        column: total
+        expr: "price * qty"
+    - rename:
+        mapping:
+          customer_id: client_id

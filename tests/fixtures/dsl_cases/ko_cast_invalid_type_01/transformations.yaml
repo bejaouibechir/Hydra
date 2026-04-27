@@ -1,0 +1,4 @@
+steps:
+  - cast:
+      mapping:
+        id: uuid

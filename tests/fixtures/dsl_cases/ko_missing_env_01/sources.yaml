@@ -1,0 +1,8 @@
+sources:
+  src_orders:
+    type: mysql
+    connection:
+      host: ${ENV:DB_HOST_MISSING}
+    extract:
+      table: orders
+      batch_size: 1000

@@ -1,0 +1,9 @@
+steps:
+  - rename:
+      mapping:
+        customer_id: client_id
+        created_at: createdOn
+        updated_at: updatedOn
+  - rename:
+      mapping:
+        client_id: customerKey

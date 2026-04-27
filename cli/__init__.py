@@ -1,8 +1,10 @@
-# CLI Hydra (placeholder)
+"""
+Package CLI Hydra.
 
-"Placeholder - a completer"
+Point d'entrée : cli.main:main
 
+Version : 1.0 (MVP - Étape 6)
+"""
 
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError
+__version__ = "1.0.0-mvp"
+__all__ = ["__version__"]

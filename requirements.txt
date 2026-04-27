@@ -9,9 +9,6 @@ click>=8.1
 pandas>=2.0
 duckdb>=0.10
 
-# --- Database connectors ---
-mysql-connector-python>=8.3
-
 # --- Logging / utils ---
 python-dotenv>=1.0
 
@@ -23,3 +20,8 @@ pytest>=8.0
 black>=24.0
 pre-commit>=3.7
 
+pytest-pythonpath>=0.7
+
+
+# Connecteur MySQL / MariaDB (Étape 8)
+mysql-connector-python>=8.3.0

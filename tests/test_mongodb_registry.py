@@ -6,19 +6,26 @@ Run with: pytest tests/test_mongodb_registry.py -v
 
 import pytest
 from internal.connector.registry import build_connector, CONNECTOR_REGISTRY
-from plugins.connectors.mongodb import MongoDBConnector
+try:
+    from plugins.connectors.mongodb import MongoDBConnector
+    _MONGO_AVAILABLE = True
+except Exception:
+    MongoDBConnector = None  # type: ignore
+    _MONGO_AVAILABLE = False
 
 
 # ============================================================
 # Tests Registry MongoDB
 # ============================================================
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_registry_has_mongodb():
     """Verify MongoDB is registered."""
     assert "mongodb" in CONNECTOR_REGISTRY
     assert callable(CONNECTOR_REGISTRY["mongodb"])
 
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_build_mongodb_connector():
     """Test building MongoDB connector via registry."""
     config = {
@@ -39,6 +46,7 @@ def test_build_mongodb_connector():
     assert isinstance(connector, MongoDBConnector)
 
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_mongodb_connector_standard_signature():
     """MongoDB uses standard (name, config) signature."""
     config = {
@@ -58,6 +66,7 @@ def test_mongodb_connector_standard_signature():
     assert isinstance(connector, MongoDBConnector)
 
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_mongodb_connector_missing_database():
     """MongoDB connector requires database name."""
     config = {
@@ -77,6 +86,7 @@ def test_mongodb_connector_missing_database():
     assert "database" in str(exc.value).lower()
 
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_mongodb_connector_missing_collection():
     """MongoDB connector requires collection name."""
     config = {
@@ -96,6 +106,7 @@ def test_mongodb_connector_missing_collection():
     assert "collection" in str(exc.value).lower()
 
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_mongodb_case_insensitive():
     """MongoDB type is case-insensitive."""
     config = {
@@ -117,6 +128,7 @@ def test_mongodb_case_insensitive():
 # Extensibility Tests
 # ============================================================
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_registry_extensibility_mongodb():
     """
     Validate that adding MongoDB required only:
@@ -143,6 +155,7 @@ def test_registry_extensibility_mongodb():
     assert isinstance(connector, MongoDBConnector)
 
 
+@pytest.mark.skipif(not _MONGO_AVAILABLE, reason="pymongo non disponible")
 def test_all_connector_types():
     """Verify all registered connector types."""
     expected_types = ["csv", "mysql", "mariadb", "mongodb"]

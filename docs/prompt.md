@@ -1,14 +1,6 @@
-**✅ Compris !**
+## Résumé de ma conversation avec super grok
 
-J’ai corrigé le prompt : dans l’exemple du **Splash Screen**, j’ai remplacé le texte erroné par **"hdrctl"** en vert stylisé, comme sur l’image que tu viens de m’envoyer.
-
-Voici le **prompt final, corrigé et enrichi**, prêt à être envoyé à Claude :
-
----
-
-**Prompt à envoyer à Claude :**
-
-Tu es le développeur principal du projet **Hydra** (ETL orienté DevOps).
+Tu es le développeur principal du projet **Hydra** (ETL orienté DevOps). Expert en python, en ascii art et 
 
 Nous avons validé la structure suivante pour la CLI `hdrctl`.
 
@@ -71,8 +63,9 @@ hdrctl
 ### 3. Exemples d’écrans clés (UX attendue)
 
 **Exemple 1 : Splash Screen** (quand on tape simplement `hdrctl`)
+
 ```bash
-hdrctl
+hdrctl <- sous forme de s
 
         HDRCTL
 
@@ -82,6 +75,7 @@ hdrctl
 ```
 
 **Exemple 2 : Sortie normale de `hdrctl run .`**
+
 ```bash
 ▶️  hdrctl run .
    Pipeline "daily_revenue" démarré (8 étapes)
@@ -97,6 +91,7 @@ hdrctl
 ```
 
 **Exemple 3 : Message d’erreur clair**
+
 ```bash
 ❌  Pipeline "daily_revenue" ÉCHOUÉ en 9.4s (étape 4/8)
 
@@ -115,14 +110,11 @@ Exécutez avec -v pour plus de détails.
 Implémente d’abord le **mode principal** (CLI classique avec `argparse` + `argcomplete`) de façon propre et complète, en respectant tous les flags et le style d’UX montré ci-dessus.
 
 Peux-tu commencer par me proposer :
+
 - L’architecture des fichiers recommandée
 - Le code du point d’entrée principal (`cli/main.py`)
 - Une première implémentation solide du mode principal
 
 Priorité actuelle : Bien structurer et finaliser le **mode principal** avant de passer au mode TUI avancé.
 
----
-
-Tu peux maintenant copier-coller ce prompt à Claude. Il est propre, clair et contient les exemples d’écrans demandés.
-
-Veux-tu que je modifie encore quelque chose ?
+## Le dialogue en details

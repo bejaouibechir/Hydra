@@ -19,7 +19,7 @@ Corrections appliquées :
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -59,6 +59,8 @@ class PandasEngine(TransformEngine):
         self,
         dataset: Any,
         step: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> StepResult:
         """
         Applique une transformation unique sur un DataFrame Pandas.
@@ -68,6 +70,7 @@ class PandasEngine(TransformEngine):
             step: Définition de l'étape (format normalisé ou DSL)
                   Ex: {"op": "select", "params": {"columns": [...]}}
                   Ex: {"select": {"columns": [...]}}
+            context: Infos runtime optionnelles (job_id, paramètres, etc.) — non utilisé MVP
 
         Returns:
             StepResult avec dataset transformé et statistiques
@@ -103,16 +106,19 @@ class PandasEngine(TransformEngine):
         self,
         dataset: Any,
         steps: List[Dict[str, Any]],
-    ) -> Any:
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> StepResult:
         """
         Applique une séquence de transformations sur un DataFrame.
 
         Args:
             dataset: DataFrame Pandas initial
             steps: Liste d'étapes de transformation
+            context: Infos runtime optionnelles transmises à chaque apply_step
 
         Returns:
-            DataFrame transformé après toutes les étapes
+            StepResult dont .output est le DataFrame final transformé
 
         Raises:
             ValueError: Si la liste d'étapes est vide ou si une étape échoue
@@ -126,13 +132,16 @@ class PandasEngine(TransformEngine):
             )
 
         df = dataset
+        all_stats: list = []
         for idx, step in enumerate(steps, start=1):
             try:
-                df = self.apply_step(df, step).output
+                result = self.apply_step(df, step, context=context)
+                df = result.output
+                all_stats.append({"index": idx, "stats": result.stats})
             except ValueError as e:
                 raise ValueError(f"Erreur à l'étape {idx}/{len(steps)}: {e}") from None
 
-        return df
+        return StepResult(output=df, stats={"steps": all_stats})
 
     # --------------------------------------------------
     # Internals

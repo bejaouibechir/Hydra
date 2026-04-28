@@ -12,7 +12,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="hydra-etl",
-    version="1.0.0-mvp",
+    version="1.2.0",
     description="Hydra ETL Framework - Pipeline ETL déclaratif",
     author="Votre Nom",
     author_email="votre.email@example.com",
@@ -25,7 +25,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "hydra=cli.main:main",
+            "hydra=cli.hdrctl:main",
+            "hdrctl=cli.hdrctl:main",
         ],
     },
     classifiers=[

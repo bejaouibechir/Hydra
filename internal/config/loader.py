@@ -110,7 +110,7 @@ def parse_env_file(path: Path) -> Dict[str, str]:
     """
     if not path.exists():
         return {}
-    return parse_env_text(path.read_text(encoding="utf-8"))
+    return parse_env_text(path.read_text(encoding="utf-8-sig"))
 
 
 def load_env_layers(

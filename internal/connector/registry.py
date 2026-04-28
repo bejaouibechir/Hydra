@@ -10,11 +10,21 @@ from .interface import Connector
 from .csv_connector import CSVConnector
 from .mysql_mariadb_connector import MySQLMariaDBConnector
 
-# Import MongoDB connector
-from plugins.connectors.mongodb import MongoDBConnector
+# Import MongoDB connector — optionnel (dépendance pymongo)
+try:
+    from plugins.connectors.mongodb import MongoDBConnector as _MongoDBConnector
+    _MONGODB_AVAILABLE = True
+except Exception:
+    _MongoDBConnector = None  # type: ignore[assignment,misc]
+    _MONGODB_AVAILABLE = False
 
-#Import Parquet connector
-from internal.connector.parquet_connector import ParquetConnector
+# Import Parquet connector — optionnel (dépendance pyarrow)
+try:
+    from internal.connector.parquet_connector import ParquetConnector as _ParquetConnector
+    _PARQUET_AVAILABLE = True
+except Exception:
+    _ParquetConnector = None  # type: ignore[assignment,misc]
+    _PARQUET_AVAILABLE = False
 
 # ============================================================
 # Type Alias
@@ -93,14 +103,18 @@ def _build_db_connector(connector_class: type) -> ConnectorFactory:
 CONNECTOR_REGISTRY: Dict[str, ConnectorFactory] = {
     # Fichiers
     "csv": _build_csv_connector,
-    
+
     # SQL Databases
     "mysql": _build_db_connector(MySQLMariaDBConnector),
     "mariadb": _build_db_connector(MySQLMariaDBConnector),
-    
-    # NoSQL Databases
-    "mongodb": _build_db_connector(MongoDBConnector),
 }
+
+# Enregistrement conditionnel des connecteurs à dépendances optionnelles
+if _MONGODB_AVAILABLE and _MongoDBConnector is not None:
+    CONNECTOR_REGISTRY["mongodb"] = _build_db_connector(_MongoDBConnector)
+
+if _PARQUET_AVAILABLE and _ParquetConnector is not None:
+    CONNECTOR_REGISTRY["parquet"] = _build_db_connector(_ParquetConnector)
 
 
 # ============================================================

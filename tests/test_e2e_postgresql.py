@@ -21,6 +21,10 @@ Prerequis:
 - Tables e2e_* creees via setup_postgres_e2e.sql
 """
 
+import pytest
+
+pytestmark = pytest.mark.skip(reason="E2E: requires live PostgreSQL containers")
+
 import sys
 import os
 

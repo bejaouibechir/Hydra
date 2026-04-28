@@ -12,7 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from internal.config.loader import YamlConfigLoader
+# YamlConfigLoader a été remplacée par load_env_layers lors du refactoring.
+# Ces tests ciblent du code mort — ils sont skippés pour traçabilité.
+pytestmark = pytest.mark.skip(reason="YamlConfigLoader supprimée — voir test_env_loader.py")
+
+# Import fictif pour éviter NameError dans les fonctions (tests skippés de toute façon)
+YamlConfigLoader = None  # type: ignore
 
 
 def test_loader_missing_files(tmp_path: Path):

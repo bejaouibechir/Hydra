@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import yaml
+from internal.config.yaml_utils import read_yaml_text
 
 from etl.types import JobResult
 from internal.config.loader import load_env_layers
@@ -45,15 +46,26 @@ class JobExecutor:
     """
 
     def __init__(
-        self, 
-        job_dir: Path, 
+        self,
+        job_dir: Path,
         root_dir: Optional[Path] = None,
-        override_os: bool = True
+        override_os: bool = True,
+        *,
+        sources_file: Optional[Path] = None,
+        destinations_file: Optional[Path] = None,
+        pipeline_file: Optional[Path] = None,
+        transformations_file: Optional[Path] = None,
     ) -> None:
         """Initialise l'executor."""
         self.job_dir = Path(job_dir).resolve()
         self.root_dir = root_dir or self.job_dir.parent
         self.job_id = self.job_dir.name
+        # Fichiers explicites (surcharge docker-compose style)
+        self._sources_file      = Path(sources_file).resolve()      if sources_file      else self.job_dir / "sources.yaml"
+        self._destinations_file = Path(destinations_file).resolve() if destinations_file else self.job_dir / "destinations.yaml"
+        self._pipeline_file     = Path(pipeline_file).resolve()     if pipeline_file     else self.job_dir / "pipeline.yaml"
+        self._transforms_file   = Path(transformations_file).resolve() if transformations_file else self.job_dir / "transformations.yaml"
+
         
         # Chargement .env layers
         try:
@@ -84,10 +96,10 @@ class JobExecutor:
 
         try:
             # 0) Charger YAML avec résolution ${ENV:...}
-            sources_raw = self._load_yaml_with_resolution(self.job_dir / "sources.yaml", required=True)
-            dests_raw = self._load_yaml_with_resolution(self.job_dir / "destinations.yaml", required=True)
-            pipeline_raw = self._load_yaml_with_resolution(self.job_dir / "pipeline.yaml", required=True)
-            transforms_raw = self._load_yaml_with_resolution(self.job_dir / "transformations.yaml", required=False)
+            sources_raw = self._load_yaml_with_resolution(self._sources_file, required=True)
+            dests_raw = self._load_yaml_with_resolution(self._destinations_file, required=True)
+            pipeline_raw = self._load_yaml_with_resolution(self._pipeline_file, required=True)
+            transforms_raw = self._load_yaml_with_resolution(self._transforms_file, required=False)
 
             # 1) Valider DSL
             sources_cfg = self._source_parser.parse(sources_raw)
@@ -135,7 +147,8 @@ class JobExecutor:
                 # Transformations (si définies)
                 if steps:
                     df_in = pd.DataFrame(batch)
-                    df_out = self._engine.apply_pipeline(df_in, steps)
+                    pipeline_result = self._engine.apply_pipeline(df_in, steps)
+                    df_out = pipeline_result.output
                     out_batch = df_out.to_dict(orient="records")
 
                 rows_out += len(out_batch)
@@ -207,7 +220,7 @@ class JobExecutor:
                 raise ValueError(f"JobExecutor: fichier requis manquant: {path}")
             return {}
 
-        raw_text = path.read_text(encoding="utf-8")
+        raw_text = read_yaml_text(path)
         data = yaml.safe_load(raw_text)
 
         if data is None:

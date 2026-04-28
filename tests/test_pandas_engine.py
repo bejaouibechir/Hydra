@@ -449,7 +449,8 @@ def test_pipeline_ok(engine, df_case):
         {"rename": {"mapping": {"total": "amount"}}},
     ]
 
-    df = engine.apply_pipeline(df_case, steps)
+    result = engine.apply_pipeline(df_case, steps)
+    df = result.output
 
     assert list(df.columns) == ["id", "price", "qty", "amount"]
     assert len(df) == 2
@@ -460,7 +461,8 @@ def test_pipeline_single_step(engine, df_case):
     """Pipeline avec une seule étape."""
     steps = [{"select": {"columns": ["id", "price"]}}]
 
-    df = engine.apply_pipeline(df_case, steps)
+    result = engine.apply_pipeline(df_case, steps)
+    df = result.output
 
     assert list(df.columns) == ["id", "price"]
 
@@ -603,7 +605,8 @@ def test_engine_works_with_transform_parser():
 
     # Exécuter le pipeline
     engine = PandasEngine()
-    result = engine.apply_pipeline(df, steps_dict)
+    pipeline_result = engine.apply_pipeline(df, steps_dict)
+    result = pipeline_result.output
 
     # Vérifications
     assert list(result.columns) == ["id", "customer_name", "price", "discount"]

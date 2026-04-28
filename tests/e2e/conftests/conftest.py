@@ -12,9 +12,13 @@ import time
 from pathlib import Path
 from typing import Generator, Dict, Any, List
 
-import mysql.connector
+try:
+    import mysql.connector
+    from mysql.connector import Error
+    _MYSQL_AVAILABLE = True
+except ImportError:
+    _MYSQL_AVAILABLE = False
 import pytest
-from mysql.connector import Error
 
 
 # ============================================================

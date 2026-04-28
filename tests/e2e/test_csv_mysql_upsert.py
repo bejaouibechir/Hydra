@@ -13,6 +13,10 @@ Prérequis:
 """
 
 import pytest
+
+pytestmark = pytest.mark.skip(reason="E2E: requires live MySQL containers")
+
+import pytest
 import pandas as pd
 import yaml
 from pathlib import Path

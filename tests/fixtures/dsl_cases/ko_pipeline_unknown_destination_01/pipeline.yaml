@@ -1,0 +1,3 @@
+pipeline:
+  from: src_orders
+  to: dest_INCONNUE

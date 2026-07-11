@@ -1,0 +1,3 @@
+pipeline:
+  from: src_INCONNUE
+  to: dest_ok

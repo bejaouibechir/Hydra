@@ -1,0 +1,82 @@
+# ===============================
+# Python
+# ===============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===============================
+# Environnements virtuels
+# ===============================
+venv/
+.venv/
+env/
+ENV/
+
+# ===============================
+# IDE / OS
+# ===============================
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ===============================
+# Tests & coverage
+# ===============================
+.coverage
+htmlcov/
+.coverage.*
+
+# ===============================
+# Logs & artefacts
+# ===============================
+*.log
+logs/
+artifacts/
+build/
+dist/
+
+# ===============================
+# Secrets & configuration sensible
+# ===============================
+.env
+.env.*
+secrets.yaml
+secrets.yml
+*.enc
+
+# ===============================
+# ETL runtime / cache
+# ===============================
+cache/
+tmp/
+data/tmp/
+gendoc.py
+test.txt
+code_structure_report.txt
+CLAUDE.md
+
+# ===============================
+# Node / Studio (frontend)
+# ===============================
+node_modules/
+studio/dist/
+studio/build/
+.vite/
+
+# ===============================
+# Backups horodatés (safe_write / Règle 1)
+# ===============================
+_backups/
+_bak_safe_write/
+_safe_write_bak/
+*.bak
+test_scenarios/
+n8nimages/
+CLAUDE.md/

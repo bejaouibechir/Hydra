@@ -1,0 +1,3 @@
+steps:
+  - calculate:
+      column: "total"

@@ -1,0 +1,12 @@
+sources:
+  src_orders:
+    type: mysql
+    connection:
+      host: ${ENV:DB_HOST}
+      user: etl
+      password: ${SECRET:db.password}
+      database: shop
+      port: 3306
+    extract:
+      table: orders
+      batch_size: 1000

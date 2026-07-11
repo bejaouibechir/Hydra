@@ -1,0 +1,15 @@
+steps:
+  - select:
+      columns: ["id", "customer_id", "price", "qty"]
+  - filter:
+      expr: "price ^> 0"
+  - calculate:
+      column: "total"
+      expr: "price * qty"
+  - rename:
+      mapping:
+        customer_id: client_id
+  - cast:
+      mapping:
+        id: int
+        total: float

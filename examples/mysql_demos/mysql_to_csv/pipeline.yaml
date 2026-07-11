@@ -1,0 +1,8 @@
+# Pipeline pour démo : MySQL -> CSV
+# Extrait la table employees de MySQL vers un fichier CSV
+
+pipeline:
+  name: mysql_to_csv_demo
+  from: mysql_employees
+  to: csv_employees
+  transformations: transformations

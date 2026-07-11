@@ -1,0 +1,17 @@
+# destinations.yaml - Exemple CSV → MySQL Upsert
+# Upsert dans table employees avec clé id
+
+destinations:
+  mysql_employees:
+    type: mysql
+    connection:
+      host: ${ENV:MYSQL_HOST}
+      port: ${ENV:MYSQL_PORT}
+      user: ${ENV:MYSQL_USER}
+      password: ${ENV:MYSQL_PASSWORD}
+      database: ${ENV:MYSQL_DATABASE}
+    load:
+      table: employees
+      mode: upsert           # Mode upsert : INSERT ou UPDATE si id existe
+      key: [id]              # Colonne clé primaire
+      batch_size: 1000

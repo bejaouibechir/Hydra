@@ -33,10 +33,11 @@ interface Props {
   onReplace: (nodeId: string) => void
   onRunStep: (nodeId: string) => void
   onViewData: (nodeId: string) => void
+  isJobScene: boolean
 }
 
 export default function NodeContextMenu({
-  menu, onClose, onOpenPanel, onRename, onReplace, onRunStep, onViewData,
+  menu, onClose, onOpenPanel, onRename, onReplace, onRunStep, onViewData, isJobScene,
 }: Props) {
   const rf  = useReactFlow()
   const ref = useRef<HTMLDivElement>(null)
@@ -100,12 +101,12 @@ export default function NodeContextMenu({
       shortcut: 'V',
       action: () => { onViewData(menu.nodeId); onClose() },
     }] : []),
-    {
+    ...(!isJobScene ? [{
       icon: Play,
       label: 'Execute step',
       shortcut: 'Space',
       action: () => { onRunStep(menu.nodeId); onClose() },
-    },
+    }] : []),
     {
       icon: PencilLine,
       label: 'Rename',

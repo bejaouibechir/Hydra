@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { loadSettings } from '@/pages/Settings'
+import { SceneContext } from '@/lib/sceneContext'
 
 // ── React Flow custom node types ─────────────────────────────────────────────
 
@@ -1661,6 +1662,7 @@ function WorkflowEditorInner() {
         {/* Canvas */}
         <div ref={rfWrapper} style={{ flex: 1, position: 'relative' }}>
 
+          <SceneContext.Provider value={sceneMode}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -1749,6 +1751,7 @@ function WorkflowEditorInner() {
               </div>
             )}
           </ReactFlow>
+          </SceneContext.Provider>
         </div>
 
         {/* Properties panel */}
@@ -1765,6 +1768,7 @@ function WorkflowEditorInner() {
         {contextMenu && (
           <NodeContextMenu
             menu={contextMenu}
+            isJobScene={isJobScene}
             onClose={() => setContextMenu(null)}
             onViewData={(nodeId) => { setContextMenu(null); viewDataMut.mutate(nodeId) }}
             onOpenPanel={(nodeId) => {

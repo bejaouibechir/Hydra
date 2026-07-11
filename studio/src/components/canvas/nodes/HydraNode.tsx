@@ -8,7 +8,8 @@
  *  - enabled=false → opacité + filtre gris + bordure pointillée
  *  - Label (type · nom) affiché sous le carré
  */
-import { memo, useCallback, useState, useRef, useEffect } from 'react'
+import { memo, useCallback, useContext, useState, useRef, useEffect } from 'react'
+import { SceneContext } from '@/lib/sceneContext'
 import { Handle, Position, NodeProps, NodeToolbar, useReactFlow } from '@xyflow/react'
 import {
   Play, PowerOff, Trash2, MoreHorizontal,
@@ -75,6 +76,7 @@ export const HydraNode = memo(({ id, data, selected }: NodeProps) => {
   const RUN_COLORS = { running: 'var(--warning)', success: 'var(--success)', failed: 'var(--error)' } as const
   const runColor  = runStatus ? RUN_COLORS[runStatus] : undefined
   const [moreOpen, setMoreOpen] = useState(false)
+  const scene = useContext(SceneContext)
   const moreRef   = useRef<HTMLDivElement>(null)
 
   // Ferme le dropdown si clic extérieur
@@ -130,7 +132,9 @@ export const HydraNode = memo(({ id, data, selected }: NodeProps) => {
             boxShadow:   '0 4px 12px rgba(0,0,0,0.4)',
           }}
         >
-          <ToolbarBtn icon={Play}      title="Execute step" color="var(--success)"       onClick={handleRun} />
+          {scene !== 'jobs' && (
+            <ToolbarBtn icon={Play} title="Execute step" color="var(--success)" onClick={handleRun} />
+          )}
           <ToolbarBtn icon={PowerOff}  title={enabled ? 'Deactivate' : 'Activate'}
                       color={enabled ? 'var(--text-muted)' : 'var(--warning)'}
                       onClick={handleToggleEnabled} />

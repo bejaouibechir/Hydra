@@ -1,13 +1,17 @@
 """
-API publique Hydra : Engine (point d'entrée stable).
+etl/engine.py — API publique Hydra (façade stable).
 
-Objectif :
-- Exposer un wrapper simple autour de l'executor interne (JobExecutor)
-- Ne pas exposer internal/* à l'extérieur (CLI / intégrations)
+Rôle : wrapper fin autour de internal/runner/executor.py.
+       Isole les consommateurs externes (scripts, notebooks, tests d'intégration)
+       des détails d'implémentation de internal/*.
 
-Règles MVP :
-- fail-fast (géré par JobExecutor)
-- retour via JobResult
+Usage recommandé pour les intégrations externes :
+    from etl.engine import Engine
+    result = Engine().run(job_dir="./jobs/my_job")
+
+La CLI (hdrctl) et le workflow runner utilisent JobExecutor directement
+pour des raisons de performance et de contrôle fin.
+etl.Engine reste la surface publique stable pour les autres consommateurs.
 """
 
 from __future__ import annotations

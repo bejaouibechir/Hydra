@@ -112,13 +112,16 @@ class JSONConnector(Connector):
     def __init__(self, name: str, config: Dict[str, Any]):
         """
         Initialise le connecteur JSON.
-        
+
         Args:
             name: Nom du connecteur (pour logs)
             config: Dict avec 'type', 'extract', etc.
         """
         super().__init__(name=name, config=config)
         self._extract_cfg = config.get("extract", {})
+        # job_dir pour résolution des chemins relatifs (injecté par l'executor comme pour CSV)
+        from pathlib import Path as _Path
+        self._job_dir = _Path(config["job_dir"]).resolve() if "job_dir" in config else None
     
     # ========================================================================
     # Capabilities
@@ -216,114 +219,67 @@ class JSONConnector(Connector):
     def extract_batches(
         self,
         *,
-        file: Optional[str] = None,
-        url: Optional[str] = None,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
         batch_size: int = 10_000,
+        incremental: Optional[Any] = None,
+        # Params hérités pour usage direct (rétrocompatibilité)
+        file: Optional[str] = None,
         flatten_depth: int = 1,
         json_path: Optional[str] = None,
     ) -> Iterator[Batch]:
         """
         Extrait batches depuis JSON/JSONL.
-        
-        Entry point principal pour extraction. Détecte automatiquement
-        le format (JSON vs JSONL) basé sur l'extension du fichier.
-        
+
+        Conforme à l'interface Connector : accepte 'table' comme chemin de fichier
+        (résolu relativement à job_dir si non absolu), identique à CSVConnector.
+
         Args:
-            file: Chemin fichier local (requis Sprint 4)
-                Exemples:
-                - "data/users.json"
-                - "logs/events.jsonl"
-                - "C:/data/nested.json"
-            
-            url: URL distante (Sprint 5+, non implémenté)
-                Exemples (futurs):
-                - "https://api.example.com/users"
-                - "http://localhost:8000/data.json"
-            
-            batch_size: Taille des batches (défaut: 10000)
-                Nombre de records par batch. Plus grand = moins d'I/O
-                mais plus de mémoire.
-            
+            table: Chemin du fichier JSON (interface standard executor)
+            query: Ignoré pour JSON (pas de SQL)
+            batch_size: Taille des batches
+            incremental: Ignoré (Sprint 5+)
+            file: Alias legacy pour 'table' (usage direct)
             flatten_depth: Profondeur auto-flatten (0-3, défaut: 1)
-                - 0: Pas de flatten (garde nested)
-                - 1: Flatten 1 niveau (user.name)
-                - 2: Flatten 2 niveaux (user.address.city)
-                - 3: Flatten 3 niveaux (max)
-            
-            json_path: JSONPath extraction (Sprint 5+, non implémenté)
-                Exemples (futurs):
-                - "$.data[*]"
-                - "$.users[?(@.active)]"
-        
-        Yields:
-            Batch: Liste de dict (records JSON flatten)
-        
-        Raises:
-            ValueError: Paramètres invalides ou mutuellement exclusifs
-            NotImplementedError: Feature Sprint 5+ demandée
-            FileNotFoundError: Fichier introuvable
-            JSONDecodeError: JSON invalide
-        
-        Examples:
-            >>> # Extraction simple
-            >>> conn = JSONConnector(name="test", config={"type": "json"})
-            >>> for batch in conn.extract_batches(file="data.json"):
-            ...     process(batch)
-            
-            >>> # Avec flatten custom
-            >>> for batch in conn.extract_batches(
-            ...     file="nested.json",
-            ...     flatten_depth=2,
-            ...     batch_size=5000
-            ... ):
-            ...     process(batch)
-            
-            >>> # JSONL streaming
-            >>> for batch in conn.extract_batches(file="events.jsonl"):
-            ...     process(batch)
+            json_path: JSONPath filtering (Sprint 5+, non implémenté)
         """
-        # Validation paramètres
-        if not file and not url:
-            raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: "
-                f"Paramètre 'file' ou 'url' requis pour extract."
-            )
-        
-        if file and url:
-            raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: "
-                f"Paramètres 'file' et 'url' mutuellement exclusifs. "
-                f"Utilisez l'un ou l'autre, pas les deux."
-            )
-        
-        if url:
-            raise NotImplementedError(
-                f"{self.__class__.__name__} [{self.name}]: "
-                f"Extraction URL disponible Sprint 5+. "
-                f"Utilisez 'file' pour Sprint 4."
-            )
-        
         if json_path:
             raise NotImplementedError(
                 f"{self.__class__.__name__} [{self.name}]: "
                 f"JSONPath filtering disponible Sprint 5+."
             )
-        
+
         if not isinstance(flatten_depth, int) or not 0 <= flatten_depth <= 3:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
                 f"'flatten_depth' doit être entre 0 et 3, reçu: {flatten_depth}"
             )
-        
+
         if not isinstance(batch_size, int) or batch_size < 1:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
                 f"'batch_size' doit être >= 1, reçu: {batch_size}"
             )
-        
+
+        # Résolution du chemin : table > file > config
+        resolved_file = table or file or self._extract_cfg.get("file") or self._extract_cfg.get("table")
+
+        if not resolved_file:
+            raise ValueError(
+                f"{self.__class__.__name__} [{self.name}]: "
+                f"Chemin de fichier requis (paramètre 'table' ou 'file')."
+            )
+
+        # Résolution relative via job_dir (comme CSVConnector)
+        from pathlib import Path as _Path
+        p = _Path(str(resolved_file))
+        if not p.is_absolute() and self._job_dir is not None:
+            p = self._job_dir / p
+        resolved_file = str(p)
+
         # Extraction depuis fichier
         yield from self._extract_from_file(
-            file=file,
+            file=resolved_file,
             batch_size=batch_size,
             flatten_depth=flatten_depth,
         )

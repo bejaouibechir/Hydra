@@ -133,9 +133,14 @@ class MongoDBConnector(Connector):
         if not self.database_name:
             raise ValueError("MongoDB database name is required")
         
-        # Extract configuration
+        # Extract configuration (fallback vers load.collection pour usage destination)
         extract_config = self.config.get("extract", {})
-        self.collection_name = extract_config.get("collection")
+        load_config = self.config.get("load", {})
+        self.collection_name = (
+            extract_config.get("collection")
+            or load_config.get("collection")
+            or load_config.get("table")  # alias résolu par DestinationParser
+        )
         if not self.collection_name:
             raise ValueError("MongoDB collection name is required")
         

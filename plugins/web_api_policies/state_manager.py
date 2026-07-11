@@ -65,7 +65,7 @@ class StateManager:
             return self.initial_state
         
         try:
-            with open(self.state_file, 'r') as f:
+            with open(self.state_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self._current_state = data.get("state")
                 return self._current_state
@@ -92,8 +92,8 @@ class StateManager:
         # Écriture atomique (via temp file)
         temp_file = self.state_file.with_suffix('.tmp')
         try:
-            with open(temp_file, 'w') as f:
-                json.dump(state_data, f, indent=2)
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(state_data, f, indent=2, ensure_ascii=False)
             
             # Atomic rename
             temp_file.replace(self.state_file)
@@ -137,6 +137,7 @@ class StateManager:
         if self.state_file.exists():
             self.state_file.unlink()
         self._current_state = None
+
 
 
 class StateError(Exception):

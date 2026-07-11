@@ -1,14 +1,17 @@
 """
-Web API Connector v2.0 - Sprint 2 Production-Ready.
+Web API Connector v2.0 — CANDIDAT FUTUR (non actif en production).
 
-Améliorations vs v1.0:
-✅ Rate limiting interne (éviter bans)
-✅ Circuit breaker (fail-fast sur API down)
-✅ Pagination cursor + offset (en plus de Link)
-✅ Extraction incrémentale (state management)
-✅ Error classification (retriable vs fatal)
+Statut : développement avancé, pas encore intégré au registry.
+Actif  : web_api_connector.py (v1) — importé par internal/connector/__init__.py
 
-Architecture policy-driven maintenue pour extensibilité future.
+Améliorations prévues vs v1 :
+  - Rate limiting interne (token bucket)
+  - Circuit breaker (fail-fast sur API down)
+  - Pagination cursor + offset (en plus de Link header)
+  - Extraction incrémentale (state management)
+  - Error classification (retriable vs fatal)
+
+Migration v1 → v2 : remplacer dans __init__.py quand les tests v2 sont complets.
 """
 
 from typing import Iterator, Dict, Any, Optional, List

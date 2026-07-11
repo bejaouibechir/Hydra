@@ -1,0 +1,8 @@
+version: "1.0"
+destinations:
+  dst_load:
+    type: csv
+    connection: {}
+    load:
+      table: data/output.csv
+      mode: replace

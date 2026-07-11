@@ -365,11 +365,19 @@ class PostgreSQLConnector(BaseDBConnector):
         try:
             cursor = conn.cursor()
             
-            # Replace: TRUNCATE avant le premier batch
+            # Replace: TRUNCATE si la table existe, création différée sinon
+            _replace_needs_create = False
             if mode == "replace":
-                truncate_sql = f'TRUNCATE TABLE {self._quote_identifier(schema, table_name)}'
-                cursor.execute(truncate_sql)
-                conn.commit()
+                cursor.execute(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                    "WHERE table_schema = %s AND table_name = %s)",
+                    (schema, table_name),
+                )
+                if cursor.fetchone()["exists"]:
+                    cursor.execute(f'TRUNCATE TABLE {self._quote_identifier(schema, table_name)}')
+                    conn.commit()
+                else:
+                    _replace_needs_create = True  # table absente → créer au 1er batch
             
             # Upsert: validation pré-flight contrainte unique
             if mode == "upsert":
@@ -390,7 +398,13 @@ class PostgreSQLConnector(BaseDBConnector):
                 # Détecter colonnes du premier batch
                 if first_columns is None:
                     first_columns = self._infer_columns_from_batch(batch)
-                    
+
+                    # Replace sans table existante → auto-créer depuis le 1er batch
+                    if _replace_needs_create:
+                        self._auto_create_table(cursor, schema, table_name, first_columns, batch)
+                        conn.commit()
+                        _replace_needs_create = False
+
                     # Validation update_columns si fourni
                     if mode == "upsert" and update_columns is not None:
                         overlap = set(update_columns) & set(key)
@@ -574,6 +588,40 @@ class PostgreSQLConnector(BaseDBConnector):
         
         return cols
     
+    def _auto_create_table(
+        self,
+        cursor: Any,
+        schema: str,
+        table: str,
+        columns: List[str],
+        batch: Batch,
+    ) -> None:
+        """Crée la table automatiquement depuis le premier batch (types inférés)."""
+        import datetime
+
+        # Inférer le type PG depuis la première valeur non-None de chaque colonne
+        def pg_type(col: str) -> str:
+            for row in batch:
+                v = row.get(col) if isinstance(row, dict) else None
+                if v is None:
+                    continue
+                if isinstance(v, bool):
+                    return "BOOLEAN"
+                if isinstance(v, int):
+                    return "BIGINT"
+                if isinstance(v, float):
+                    return "DOUBLE PRECISION"
+                if isinstance(v, (datetime.date, datetime.datetime)):
+                    return "TIMESTAMP"
+                return "TEXT"
+            return "TEXT"
+
+        quoted_table = self._quote_identifier(schema, table)
+        col_defs = ", ".join(
+            f"{self._quote_column(c)} {pg_type(c)}" for c in columns
+        )
+        cursor.execute(f"CREATE TABLE IF NOT EXISTS {quoted_table} ({col_defs})")
+
     def _build_insert_sql(
         self,
         *,
@@ -786,45 +834,18 @@ DO NOTHING
         key_set = set(key)
         
         for constraint in constraints:
-            # CORRECTION BUG 1: Parser constraint_cols correctement
-            # PostgreSQL peut retourner soit une liste Python, soit une string array "{id}" ou "{region,product_id}"
-            constraint_cols = constraint['constraint_cols']
-            
-            # Convertir en liste Python
-            if isinstance(constraint_cols, list):
-                # Déjà une liste Python (cas normal avec RealDictCursor)
-                constraint_cols_list = constraint_cols
-            elif isinstance(constraint_cols, str):
-                # String PostgreSQL array format: "{id}" ou "{region,product_id}"
-                # Enlever les accolades et split par virgule
-                constraint_cols_list = constraint_cols.strip('{}').split(',')
-            else:
-                # Fallback: essayer de convertir en liste
-                try:
-                    constraint_cols_list = list(constraint_cols)
-                except:
-                    constraint_cols_list = [str(constraint_cols)]
-            
-            # Nettoyer les espaces
-            constraint_cols_list = [col.strip() for col in constraint_cols_list]
-            constraint_cols_set = set(constraint_cols_list)
-            
-            if constraint_cols_set == key_set:
-                # ✅ Match exact trouvé
-                return
-        
-        # ❌ Aucun match exact
-        available = [
-            f"{c['constraint_name']}: {c['constraint_cols']}"
-            for c in constraints
-        ]
-        
+            constraint_name, constraint_cols = constraint
+            if set(constraint_cols) == key_set:
+                return  # Contrainte valide trouvee — match exact
+
+        # Aucune contrainte ne correspond aux colonnes key
+        available = ', '.join(
+            f"{c[0]}({', '.join(c[1])})" for c in constraints
+        )
         raise ValueError(
             f"{self.__class__.__name__} [{self.name}]: "
-            f"Upsert impossible: key={key} ne correspond à aucune contrainte unique.\n"
-            f"Table: {schema}.{table}\n"
-            f"Contraintes disponibles:\n" +
-            "\n".join(f"  - {a}" for a in available) +
-            f"\n\nAction requise:\n"
-            f"  CREATE UNIQUE INDEX idx_{table}_{'_'.join(key)} ON {schema}.{table}({', '.join(key)});"
+            f"Aucune contrainte PRIMARY KEY/UNIQUE ne correspond a key={list(key)}.\n"
+            f"Contraintes disponibles sur {schema}.{table}: {available}\n"
+            f"Action requise: CREATE UNIQUE INDEX idx_{table}_{'_'.join(key)} "
+            f"ON {schema}.{table}({', '.join(key)});"
         )

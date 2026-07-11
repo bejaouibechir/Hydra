@@ -37,3 +37,10 @@ pyarrow>=14.0.0
 
 # Tests HTTP (Web API connector)
 requests-mock>=1.11.0
+
+# --- API FastAPI ---
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+
+#  --- SSH ---
+paramiko

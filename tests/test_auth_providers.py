@@ -7,7 +7,6 @@ import requests_mock
 import requests
 
 import sys
-sys.path.insert(0, '/home/claude/web_api_connector_mvp')
 
 from plugins.auth_providers import AuthenticationError, APIKeyAuth, BearerTokenAuth, OAuth2InMemoryAuth
 

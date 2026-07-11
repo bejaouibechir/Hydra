@@ -3,7 +3,6 @@
 import pytest
 
 import sys
-sys.path.insert(0, '/home/claude/web_api_connector_mvp')
 
 from plugins.pagination_strategies import NextLinkPagination
 from plugins.pagination_strategies import PaginationState

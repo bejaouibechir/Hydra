@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@layer base {
+  /* Default (dark) theme vars — overridden by applyTheme() */
+  :root {
+    --bg-surface:      #0f0f18;
+    --bg-card:         #1a1a2e;
+    --bg-border:       #2d2d4e;
+    --bg-hover:        #252540;
+    --bg-input:        #16213e;
+    --text-primary:    #f1f5f9;
+    --text-secondary:  #94a3b8;
+    --text-muted:      #64748b;
+    --primary:         #6366f1;
+    --primary-hover:   #4f46e5;
+    --primary-subtle:  rgba(99,102,241,0.15);
+    --success:         #10b981;
+    --error:           #ef4444;
+    --warning:         #f59e0b;
+    --info:            #3b82f6;
+    --canvas-dot:      rgba(255,255,255,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-card); }
+  ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--primary-hover); }
+}
+
+@layer components {
+  .btn-primary {
+    @apply font-medium px-4 py-2 rounded-lg transition-colors duration-150
+           flex items-center gap-2 text-sm cursor-pointer
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: var(--primary);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+
+  .btn-secondary {
+    @apply font-medium px-4 py-2 rounded-lg transition-colors duration-150
+           flex items-center gap-2 text-sm cursor-pointer;
+    background-color: var(--bg-card);
+    border: 1px solid var(--bg-border);
+    color: var(--text-secondary);
+  }
+  .btn-secondary:hover { background-color: var(--bg-hover); }
+
+  .btn-ghost {
+    @apply px-3 py-2 rounded-lg transition-colors duration-150
+           flex items-center gap-2 text-sm cursor-pointer;
+    color: var(--text-muted);
+  }
+  .btn-ghost:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+  }
+
+  .card {
+    @apply rounded-xl p-4;
+    background-color: var(--bg-card);
+    border: 1px solid var(--bg-border);
+  }
+
+  .badge-success { @apply text-xs font-medium px-2 py-0.5 rounded-full; background: rgba(16,185,129,0.15); color: var(--success); }
+  .badge-error   { @apply text-xs font-medium px-2 py-0.5 rounded-full; background: rgba(239,68,68,0.15);  color: var(--error); }
+  .badge-warning { @apply text-xs font-medium px-2 py-0.5 rounded-full; background: rgba(245,158,11,0.15); color: var(--warning); }
+  .badge-info    { @apply text-xs font-medium px-2 py-0.5 rounded-full; background: rgba(59,130,246,0.15); color: var(--info); }
+  .badge-pending { @apply text-xs font-medium px-2 py-0.5 rounded-full; background: rgba(100,116,139,0.15); color: var(--text-muted); }
+
+  .input {
+    @apply rounded-lg px-3 py-2 text-sm w-full focus:outline-none
+           transition-all duration-150;
+    background-color: var(--bg-input);
+    border: 1px solid var(--bg-border);
+    color: var(--text-primary);
+  }
+  .input::placeholder { color: var(--text-muted); }
+  .input:focus { box-shadow: 0 0 0 2px var(--primary); border-color: transparent; }
+
+  .page-header { @apply flex items-center justify-between mb-6; }
+  .page-title  { @apply text-xl font-semibold; color: var(--text-primary); }
+}
+
+/* ── React Flow Controls — thème adaptatif ─────────────────────────────────── */
+.react-flow__controls {
+  background:    var(--bg-card) !important;
+  border:        1px solid var(--bg-border) !important;
+  border-radius: 8px !important;
+  box-shadow:    0 4px 12px rgba(0,0,0,0.35) !important;
+  overflow:      hidden;
+}
+
+.react-flow__controls-button {
+  background:    var(--bg-card) !important;
+  border-bottom: 1px solid var(--bg-border) !important;
+  color:         var(--text-secondary) !important;
+  fill:          var(--text-secondary) !important;
+  transition:    background 0.15s, color 0.15s !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-hover) !important;
+  color:      var(--text-primary) !important;
+  fill:       var(--text-primary) !important;
+}
+
+.react-flow__controls-button svg {
+  fill:   currentColor !important;
+  color:  inherit !important;
+  stroke: none !important;
+}
+
+/* ── React Flow Attribution ────────────────────────────────────────────────── */
+.react-flow__attribution {
+  background: rgba(0,0,0,0.3) !important;
+  color:      var(--text-muted) !important;
+  font-size:  9px !important;
+}
+.react-flow__attribution a {
+  color: var(--text-muted) !important;
+}
+
+
+/* ── Pulsation des nœuds pendant l'exécution (indicateur de progression) ── */
+@keyframes hydra-node-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15), 0 4px 16px rgba(0,0,0,0.35); }
+  50%      { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0.38), 0 4px 16px rgba(0,0,0,0.35); }
+}

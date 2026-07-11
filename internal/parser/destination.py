@@ -68,10 +68,20 @@ class LoadConfig(BaseModel):
           key: [region, product_id]
     """
     
-    table: str = Field(..., min_length=1)
+    table: Optional[str] = Field(default=None, min_length=1)
+    collection: Optional[str] = Field(default=None, min_length=1)  # alias MongoDB
     mode: LoadMode = Field(default=LoadMode.APPEND)
     key: Optional[List[str]] = Field(default=None, min_length=1)
     batch_size: int = Field(default=10_000, ge=10, le=100_000)
+
+    @model_validator(mode="after")
+    def _resolve_table(self) -> "LoadConfig":
+        """Accepte 'collection' comme alias de 'table' (MongoDB)."""
+        if not self.table and self.collection:
+            self.table = self.collection
+        if not self.table:
+            raise ValueError("'table' (ou 'collection' pour MongoDB) est requis")
+        return self
     
     @field_validator("table")
     @classmethod
@@ -269,16 +279,14 @@ class DestinationParser:
             ...         "dest_db": {
             ...             "type": "mysql",
             ...             "connection": {"host": "localhost"},
-            ...             "load": {
-            ...                 "table": "users",
-            ...                 "mode": "upsert",
-            ...                 "key": ["id"]
-            ...             }
-            ...         }
-            ...     }
-            ... }
-            >>> cfg = DestinationParser().parse(raw)
-            >>> cfg.destinations["dest_db"].load.mode
-            <LoadMode.UPSERT: 'upsert'>
+         
+        Args:
+            raw: Dict depuis YAML (via yaml.safe_load)
+
+        Returns:
+            DestinationsConfig valide
+
+        Raises:
+            ValidationError: Si structure invalide
         """
-        return DestinationsConfig(**raw)
+        return DestinationsConfig.model_validate(raw)

@@ -14,9 +14,18 @@ Non-responsabilités :
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, Dict, Optional, List
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+
+# Le champ 'schema' dans SourceDefinition est intentionnel (DSL YAML).
+# Le shadowing de BaseModel.schema est inoffensif en Pydantic v2 (methode supprimee).
+warnings.filterwarnings(
+    "ignore",
+    message="Field name \"schema\" in \"SourceDefinition\" shadows an attribute",
+    category=UserWarning,
+)
 
 
 # ============================================================
@@ -159,6 +168,8 @@ class SourceDefinition(BaseModel):
     - csv
     - json
     """
+    model_config = {"protected_namespaces": ()}
+
     type: str = Field(min_length=1)
     connection: Dict[str, Any] = Field(default_factory=dict)
     extract: ExtractConfig

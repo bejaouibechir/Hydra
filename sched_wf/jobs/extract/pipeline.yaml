@@ -1,0 +1,4 @@
+version: "1.0"
+pipeline:
+  from: src_extract
+  to: dst_extract

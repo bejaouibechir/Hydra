@@ -104,9 +104,9 @@ def create_etl_job(
     }
     
     # Écrire fichiers
-    (job_dir / "sources.yaml").write_text(yaml.dump(sources_yaml), encoding="utf-8")
-    (job_dir / "destinations.yaml").write_text(yaml.dump(destinations_yaml), encoding="utf-8")
-    (job_dir / "pipeline.yaml").write_text(yaml.dump(pipeline_yaml), encoding="utf-8")
+    (job_dir / "sources.yaml").write_text(yaml.dump(sources_yaml, allow_unicode=True), encoding="utf-8")
+    (job_dir / "destinations.yaml").write_text(yaml.dump(destinations_yaml, allow_unicode=True), encoding="utf-8")
+    (job_dir / "pipeline.yaml").write_text(yaml.dump(pipeline_yaml, allow_unicode=True), encoding="utf-8")
 
 
 # ============================================================

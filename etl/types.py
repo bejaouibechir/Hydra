@@ -17,8 +17,8 @@ Corrections appliquées :
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 # ---------------------------------------------------------------------
@@ -74,6 +74,8 @@ class JobResult:
     rows_out: int
     duration: float
     error: Optional[str] = None
+    output_sample: List[Dict[str, Any]] = field(default_factory=list)
+    output_columns: List[str] = field(default_factory=list)
     
     def __str__(self) -> str:
         """Représentation lisible du résultat."""
@@ -99,6 +101,8 @@ class JobResult:
             "rows_out": self.rows_out,
             "duration": self.duration,
             "error": self.error,
+            "output_sample": self.output_sample,
+            "output_columns": self.output_columns,
         }
 
 

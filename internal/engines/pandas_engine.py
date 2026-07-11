@@ -197,10 +197,20 @@ class PandasEngine(TransformEngine):
             return self._op_filter(df, step.params)
         if step.op == "calculate":
             return self._op_calculate(df, step.params)
+        if step.op == "sort":
+            return self._op_sort(df, step.params)
+        if step.op == "deduplicate":
+            return self._op_deduplicate(df, step.params)
+        if step.op == "fill_null":
+            return self._op_fill_null(df, step.params)
+        if step.op == "trim":
+            return self._op_trim(df, step.params)
+        if step.op == "aggregate":
+            return self._op_aggregate(df, step.params)
 
         raise ValueError(
-            f"Opération non supportée (MVP) : '{step.op}'. "
-            f"Opérations disponibles : select, rename, cast, filter, calculate"
+            f"Opération inconnue: {step.op}. "
+            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate"
         )
 
     # --------------------------------------------------
@@ -413,6 +423,133 @@ class PandasEngine(TransformEngine):
 
         return out
 
+    def _op_sort(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Trie le DataFrame.
+
+        Params:
+            by: List[str] - colonnes de tri
+            ascending: bool | List[bool] - ordre (defaut True)
+        """
+        by = p.get("by")
+        if not by:
+            raise ValueError("sort.by requis (liste de colonnes)")
+        if isinstance(by, str):
+            by = [by]
+        ascending = p.get("ascending", True)
+        return df.sort_values(by=by, ascending=ascending).reset_index(drop=True)
+
+    def _op_deduplicate(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Supprime les doublons.
+
+        Params:
+            columns: List[str] - colonnes de reference (optionnel, defaut toutes)
+            keep: 'first' | 'last' (defaut 'first')
+        """
+        cols = p.get("columns") or None
+        keep = p.get("keep", "first")
+        return df.drop_duplicates(subset=cols, keep=keep).reset_index(drop=True)
+
+    def _op_fill_null(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Remplace les valeurs nulles.
+
+        Params:
+            value: valeur de remplacement (s'applique a tout le DataFrame)
+            columns: dict {col: valeur} pour un remplacement par colonne
+        """
+        columns = p.get("columns")
+        if columns and isinstance(columns, dict):
+            return df.fillna(columns)
+        value = p.get("value")
+        if value is None:
+            raise ValueError("fill_null requiert 'value' ou 'columns' (dict)")
+        return df.fillna(value)
+
+    def _op_trim(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Supprime les espaces superflus sur les colonnes string.
+
+        Params:
+            columns: List[str] - colonnes a trimmer (defaut : toutes les colonnes string)
+        """
+        cols = p.get("columns")
+        out = df.copy()
+        if cols:
+            for c in cols:
+                if c in out.columns:
+                    out[c] = out[c].astype(str).str.strip()
+        else:
+            for c in out.select_dtypes(include="object").columns:
+                out[c] = out[c].str.strip()
+        return out
+
+    def _op_aggregate(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Agrège le DataFrame par groupes.
+
+        Params:
+            by: List[str] - colonnes de groupement
+            agg: Dict - colonnes agrégées, format :
+                {"out_col": {"func": "sum", "col": "src_col"}}
+                Fonctions supportées : sum, count, mean, avg, min, max, first, last
+
+        Exemple YAML:
+            - aggregate:
+                by: [category]
+                agg:
+                  total_revenue: {func: sum, col: revenue}
+                  order_count: {func: count, col: order_id}
+                  avg_price: {func: mean, col: unit_price}
+        """
+        by = p.get("by")
+        if not by:
+            raise ValueError("aggregate.by requis (liste de colonnes non vide)")
+        if isinstance(by, str):
+            by = [by]
+        if not all(c in df.columns for c in by):
+            missing = [c for c in by if c not in df.columns]
+            raise ValueError(
+                f"aggregate.by : colonnes inexistantes {missing}. "
+                f"Colonnes disponibles : {list(df.columns)}"
+            )
+
+        agg_config = p.get("agg")
+        if not agg_config or not isinstance(agg_config, dict):
+            raise ValueError("aggregate.agg requis (dict non vide)")
+
+        # Mapping func aliases
+        _FUNC_ALIASES = {"avg": "mean"}
+
+        pandas_agg: Dict[str, tuple] = {}
+        for out_col, spec in agg_config.items():
+            if isinstance(spec, dict):
+                func = str(spec.get("func", "sum")).lower()
+                func = _FUNC_ALIASES.get(func, func)
+                src_col = spec.get("col", out_col)
+            elif isinstance(spec, str):
+                func = spec.lower()
+                func = _FUNC_ALIASES.get(func, func)
+                src_col = out_col
+            else:
+                raise ValueError(
+                    f"aggregate.agg.{out_col}: format invalide. "
+                    f"Attendu: dict {{func, col}} ou string func."
+                )
+            if src_col not in df.columns:
+                raise ValueError(
+                    f"aggregate.agg.{out_col}: colonne source '{src_col}' inexistante. "
+                    f"Colonnes disponibles : {list(df.columns)}"
+                )
+            pandas_agg[out_col] = (src_col, func)
+
+        try:
+            result = df.groupby(by, as_index=False).agg(**pandas_agg)
+            return result.reset_index(drop=True)
+        except Exception as e:
+            raise ValueError(f"aggregate: erreur lors de l'agregation: {e}") from None
+
     # --------------------------------------------------
     # Helpers
     # --------------------------------------------------
@@ -420,35 +557,26 @@ class PandasEngine(TransformEngine):
     def _cast_to_bool(self, series: pd.Series) -> pd.Series:
         """
         Convertit une Series vers boolean avec gestion flexible des formats.
-
-        Supporte :
-        - bool natif : True, False
-        - int : 1 (True), 0 (False)
-        - float : 1.0 (True), 0.0 (False)
-        - string : "true", "1" (True), "false", "0" (False) - insensible à la casse
         """
+        TRUE_VALS  = {"true", "1", "yes", "oui", "on"}
+        FALSE_VALS = {"false", "0", "no", "non", "off"}
 
         def normalize(v):
-            # Si déjà bool
             if isinstance(v, bool):
                 return v
-
-            # Si numérique 0 ou 1
             if isinstance(v, (int, float)):
                 if v == 1:
                     return True
                 if v == 0:
                     return False
-                raise ValueError(f"Valeur numérique invalide pour bool : {v}")
-
-            # Si string
+                raise ValueError(f"Valeur numerique {v} non convertible en bool (attendu 0 ou 1)")
             if isinstance(v, str):
-                v = v.strip().lower()
-                if v in {"true", "1", "yes", "y"}:
+                s = v.strip().lower()
+                if s in TRUE_VALS:
                     return True
-                if v in {"false", "0", "no", "n"}:
+                if s in FALSE_VALS:
                     return False
+                raise ValueError(f"String '{v}' non convertible en bool")
+            raise ValueError(f"Type {type(v).__name__} non convertible en bool")
 
-            raise ValueError(f"Impossible de convertir en bool : {v!r}")
-
-        return series.map(normalize).astype("boolean")
+        return series.map(normalize)

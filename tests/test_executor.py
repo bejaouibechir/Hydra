@@ -84,12 +84,12 @@ def create_job_dir(
         }
     }
     
-    (job_dir / "sources.yaml").write_text(yaml.dump(sources_yaml), encoding="utf-8")
-    (job_dir / "destinations.yaml").write_text(yaml.dump(destinations_yaml), encoding="utf-8")
-    (job_dir / "pipeline.yaml").write_text(yaml.dump(pipeline_yaml), encoding="utf-8")
+    (job_dir / "sources.yaml").write_text(yaml.dump(sources_yaml, allow_unicode=True), encoding="utf-8")
+    (job_dir / "destinations.yaml").write_text(yaml.dump(destinations_yaml, allow_unicode=True), encoding="utf-8")
+    (job_dir / "pipeline.yaml").write_text(yaml.dump(pipeline_yaml, allow_unicode=True), encoding="utf-8")
     
     if transformations:
-        (job_dir / "transformations.yaml").write_text(yaml.dump(transformations), encoding="utf-8")
+        (job_dir / "transformations.yaml").write_text(yaml.dump(transformations, allow_unicode=True), encoding="utf-8")
     
     return job_dir
 
@@ -249,7 +249,7 @@ def test_executor_missing_sources_yaml_fails(tmp_path: Path):
     job_dir.mkdir()
     
     (job_dir / "pipeline.yaml").write_text(
-        yaml.dump({"pipeline": {"from": "src", "to": "dest"}}),
+        yaml.dump({"pipeline": {"from": "src", "to": "dest"}}, allow_unicode=True),
         encoding="utf-8"
     )
     
@@ -265,10 +265,10 @@ def test_executor_invalid_pipeline_fails(tmp_path: Path):
     job_dir = tmp_path / "broken_job"
     job_dir.mkdir()
     
-    (job_dir / "sources.yaml").write_text(yaml.dump({"sources": {}}), encoding="utf-8")
-    (job_dir / "destinations.yaml").write_text(yaml.dump({"destinations": {}}), encoding="utf-8")
+    (job_dir / "sources.yaml").write_text(yaml.dump({"sources": {}}, allow_unicode=True), encoding="utf-8")
+    (job_dir / "destinations.yaml").write_text(yaml.dump({"destinations": {}}, allow_unicode=True), encoding="utf-8")
     (job_dir / "pipeline.yaml").write_text(
-        yaml.dump({"pipeline": {}}),
+        yaml.dump({"pipeline": {}}, allow_unicode=True),
         encoding="utf-8"
     )
     
@@ -492,9 +492,9 @@ def test_executor_env_variable_resolution(tmp_path: Path):
         
         pipeline_yaml = {"pipeline": {"from": "src_test", "to": "dest_test"}}
         
-        (job_dir / "sources.yaml").write_text(yaml.dump(sources_yaml), encoding="utf-8")
-        (job_dir / "destinations.yaml").write_text(yaml.dump(destinations_yaml), encoding="utf-8")
-        (job_dir / "pipeline.yaml").write_text(yaml.dump(pipeline_yaml), encoding="utf-8")
+        (job_dir / "sources.yaml").write_text(yaml.dump(sources_yaml, allow_unicode=True), encoding="utf-8")
+        (job_dir / "destinations.yaml").write_text(yaml.dump(destinations_yaml, allow_unicode=True), encoding="utf-8")
+        (job_dir / "pipeline.yaml").write_text(yaml.dump(pipeline_yaml, allow_unicode=True), encoding="utf-8")
         
         executor = JobExecutor(job_dir=job_dir)
         result = executor.run()

@@ -55,10 +55,16 @@ class JobExecutor:
         destinations_file: Optional[Path] = None,
         pipeline_file: Optional[Path] = None,
         transformations_file: Optional[Path] = None,
+        path_base: Optional[Path] = None,
     ) -> None:
         """Initialise l'executor."""
         self.job_dir = Path(job_dir).resolve()
         self.root_dir = root_dir or self.job_dir.parent
+        # path_base : dossier de référence pour la résolution des chemins relatifs
+        # dans les connecteurs fichier (csv, json). Par défaut = job_dir.
+        # Surchargé lors d'exécution inline depuis Studio pour pointer
+        # vers le dossier job d'origine plutôt que le dossier temporaire.
+        self.path_base = Path(path_base).resolve() if path_base else self.job_dir
         self.job_id = self.job_dir.name
         # Fichiers explicites (surcharge docker-compose style)
         self._sources_file      = Path(sources_file).resolve()      if sources_file      else self.job_dir / "sources.yaml"
@@ -106,7 +112,10 @@ class JobExecutor:
             dests_cfg = self._dest_parser.parse(dests_raw)
 
             steps: List[Dict[str, Any]] = []
-            if transforms_raw:
+            # Un transformations.yaml présent mais SANS steps (steps: []) est
+            # valide : job source → destination sans transformation.
+            # (Cas généré par Studio et fréquent en création manuelle.)
+            if transforms_raw and self._has_transform_steps(transforms_raw):
                 transforms_cfg = self._transform_parser.parse(transforms_raw)
                 steps = self._extract_steps_for_engine(transforms_cfg)
 
@@ -134,6 +143,7 @@ class JobExecutor:
             # 5) Gestion du mode replace : premier batch en "replace", suivants en "append"
             first_batch_written = False
             effective_mode = load_mode
+            sample_rows: list = []   # capture jusqu'à 100 lignes de sortie
 
             # 6) Streaming batch par batch
             for batch in source_connector.extract_batches(
@@ -152,6 +162,10 @@ class JobExecutor:
                     out_batch = df_out.to_dict(orient="records")
 
                 rows_out += len(out_batch)
+
+                # Capturer un échantillon de sortie (max 100 lignes au total)
+                if len(sample_rows) < 100:
+                    sample_rows.extend(out_batch[:100 - len(sample_rows)])
 
                 # Skip empty batches
                 if not out_batch:
@@ -188,12 +202,24 @@ class JobExecutor:
                 f"{rows_in} rows in, {rows_out} rows out, {duration:.2f}s"
             )
             
+            output_cols = list(sample_rows[0].keys()) if sample_rows else []
+            # Convertir types numpy → types Python natifs (JSON-safe)
+            import json as _json
+            import pandas as _pd
+            if sample_rows:
+                safe_sample = _json.loads(
+                    _pd.DataFrame(sample_rows[:100]).to_json(orient="records", date_format="iso")
+                )
+            else:
+                safe_sample = []
             return JobResult(
-                success=True, 
-                rows_in=rows_in, 
-                rows_out=rows_out, 
-                duration=duration, 
-                error=None
+                success=True,
+                rows_in=rows_in,
+                rows_out=rows_out,
+                duration=duration,
+                error=None,
+                output_sample=safe_sample,
+                output_columns=output_cols,
             )
 
         except Exception as exc:
@@ -243,6 +269,12 @@ class JobExecutor:
     def _resolve_pipeline_ids(self, pipeline_raw: Dict[str, Any]) -> Tuple[str, str]:
         """Extrait from/to depuis pipeline.yaml."""
         pipe = pipeline_raw.get("pipeline")
+        # Tolérance : format imbriqué job: → pipeline: (générés par d'anciennes
+        # versions de Studio) — la clé canonique reste 'pipeline' à la racine.
+        if not isinstance(pipe, dict):
+            job_section = pipeline_raw.get("job")
+            if isinstance(job_section, dict) and isinstance(job_section.get("pipeline"), dict):
+                pipe = job_section["pipeline"]
         if not isinstance(pipe, dict):
             raise ValueError("JobExecutor: pipeline.yaml invalide (clé 'pipeline' dict attendue)")
 
@@ -273,6 +305,20 @@ class JobExecutor:
     # =========================================================================
     # Helpers - Transformations
     # =========================================================================
+
+    @staticmethod
+    def _has_transform_steps(raw: Any) -> bool:
+        """True si le YAML de transformations contient au moins un step."""
+        if not isinstance(raw, dict):
+            return False
+        steps = raw.get("steps")
+        if steps is None:
+            inner = raw.get("transformations")
+            if isinstance(inner, dict):
+                steps = inner.get("steps")
+            elif isinstance(inner, list):
+                steps = inner
+        return bool(steps)
 
     def _extract_steps_for_engine(self, transforms_cfg: Any) -> List[Dict[str, Any]]:
         """Convertit la config Pydantic des transformations en format attendu par le engine."""
@@ -362,9 +408,10 @@ class JobExecutor:
                 elif isinstance(load, dict):
                     config["load"] = load
         
-        # 2c. Pour CSV, injecter job_dir résolu (absolu)
-        if ctype == "csv":
-            config["job_dir"] = str(self.job_dir)
+        # 2c. Pour les connecteurs fichier, injecter path_base résolu (absolu)
+        # path_base == job_dir en mode CLI ; == dossier job d\'origine en mode Studio inline.
+        if ctype in ("csv", "json"):
+            config["job_dir"] = str(self.path_base)
         
         # 3. Instancier via le registry
         try:

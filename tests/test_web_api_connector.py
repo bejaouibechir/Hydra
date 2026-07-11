@@ -4,7 +4,6 @@ import time
 import requests
 
 import sys
-sys.path.insert(0, '/home/claude/web_api_connector_mvp')
 
 from internal.connector import WebAPIConnector
 from plugins.auth_providers import APIKeyAuth, BearerTokenAuth, OAuth2InMemoryAuth, AuthenticationError

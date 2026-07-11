@@ -59,14 +59,12 @@ def make_job(tmp_path: Path, name: str = "test_job", extra_files: dict | None = 
           from: src_csv
           to: dest_csv
     """))
-    (job / "input.csv").write_text("id,name\n1,Alice\n2,Bob\n")
-
+    (job / "input.csv").write_text("id,name\n1,Alice\n2,Bob\n", encoding="utf-8")
     if extra_files:
         for rel, content in extra_files.items():
             target = job / rel
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content)
-
+            target.write_text(content, encoding="utf-8")
     return job
 
 
@@ -154,7 +152,7 @@ class TestInit:
     def test_init_fails_if_dir_exists_not_empty(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
             Path("existing").mkdir()
-            (Path("existing") / "somefile.txt").write_text("x")
+            (Path("existing") / "somefile.txt").write_text("x", encoding="utf-8")
             result = runner.invoke(cli, ["init", "existing"])
             assert result.exit_code != 0
 
@@ -162,7 +160,7 @@ class TestInit:
         with runner.isolated_filesystem(temp_dir=tmp_path):
             runner.invoke(cli, ["init", "j", "--template", "basic"])
             # Modifier un fichier
-            Path("j/pipeline.yaml").write_text("pipeline:\n  from: old\n  to: old\n")
+            Path("j/pipeline.yaml").write_text("pipeline:\n  from: old\n  to: old\n", encoding="utf-8")
             runner.invoke(cli, ["init", "j", "--template", "basic", "--force"])
             data = yaml.safe_load(Path("j/pipeline.yaml").read_text())
             assert data["pipeline"]["from"] != "old"
@@ -200,20 +198,20 @@ class TestValidate:
 
     def test_validate_invalid_sources_yaml(self, runner, tmp_path):
         job = make_job(tmp_path)
-        (job / "sources.yaml").write_text("not: valid: yaml: [[\n")
+        (job / "sources.yaml").write_text("not: valid: yaml: [[\n", encoding="utf-8")
         result = runner.invoke(cli, ["validate", str(job)])
         assert result.exit_code != 0
 
     def test_validate_pipeline_coherence_bad_from(self, runner, tmp_path):
         job = make_job(tmp_path)
-        (job / "pipeline.yaml").write_text("pipeline:\n  from: ghost_source\n  to: dest_csv\n")
+        (job / "pipeline.yaml").write_text("pipeline:\n  from: ghost_source\n  to: dest_csv\n", encoding="utf-8")
         result = runner.invoke(cli, ["validate", str(job)])
         assert result.exit_code != 0
         assert "ghost_source" in result.output
 
     def test_validate_pipeline_coherence_bad_to(self, runner, tmp_path):
         job = make_job(tmp_path)
-        (job / "pipeline.yaml").write_text("pipeline:\n  from: src_csv\n  to: ghost_dest\n")
+        (job / "pipeline.yaml").write_text("pipeline:\n  from: src_csv\n  to: ghost_dest\n", encoding="utf-8")
         result = runner.invoke(cli, ["validate", str(job)])
         assert result.exit_code != 0
         assert "ghost_dest" in result.output
@@ -288,13 +286,13 @@ class TestTestCommand:
         (job / "destinations.yaml").write_text(
             "destinations:\n  dest_csv:\n    type: mysql\n"
             "    connection: {}\n    load:\n      table: t\n      mode: upsert\n"
-        )
+        , encoding="utf-8")
         result = runner.invoke(cli, ["test", str(job), "--only-destinations"])
         assert result.exit_code != 0
 
     def test_test_with_env_file(self, runner, tmp_path):
         job = make_job(tmp_path)
-        (job / ".env").write_text("DB_HOST=localhost\nDB_PASS=secret\n")
+        (job / ".env").write_text("DB_HOST=localhost\nDB_PASS=secret\n", encoding="utf-8")
         result = runner.invoke(cli, ["test", str(job)])
         assert result.exit_code == 0
         assert "DB_HOST" in result.output
@@ -367,14 +365,14 @@ class TestRunDryRun:
 
     def test_dry_run_invalid_yaml_exits_nonzero(self, runner, tmp_path):
         job = make_job(tmp_path)
-        (job / "sources.yaml").write_text("not_valid: [[\n")
+        (job / "sources.yaml").write_text("not_valid: [[\n", encoding="utf-8")
         result = runner.invoke(cli, ["run", str(job), "--dry-run"])
         # Dry-run doit détecter l'erreur
         assert "invalide" in result.output or result.exit_code != 0
 
     def test_dry_run_bad_pipeline_from(self, runner, tmp_path):
         job = make_job(tmp_path)
-        (job / "pipeline.yaml").write_text("pipeline:\n  from: ghost\n  to: dest_csv\n")
+        (job / "pipeline.yaml").write_text("pipeline:\n  from: ghost\n  to: dest_csv\n", encoding="utf-8")
         result = runner.invoke(cli, ["run", str(job), "--dry-run"])
         assert "ghost" in result.output or result.exit_code != 0
 

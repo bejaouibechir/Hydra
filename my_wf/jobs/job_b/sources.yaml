@@ -1,0 +1,8 @@
+version: "1.0"
+sources:
+  src_job_b:
+    type: csv
+    connection: {}
+    extract:
+      table: data/input.csv
+      batch_size: 1000

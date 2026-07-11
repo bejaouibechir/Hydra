@@ -147,16 +147,18 @@ Project → Workflows → Jobs (nœuds sur le canvas)
 - Tester après chaque modification : `pytest tests/test_cli_hdrctl.py -x`
 
 ### Tests
-- 48 tests CLI dans `tests/test_cli_hdrctl.py` doivent toujours passer
+- 49 tests CLI dans `tests/test_cli_hdrctl.py` doivent toujours passer (Linux + Windows)
 - `tests/conftest.py` doit toujours contenir `os.environ.setdefault("HYDRA_LANG", "en")`
 - Tests e2e (`tests/e2e/`) nécessitent Docker (MySQL, MongoDB) — ne pas lancer en CI sans infrastructure
-- `pyarrow` non installé dans la sandbox Linux — tests Parquet skippés en sandbox, OK sur Windows
+- `pyarrow` optionnel — tests Parquet skippés si absent (`pytest.skip`), sans bloquer les autres
+- 21 failures pré-existantes dans `test_pandas_engine.py` + `test_transform_parser.py` (dtype `bool` vs `boolean`, `params` dict vs objet) — non bloquantes pour v1
 
 ### Python
-- Python ≥ 3.9
+- Python ≥ 3.9, cross-platform (Linux / macOS / Windows)
 - Pydantic v2 pour les modèles de données
 - Zéro dépendance externe dans `cli/i18n.py`
 - Installation : `pip install -e .` (editable mode — pas besoin de réinstaller après modifications)
+- Line endings : LF sur tout le codebase (`.gitattributes` configuré avec `eol=lf`)
 
 ---
 
@@ -188,11 +190,40 @@ Project → Workflows → Jobs (nœuds sur le canvas)
 [✓] CLI + i18n (en/es)
 [✓] Job runner (source → transformations → destination)
 [✓] Connectors (CSV, JSON, Parquet, MySQL, PostgreSQL, MongoDB, WebAPI)
-[ ] Workflow runner (DAG, parallélisme, depends_on)
+[✓] Workflow runner (DAG, parallélisme, depends_on) — complet, intégré CLI
+[✓] Opération aggregate (groupby + agg functions) — PandasEngine + TransformParser
+[✓] Connecteurs JSON + PostgreSQL enregistrés dans le registry
+[✓] Scénarios de test S1–S5 (test_scenarios/) — S1/S2/S3 exécutables sans infra
 [ ] API FastAPI (/api/workflows, /api/run, /api/logs)
 [ ] Studio — canvas éditeur (React Flow, inspiré n8n)
 [ ] Documentation hydraetl.com (MkDocs ou Docusaurus, GitHub Pages)
 ```
+
+---
+
+## Plan d'action actuel (sprint en cours)
+
+| Priorité | Tâche | Durée est. | Statut |
+|----------|-------|------------|--------|
+| **P0** | Fix `internal/connector/__init__.py` — import pyarrow sans try/except casse les tests CSV en environnement sans pyarrow | 30 min | [✓] |
+| **P1** | Tests workflow — zéro couverture sur `workflow/` (parser, runner, CLI) | 1-2 jours | [✓] |
+| **P2** | API FastAPI — `POST /api/run`, `GET /api/status/{run_id}`, `GET /api/workflows` ; démarrage via `hdrctl serve` | 3-5 jours | [✓] |
+| **P3** | Nettoyage dette technique — clarifier `etl/engine.py`, `web_api_connector v1 vs v2`, supprimer scripts/tests orphelins | 1 jour | [✓] |
+| **P4** | Studio — canvas React Flow + FastAPI backend + APScheduler | 2-3 semaines | [✓] |
+
+### Détail P3 (réalisé — Sprint 5)
+- `test_cli_hdrctl.py` : corruption lignes 455-505 supprimée (4x `TestErrors` dupliqué) → 49 tests passent
+- `tests/` : 6 scripts one-shot déplacés dans `_archive/tests_oneshot/` (fix_corruption.py, inspect_fix.py, test_cli_hdrctl_fix.py, poc_json_flatten.py, json_connector_test.py, postgresql_connector_simple_test.py)
+- `sys.path.insert(0, '/home/claude/web_api_connector_mvp')` supprimé des 4 fichiers test_web_api_* → 64 tests passent proprement
+- `web_api_connector_v2.py` : statut confirmé (candidat futur, non actif) — commentaire ajouté dans `__init__.py`
+- `cli/test_exploration.md` → `docs/manual_test_guide.md`
+- `scripts/hdrctl_sim.bat` + `scripts/fix_es_json.py` → `_archive/`
+
+### Détail P0
+- **Fichier** : `internal/connector/__init__.py` ligne 11
+- **Problème** : `from .parquet_connector import ParquetConnector` importe pyarrow inconditionnellement
+- **Fix** : entourer d'un try/except comme dans `registry.py`
+- **Impact** : 4 tests `TestRunReal` échouent sur tout env sans pyarrow (Linux sandbox, CI)
 
 ---
 
@@ -206,21 +237,64 @@ Hydra ne sera **pas un bloc monolithique** (cf. MS Fabric). L'architecture cible
 - Flexibilité : un step d'un workflow peut s'exécuter sur n'importe quel nœud disponible
 - Résilience : pas de point de défaillance unique
 
-### Persistance distribuée
-Pas de base de données centrale. L'état distribué (workflows, exécutions, métriques) sera géré par une **base décentralisée** de type Bluzelle ou BigchainDB — des systèmes conçus pour des environnements distribués sans autorité centrale, proches dans l'esprit d'une blockchain.
-
-### Roadmap d'évolution
-```
-V1 : nœud unique — YAML sur disk, API locale, Studio mono-instance
-V2 : multi-nœuds — découverte de nœuds, exécution cross-instances
-V3 : persistance distribuée — remplacement YAML par Bluzelle/BigchainDB ou équivalent
-```
-
-### Ce que ça ne change pas pour V1
-L'architecture actuelle (job atomique, workflow DAG, FastAPI, YAML sur disk) est la **fondation correcte** pour cette vision. On ne sur-architecture pas V1 — on garde les interfaces propres pour que la distribution arrive naturellement en V2.
-
 ---
 
-## Contexte Consortium
+## Règles Critiques pour Claude (à respecter dans TOUS les chats)
 
-Hydra est développé en consortium. Grok (xAI) participe aux discussions de design — notamment le manifest workflow initial et la vision Studio. Les décisions finales d'architecture sont prises par Bechir Bejaoui (Andaluz Lab, Bbejaoui@andaluzlab.com).
+### Règle 0 — Ne jamais détruire une feature existante (PRIORITÉ ABSOLUE)
+
+Avant toute modification d'un fichier frontend ou backend existant :
+
+1. **Backup immédiat** du fichier (Règle 1 ci-dessous)
+2. **Lire le fichier entier** (ou au minimum la section concernée + 50 lignes de contexte avant/après)
+3. **Identifier toutes les features existantes** dans la zone touchée avant d'écrire quoi que ce soit
+4. **N'éditer que ce qui est explicitement demandé** — ne jamais supprimer/déplacer du code non mentionné
+5. **Vérifier après chaque edit** que les features identifiées à l'étape 3 sont toujours présentes
+
+Pour les fichiers Studio critiques, exécuter le backup groupé avant toute session de modifications :
+```bash
+bash /sessions/.../mnt/Hydra/studio/scripts/backup_studio.sh
+```
+Les backups sont dans `studio/src/_backups/YYYYMMDD_HHMMSS/` — 22 fichiers couverts.
+
+**Fichiers à très haut risque** (> 800 lignes, modifications fréquentes) :
+- `studio/src/pages/workflows/WorkflowEditor.tsx` (~1400 lignes) — toujours lire la section complète avant d'éditer
+- `cli/hdrctl.py` (~1259 lignes) — modifier via script Python ou Edit avec contexte suffisant
+
+### Règle 1 — Backup avant toute modification
+
+Avant de modifier un fichier quelconque, toujours faire un backup horodaté :
+
+```bash
+mkdir -p /sessions/.../mnt/Hydra/_backups
+cp <fichier> /sessions/.../mnt/Hydra/_backups/<fichier>.<YYYYMMDD_HHMMSS>.bak
+```
+
+Le dossier `_backups/` est dans `.gitignore`. En cas de casse : restaurer depuis le backup, pas reconstruire de mémoire.
+
+### Règle 2 — Écriture sécurisée sur mount Linux→NTFS (OBLIGATOIRE)
+
+**Problème** : écriture d'un gros fichier via `f.write(content)` en une seule fois sur le mount Linux→Windows NTFS = troncature silencieuse au-delà de ~32KB.
+
+**Solution** : utiliser `safe_write()` depuis `/sessions/.../mnt/outputs/safe_write.py` qui :
+1. Fait le backup horodaté automatiquement
+2. Écrit par chunks de 50 lignes (évite la troncature)
+3. Vérifie la taille sur disk après écriture — lève une exception si troncature détectée
+
+```python
+import sys
+sys.path.insert(0, '/sessions/happy-focused-wright/mnt/outputs')
+from safe_write import safe_write
+
+safe_write('/sessions/happy-focused-wright/mnt/Hydra/chemin/vers/fichier.tsx', content)
+```
+
+**Ne jamais utiliser** pour les fichiers sur le mount NTFS :
+- `open(path, 'w').write(full_content)` sur un fichier > 200 lignes
+- L'outil `Edit` pour des remplacements multi-blocs sur gros fichiers (risque de collision)
+- `echo` / `cat >>` shell pour écrire du contenu long
+
+**Toujours vérifier après écriture** :
+```bash
+wc -l fichier  # comparer avec le nombre de lignes attendu
+```

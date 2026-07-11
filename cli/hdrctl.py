@@ -20,8 +20,15 @@ import os
 import subprocess
 import sys
 import time
+import warnings
 from pathlib import Path
 from typing import Optional
+
+# Supprimer les warnings Pydantic internes inoffensifs :
+# 1. Champ 'schema' dans SourceDefinition (shadowing BaseModel.schema supprime en v2)
+# 2. PydanticSerializationUnexpectedValue sur les params de transformation (dict attendu)
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+warnings.filterwarnings("ignore", message="Field name .* shadows an attribute", category=UserWarning)
 
 import click
 
@@ -1231,9 +1238,10 @@ def cmd_list(path: str) -> None:
     click.echo()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Commande : clear
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
 
 @cli.command("clear", help=t("help.clear.docstring"))
 def cmd_clear() -> None:
@@ -1242,12 +1250,457 @@ def cmd_clear() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Point d'entrée
+# Groupe de commandes : workflow
 # ─────────────────────────────────────────────────────────────────────────────
 
+@cli.group("workflow", invoke_without_command=False, help=t("help.workflow.docstring"))
+@_lang_option
+def cmd_workflow() -> None:
+    """Groupe workflow."""
+    pass
+
+
+@cmd_workflow.command("run", help=t("help.workflow.run.docstring"))
+@_lang_option
+@click.argument("path", default="./workflow.yaml", metavar="PATH")
+def cmd_workflow_run(path: str) -> None:
+    """Execute un workflow DAG."""
+    from workflow.parser import load_workflow, validate_workflow
+    from workflow.runner import WorkflowRunner
+
+    print_banner()
+    wf_path = Path(path).resolve()
+    if not wf_path.exists():
+        error_box(t("workflow.file_not_found", path=str(wf_path)))
+        sys.exit(1)
+
+    wf = load_workflow(wf_path)
+    info(t("workflow.run.starting", name=c(C.CY, wf.name)))
+    click.echo(c(C.DM, "  " + "─" * 56))
+
+    runner = WorkflowRunner(wf, base_dir=wf_path.parent)
+    result = runner.run()
+
+    click.echo()
+    for sr in result.steps:
+        if sr.success:
+            click.echo(f"  {c(C.GR, '✓')}  {t('workflow.run.step_ok', name=sr.step_name, duration=f'{sr.duration:.1f}')}")
+        elif sr.error and "skipped" in str(sr.error).lower():
+            click.echo(f"  {c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=sr.step_name)}")
+        else:
+            click.echo(f"  {c(C.RD, '✗')}  {t('workflow.run.step_fail', name=sr.step_name, error=sr.error)}")
+
+    click.echo()
+    if result.success:
+        ok_count = sum(1 for s in result.steps if s.success)
+        success_box(t("workflow.run.success", name=wf.name, duration=f"{result.duration:.1f}", ok=ok_count, total=len(result.steps)))
+    else:
+        error_box(t("workflow.run.failure", name=wf.name, duration=f"{result.duration:.1f}", error=result.error))
+        sys.exit(1)
+
+
+@cmd_workflow.command("validate", help=t("help.workflow.validate.docstring"))
+@_lang_option
+@click.argument("path", default="./workflow.yaml", metavar="PATH")
+def cmd_workflow_validate(path: str) -> None:
+    """Valide un manifest workflow sans l'executer."""
+    from workflow.parser import validate_workflow
+
+    wf_path = Path(path).resolve()
+    if not wf_path.exists():
+        error_box(t("workflow.file_not_found", path=str(wf_path)))
+        sys.exit(1)
+
+    ok, msg = validate_workflow(wf_path)
+    if ok:
+        success_box(t("workflow.validate.success"))
+    else:
+        error_box(t("workflow.validate.failure", error=msg))
+        sys.exit(1)
+
+
+@cmd_workflow.command("list", help=t("help.workflow.list.docstring"))
+@_lang_option
+@click.argument("path", default=".", metavar="PATH")
+def cmd_workflow_list(path: str) -> None:
+    """Liste les workflows d'un dossier."""
+    search_dir = Path(path).resolve()
+    if not search_dir.exists():
+        error_box(t("dir.not_found", path=str(search_dir)))
+        sys.exit(1)
+
+    workflows = sorted(search_dir.rglob("workflow.yaml"))
+    info(t("workflow.list.header") + f"  {c(C.CY, str(search_dir))}")
+    click.echo(c(C.DM, "  " + "─" * 56))
+
+    if not workflows:
+        info(t("workflow.list.none_found"))
+        sys.exit(0)
+
+    for wf_path in workflows:
+        try:
+            from workflow.parser import load_workflow
+            wf = load_workflow(wf_path)
+            n_steps = len(wf.steps)
+            click.echo(f"  {c(C.CY, wf.name):<30} {c(C.DM, str(wf_path.relative_to(search_dir)))}  ({n_steps} steps)")
+        except Exception:
+            click.echo(f"  {c(C.RD, '?')} {wf_path.relative_to(search_dir)}")
+
+    click.echo()
+    info(t("workflow.list.summary", count=len(workflows)))
+    click.echo()
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Scaffold workflow : templates manifest + job manifests
+# ─────────────────────────────────────────────────────────────────────────────
+
+# workflow.yaml par template (les chemins pointent vers ./jobs/<step>)
+WORKFLOW_TEMPLATES: dict[str, str] = {
+    "basic": """\
+workflow:
+  name: "{name}"
+  description: "Sequential pipeline: job_a → job_b → notify"
+  trigger:
+    type: manual
+  steps:
+    - name: "job_a"
+      type: job
+      job: "./jobs/job_a"
+      depends_on: []
+      on_failure: fail
+
+    - name: "job_b"
+      type: job
+      job: "./jobs/job_b"
+      depends_on: ["job_a"]
+      on_failure: fail
+
+    - name: "notify"
+      type: action
+      action: log
+      params:
+        message: "Workflow {name} completed successfully."
+      depends_on: ["job_b"]
+      on_failure: skip
+""",
+
+    "parallel": """\
+workflow:
+  name: "{name}"
+  description: "Fan-out / fan-in: extract → [transform_a, transform_b] → load"
+  trigger:
+    type: manual
+  steps:
+    - name: "extract"
+      type: job
+      job: "./jobs/extract"
+      depends_on: []
+      on_failure: fail
+
+    - name: "transform_a"
+      type: job
+      job: "./jobs/transform_a"
+      depends_on: ["extract"]
+      on_failure: fail
+
+    - name: "transform_b"
+      type: job
+      job: "./jobs/transform_b"
+      depends_on: ["extract"]
+      on_failure: fail
+
+    - name: "load"
+      type: job
+      job: "./jobs/load"
+      depends_on: ["transform_a", "transform_b"]
+      on_failure: fail
+""",
+
+    "scheduled": """\
+workflow:
+  name: "{name}"
+  description: "Scheduled pipeline — runs daily at 08:00"
+  trigger:
+    type: schedule
+    cron: "0 8 * * *"
+  steps:
+    - name: "extract"
+      type: job
+      job: "./jobs/extract"
+      depends_on: []
+      on_failure: fail
+
+    - name: "transform"
+      type: job
+      job: "./jobs/transform"
+      depends_on: ["extract"]
+      on_failure: fail
+
+    - name: "load"
+      type: job
+      job: "./jobs/load"
+      depends_on: ["transform"]
+      on_failure: fail
+
+    - name: "notify"
+      type: action
+      action: log
+      params:
+        message: "Scheduled workflow {name} completed."
+      depends_on: ["load"]
+      on_failure: skip
+""",
+
+    "notify": """\
+workflow:
+  name: "{name}"
+  description: "Pipeline with webhook notification on completion"
+  trigger:
+    type: manual
+  steps:
+    - name: "extract"
+      type: job
+      job: "./jobs/extract"
+      depends_on: []
+      on_failure: fail
+
+    - name: "transform"
+      type: job
+      job: "./jobs/transform"
+      depends_on: ["extract"]
+      on_failure: fail
+
+    - name: "load"
+      type: job
+      job: "./jobs/load"
+      depends_on: ["transform"]
+      on_failure: fail
+
+    - name: "webhook_success"
+      type: action
+      action: webhook
+      params:
+        url: "https://hooks.example.com/notify"
+        method: POST
+        body:
+          workflow: "{name}"
+          status: "success"
+      depends_on: ["load"]
+      on_failure: skip
+""",
+}
+
+VALID_WORKFLOW_TEMPLATES = list(WORKFLOW_TEMPLATES.keys())
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Contenu des manifests générés pour chaque job scaffoldé
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _sources_yaml(job_name: str) -> str:
+    return f"""\
+version: "1.0"
+sources:
+  src_{job_name}:
+    type: csv
+    connection: {{}}
+    extract:
+      table: data/input.csv
+      batch_size: 1000
+"""
+
+def _destinations_yaml(job_name: str) -> str:
+    return f"""\
+version: "1.0"
+destinations:
+  dst_{job_name}:
+    type: csv
+    connection: {{}}
+    load:
+      table: data/output.csv
+      mode: replace
+"""
+
+def _pipeline_yaml(job_name: str) -> str:
+    return f"""\
+version: "1.0"
+pipeline:
+  from: src_{job_name}
+  to: dst_{job_name}
+"""
+
+def _transformations_yaml() -> str:
+    return """\
+version: "1.0"
+transformations:
+  steps:
+    - filter:
+        expr: "1 == 1"   # Remplacer par votre logique
+"""
+
+SAMPLE_CSV = """\
+id,name,value
+1,item_a,10.5
+2,item_b,20.0
+3,item_c,5.75
+"""
+
+ENV_EXAMPLE = """\
+# Variables d'environnement pour ce workflow
+# Copier ce fichier en .env et remplir les valeurs
+
+# DB_HOST=localhost
+# DB_PORT=3306
+# DB_USER=hydra
+# DB_PASS=secret
+"""
+
+
+def _scaffold_job(jobs_dir: Path, job_name: str) -> list[str]:
+    """Crée le dossier d'un job et retourne la liste des fichiers créés."""
+    job_dir = jobs_dir / job_name
+    data_dir = job_dir / "data"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    data_dir.mkdir(exist_ok=True)
+
+    files = []
+    for fname, content_fn in [
+        ("sources.yaml",        lambda: _sources_yaml(job_name)),
+        ("destinations.yaml",   lambda: _destinations_yaml(job_name)),
+        ("pipeline.yaml",       lambda: _pipeline_yaml(job_name)),
+        ("transformations.yaml",lambda: _transformations_yaml()),
+    ]:
+        path = job_dir / fname
+        path.write_text(content_fn(), encoding="utf-8")
+        files.append(str(path.relative_to(job_dir.parent.parent)))
+
+    sample = data_dir / "input.csv"
+    sample.write_text(SAMPLE_CSV, encoding="utf-8")
+    files.append(str(sample.relative_to(job_dir.parent.parent)))
+    return files
+
+
+def _extract_job_steps(workflow_yaml: str) -> list[str]:
+    """Extrait les noms des steps de type job depuis le YAML workflow."""
+    import re
+    job_names = []
+    for line in workflow_yaml.splitlines():
+        m = re.match(r'\s+job:\s+"?\.\/jobs\/([^"]+)"?', line)
+        if m:
+            job_names.append(m.group(1).strip())
+    return job_names
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Commande : hydra workflow init
+# ─────────────────────────────────────────────────────────────────────────────
+
+@cmd_workflow.command("init", help=t("help.workflow.init.docstring"))
+@_lang_option
+@click.argument("name", metavar="NAME")
+@click.option("--template", "-t", default="basic",
+              type=click.Choice(VALID_WORKFLOW_TEMPLATES),
+              show_default=True,
+              help=t("help.workflow.init.template"))
+@click.option("--force", is_flag=True, default=False,
+              help=t("help.workflow.init.force"))
+def cmd_workflow_init(name: str, template: str, force: bool) -> None:
+    """Scaffolde un projet workflow complet (dossiers + manifests)."""
+    project_dir = Path(name).resolve()
+
+    if project_dir.exists() and not force:
+        error_box(t("workflow.init.exists", path=name))
+        sys.exit(1)
+
+    project_dir.mkdir(parents=True, exist_ok=True)
+    jobs_dir = project_dir / "jobs"
+    jobs_dir.mkdir(exist_ok=True)
+
+    # Écrire workflow.yaml
+    raw_template = WORKFLOW_TEMPLATES[template]
+    workflow_content = raw_template.format(name=name)
+    workflow_file = project_dir / "workflow.yaml"
+    workflow_file.write_text(workflow_content, encoding="utf-8")
+
+    # Écrire .env.example
+    (project_dir / ".env.example").write_text(ENV_EXAMPLE, encoding="utf-8")
+
+    # Scaffolder chaque job référencé dans le template
+    job_names = _extract_job_steps(workflow_content)
+    created_jobs = []
+    for job_name in job_names:
+        _scaffold_job(jobs_dir, job_name)
+        created_jobs.append(job_name)
+
+    # Affichage arborescence
+    success_box(t("workflow.init.success", name=name, path=project_dir.name))
+    click.echo()
+    info("  " + project_dir.name + "/")
+    info("  ├── workflow.yaml")
+    info("  ├── .env.example")
+    info("  └── jobs/")
+    for i, job in enumerate(created_jobs):
+        is_last = i == len(created_jobs) - 1
+        prefix = "    └──" if is_last else "    ├──"
+        pad    = "        " if is_last else "    │   "
+        info("  " + prefix + " " + job + "/")
+        info("  " + pad + "  ├── sources.yaml")
+        info("  " + pad + "  ├── destinations.yaml")
+        info("  " + pad + "  ├── pipeline.yaml")
+        info("  " + pad + "  ├── transformations.yaml")
+        info("  " + pad + "  └── data/input.csv")
+
+    click.echo()
+    info(t("workflow.init.next", path=project_dir.name + "/workflow.yaml"))
+    click.echo()
+
+
+@cli.command("serve", help="Démarre l'API FastAPI Hydra (Studio backend).")
+@_lang_option
+@click.option("--host", default="127.0.0.1", show_default=True, help="Adresse d'écoute.")
+@click.option("--port", default=5678, show_default=True, type=int, help="Port d'écoute.")
+@click.option("--reload", is_flag=True, default=False, help="Hot-reload (dev uniquement).")
+@click.option("--workspace", default=None, envvar="HYDRA_WORKSPACE",
+              help="Répertoire racine des projets Studio (défaut : ~/hydra-workspace).")
+def cmd_serve(host: str, port: int, reload: bool, workspace: Optional[str]) -> None:
+    """Démarre l'API FastAPI Hydra sur http://<host>:<port>."""
+    try:
+        import uvicorn
+    except ImportError:
+        click.echo("❌  uvicorn n'est pas installé. Lancez : pip install uvicorn[standard]", err=True)
+        sys.exit(1)
+
+    # Résoudre la racine du projet (dossier contenant cli/ et api/)
+    # __file__ = <projet>/cli/hdrctl.py → parent.parent = <projet>/
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    # Changer le cwd pour que les chemins relatifs dans les jobs fonctionnent
+    import os
+    os.chdir(project_root)
+
+    if workspace:
+        os.environ["HYDRA_WORKSPACE"] = workspace
+
+    print_banner()
+    click.echo(f"🚀  Hydra API démarrée sur http://{host}:{port}")
+    click.echo(f"📚  Docs disponibles sur http://{host}:{port}/docs")
+    click.echo()
+
+    uvicorn.run(
+        "api.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        reload_dirs=[str(project_root)] if reload else None,
+        log_level="info",
+    )
+
+
 def main() -> None:
-    """Point d'entrée installable (setup.py / pyproject.toml)."""
-    cli(standalone_mode=True)
+    cli()
 
 
 if __name__ == "__main__":

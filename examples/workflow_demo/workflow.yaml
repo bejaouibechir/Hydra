@@ -1,0 +1,19 @@
+workflow:
+  name: "demo_pipeline"
+  description: "Workflow de démonstration — extraction + log"
+  trigger:
+    type: manual
+  steps:
+    - name: "extract_csv"
+      type: job
+      job: "../../examples/minimal_csv"
+      depends_on: []
+      on_failure: fail
+
+    - name: "notify"
+      type: action
+      action: log
+      params:
+        message: "Pipeline terminé avec succès."
+      depends_on: ["extract_csv"]
+      on_failure: skip

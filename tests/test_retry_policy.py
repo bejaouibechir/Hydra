@@ -3,7 +3,6 @@
 import pytest
 
 import sys
-sys.path.insert(0, '/home/claude/web_api_connector_mvp')
 
 from  plugins.retry_policies import RetryPolicy
 

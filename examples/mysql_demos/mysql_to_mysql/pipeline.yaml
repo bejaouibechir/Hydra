@@ -1,8 +1,0 @@
-# Pipeline pour démo : MySQL -> MySQL (MySQL -> MariaDB)
-# Copie et enrichit la table employees de MySQL vers MariaDB
-
-pipeline:
-  name: mysql_to_mysql_demo
-  from: mysql_source
-  to: mariadb_target
-  transformations: transformations

@@ -1,5 +1,0 @@
-steps:
-  - rename:
-      mapping:
-        "": newName
-        oldName: ""

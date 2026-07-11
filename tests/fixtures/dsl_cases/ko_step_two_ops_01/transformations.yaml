@@ -1,5 +1,0 @@
-steps:
-  - select:
-      columns: ["id"]
-    filter:
-      expr: "id ^> 0"

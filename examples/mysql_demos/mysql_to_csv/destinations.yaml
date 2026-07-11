@@ -1,8 +1,0 @@
-# Destinations pour démo : MySQL -> CSV
-
-destinations:
-  csv_employees:
-    type: csv
-    load:
-      table: ./data/employees_export.csv
-      mode: replace

@@ -1,8 +1,0 @@
-# Pipeline pour démo : CSV -> MySQL
-# Charge un fichier CSV vers la table employees de MySQL
-
-pipeline:
-  name: csv_to_mysql_demo
-  from: csv_new_employees
-  to: mysql_employees
-  transformations: transformations

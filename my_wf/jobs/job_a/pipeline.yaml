@@ -1,4 +1,0 @@
-version: "1.0"
-pipeline:
-  from: src_job_a
-  to: dst_job_a

@@ -1,4 +1,0 @@
-steps:
-  - select:
-      columns: [id, full_name, email, age, created_at]
-  

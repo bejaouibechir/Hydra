@@ -1,8 +1,0 @@
-version: "1.0"
-sources:
-  src_load:
-    type: csv
-    connection: {}
-    extract:
-      table: data/input.csv
-      batch_size: 1000

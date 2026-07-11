@@ -1,3 +1,0 @@
-steps:
-  - filter:
-      expr: "id ^> 0"

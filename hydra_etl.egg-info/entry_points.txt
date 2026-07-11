@@ -1,4 +1,0 @@
-[console_scripts]
-hdrctl = cli.hdrctl:main
-hydra = cli.hdrctl:main
-

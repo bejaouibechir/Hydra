@@ -1,4 +1,0 @@
-{"id": 1, "event": "login", "timestamp": "2024-01-01T10:00:00Z", "user_id": 101}
-{"id": 2, "event": "logout", "timestamp": "2024-01-01T11:00:00Z", "user_id": 101}
-{"id": 3, "event": "purchase", "timestamp": "2024-01-01T12:00:00Z", "user_id": 102}
-{"id": 4, "event": "refund", "timestamp": "2024-01-01T13:00:00Z", "user_id": 102}

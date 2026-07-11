@@ -1,8 +1,0 @@
-# Support compilation (Phase 3) (placeholder)
-
-"Placeholder - a completer"
-
-
-def _todo():
-    """TODO: implementer ce module."""
-    raise NotImplementedError

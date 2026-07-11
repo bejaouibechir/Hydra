@@ -1,8 +1,0 @@
-sources:
-  src_ok:
-    type: mysql
-    connection:
-      host: ${ENV:DB_HOST}
-    extract:
-      table: t
-      batch_size: 1000

@@ -1,4 +1,0 @@
-version: "1.0"
-pipeline:
-  from: src_transform_b
-  to: dst_transform_b

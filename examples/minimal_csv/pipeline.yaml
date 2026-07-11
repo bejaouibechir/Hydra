@@ -1,5 +1,0 @@
-version: "1.0"
-
-pipeline:
-  from: source_csv
-  to: dest_csv

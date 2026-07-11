@@ -1,8 +1,0 @@
-steps:
-  - select:
-      columns: [id, full_name, email, age]
-  - cast:
-      mapping:
-        age: int
-  - filter:
-      expr: age > 0

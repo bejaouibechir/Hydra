@@ -1,9 +1,0 @@
-steps:
-  - cast:
-      mapping:
-        id: int
-        price: float
-        active: bool
-        created_at: datetime
-        birth_date: date
-        comment: str

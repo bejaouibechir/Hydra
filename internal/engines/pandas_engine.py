@@ -390,21 +390,35 @@ class PandasEngine(TransformEngine):
                 "join: source de reference non chargee. "
                 "Le step 'join' doit etre execute via le runner (source 'right' requise)."
             )
-        key = p.get("key")
         how = p.get("how", "inner")
-        if not key:
-            raise ValueError("join.key requis (cle de jointure)")
         if how not in ("inner", "left", "right", "outer"):
             raise ValueError(f"join.how invalide: {how} (inner|left|right|outer)")
-
-        keys = [key] if isinstance(key, str) else list(key)
         right_df = pd.DataFrame(list(right_rows))
+
+        left_key = p.get("left_key")
+        right_key = p.get("right_key")
+        if left_key and right_key:
+            # Cles distinctes (self-join, ou FK != PK)
+            lk = [left_key] if isinstance(left_key, str) else list(left_key)
+            rk = [right_key] if isinstance(right_key, str) else list(right_key)
+            for k in lk:
+                if k not in df.columns:
+                    raise ValueError(f"join: left_key '{k}' absente du flux gauche")
+            for k in rk:
+                if k not in right_df.columns:
+                    raise ValueError(f"join: right_key '{k}' absente de la source de reference")
+            return df.merge(right_df, left_on=lk, right_on=rk, how=how, suffixes=("", "_r"))
+
+        key = p.get("key")
+        if not key:
+            raise ValueError("join: 'key' (ou 'left_key' + 'right_key') requis")
+        keys = [key] if isinstance(key, str) else list(key)
         for k in keys:
             if k not in df.columns:
                 raise ValueError(f"join: cle '{k}' absente du flux gauche")
             if k not in right_df.columns:
                 raise ValueError(f"join: cle '{k}' absente de la source de reference")
-        return df.merge(right_df, on=keys, how=how)
+        return df.merge(right_df, on=keys, how=how, suffixes=("", "_r"))
 
     def _op_calculate(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """

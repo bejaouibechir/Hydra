@@ -153,7 +153,9 @@ class JoinOp(BaseModel):
           how: left                 # inner | left | right | outer
     """
     right: Any
-    key: Any
+    key: Any = None
+    left_key: Any = None
+    right_key: Any = None
     how: str = "inner"
 
     @field_validator("how")
@@ -164,16 +166,26 @@ class JoinOp(BaseModel):
             raise ValueError(f"join.how invalide: {v} (attendu: {sorted(allowed)})")
         return v
 
-    @field_validator("key")
+    @field_validator("key", "left_key", "right_key")
     @classmethod
     def _valid_key(cls, v: Any) -> Any:
+        if v is None:
+            return v
         if isinstance(v, str):
             if not v.strip():
-                raise ValueError("join.key ne peut pas etre vide")
+                raise ValueError("join: cle vide")
             return v
         if isinstance(v, list) and v and all(isinstance(x, str) and x.strip() for x in v):
             return v
-        raise ValueError("join.key doit etre une colonne (str) ou une liste de colonnes non vides")
+        raise ValueError("join: cle doit etre une colonne (str) ou une liste de colonnes non vides")
+
+    @model_validator(mode="after")
+    def _check_keys(self):
+        has_single = self.key is not None
+        has_pair = self.left_key is not None and self.right_key is not None
+        if not has_single and not has_pair:
+            raise ValueError("join: fournir 'key' (colonne commune) ou 'left_key' + 'right_key'")
+        return self
 
     @field_validator("right")
     @classmethod

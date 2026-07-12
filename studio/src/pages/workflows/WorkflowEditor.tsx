@@ -1817,6 +1817,9 @@ function WorkflowEditorInner() {
             node={dialogNode}
             onClose={() => setDialogNode(null)}
             onSave={(id, patch) => onNodeDataChange(id, patch)}
+            joinSources={nodes
+              .filter(n => (n.data.nodeType as string ?? '').startsWith('source_'))
+              .map(n => ({ id: n.id, label: (n.data.label as string) || (n.data.stepName as string) || (n.data.nodeType as string) }))}
           />
         )}
 

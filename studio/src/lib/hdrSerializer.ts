@@ -168,8 +168,10 @@ export function flowToHdr(
 
   // Construire sources
   const sources: Record<string, HdrSource> = {}
+  const srcKeyByNode = new Map<string, string>()
   for (const sn of sourceNodes) {
     const sid = `source_${(sn.data.nodeType as string).replace('source_', '')}_${sn.id.slice(-4)}`
+    srcKeyByNode.set(sn.id, sid)
     const cfg = (sn.data.params ?? {}) as Record<string, unknown>
     const connType = NODE_TO_CONNECTOR[sn.data.nodeType as string] ?? 'csv'
     const isDb = !['csv', 'json', 'parquet'].includes(connType)
@@ -207,8 +209,23 @@ export function flowToHdr(
   const steps: HdrStep[] = transformNodes.map(tn => {
     const op  = NODE_TO_OP[tn.data.nodeType as string] ?? 'filter'
     const cfg = (tn.data.params ?? {}) as Record<string, unknown>
+    if (op === 'join') {
+      const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
+      const j: Record<string, unknown> = { right: rightKey, how: cfg.how ?? 'inner' }
+      if (cfg.left_key && cfg.right_key) { j.left_key = cfg.left_key; j.right_key = cfg.right_key }
+      else { j.key = cfg.key ?? '' }
+      return { join: j }
+    }
     return { [op]: _uiParamsToEngine(op, cfg) }
   })
+
+  // 'from' = source gauche (celle qui n'est le 'right' d'aucun join)
+  const joinRightKeys = new Set(
+    steps
+      .filter(st => (st as Record<string, unknown>).join)
+      .map(st => (st as Record<string, Record<string, unknown>>).join.right as string)
+      .filter(Boolean)
+  )
 
   // Construire destinations
   const destinations: Record<string, HdrDest> = {}
@@ -239,7 +256,7 @@ export function flowToHdr(
     destinations[did] = { type: connType, connection, load }
   }
 
-  const firstSrcId  = Object.keys(sources)[0]  ?? 'source'
+  const firstSrcId  = (Object.keys(sources).find(k => !joinRightKeys.has(k))) ?? Object.keys(sources)[0] ?? 'source'
   const firstDestId = Object.keys(destinations)[0] ?? 'destination'
 
   const doc: HdrDoc = {
@@ -455,7 +472,7 @@ function _stepToParams(op: string, raw: Record<string, unknown> = {}): Record<st
     case 'sort':         return { by: Array.isArray(raw.by) ? (raw.by as string[]).join(',') : (raw.by ?? ''), ascending: raw.ascending === false ? 'DESC' : 'ASC' }
     case 'derive':       return { column: raw.column ?? '', expr: raw.expr ?? '' }
     case 'deduplicate':  return { subset: Array.isArray(raw.subset) ? (raw.subset as string[]).join(',') : (raw.subset ?? '') }
-    case 'join':         return { on: raw.on ?? '', how: raw.how ?? 'inner' }
+    case 'join':         return { right: raw.right ?? '', key: raw.key ?? '', left_key: raw.left_key ?? '', right_key: raw.right_key ?? '', how: raw.how ?? 'inner' }
     default:             return {}
   }
 }
@@ -497,11 +514,13 @@ export function flowToJobModel(
   // Sources
   const sources: Record<string, HdrSource> = {}
   let firstSrcKey = 'source_main'
+  const srcKeyByNode = new Map<string, string>()
   for (const sn of sourceNodes) {
     const connType = NODE_TO_CONNECTOR[sn.data.nodeType as string] ?? 'csv'
     const cfg = (sn.data.params ?? {}) as Record<string, unknown>
     const isDb = !['csv', 'json', 'parquet', 'web_api'].includes(connType)
     const key = `source_${connType}_${sn.id.slice(-4)}`
+    srcKeyByNode.set(sn.id, key)
     if (sourceNodes[0] === sn) firstSrcKey = key
     const connection: Record<string, unknown> = isDb ? {
       host: cfg.host ?? 'localhost', port: cfg.port,
@@ -523,8 +542,29 @@ export function flowToJobModel(
   // Transformations — format MOTEUR (le disk est la référence exécutable)
   const steps: HdrStep[] = transformNodes.map(tn => {
     const op = NODE_TO_OP[tn.data.nodeType as string] ?? 'filter'
-    return { [op]: _uiParamsToEngine(op, (tn.data.params ?? {}) as Record<string, unknown>) }
+    const cfg = (tn.data.params ?? {}) as Record<string, unknown>
+    if (op === 'join') {
+      // 'right' vient du graphe : la source choisie (rightSourceId = id de noeud)
+      const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
+      const j: Record<string, unknown> = { right: rightKey, how: cfg.how ?? 'inner' }
+      if (cfg.left_key && cfg.right_key) { j.left_key = cfg.left_key; j.right_key = cfg.right_key }
+      else { j.key = cfg.key ?? '' }
+      return { join: j }
+    }
+    return { [op]: _uiParamsToEngine(op, cfg) }
   })
+
+  // Le 'from' du pipeline = la source gauche (celle qui n'est le 'right' d'aucun join)
+  const joinRightKeys = new Set(
+    steps
+      .filter(st => (st as Record<string, unknown>).join)
+      .map(st => (st as Record<string, Record<string, unknown>>).join.right as string)
+      .filter(Boolean)
+  )
+  if (joinRightKeys.size > 0) {
+    const leftSn = sourceNodes.find(sn => !joinRightKeys.has(srcKeyByNode.get(sn.id) ?? ''))
+    if (leftSn) firstSrcKey = srcKeyByNode.get(leftSn.id) ?? firstSrcKey
+  }
 
   // Destinations
   const destinations: Record<string, HdrDest> = {}

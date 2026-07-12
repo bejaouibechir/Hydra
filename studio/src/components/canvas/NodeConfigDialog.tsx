@@ -106,8 +106,10 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'expr',   label: 'Expression',       type: 'text', placeholder: 'unit_price * qty', required: true },
   ],
   transform_join: [
-    { key: 'key', label: 'Clé de jointure',  type: 'text',   placeholder: 'id', required: true },
-    { key: 'how', label: 'Type de jointure', type: 'select', options: ['inner', 'left', 'right', 'outer'] },
+    { key: 'key',       label: 'Clé (colonne commune)',       type: 'text',   placeholder: 'email' },
+    { key: 'left_key',  label: 'Clé gauche (si différente)',  type: 'text',   placeholder: 'manager_id' },
+    { key: 'right_key', label: 'Clé droite (si différente)',  type: 'text',   placeholder: 'id' },
+    { key: 'how',       label: 'Type de jointure',            type: 'select', options: ['inner', 'left', 'right', 'outer'] },
   ],
   // Actions génériques
   action_webhook: [
@@ -202,11 +204,12 @@ interface Props {
   node:    Node<FlowNodeData>
   onClose: () => void
   onSave:  (id: string, patch: Partial<FlowNodeData>) => void
+  joinSources?: { id: string; label: string }[]   // sources du canvas (pour le noeud join)
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
-export default function NodeConfigDialog({ node, onClose, onSave }: Props) {
+export default function NodeConfigDialog({ node, onClose, onSave, joinSources = [] }: Props) {
   const d   = node.data
   const def = getNode(d.nodeType)
 
@@ -240,6 +243,12 @@ export default function NodeConfigDialog({ node, onClose, onSave }: Props) {
   // Révélation des champs mot de passe (par clé)
   const [revealed,   setRevealed]   = useState<Record<string, boolean>>({})
   const [showExprBuilder, setShowExprBuilder] = useState(false)
+  // Join : mode 'common' (cle commune) ou 'distinct' (self-join / FK != PK)
+  const initJoinMode = (): 'common' | 'distinct' => {
+    const p = (d.params as Record<string, string>) ?? {}
+    return (p.left_key?.trim() || p.right_key?.trim()) ? 'distinct' : 'common'
+  }
+  const [joinMode, setJoinMode] = useState<'common' | 'distinct'>(initJoinMode)
   // sysInfo : utilisé pour vérifier la disponibilité du backend browse (optionnel)
   useQuery({ queryKey: ['system-info'], queryFn: api.system.info, staleTime: Infinity })
 
@@ -638,10 +647,86 @@ export default function NodeConfigDialog({ node, onClose, onSave }: Props) {
             )
           })()}
 
+          {/* Source de droite pour le noeud join (choisie parmi les sources du canvas) */}
+          {d.nodeType === 'transform_join' && (
+            <label style={{ display: 'block', marginBottom: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Source de droite <span style={{ color: 'var(--error)' }}>*</span>
+              </span>
+              <select
+                value={params.rightSourceId ?? ''}
+                onChange={e => setParam('rightSourceId', e.target.value)}
+                style={{
+                  display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box',
+                  background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
+                  borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer',
+                }}
+              >
+                <option value="">- choisir une source -</option>
+                {joinSources.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                L'autre source connectee devient le flux de gauche.
+              </span>
+            </label>
+          )}
+
+          {/* Join — choix mutuellement exclusif : cle commune vs cles distinctes (self-join) */}
+          {d.nodeType === 'transform_join' && (() => {
+            const btnStyle = (active: boolean) => ({
+              flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              borderRadius: 6, border: 'none',
+              background: active ? accent : 'transparent',
+              color: active ? '#fff' : 'var(--text-muted)',
+              transition: 'all .15s',
+            })
+            const inputStyle: React.CSSProperties = {
+              display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box',
+              background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
+              borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+            }
+            const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }
+            return (
+              <div style={{ marginBottom: 14 }}>
+                <span style={lbl}>Correspondance</span>
+                <div style={{ display: 'flex', gap: 4, margin: '6px 0 12px', background: 'var(--bg-hover)', borderRadius: 8, padding: 4 }}>
+                  <button style={btnStyle(joinMode === 'common')}
+                    onClick={() => { setJoinMode('common'); setParam('left_key', ''); setParam('right_key', '') }}>
+                    🔑 Clé commune
+                  </button>
+                  <button style={btnStyle(joinMode === 'distinct')}
+                    onClick={() => { setJoinMode('distinct'); setParam('key', '') }}>
+                    ⇄ Clés distinctes (self-join)
+                  </button>
+                </div>
+
+                {joinMode === 'common' ? (
+                  <label style={{ display: 'block' }}>
+                    <span style={lbl}>Clé de jointure <span style={{ color: 'var(--error)' }}>*</span></span>
+                    <input type="text" value={params.key ?? ''} onChange={e => setParam('key', e.target.value)} placeholder="email" style={inputStyle} />
+                  </label>
+                ) : (
+                  <>
+                    <label style={{ display: 'block', marginBottom: 10 }}>
+                      <span style={lbl}>Clé gauche — flux principal <span style={{ color: 'var(--error)' }}>*</span></span>
+                      <input type="text" value={params.left_key ?? ''} onChange={e => setParam('left_key', e.target.value)} placeholder="manager_id" style={inputStyle} />
+                    </label>
+                    <label style={{ display: 'block' }}>
+                      <span style={lbl}>Clé droite — source de droite <span style={{ color: 'var(--error)' }}>*</span></span>
+                      <input type="text" value={params.right_key ?? ''} onChange={e => setParam('right_key', e.target.value)} placeholder="id" style={inputStyle} />
+                    </label>
+                  </>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Champs spécifiques au type (tous sauf Python géré ci-dessus) */}
           {d.nodeType !== 'action_python' && configFields?.map(field => {
             // Sources DB : table & query sont gérés par le toggle ci-dessus
             if (isDbSource && (field.key === 'table' || field.key === 'query')) return null
+            // Join : cle / left_key / right_key sont geres par le toggle ci-dessus
+            if (d.nodeType === 'transform_join' && (field.key === 'key' || field.key === 'left_key' || field.key === 'right_key')) return null
             return (
             <label key={field.key} style={{ display: 'block', marginBottom: 14 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>

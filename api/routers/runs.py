@@ -33,7 +33,7 @@ def _now() -> str:
 # Execution asynchrone (thread background) -- Workflow complet
 # ---------------------------------------------------------------------------
 
-def _execute_workflow(run_id: str, workflow_path: str, step: Optional[str]) -> None:
+def _execute_workflow(run_id: str, workflow_path: str, step: Optional[str], env: Optional[str] = None) -> None:
     """Execute le workflow dans un thread -- met a jour le store a la fin."""
     from workflow.parser import load_workflow
     from workflow.runner import WorkflowRunner
@@ -58,7 +58,7 @@ def _execute_workflow(run_id: str, workflow_path: str, step: Optional[str]) -> N
         base_dir = wf_path.parent if wf_path.is_file() else wf_path
         wf_def = load_workflow(str(wf_path) if wf_path.is_file() else str(wf_path / "workflow.yaml"))
 
-        runner = WorkflowRunner(wf_def, base_dir=base_dir)
+        runner = WorkflowRunner(wf_def, base_dir=base_dir, env=env)
 
         if step:
             step_names = [s.name for s in wf_def.steps]
@@ -266,7 +266,7 @@ def run_workflow(body: RunRequest, background_tasks: BackgroundTasks):
         started_at=_now(),
     )
     store.save_run(run)
-    background_tasks.add_task(_execute_workflow, run_id, str(wf_path), body.step)
+    background_tasks.add_task(_execute_workflow, run_id, str(wf_path), body.step, body.env)
     return run
 
 

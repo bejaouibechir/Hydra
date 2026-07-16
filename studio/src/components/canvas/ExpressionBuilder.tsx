@@ -46,7 +46,7 @@ export default function ExpressionBuilder({ initialExpr, accent = 'var(--primary
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--bg-border)' }}>
           <span style={{ fontStyle: 'italic', fontWeight: 800, fontSize: 16, color: accent }}>fx</span>
-          <h2 style={{ margin: 0, flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Assistant d'expression</h2>
+          <h2 style={{ margin: 0, flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Expression Assistant</h2>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={15} /></button>
         </div>
 
@@ -57,7 +57,7 @@ export default function ExpressionBuilder({ initialExpr, accent = 'var(--primary
           <div style={{ width: 280, overflowY: 'auto', borderRight: '1px solid var(--bg-border)', padding: 10 }}>
             {columns.length > 0 && (
               <div style={{ marginBottom: 10 }}>
-                <div style={{ ...labelStyle, marginBottom: 6 }}>Colonnes</div>
+                <div style={{ ...labelStyle, marginBottom: 6 }}>Columns</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {columns.map(c => (
                     <button key={c} onClick={() => insert(c)} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 12, border: '1px solid var(--bg-border)', background: 'var(--bg-hover)', color: 'var(--text-secondary)', cursor: 'pointer' }}>{c}</button>
@@ -102,8 +102,8 @@ export default function ExpressionBuilder({ initialExpr, accent = 'var(--primary
               </div>
             ) : (
               <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                Survolez une fonction pour voir sa description. Cliquez pour l'insérer.
-                Remplacez <code>col</code> / <code>col1</code> par vos noms de colonnes.
+                Hover a function to see its description. Click to insert.
+                Replace <code>col</code> / <code>col1</code> with your column names.
               </div>
             )}
           </div>
@@ -117,20 +117,20 @@ export default function ExpressionBuilder({ initialExpr, accent = 'var(--primary
             value={expr}
             onChange={e => setExpr(e.target.value)}
             rows={3}
-            placeholder="ex : first + ' ' + last   ·   price * qty   ·   date.dt.year"
+            placeholder="e.g. first + ' ' + last   ·   price * qty   ·   date.dt.year"
             style={{ display: 'block', width: '100%', boxSizing: 'border-box', resize: 'vertical', background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'monospace', outline: 'none' }}
           />
           {changed && (
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-              → moteur : <code style={{ color: accent, fontFamily: 'monospace' }}>{translated}</code>
+              → engine: <code style={{ color: accent, fontFamily: 'monospace' }}>{translated}</code>
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '12px 18px', borderTop: '1px solid var(--bg-border)' }}>
-          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: 'transparent', border: '1px solid var(--bg-border)', color: 'var(--text-secondary)' }}>Annuler</button>
-          <button onClick={() => onApply(translated)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: accent, border: 'none', color: '#fff' }}>Insérer</button>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: 'transparent', border: '1px solid var(--bg-border)', color: 'var(--text-secondary)' }}>Cancel</button>
+          <button onClick={() => onApply(translated)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: accent, border: 'none', color: '#fff' }}>Insert</button>
         </div>
       </div>
     </div>

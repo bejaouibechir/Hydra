@@ -72,9 +72,11 @@ class WorkflowRunner:
         self,
         workflow: WorkflowDef,
         base_dir: Optional[Path] = None,
+        env: Optional[str] = None,
     ) -> None:
         self.workflow = workflow
         self.base_dir = Path(base_dir).resolve() if base_dir else Path.cwd()
+        self.env = env
 
     # -------------------------------------------------------------------------
     # Point d'entrée principal
@@ -292,7 +294,7 @@ class WorkflowRunner:
         if not job_path.exists():
             raise FileNotFoundError(f"Job directory not found: {job_path}")
 
-        executor = JobExecutor(job_dir=job_path, root_dir=self.base_dir)
+        executor = JobExecutor(job_dir=job_path, root_dir=self.base_dir, env=self.env)
         job_result = executor.run()
         duration = time.monotonic() - start
 

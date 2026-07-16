@@ -14,6 +14,7 @@ FIX FINAL: Validation basée sur type connector, pas sur capabilities object
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,6 +26,7 @@ from internal.config.yaml_utils import read_yaml_text
 from etl.types import JobResult
 from internal.config.loader import load_env_layers
 from internal.config.secrets import SecretResolver
+from internal.config.parameters import ParameterResolver, build_effective
 from internal.connector.interface import Connector
 from internal.connector.registry import build_connector
 from internal.engines.pandas_engine import PandasEngine
@@ -56,6 +58,8 @@ class JobExecutor:
         pipeline_file: Optional[Path] = None,
         transformations_file: Optional[Path] = None,
         path_base: Optional[Path] = None,
+        params: Optional[Dict[str, Any]] = None,
+        env: Optional[str] = None,
     ) -> None:
         """Initialise l'executor."""
         self.job_dir = Path(job_dir).resolve()
@@ -89,6 +93,11 @@ class JobExecutor:
         
         # Parsers et engine
         self._secret_resolver = SecretResolver(secrets={})
+        # Parametres (couche statique, lecture seule) resolus avant le parsing
+        self._runtime_params = dict(params or {})
+        self._active_env = env or os.environ.get("HYDRA_ENV")
+        self._effective_params = self._load_parameters()
+        self._param_resolver = ParameterResolver(params=self._effective_params, env=dict(os.environ), strict=False, strict_params=True)
         self._source_parser = SourceParser()
         self._dest_parser = DestinationParser()
         self._transform_parser = TransformParser()
@@ -121,6 +130,7 @@ class JobExecutor:
 
             # Precharger la source de reference des eventuels steps 'join'
             self._prepare_join_steps(steps, sources_cfg)
+            self._inject_script_params(steps)
 
             # 2) Résoudre pipeline (from/to)
             src_id, dest_id = self._resolve_pipeline_ids(pipeline_raw)
@@ -263,6 +273,11 @@ class JobExecutor:
         except Exception as e:
             raise ValueError(f"JobExecutor: échec résolution variables dans {path}: {e}") from e
 
+        try:
+            data = self._param_resolver.resolve(data)
+        except Exception as e:
+            raise ValueError(f"JobExecutor: échec résolution paramètres dans {path}: {e}") from e
+
         return data
 
     # =========================================================================
@@ -308,6 +323,67 @@ class JobExecutor:
     # =========================================================================
     # Helpers - Transformations
     # =========================================================================
+
+    def _config_dirs(self) -> List[Path]:
+        """Dossiers de config du plus LOIN (racine projet, precedence faible) au plus
+        PROCHE du job (precedence forte). Remonte l'arborescence depuis le job (borne
+        a 6 niveaux) et s'arrete apres une racine de projet (.hydra/ ou workflows/).
+        Permet a un run Studio (job dans project/jobs/<name>) de trouver
+        parameters.yaml / environments/ places a la racine projet."""
+        dirs: List[Path] = []
+        # On remonte l'arborescence depuis plusieurs ancres. En exécution Studio,
+        # job_dir est un dossier temporaire hors de l'arbre projet : les fichiers
+        # parameters.yaml / environments/ ne s'y trouvent pas. root_dir et
+        # path_base pointent vers le projet réel -> on les remonte aussi pour
+        # retrouver les déclarations de paramètres (sinon host=None silencieux).
+        anchors: List[Path] = [self.job_dir, self.root_dir, self.path_base]
+        for anchor in anchors:
+            d = anchor
+            for _ in range(6):
+                if d not in dirs:
+                    dirs.append(d)
+                if (d / ".hydra").exists() or (d / "workflows").is_dir():
+                    break
+                if d.parent == d:
+                    break
+                d = d.parent
+        uniq: List[Path] = []
+        for x in dirs:
+            if x not in uniq:
+                uniq.append(x)
+        return list(reversed(uniq))
+
+    def _load_parameters(self) -> Dict[str, Any]:
+        """Declarations (parameters.yaml) + valeurs de l'env actif
+        (environments/<env>.yaml) collectees le long de l'arborescence (le plus proche
+        du job l'emporte) + surcharges runtime -> valeurs effectives."""
+        def _block(path: Path) -> Dict[str, Any]:
+            if not path.exists():
+                return {}
+            try:
+                data = yaml.safe_load(read_yaml_text(path)) or {}
+            except Exception:
+                return {}
+            if isinstance(data, dict):
+                block = data.get("parameters", data)
+                return block if isinstance(block, dict) else {}
+            return {}
+
+        declarations: Dict[str, Any] = {}
+        env_values: Dict[str, Any] = {}
+        for cd in self._config_dirs():
+            declarations.update(_block(cd / "parameters.yaml"))
+            if self._active_env:
+                env_values.update(_block(cd / "environments" / f"{self._active_env}.yaml"))
+        return build_effective(declarations, [env_values, self._runtime_params])
+
+    def _inject_script_params(self, steps: List[Dict[str, Any]]) -> None:
+        """Injecte les parametres effectifs (lecture seule) dans les steps 'script'."""
+        if not self._effective_params:
+            return
+        for step in steps:
+            if isinstance(step, dict) and isinstance(step.get("script"), dict):
+                step["script"]["_params"] = dict(self._effective_params)
 
     @staticmethod
     def _has_transform_steps(raw: Any) -> bool:
@@ -370,9 +446,12 @@ class JobExecutor:
           - une source inline (dict avec 'type') pour un usage ponctuel.
         """
         for step in steps:
-            if not isinstance(step, dict) or "join" not in step:
+            if not isinstance(step, dict):
                 continue
-            params = step["join"]
+            op = "join" if "join" in step else ("merge" if "merge" in step else ("union" if "union" in step else None))
+            if op is None:
+                continue
+            params = step[op]
             if not isinstance(params, dict):
                 continue
             right = params.get("right")
@@ -393,13 +472,13 @@ class JobExecutor:
                     config["extract"] = ext
                 if rtype in ("csv", "json"):
                     config["job_dir"] = str(self.path_base)
-                conn = build_connector(name="join_right", config=config)
+                conn = build_connector(name=f"{op}_right", config=config)
                 r_table = ext.get("table")
                 r_bs = int(ext.get("batch_size", 10000))
                 r_query = ext.get("query")
             else:
                 raise ValueError(
-                    "JobExecutor: join.right doit etre un id de source declaree ou une source inline (dict avec 'type')"
+                    f"JobExecutor: {op}.right doit etre un id de source declaree ou une source inline (dict avec 'type')"
                 )
 
             rows: List[Dict[str, Any]] = []

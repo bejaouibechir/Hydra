@@ -28,13 +28,14 @@ import NodeContextMenu, { type ContextMenuState } from '@/components/canvas/Node
 import NodeConfigDialog from '@/components/canvas/NodeConfigDialog'
 import YamlCodePanel from '@/components/canvas/YamlCodePanel'
 import TerminalPanel from '@/components/canvas/TerminalPanel'
+import ParametersPanel from '@/components/canvas/ParametersPanel'
 import LogViewer from '@/components/ui/LogViewer'
 import Spinner from '@/components/ui/Spinner'
 import {
   Save, Play, ChevronLeft, AlertTriangle, CheckCircle2, GitBranch,
   ChevronDown, ChevronUp, Terminal, Circle, Code2, Upload,
   Undo2, Redo2, Trash2, FolderOpen, Package, MoreHorizontal,
-  Pencil, Copy, ArrowLeft,
+  Pencil, Copy, ArrowLeft, Archive,
 } from 'lucide-react'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { loadSettings } from '@/pages/Settings'
@@ -252,6 +253,9 @@ function WorkflowEditorInner() {
   const [viewer, setViewer] = useState<{ loading: boolean; error: string | null; cols: string[]; rows: Record<string, unknown>[] }>({ loading: false, error: null, cols: [], rows: [] })
   // Terminal intégré (bash / powershell)
   const [terminalShell, setTerminalShell] = useState<'powershell' | 'bash' | 'ssh' | null>(null)
+  const [bottomTab, setBottomTab] = useState<'logs' | 'params' | 'terminal'>('logs')
+  const { data: sysInfo } = useQuery({ queryKey: ['system-info'], queryFn: api.system.info, staleTime: Infinity })
+  const defaultShell: 'powershell' | 'bash' = sysInfo?.is_windows ? 'powershell' : 'bash'
 
   // ── Two-level canvas : Workflow ↔ Job ────────────────────────────────────
   type SceneMode = 'jobs' | 'workflow'
@@ -306,16 +310,54 @@ function WorkflowEditorInner() {
     setMultiSel({ nodes: sns, edges: ses })
   }, [])
 
+  /** Fix : supprimer un noeud job du canvas workflow retire aussi le job (jobNames + jobCanvasRef). */
+  const cascadeDeleteJobs = useCallback((deletedNodes: Node[]) => {
+    if (sceneMode !== 'workflow') return
+    const del = deletedNodes.filter(n => (n.data as FlowNodeData)?.nodeType === 'job').map(n => ((n.data as any)?.jobRef as string) ?? n.id)
+    if (del.length === 0) return
+    const next = new Map(jobNames)
+    for (const id of del) { next.delete(id); jobCanvasRef.current.delete(id) }
+    setJobNames(next)
+    if (activeJobId && !next.has(activeJobId)) setActiveJobId(next.size > 0 ? [...next.keys()][0] : null)
+  }, [sceneMode, jobNames, activeJobId])
+  const cascadeDeleteJobsRef = useRef(cascadeDeleteJobs)
+  cascadeDeleteJobsRef.current = cascadeDeleteJobs
+
+  /** React Flow onNodesDelete : pour un noeud job, propose scene-seule vs suppression complete (liste + disque). */
+  const onNodesDelete = useCallback((deleted: Node[]) => {
+    const jobNodes = deleted.filter(n => (n.data as FlowNodeData)?.nodeType === 'job')
+    if (jobNodes.length === 0 || sceneMode !== 'workflow') return
+    const label = jobNames.get(((jobNodes[0].data as any)?.jobRef as string) ?? jobNodes[0].id) ?? ''
+    const alsoDelete = window.confirm(
+      (jobNodes.length === 1
+        ? `Job "${label}" retire de la scene.`
+        : `${jobNodes.length} jobs retires de la scene.`) +
+      `\n\nOK = supprimer aussi le job (retire de la liste Jobs + dossier disque)\n` +
+      `Annuler = retirer de la scene seulement`
+    )
+    if (!alsoDelete) return
+    const ids = jobNodes.map(n => ((n.data as any)?.jobRef as string) ?? n.id)
+    const next = new Map(jobNames)
+    for (const id of ids) {
+      const name = jobNames.get(id) ?? id
+      next.delete(id)
+      jobCanvasRef.current.delete(id)
+      if (projectId) api.jobs.delete(projectId, name).catch(() => {})
+    }
+    setJobNames(next)
+    if (activeJobId && !next.has(activeJobId)) setActiveJobId(next.size > 0 ? [...next.keys()][0] : null)
+  }, [sceneMode, jobNames, activeJobId, projectId])
+
   const deleteSelection = useCallback(() => {
     if (multiSel.nodes.length === 0 && multiSel.edges.length === 0) return
     pushHistory(nodes, edges)   // snapshot avant suppression
-    const nodeIds = new Set(multiSel.nodes.map(n => n.id))
-    const edgeIds = new Set(multiSel.edges.map(e => e.id))
-    setNodes(nds => nds.filter(n => !nodeIds.has(n.id)))
-    setEdges(eds => eds.filter(e => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)))
+    rfInstanceRef.current?.deleteElements({
+      nodes: multiSel.nodes.map(n => ({ id: n.id })),
+      edges: multiSel.edges.map(e => ({ id: e.id })),
+    })
     setMultiSel({ nodes: [], edges: [] })
-    setSelectedNode(prev => prev && nodeIds.has(prev.id) ? null : prev)
-  }, [multiSel, nodes, edges, pushHistory, setNodes, setEdges])
+    setSelectedNode(null)
+  }, [multiSel, nodes, edges, pushHistory])
 
   // ── Charger workflow ──────────────────────────────────────────────────────
 
@@ -565,21 +607,66 @@ function WorkflowEditorInner() {
       alert(`Impossible de supprimer "${jobNames.get(jobId) ?? jobId}" : retirez-le d'abord du canvas "Workflow configuration".`)
       return
     }
-    if (jobNames.size <= 1) return
+    const delName = jobNames.get(jobId) ?? jobId
+    const alsoDisk = window.confirm(
+      `Supprimer le job "${delName}".\n\n` +
+      `OK = supprimer aussi le dossier sur le disque (jobs/${delName}/)\n` +
+      `Annuler = retirer de Hydra Studio seulement`
+    )
     const newNames = new Map(jobNames)
     newNames.delete(jobId)
     jobCanvasRef.current.delete(jobId)
     setJobNames(newNames)
     if (activeJobId === jobId) {
-      const nextId = [...newNames.keys()][0]
-      const saved  = jobCanvasRef.current.get(nextId) ?? { nodes: [], edges: [] }
-      setNodes(saved.nodes as Node<FlowNodeData>[])
-      setEdges(saved.edges)
-      setActiveJobId(nextId)
-      setSp(prev => { const n = new URLSearchParams(prev); n.set('jobId', nextId); return n }, { replace: true })
-      if (saved.nodes.length > 0) fitViewSoon()
+      if (newNames.size > 0) {
+        const nextId = [...newNames.keys()][0]
+        const saved  = jobCanvasRef.current.get(nextId) ?? { nodes: [], edges: [] }
+        setNodes(saved.nodes as Node<FlowNodeData>[])
+        setEdges(saved.edges)
+        setActiveJobId(nextId)
+        setSp(prev => { const n = new URLSearchParams(prev); n.set('jobId', nextId); return n }, { replace: true })
+        if (saved.nodes.length > 0) fitViewSoon()
+      } else {
+        setActiveJobId(null)
+        setNodes([])
+        setEdges([])
+      }
     }
-  }, [sceneMode, nodes, wfSnapshot, jobNames, activeJobId, setSp])
+    if (alsoDisk && projectId) api.jobs.delete(projectId, delName).catch(() => {})
+  }, [sceneMode, nodes, wfSnapshot, jobNames, activeJobId, setSp, projectId])
+
+  /** Archive un job : dossier renomme en <nom>.backup (bloque si sur le canvas). */
+  const archiveJob = useCallback((jobId: string) => {
+    setTabMenu(null)
+    const wfNodes = sceneMode === 'workflow' ? nodes : ((wfSnapshot?.nodes ?? []) as Node<FlowNodeData>[])
+    if (wfNodes.some(n => n.id === jobId || (n.data as any)?.jobRef === jobId)) {
+      alert(`Impossible d'archiver "${jobNames.get(jobId) ?? jobId}" : retirez-le d'abord du canvas "Workflow configuration".`)
+      return
+    }
+    const name = jobNames.get(jobId) ?? jobId
+    const newNames = new Map(jobNames)
+    newNames.delete(jobId)
+    jobCanvasRef.current.delete(jobId)
+    setJobNames(newNames)
+    if (activeJobId === jobId) {
+      if (newNames.size > 0) {
+        const nextId = [...newNames.keys()][0]
+        const saved  = jobCanvasRef.current.get(nextId) ?? { nodes: [], edges: [] }
+        setNodes(saved.nodes as Node<FlowNodeData>[])
+        setEdges(saved.edges)
+        setActiveJobId(nextId)
+      } else {
+        setActiveJobId(null); setNodes([]); setEdges([])
+      }
+    }
+    if (projectId) api.jobs.archive(projectId, name).then(r => { if (r?.message) console.info(r.message) }).catch(() => {})
+  }, [sceneMode, nodes, wfSnapshot, jobNames, activeJobId, projectId])
+
+  /** Ouvre le menu contextuel (Renommer/Archiver/Supprimer) depuis la liste Jobs de la palette. */
+  const onJobContextMenu = useCallback((e: React.MouseEvent, jobId: string) => {
+    e.preventDefault()
+    setTabMenu({ jobId, x: e.clientX, y: e.clientY + 72 })
+  }, [])
 
   /** Duplique un nœud job sur le canvas Scene 2 (avec confirmation) */
   const duplicateJobInScene2 = useCallback((nodeId: string) => {
@@ -686,7 +773,7 @@ function WorkflowEditorInner() {
       const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY })
       const newNode: Node<FlowNodeData> = {
         id: jobRefId, type: 'hydraNode', position,
-        data: { label: jobName, nodeType: 'job', stepName: jobRefId, enabled: true, onFailure: 'fail' } as FlowNodeData,
+        data: { label: jobName, nodeType: 'job', stepName: jobRefId, jobRef: jobRefId, enabled: true, onFailure: 'fail' } as FlowNodeData,
       }
       pushHistory(nodes, edges)
       setNodes(nds => [...nds, newNode])
@@ -1309,25 +1396,14 @@ function WorkflowEditorInner() {
       // Delete / Backspace — suppression manuelle (deleteKeyCode={null} sur ReactFlow)
       if ((e.key === 'Delete' || e.key === 'Backspace') && !inInput) {
         e.preventDefault()
-        // Récupère les nœuds/edges sélectionnés dans les refs React Flow
-        setNodes(currentNodes => {
-          const selected = currentNodes.filter(n => n.selected)
-          if (selected.length > 0) {
-            pushHistory(currentNodes, edges)  // snapshot AVANT suppression
-            const ids = new Set(selected.map(n => n.id))
-            setEdges(eds => eds.filter(e2 => !ids.has(e2.source) && !ids.has(e2.target)))
-            return currentNodes.filter(n => !ids.has(n.id))
-          }
-          return currentNodes
-        })
-        setEdges(currentEdges => {
-          const selected = currentEdges.filter(e2 => e2.selected)
-          if (selected.length > 0) {
-            const ids = new Set(selected.map(e2 => e2.id))
-            return currentEdges.filter(e2 => !ids.has(e2.id))
-          }
-          return currentEdges
-        })
+        const inst = rfInstanceRef.current
+        if (!inst) return
+        const selNodes = (inst.getNodes() as Node<FlowNodeData>[]).filter(n => n.selected)
+        const selEdges = inst.getEdges().filter(e2 => e2.selected)
+        if (selNodes.length === 0 && selEdges.length === 0) return
+        pushHistory(inst.getNodes() as Node<FlowNodeData>[], inst.getEdges() as Edge[])
+        // deleteElements => declenche onNodesDelete (purge job unifiee + choix)
+        inst.deleteElements({ nodes: selNodes.map(n => ({ id: n.id })), edges: selEdges.map(e2 => ({ id: e2.id })) })
         return
       }
 
@@ -1616,7 +1692,7 @@ function WorkflowEditorInner() {
                 <>
                   <div style={{ width: 1, height: 16, background: 'var(--bg-border)' }} />
                   <button
-                    onClick={() => setTerminalShell(sh)}
+                    onClick={() => { setTerminalShell(sh); setBottomTab('terminal'); setLogsOpen(true) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       background: sh === 'powershell' ? 'rgba(37,99,235,0.15)' : 'rgba(22,163,74,0.15)',
@@ -1656,6 +1732,7 @@ function WorkflowEditorInner() {
           onCancelReplace={() => setReplaceNodeId(null)}
           sceneMode={sceneMode}
           jobsList={[...jobNames.entries()].map(([id, name]) => ({ id, name }))}
+          onJobContextMenu={onJobContextMenu}
         />
 
         <CanvasToolbox
@@ -1680,6 +1757,7 @@ function WorkflowEditorInner() {
             edges={displayEdges}
             onNodesChange={onNodesChange as any}
             onEdgesChange={onEdgesChange}
+            onNodesDelete={onNodesDelete}
             onConnect={onConnect}
             onEdgeDoubleClick={onEdgeDoubleClick}
             onInit={setRfInstance}
@@ -1874,9 +1952,18 @@ function WorkflowEditorInner() {
           />
           {/* Header */}
           <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
-            <Terminal size={12} style={{ color: 'var(--primary)' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--primary)', fontFamily: 'monospace' }}>LOGS</span>
-            {lastRun && (
+            {([['logs', 'LOGS'], ['params', 'PARAMETERS'], ['terminal', 'TERMINAL']] as const).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setBottomTab(key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, letterSpacing: 1, fontFamily: 'monospace',
+                  padding: '2px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  background: bottomTab === key ? 'var(--bg-hover)' : 'transparent',
+                  color: bottomTab === key ? 'var(--primary)' : 'var(--text-muted)',
+                }}>
+                <Terminal size={12} /> {label}
+              </button>
+            ))}
+            {bottomTab === 'logs' && lastRun && (
               <span style={{
                 fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10,
                 color: lastRun.status === 'success' ? 'var(--success)' : lastRun.status === 'failed' ? 'var(--error)' : 'var(--warning)',
@@ -1889,8 +1976,12 @@ function WorkflowEditorInner() {
             <button onClick={() => setLogsOpen(false)} className="btn-secondary text-xs !py-0.5" title="Fermer">✕</button>
           </div>
           {/* Contenu */}
-          <div style={{ flex: 1, overflow: 'hidden', padding: '6px 10px' }}>
-            {lastRun
+          <div style={{ flex: 1, overflow: bottomTab === 'params' ? 'auto' : 'hidden', padding: bottomTab === 'terminal' ? 0 : '6px 10px' }}>
+            {bottomTab === 'terminal' ? (
+              <TerminalPanel shell={(terminalShell === 'ssh' ? null : terminalShell) ?? defaultShell} onClose={() => setBottomTab('logs')} />
+            ) : bottomTab === 'params' ? (
+              <ParametersPanel projectId={projectId} accent={'var(--primary)'} />
+            ) : lastRun
               ? <LogViewer lines={logLines} maxHeight={logsPanelH - 70} title={lastRun.workflow_name} />
               : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace' }}>
                   Lancez un job ou un workflow pour voir les logs.
@@ -2015,6 +2106,14 @@ function WorkflowEditorInner() {
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <Pencil size={13} /> Renommer
+            </button>
+            <button
+              onClick={() => archiveJob(tabMenu.jobId)}
+              style={{ width: '100%', padding: '8px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <Archive size={13} /> Archiver
             </button>
             <div style={{ height: 1, background: 'var(--bg-border)' }} />
             <button

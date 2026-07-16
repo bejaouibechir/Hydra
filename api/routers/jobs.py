@@ -53,6 +53,49 @@ def get_job_files(project_id: str, name: str):
     )
 
 
+class JobPathRequest(BaseModel):
+    project_id: str
+    name: str
+
+
+class JobActionResponse(BaseModel):
+    ok: bool
+    message: str
+    archived_as: Optional[str] = None
+
+
+def _job_dir(project_id: str, name: str) -> Path:
+    proj = store.get_project(project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+    return Path(proj.path) / "jobs" / name
+
+
+@router.post("/delete", response_model=JobActionResponse)
+def delete_job_folder(body: JobPathRequest):
+    """Supprime le dossier jobs/<name>/ du projet."""
+    import shutil
+    job_dir = _job_dir(body.project_id, body.name)
+    if not job_dir.is_dir():
+        return JobActionResponse(ok=True, message=f"Job '{body.name}' : aucun dossier sur disk")
+    shutil.rmtree(job_dir)
+    return JobActionResponse(ok=True, message=f"Job '{body.name}' supprime")
+
+
+@router.post("/archive", response_model=JobActionResponse)
+def archive_job_folder(body: JobPathRequest):
+    """Renomme jobs/<name>/ en jobs/<name>.backup/ (horodate si deja present)."""
+    from datetime import datetime
+    job_dir = _job_dir(body.project_id, body.name)
+    if not job_dir.is_dir():
+        return JobActionResponse(ok=True, message=f"Job '{body.name}' : aucun dossier sur disk")
+    backup = job_dir.parent / f"{body.name}.backup"
+    if backup.exists():
+        backup = job_dir.parent / f"{body.name}.backup.{datetime.now():%Y%m%d_%H%M%S}"
+    job_dir.rename(backup)
+    return JobActionResponse(ok=True, message=f"Job '{body.name}' archive", archived_as=backup.name)
+
+
 class JobRunRequest(BaseModel):
     path: str
     dry_run: bool = False

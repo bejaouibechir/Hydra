@@ -166,6 +166,22 @@ export const api = {
   jobs: {
     files: (projectId: string, name: string) =>
       get<JobFilesPayload>(`/jobs/files?project_id=${projectId}&name=${encodeURIComponent(name)}`),
+    delete: (projectId: string, name: string) =>
+      post<{ ok: boolean; message: string }>('/jobs/delete', { project_id: projectId, name }),
+    archive: (projectId: string, name: string) =>
+      post<{ ok: boolean; message: string; archived_as?: string }>('/jobs/archive', { project_id: projectId, name }),
+  },
+
+  transform: {
+    scriptPreview: (body: { inputs: string[]; outputs: Record<string, string>; code: string; mode: string; rows: Record<string, unknown>[] }) =>
+      post<{ columns: string[]; rows: Record<string, unknown>[]; error: string | null }>('/transform/script/preview', body),
+  },
+
+  parameters: {
+    get: (projectId: string) =>
+      get<{ declarations: Record<string, Record<string, unknown>>; environments: Record<string, Record<string, unknown>> }>(`/parameters?project_id=${encodeURIComponent(projectId)}`),
+    save: (body: { project_id: string; declarations: Record<string, Record<string, unknown>>; environments: Record<string, Record<string, unknown>> }) =>
+      put<{ declarations: Record<string, Record<string, unknown>>; environments: Record<string, Record<string, unknown>> }>('/parameters', body),
   },
 
 }

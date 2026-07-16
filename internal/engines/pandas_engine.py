@@ -18,12 +18,95 @@ Corrections appliquées :
 
 from __future__ import annotations
 
+import ast
+import builtins as _bi
+import math
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 
 from internal.transform.engine_interface import StepResult, TransformEngine
+
+
+# --------------------------------------------------
+# Sandbox pour l'operation 'script' (code Python user)
+# --------------------------------------------------
+
+# Noms interdits (evasion / effets de bord)
+_SCRIPT_FORBIDDEN_NAMES = frozenset({
+    "__import__", "eval", "exec", "compile", "open", "input",
+    "globals", "locals", "vars", "getattr", "setattr", "delattr",
+    "memoryview", "breakpoint", "help", "exit", "quit", "__build_class__",
+})
+
+# Builtins autorises dans le code utilisateur
+_SCRIPT_ALLOWED_BUILTINS = frozenset({
+    "abs", "round", "min", "max", "sum", "len", "int", "float", "str",
+    "bool", "list", "dict", "tuple", "set", "sorted", "reversed", "zip",
+    "range", "enumerate", "map", "filter", "any", "all", "divmod", "pow",
+    "isinstance", "print", "format", "repr", "ord", "chr", "hex", "bin",
+    "True", "False", "None",
+})
+
+_SCRIPT_SAFE_BUILTINS: Dict[str, Any] = {
+    n: getattr(_bi, n) for n in _SCRIPT_ALLOWED_BUILTINS if hasattr(_bi, n)
+}
+
+
+def _validate_script_ast(code: str) -> None:
+    """Rejette import, dunder et appels dangereux avant execution."""
+    try:
+        tree = ast.parse(code, mode="exec")
+    except SyntaxError as e:
+        raise ValueError(f"script: erreur de syntaxe: {e}") from None
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            raise ValueError("script: 'import' interdit dans le code")
+        if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
+            raise ValueError(
+                f"script: acces a l'attribut '{node.attr}' interdit"
+            )
+        if isinstance(node, ast.Name) and node.id in _SCRIPT_FORBIDDEN_NAMES:
+            raise ValueError(f"script: usage de '{node.id}' interdit")
+
+
+def _script_globals() -> Dict[str, Any]:
+    """Namespace global fige expose au code utilisateur."""
+    return {
+        "__builtins__": dict(_SCRIPT_SAFE_BUILTINS),
+        "pd": pd,
+        "np": np,
+        "math": math,
+        "re": re,
+    }
+
+
+def _coerce_output(series: pd.Series, typ: str, col: str = "") -> pd.Series:
+    """Coercition legere d'une colonne de sortie selon le type declare."""
+    t = (typ or "any").lower()
+    if t == "any":
+        return series
+    try:
+        if t == "int":
+            return pd.to_numeric(series, errors="raise").astype("Int64")
+        if t == "float":
+            return pd.to_numeric(series, errors="raise").astype("float64")
+        if t == "str":
+            return series.astype("string")
+        if t == "bool":
+            return series.astype("bool")
+        if t.startswith("date"):
+            return pd.to_datetime(series, errors="raise")
+    except Exception as ex:
+        raise ValueError(
+            f"script: colonne de sortie '{col}' non convertible vers '{typ}' "
+            f"(valeur ex.: {series.iloc[0]!r}) : {ex}"
+        ) from None
+    return series
 
 
 @dataclass(frozen=True)
@@ -209,10 +292,24 @@ class PandasEngine(TransformEngine):
             return self._op_aggregate(df, step.params)
         if step.op == "join":
             return self._op_join(df, step.params)
+        if step.op == "clean":
+            return self._op_clean(df, step.params)
+        if step.op == "pivot":
+            return self._op_pivot(df, step.params)
+        if step.op == "unpivot":
+            return self._op_unpivot(df, step.params)
+        if step.op == "transpose":
+            return self._op_transpose(df, step.params)
+        if step.op == "merge":
+            return self._op_merge(df, step.params)
+        if step.op == "union":
+            return self._op_union(df, step.params)
+        if step.op == "script":
+            return self._op_script(df, step.params)
 
         raise ValueError(
             f"Opération inconnue: {step.op}. "
-            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join"
+            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script"
         )
 
     # --------------------------------------------------
@@ -376,6 +473,225 @@ class PandasEngine(TransformEngine):
             raise ValueError(
                 f"filter : expression invalide '{expr}'. Erreur : {e}"
             ) from None
+
+    def _op_union(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Union / Union All : empile une 2e source (prechargee dans p["_right_rows"]).
+        distinct=False -> UNION ALL (garde tout) ; distinct=True -> UNION (dedoublonne).
+        """
+        right_rows = p.get("_right_rows")
+        if right_rows is None:
+            raise ValueError("union: source non chargee (doit etre execute via le runner).")
+        distinct = bool(p.get("distinct", False))
+        other = pd.DataFrame(list(right_rows))
+        result = pd.concat([df, other], ignore_index=True, sort=False)
+        if distinct:
+            result = result.drop_duplicates()
+        return result.reset_index(drop=True)
+
+    def _op_script(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Transformation Python personnalisee (facon SSIS Script Component).
+
+        Contrat : inputs (colonnes lues) -> outputs (colonnes produites).
+        Le code s'execute dans un environnement restreint (pas d'import, pas
+        d'acces fichiers/reseau, builtins whitelistes).
+
+        Params:
+            inputs: List[str]         - colonnes exposees au code
+            outputs: Dict[str, str]   - {nom_colonne: type} produites par le code
+            code: str                 - corps Python
+            mode: 'vectorized'|'row'  - Series entieres vs ligne par ligne
+
+        Modes:
+        - vectorized : chaque input est une pandas.Series ; le code doit
+                       affecter chaque output (Series ou scalaire broadcaste).
+        - row        : le code s'execute par ligne ; chaque input est un
+                       scalaire, chaque output un scalaire.
+        """
+        inputs = p.get("inputs") or []
+        outputs = p.get("outputs") or {}
+        code = p.get("code")
+        mode = str(p.get("mode", "vectorized")).lower()
+
+        if not isinstance(inputs, list):
+            raise ValueError("script.inputs doit etre une liste de colonnes")
+        if not isinstance(outputs, dict) or not outputs:
+            raise ValueError("script.outputs requis (dict {colonne: type} non vide)")
+        if not code or not isinstance(code, str):
+            raise ValueError("script.code requis (chaine non vide)")
+        if mode not in ("vectorized", "row"):
+            raise ValueError(f"script.mode invalide: {mode} (vectorized|row)")
+
+        missing = [c for c in inputs if c not in df.columns]
+        if missing:
+            raise ValueError(
+                f"script: colonnes input inexistantes {missing}. "
+                f"Colonnes disponibles : {list(df.columns)}"
+            )
+
+        _validate_script_ast(code)
+        try:
+            compiled = compile(code, "<hydra-script>", "exec")
+        except Exception as ex:
+            raise ValueError(f"script: compilation impossible: {ex}") from None
+
+        g = _script_globals()
+        g["params"] = dict(p.get("_params") or {})  # parametres (lecture seule)
+        out = df.copy()
+
+        if mode == "vectorized":
+            local_ns: Dict[str, Any] = {c: out[c] for c in inputs}
+            try:
+                exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
+            except Exception as ex:
+                raise ValueError(f"script: erreur d'execution: {ex}") from None
+            for col, typ in outputs.items():
+                if col not in local_ns:
+                    raise ValueError(
+                        f"script: colonne de sortie '{col}' non definie par le code"
+                    )
+                out[col] = _coerce_output(pd.Series(local_ns[col], index=out.index), typ, col)
+            return out
+
+        # mode == "row"
+        collected: Dict[str, list] = {col: [] for col in outputs}
+        for _, row in out.iterrows():
+            local_ns = {c: row[c] for c in inputs}
+            try:
+                exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
+            except Exception as ex:
+                raise ValueError(f"script: erreur d'execution (mode row): {ex}") from None
+            for col in outputs:
+                if col not in local_ns:
+                    raise ValueError(
+                        f"script: colonne de sortie '{col}' non definie par le code"
+                    )
+                collected[col].append(local_ns[col])
+        for col, typ in outputs.items():
+            out[col] = _coerce_output(pd.Series(collected[col], index=out.index), typ, col)
+        return out
+
+    def _op_merge(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Merge type SQL Server (upsert). df = cible ; la source est prechargee dans
+        p["_right_rows"] par le runner.
+        - cle appariee -> valeurs de la source (update)
+        - cle seulement dans la source -> inseree
+        - cle seulement dans la cible -> conservee (ou supprimee si delete_unmatched)
+        Params: key, delete_unmatched.
+        """
+        right_rows = p.get("_right_rows")
+        if right_rows is None:
+            raise ValueError("merge: source non chargee (doit etre execute via le runner).")
+        key = p.get("key")
+        if not key:
+            raise ValueError("merge.key requis (cle d'appariement)")
+        keys = [key] if isinstance(key, str) else list(key)
+        delete_unmatched = bool(p.get("delete_unmatched", False))
+        source_df = pd.DataFrame(list(right_rows))
+        for k in keys:
+            if k not in df.columns:
+                raise ValueError(f"merge: cle '{k}' absente de la cible")
+            if k not in source_df.columns:
+                raise ValueError(f"merge: cle '{k}' absente de la source")
+        combined = pd.concat([df, source_df], ignore_index=True, sort=False)
+        result = combined.drop_duplicates(subset=keys, keep="last")
+        if delete_unmatched:
+            src_keys = set(source_df[keys].apply(tuple, axis=1))
+            result = result[result[keys].apply(tuple, axis=1).isin(src_keys)]
+        return result.reset_index(drop=True)
+
+    def _op_transpose(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Transpose lignes <-> colonnes.
+        Params: index_col (colonne dont les valeurs deviennent les en-tetes),
+                header_name (nom de la colonne des anciens en-tetes, defaut 'column').
+        """
+        idx = p.get("index_col")
+        header_name = p.get("header_name") or "column"
+        out = df.copy()
+        if idx:
+            if idx not in out.columns:
+                raise ValueError(f"transpose: index_col '{idx}' inexistante. Disponibles: {list(out.columns)}")
+            out = out.set_index(idx)
+        t = out.T
+        t.index.name = header_name
+        return t.reset_index()
+
+    def _op_clean(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Nettoie les colonnes texte : reduit les espaces (trim + espaces multiples)
+        et normalise la casse. Params: columns (defaut toutes texte), case (none|lower|upper).
+        """
+        import re
+        cols = p.get("columns")
+        case = str(p.get("case", "none")).lower()
+        out = df.copy()
+        targets = cols if cols else [c for c in out.columns if out[c].dtype == object]
+        for c in targets:
+            if c not in out.columns:
+                raise ValueError(f"clean: colonne '{c}' inexistante. Disponibles: {list(out.columns)}")
+
+            def _cl(v):
+                if not isinstance(v, str):
+                    return v
+                v = re.sub(r"\s+", " ", v).strip()
+                if case == "lower":
+                    return v.lower()
+                if case == "upper":
+                    return v.upper()
+                return v
+
+            out[c] = out[c].map(_cl)
+        return out
+
+    def _op_pivot(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Pivot long -> large (pandas pivot_table).
+        Params: index (liste), columns (str), values (str), aggfunc (defaut 'first').
+        """
+        index = p.get("index")
+        column = p.get("column")
+        values = p.get("values")
+        aggfunc = p.get("aggfunc", "first")
+        if not index or not column or not values:
+            raise ValueError("pivot requiert 'index' (liste), 'column' (str) et 'values' (str)")
+        if isinstance(index, str):
+            index = [index]
+        try:
+            res = pd.pivot_table(df, index=index, columns=column, values=values, aggfunc=aggfunc)
+            res = res.reset_index()
+            res.columns = [
+                "_".join(str(x) for x in c if x != "") if isinstance(c, tuple) else str(c)
+                for c in res.columns
+            ]
+            return res.reset_index(drop=True)
+        except Exception as e:
+            raise ValueError(f"pivot: erreur lors du pivot: {e}") from None
+
+    def _op_unpivot(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Unpivot large -> long (pandas melt).
+        Params: id_vars (liste), value_vars (liste, defaut le reste), var_name, value_name.
+        """
+        id_vars = p.get("id_vars", [])
+        value_vars = p.get("value_vars")
+        var_name = p.get("var_name", "variable")
+        value_name = p.get("value_name", "value")
+        if isinstance(id_vars, str):
+            id_vars = [id_vars]
+        if isinstance(value_vars, str):
+            value_vars = [value_vars]
+        try:
+            return df.melt(
+                id_vars=id_vars or None,
+                value_vars=value_vars or None,
+                var_name=var_name,
+                value_name=value_name,
+            )
+        except Exception as e:
+            raise ValueError(f"unpivot: erreur lors du melt: {e}") from None
 
     def _op_join(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """

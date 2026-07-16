@@ -118,6 +118,10 @@ const OP_TO_NODE: Record<string, string> = {
   calculate: 'transform_derive', join: 'transform_join',
   fill_null: 'transform_fill_null', clean: 'transform_clean',
   pivot: 'transform_pivot', unpivot: 'transform_unpivot',
+  transpose: 'transform_transpose',
+  merge: 'transform_merge',
+  union: 'transform_union',
+  script: 'transform_script',
 }
 
 const NODE_TO_OP: Record<string, string> = {
@@ -126,8 +130,13 @@ const NODE_TO_OP: Record<string, string> = {
   transform_sort: 'sort', transform_aggregate: 'aggregate',
   transform_dedupe: 'deduplicate', transform_derive: 'calculate', // runner: 'calculate' uniquement
   transform_join: 'join', transform_fill_null: 'fill_null',
+  transform_trim: 'trim',
   transform_clean: 'clean', transform_pivot: 'pivot',
   transform_unpivot: 'unpivot',
+  transform_transpose: 'transpose',
+  transform_merge: 'merge',
+  transform_union: 'union',
+  transform_script: 'script',
 }
 
 // ── Flow → HDR ────────────────────────────────────────────────────────────────
@@ -216,14 +225,22 @@ export function flowToHdr(
       else { j.key = cfg.key ?? '' }
       return { join: j }
     }
+    if (op === 'merge') {
+      const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
+      return { merge: { right: rightKey, key: cfg.key ?? '', delete_unmatched: cfg.delete_unmatched === true || cfg.delete_unmatched === 'true' } }
+    }
+    if (op === 'union') {
+      const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
+      return { union: { right: rightKey, distinct: cfg.distinct === true || cfg.distinct === 'true' } }
+    }
     return { [op]: _uiParamsToEngine(op, cfg) }
   })
 
-  // 'from' = source gauche (celle qui n'est le 'right' d'aucun join)
+  // 'from' = source gauche (celle qui n'est le 'right' d'aucun join/merge)
   const joinRightKeys = new Set(
     steps
-      .filter(st => (st as Record<string, unknown>).join)
-      .map(st => (st as Record<string, Record<string, unknown>>).join.right as string)
+      .filter(st => (st as Record<string, unknown>).join || (st as Record<string, unknown>).merge || (st as Record<string, unknown>).union)
+      .map(st => { const r = st as Record<string, unknown>; const o = r.join ? 'join' : (r.merge ? 'merge' : 'union'); return (st as Record<string, Record<string, unknown>>)[o].right as string })
       .filter(Boolean)
   )
 
@@ -425,6 +442,11 @@ function _uiParamsToEngine(op: string, cfg: Record<string, unknown>): Record<str
       return cfg.value != null && cfg.value !== '' ? { value: cfg.value } : {}
     }
     case 'trim':        return cfg.columns ? { columns: _parseList(cfg.columns as string) } : {}
+    case 'clean':       return { columns: _parseList(cfg.columns as string), case: cfg.case ?? 'none' }
+    case 'pivot':       return { index: _parseList(cfg.index as string), column: cfg.column ?? '', values: cfg.values ?? '', aggfunc: cfg.aggfunc ?? 'first' }
+    case 'unpivot':     return { id_vars: _parseList(cfg.id_vars as string), value_vars: _parseList(cfg.value_vars as string), var_name: cfg.var_name ?? 'variable', value_name: cfg.value_name ?? 'value' }
+    case 'transpose':   return cfg.index_col ? { index_col: cfg.index_col, header_name: cfg.header_name ?? 'column' } : { header_name: cfg.header_name ?? 'column' }
+    case 'script':      return { inputs: _parseList(cfg.inputs as string), outputs: _parseJson(cfg.outputs as string), code: cfg.code ?? '', mode: cfg.mode === 'row' ? 'row' : 'vectorized' }
     default:            return { ...cfg }
   }
 }
@@ -473,6 +495,15 @@ function _stepToParams(op: string, raw: Record<string, unknown> = {}): Record<st
     case 'derive':       return { column: raw.column ?? '', expr: raw.expr ?? '' }
     case 'deduplicate':  return { subset: Array.isArray(raw.subset) ? (raw.subset as string[]).join(',') : (raw.subset ?? '') }
     case 'join':         return { right: raw.right ?? '', key: raw.key ?? '', left_key: raw.left_key ?? '', right_key: raw.right_key ?? '', how: raw.how ?? 'inner' }
+    case 'merge':        return { right: raw.right ?? '', key: raw.key ?? '', delete_unmatched: raw.delete_unmatched ? 'true' : 'false' }
+    case 'union':        return { right: raw.right ?? '', distinct: raw.distinct ? 'true' : 'false' }
+    case 'fill_null':    return { value: raw.value ?? '', columns: typeof raw.columns === 'object' ? JSON.stringify(raw.columns) : (raw.columns ?? '') }
+    case 'trim':         return { columns: Array.isArray(raw.columns) ? (raw.columns as string[]).join(',') : (raw.columns ?? '') }
+    case 'clean':        return { columns: Array.isArray(raw.columns) ? (raw.columns as string[]).join(',') : (raw.columns ?? ''), case: raw.case ?? 'none' }
+    case 'pivot':        return { index: Array.isArray(raw.index) ? (raw.index as string[]).join(',') : (raw.index ?? ''), column: raw.column ?? '', values: raw.values ?? '', aggfunc: raw.aggfunc ?? 'first' }
+    case 'unpivot':      return { id_vars: Array.isArray(raw.id_vars) ? (raw.id_vars as string[]).join(',') : (raw.id_vars ?? ''), value_vars: Array.isArray(raw.value_vars) ? (raw.value_vars as string[]).join(',') : (raw.value_vars ?? ''), var_name: raw.var_name ?? 'variable', value_name: raw.value_name ?? 'value' }
+    case 'transpose':    return { index_col: raw.index_col ?? '', header_name: raw.header_name ?? 'column' }
+    case 'script':       return { inputs: Array.isArray(raw.inputs) ? (raw.inputs as string[]).join(',') : (raw.inputs ?? ''), outputs: typeof raw.outputs === 'object' ? JSON.stringify(raw.outputs) : (raw.outputs ?? ''), code: raw.code ?? '', mode: raw.mode === 'row' ? 'row' : 'vectorized' }
     default:             return {}
   }
 }
@@ -551,14 +582,22 @@ export function flowToJobModel(
       else { j.key = cfg.key ?? '' }
       return { join: j }
     }
+    if (op === 'merge') {
+      const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
+      return { merge: { right: rightKey, key: cfg.key ?? '', delete_unmatched: cfg.delete_unmatched === true || cfg.delete_unmatched === 'true' } }
+    }
+    if (op === 'union') {
+      const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
+      return { union: { right: rightKey, distinct: cfg.distinct === true || cfg.distinct === 'true' } }
+    }
     return { [op]: _uiParamsToEngine(op, cfg) }
   })
 
-  // Le 'from' du pipeline = la source gauche (celle qui n'est le 'right' d'aucun join)
+  // Le 'from' du pipeline = la source gauche (celle qui n'est le 'right' d'aucun join/merge)
   const joinRightKeys = new Set(
     steps
-      .filter(st => (st as Record<string, unknown>).join)
-      .map(st => (st as Record<string, Record<string, unknown>>).join.right as string)
+      .filter(st => (st as Record<string, unknown>).join || (st as Record<string, unknown>).merge || (st as Record<string, unknown>).union)
+      .map(st => { const r = st as Record<string, unknown>; const o = r.join ? 'join' : (r.merge ? 'merge' : 'union'); return (st as Record<string, Record<string, unknown>>)[o].right as string })
       .filter(Boolean)
   )
   if (joinRightKeys.size > 0) {
@@ -688,7 +727,7 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
     const id = `imported_tf_${i}`
     nodes.push({
       id, type: 'hydraNode', position: { x, y: 100 },
-      data: { nodeType, label: op, params: step[op] as Record<string, unknown> } as unknown as FlowNodeData,
+      data: { nodeType, label: op, params: _stepToParams(op, step[op] as Record<string, unknown>) } as unknown as FlowNodeData,
     })
     const sourceId = lastTfId ?? prevIds[0]
     if (sourceId) edges.push({ id: `${sourceId}->${id}`, source: sourceId, target: id, animated: false })

@@ -88,6 +88,7 @@ export interface JobEntry { id: string; name: string }
 interface Props {
   onDragStart: (event: React.DragEvent, nodeType: string) => void
   onJobDragStart?: (event: React.DragEvent, jobId: string) => void
+  onJobContextMenu?: (event: React.MouseEvent, jobId: string) => void
   replaceMode?: boolean
   onCancelReplace?: () => void
   /** 'jobs'     → Sources/Transformations/Destinations/Actions
@@ -101,7 +102,7 @@ interface Props {
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 export default function NodePalette({
-  onDragStart, onJobDragStart, replaceMode, onCancelReplace, sceneMode, jobsList = [],
+  onDragStart, onJobDragStart, onJobContextMenu, replaceMode, onCancelReplace, sceneMode, jobsList = [],
 }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({
     source: true,
@@ -369,13 +370,14 @@ export default function NodePalette({
                   key={job.id}
                   draggable
                   onDragStart={e => onJobDragStart?.(e, job.id)}
+                  onContextMenu={e => { e.preventDefault(); onJobContextMenu?.(e, job.id) }}
                   className="flex items-center gap-2 mx-2 mb-0.5 px-2 py-2 rounded-lg"
                   style={{
                     background: `${JOB_COLOR}12`,
                     border:     `1px solid ${JOB_COLOR}28`,
                     cursor: 'grab',
                   }}
-                  title={`Drag pour ajouter "${job.name}" au canvas workflow`}
+                  title={`Glisser pour ajouter "${job.name}" — clic droit pour les options`}
                 >
                   <div style={{
                     width: 32, height: 32, borderRadius: 8,

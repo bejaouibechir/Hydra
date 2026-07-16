@@ -11,6 +11,8 @@ import { api } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import JobCreatorWizard from '@/components/canvas/JobCreatorWizard'
 import ExpressionBuilder from '@/components/canvas/ExpressionBuilder'
+import AggregationBuilder from '@/components/canvas/AggregationBuilder'
+import ScriptBuilder from '@/components/canvas/ScriptBuilder'
 import { rewriteFriendlyConcat } from '@/lib/exprBuilder'
 
 // ── Définition d'un champ de config ──────────────────────────────────────────
@@ -30,137 +32,172 @@ interface FieldDef {
 
 const CONFIG_FIELDS: Record<string, FieldDef[]> = {
   // Sources
-  source_csv:     [{ key: 'path', label: 'Chemin fichier', type: 'text', placeholder: './data/file.csv',     required: true, browseType: 'file',      browseExt: '.csv' }],
-  source_json:    [{ key: 'path', label: 'Chemin fichier', type: 'text', placeholder: './data/file.json',    required: true, browseType: 'file',      browseExt: '.json' }],
-  source_parquet: [{ key: 'path', label: 'Chemin fichier', type: 'text', placeholder: './data/file.parquet', required: true, browseType: 'file',      browseExt: '.parquet' }],
+  source_csv:     [{ key: 'path', label: 'File path', type: 'text', placeholder: './data/file.csv',     required: true, browseType: 'file',      browseExt: '.csv' }],
+  source_json:    [{ key: 'path', label: 'File path', type: 'text', placeholder: './data/file.json',    required: true, browseType: 'file',      browseExt: '.json' }],
+  source_parquet: [{ key: 'path', label: 'File path', type: 'text', placeholder: './data/file.parquet', required: true, browseType: 'file',      browseExt: '.parquet' }],
   source_mysql:    [
-    { key: 'host',     label: 'Hôte',        type: 'text',   placeholder: 'localhost', required: true },
+    { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
     { key: 'port',     label: 'Port',        type: 'number', placeholder: '3306' },
-    { key: 'database', label: 'Base',        type: 'text',   required: true },
-    { key: 'user',     label: 'Utilisateur', type: 'text',   required: true },
-    { key: 'password', label: 'Mot de passe', type: 'password' },
+    { key: 'database', label: 'Database',        type: 'text',   required: true },
+    { key: 'user',     label: 'User', type: 'text',   required: true },
+    { key: 'password', label: 'Password', type: 'password' },
     { key: 'table',    label: 'Table',        type: 'text' },
-    { key: 'query',    label: 'Requête SQL',  type: 'textarea' },
+    { key: 'query',    label: 'SQL query',  type: 'textarea' },
   ],
   source_postgres: [
-    { key: 'host',     label: 'Hôte',        type: 'text',   placeholder: 'localhost', required: true },
+    { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
     { key: 'port',     label: 'Port',        type: 'number', placeholder: '5432' },
-    { key: 'database', label: 'Base',        type: 'text',   required: true },
-    { key: 'user',     label: 'Utilisateur', type: 'text',   required: true },
-    { key: 'password', label: 'Mot de passe', type: 'password' },
+    { key: 'database', label: 'Database',        type: 'text',   required: true },
+    { key: 'user',     label: 'User', type: 'text',   required: true },
+    { key: 'password', label: 'Password', type: 'password' },
     { key: 'table',    label: 'Table',        type: 'text' },
-    { key: 'query',    label: 'Requête SQL',  type: 'textarea' },
+    { key: 'query',    label: 'SQL query',  type: 'textarea' },
   ],
   source_mongodb:  [
-    { key: 'uri',        label: 'URI MongoDB', type: 'text', placeholder: 'mongodb://localhost:27017', required: true },
-    { key: 'database',   label: 'Base',        type: 'text', required: true },
+    { key: 'uri',        label: 'MongoDB URI', type: 'text', placeholder: 'mongodb://localhost:27017', required: true },
+    { key: 'database',   label: 'Database',        type: 'text', required: true },
     { key: 'collection', label: 'Collection',  type: 'text', required: true },
   ],
   source_api: [
     { key: 'url',    label: 'URL',     type: 'text',   required: true },
-    { key: 'method', label: 'Méthode', type: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'] },
+    { key: 'method', label: 'Method', type: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'] },
   ],
   // Destinations
-  dest_csv:     [{ key: 'path', label: 'Chemin fichier', type: 'text', placeholder: './output/file.csv',     required: true, browseType: 'save_file', browseExt: '.csv' }],
-  dest_json:    [{ key: 'path', label: 'Chemin fichier', type: 'text', placeholder: './output/file.json',    required: true, browseType: 'save_file', browseExt: '.json' }],
-  dest_parquet: [{ key: 'path', label: 'Chemin fichier', type: 'text', placeholder: './output/file.parquet', required: true, browseType: 'save_file', browseExt: '.parquet' }],
+  dest_csv:     [{ key: 'path', label: 'File path', type: 'text', placeholder: './output/file.csv',     required: true, browseType: 'save_file', browseExt: '.csv' }],
+  dest_json:    [{ key: 'path', label: 'File path', type: 'text', placeholder: './output/file.json',    required: true, browseType: 'save_file', browseExt: '.json' }],
+  dest_parquet: [{ key: 'path', label: 'File path', type: 'text', placeholder: './output/file.parquet', required: true, browseType: 'save_file', browseExt: '.parquet' }],
   dest_mysql:    [
-    { key: 'host',     label: 'Hôte',        type: 'text',   placeholder: 'localhost', required: true },
+    { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
     { key: 'port',     label: 'Port',        type: 'number', placeholder: '3306' },
-    { key: 'database', label: 'Base',        type: 'text',   required: true },
-    { key: 'user',     label: 'Utilisateur', type: 'text',   required: true },
-    { key: 'password', label: 'Mot de passe', type: 'password' },
+    { key: 'database', label: 'Database',        type: 'text',   required: true },
+    { key: 'user',     label: 'User', type: 'text',   required: true },
+    { key: 'password', label: 'Password', type: 'password' },
     { key: 'table',    label: 'Table',       type: 'text',   required: true },
     { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
   ],
   dest_postgres: [
-    { key: 'host',     label: 'Hôte',        type: 'text',   placeholder: 'localhost', required: true },
+    { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
     { key: 'port',     label: 'Port',        type: 'number', placeholder: '5432' },
-    { key: 'database', label: 'Base',        type: 'text',   required: true },
-    { key: 'user',     label: 'Utilisateur', type: 'text',   required: true },
-    { key: 'password', label: 'Mot de passe', type: 'password' },
+    { key: 'database', label: 'Database',        type: 'text',   required: true },
+    { key: 'user',     label: 'User', type: 'text',   required: true },
+    { key: 'password', label: 'Password', type: 'password' },
     { key: 'table',    label: 'Table',       type: 'text',   required: true },
     { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
   ],
   dest_mongodb:  [
-    { key: 'uri',        label: 'URI MongoDB', type: 'text', required: true },
-    { key: 'database',   label: 'Base',        type: 'text', required: true },
+    { key: 'uri',        label: 'MongoDB URI', type: 'text', required: true },
+    { key: 'database',   label: 'Database',        type: 'text', required: true },
     { key: 'collection', label: 'Collection',  type: 'text', required: true },
   ],
   // Transformations
   transform_filter:    [{ key: 'expr',    label: 'Expression',                  type: 'text',     placeholder: "status == 'active'",              required: true }],
-  transform_select:    [{ key: 'columns', label: 'Colonnes (séparées par ,)',    type: 'text',     placeholder: 'id, name, email',                 required: true }],
+  transform_select:    [{ key: 'columns', label: 'Columns (comma-separated)',    type: 'text',     placeholder: 'id, name, email',                 required: true }],
   transform_rename:    [{ key: 'mapping', label: 'Mapping (JSON)',               type: 'textarea', placeholder: '{"old_col": "new_col"}',           required: true }],
   transform_cast:      [{ key: 'mapping', label: 'Types (JSON)',                 type: 'textarea', placeholder: '{"price": "float", "qty": "int"}', required: true }],
   transform_sort:      [
-    { key: 'by',        label: 'Colonnes de tri (séparées par ,)', type: 'text', placeholder: 'score, name', required: true },
-    { key: 'ascending', label: 'Ordre', type: 'select', options: ['ASC', 'DESC'] },
+    { key: 'by',        label: 'Sort columns (comma-separated)', type: 'text', placeholder: 'score, name', required: true },
+    { key: 'ascending', label: 'Order', type: 'select', options: ['ASC', 'DESC'] },
   ],
   transform_aggregate: [
-    { key: 'by',  label: 'Group by (séparées par ,)', type: 'text',     placeholder: 'category, region', required: true },
-    { key: 'agg', label: 'Agrégations (JSON)',         type: 'textarea', placeholder: '{"total": {"func": "sum", "col": "amount"}}', required: true },
+    { key: 'by',  label: 'Group by (comma-separated)', type: 'text',     placeholder: 'category, region', required: true },
+    { key: 'agg', label: 'Aggregations (JSON)',         type: 'textarea', placeholder: '{"total": {"func": "sum", "col": "amount"}}', required: true },
   ],
-  transform_dedupe: [{ key: 'columns', label: 'Colonnes (vide = toutes)', type: 'text', placeholder: 'id, email' }],
+  transform_dedupe: [{ key: 'columns', label: 'Columns (empty = all)', type: 'text', placeholder: 'id, email' }],
   transform_derive: [
-    { key: 'column', label: 'Nouvelle colonne', type: 'text', placeholder: 'revenue',          required: true },
+    { key: 'column', label: 'New column', type: 'text', placeholder: 'revenue',          required: true },
     { key: 'expr',   label: 'Expression',       type: 'text', placeholder: 'unit_price * qty', required: true },
   ],
   transform_join: [
-    { key: 'key',       label: 'Clé (colonne commune)',       type: 'text',   placeholder: 'email' },
-    { key: 'left_key',  label: 'Clé gauche (si différente)',  type: 'text',   placeholder: 'manager_id' },
-    { key: 'right_key', label: 'Clé droite (si différente)',  type: 'text',   placeholder: 'id' },
-    { key: 'how',       label: 'Type de jointure',            type: 'select', options: ['inner', 'left', 'right', 'outer'] },
+    { key: 'key',       label: 'Key (common column)',       type: 'text',   placeholder: 'email' },
+    { key: 'left_key',  label: 'Left key (if different)',  type: 'text',   placeholder: 'manager_id' },
+    { key: 'right_key', label: 'Right key (if different)',  type: 'text',   placeholder: 'id' },
+    { key: 'how',       label: 'Join type',            type: 'select', options: ['inner', 'left', 'right', 'outer'] },
   ],
+  transform_fill_null: [
+    { key: 'value',   label: 'Replacement value (global)', type: 'text',     placeholder: '0' },
+    { key: 'columns', label: 'Or per column (JSON)',            type: 'textarea', placeholder: '{"city": "N/A", "score": 0}' },
+  ],
+  transform_trim: [
+    { key: 'columns', label: 'Columns (empty = all text columns)', type: 'text', placeholder: 'name, city' },
+  ],
+  transform_clean: [
+    { key: 'columns', label: 'Columns (empty = all text)', type: 'text',   placeholder: 'name, city' },
+    { key: 'case',    label: 'Case',                          type: 'select', options: ['none', 'lower', 'upper'] },
+  ],
+  transform_pivot: [
+    { key: 'index',   label: 'Index (rows, comma-separated)', type: 'text',   placeholder: 'region', required: true },
+    { key: 'column',  label: 'Column to spread',              type: 'text',   placeholder: 'category', required: true },
+    { key: 'values',  label: 'Values column',                 type: 'text',   placeholder: 'amount', required: true },
+    { key: 'aggfunc', label: 'Aggregation function',          type: 'select', options: ['first', 'sum', 'mean', 'min', 'max', 'count'] },
+  ],
+  transform_unpivot: [
+    { key: 'id_vars',    label: 'Kept columns (comma-separated)',   type: 'text', placeholder: 'region', required: true },
+    { key: 'value_vars', label: 'Columns to unpivot (comma-separated)',  type: 'text', placeholder: 'jan, feb, mar' },
+    { key: 'var_name',   label: 'Variable column name',      type: 'text', placeholder: 'month' },
+    { key: 'value_name', label: 'Value column name',        type: 'text', placeholder: 'amount' },
+  ],
+  transform_transpose: [
+    { key: 'index_col',   label: 'Index column (values become headers)', type: 'text', placeholder: 'region' },
+    { key: 'header_name', label: 'Header column name',                   type: 'text', placeholder: 'column' },
+  ],
+  transform_merge: [
+    { key: 'key',              label: 'Match key',                     type: 'text',   placeholder: 'id', required: true },
+    { key: 'delete_unmatched', label: 'Delete unmatched target rows',  type: 'select', options: ['false', 'true'] },
+  ],
+  transform_union: [
+    { key: 'distinct', label: 'Remove duplicates (UNION vs UNION ALL)', type: 'select', options: ['false', 'true'] },
+  ],
+  transform_script: [],
   // Actions génériques
   action_webhook: [
     { key: 'url',     label: 'URL',           type: 'text',     placeholder: 'https://example.com/hook', required: true },
-    { key: 'method',  label: 'Méthode',       type: 'select',   options: ['POST', 'GET', 'PUT', 'PATCH', 'DELETE'] },
+    { key: 'method',  label: 'Method',       type: 'select',   options: ['POST', 'GET', 'PUT', 'PATCH', 'DELETE'] },
     { key: 'body',    label: 'Body (JSON)',    type: 'textarea', placeholder: '{"key": "value"}' },
     { key: 'headers', label: 'Headers (JSON)', type: 'textarea', placeholder: '{"Authorization": "Bearer ..."}' },
   ],
   action_email: [
-    { key: 'to',        label: 'Destinataire',      type: 'text',     required: true, placeholder: 'user@example.com' },
-    { key: 'subject',   label: 'Sujet',             type: 'text',     required: true },
-    { key: 'body',      label: 'Corps',             type: 'textarea' },
-    { key: 'from_addr', label: 'Expéditeur (From)', type: 'text',     placeholder: 'hydra@localhost' },
-    { key: 'smtp_host', label: 'Serveur SMTP',      type: 'text',     placeholder: 'localhost' },
-    { key: 'smtp_port', label: 'Port SMTP',         type: 'number',   placeholder: '1025' },
-    { key: 'username',  label: 'Utilisateur SMTP',  type: 'text' },
-    { key: 'password',  label: 'Mot de passe SMTP', type: 'password' },
+    { key: 'to',        label: 'Recipient',      type: 'text',     required: true, placeholder: 'user@example.com' },
+    { key: 'subject',   label: 'Subject',             type: 'text',     required: true },
+    { key: 'body',      label: 'Body',             type: 'textarea' },
+    { key: 'from_addr', label: 'Sender (From)', type: 'text',     placeholder: 'hydra@localhost' },
+    { key: 'smtp_host', label: 'SMTP server',      type: 'text',     placeholder: 'localhost' },
+    { key: 'smtp_port', label: 'SMTP port',         type: 'number',   placeholder: '1025' },
+    { key: 'username',  label: 'SMTP user',  type: 'text' },
+    { key: 'password',  label: 'SMTP password', type: 'password' },
     { key: 'use_tls',   label: 'TLS (STARTTLS)',    type: 'select',   options: ['false', 'true'] },
   ],
   // Actions shell
   action_bash: [
-    { key: 'command',     label: 'Commande Bash',         type: 'textarea', placeholder: 'echo "hello" && ls -la', required: true },
-    { key: 'working_dir', label: 'Répertoire de travail', type: 'text',     placeholder: '/home/user/project', browseType: 'directory' },
-    { key: 'timeout',     label: 'Timeout (secondes)',    type: 'number',   placeholder: '60' },
+    { key: 'command',     label: 'Bash command',         type: 'textarea', placeholder: 'echo "hello" && ls -la', required: true },
+    { key: 'working_dir', label: 'Working directory', type: 'text',     placeholder: '/home/user/project', browseType: 'directory' },
+    { key: 'timeout',     label: 'Timeout (seconds)',    type: 'number',   placeholder: '60' },
   ],
   action_powershell: [
-    { key: 'command',     label: 'Commande PowerShell',   type: 'textarea', placeholder: 'Get-Process | Select-Object Name, CPU', required: true },
-    { key: 'working_dir', label: 'Répertoire de travail', type: 'text',     placeholder: 'C:\\Users\\...\\project', browseType: 'directory' },
-    { key: 'timeout',     label: 'Timeout (secondes)',    type: 'number',   placeholder: '60' },
+    { key: 'command',     label: 'PowerShell command',   type: 'textarea', placeholder: 'Get-Process | Select-Object Name, CPU', required: true },
+    { key: 'working_dir', label: 'Working directory', type: 'text',     placeholder: 'C:\\Users\\...\\project', browseType: 'directory' },
+    { key: 'timeout',     label: 'Timeout (seconds)',    type: 'number',   placeholder: '60' },
   ],
   action_ssh: [
-    { key: 'host',     label: 'Hôte',               type: 'text',     required: true },
+    { key: 'host',     label: 'Host',               type: 'text',     required: true },
     { key: 'port',     label: 'Port',               type: 'number',   placeholder: '22' },
-    { key: 'username', label: 'Utilisateur',         type: 'text',     required: true },
-    { key: 'password', label: 'Mot de passe',        type: 'password' },
-    { key: 'key_path', label: 'Clé privée (chemin)', type: 'text',     placeholder: '~/.ssh/id_rsa', browseType: 'file' },
-    { key: 'command',  label: 'Commande distante',   type: 'textarea', required: true },
-    { key: 'timeout',  label: 'Timeout (secondes)',  type: 'number' },
+    { key: 'username', label: 'User',         type: 'text',     required: true },
+    { key: 'password', label: 'Password',        type: 'password' },
+    { key: 'key_path', label: 'Private key (path)', type: 'text',     placeholder: '~/.ssh/id_rsa', browseType: 'file' },
+    { key: 'command',  label: 'Remote command',   type: 'textarea', required: true },
+    { key: 'timeout',  label: 'Timeout (seconds)',  type: 'number' },
   ],
   action_python: [
-    { key: 'script',      label: 'Script inline',              type: 'textarea', placeholder: 'import sys\nprint(sys.version)' },
-    { key: 'file_path',   label: 'Ou chemin vers fichier .py', type: 'text',     placeholder: '/home/user/script.py',  browseType: 'file',      browseExt: '.py' },
-    { key: 'working_dir', label: 'Répertoire de travail',      type: 'text',     placeholder: '/home/user/project',    browseType: 'directory' },
-    { key: 'timeout',     label: 'Timeout (secondes)',          type: 'number',   placeholder: '60' },
+    { key: 'script',      label: 'Inline script',              type: 'textarea', placeholder: 'import sys\nprint(sys.version)' },
+    { key: 'file_path',   label: 'Or path to .py file', type: 'text',     placeholder: '/home/user/script.py',  browseType: 'file',      browseExt: '.py' },
+    { key: 'working_dir', label: 'Working directory',      type: 'text',     placeholder: '/home/user/project',    browseType: 'directory' },
+    { key: 'timeout',     label: 'Timeout (seconds)',          type: 'number',   placeholder: '60' },
   ],
 }
 
 // Nœuds action "shell" — pas de dropdown "Action type"
 const SHELL_ACTION_TYPES = new Set(['action_powershell', 'action_bash', 'action_ssh'])
 
-// Sources DB — choix mutuellement exclusif Table / Requête SQL
+// Sources DB — choix mutuellement exclusif Table / SQL query
 const DB_SOURCE_TYPES = new Set(['source_mysql', 'source_postgres'])
 
 // ── Couleur par catégorie ─────────────────────────────────────────────────────
@@ -299,7 +336,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
         whiteSpace: 'nowrap', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
       }}
     >
-      <FolderOpen size={12} /> {browsing ? '...' : 'Parcourir'}
+      <FolderOpen size={12} /> {browsing ? '...' : 'Browse'}
     </button>
   )
 
@@ -396,11 +433,11 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                 <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: 'var(--bg-hover)', borderRadius: 8, padding: 4 }}>
                   <button style={btnStyle(jobMode === 'existing')}
                     onClick={() => setJobMode('existing')}>
-                    📂 Dossier existant
+                    📂 Existing folder
                   </button>
                   <button style={btnStyle(jobMode === 'new')}
                     onClick={() => setJobMode('new')}>
-                    ✨ Créer nouveau
+                    ✨ Create new
                   </button>
                 </div>
 
@@ -476,11 +513,11 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                 <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: 'var(--bg-hover)', borderRadius: 8, padding: 4 }}>
                   <button style={btnStyle(pythonMode === 'inline')}
                     onClick={() => { setPythonMode('inline'); setParam('file_path', '') }}>
-                    ✏️ Script inline
+                    ✏️ Inline script
                   </button>
                   <button style={btnStyle(pythonMode === 'file')}
                     onClick={() => { setPythonMode('file'); setParam('script', '') }}>
-                    📄 Fichier .py
+                    📄 .py file
                   </button>
                 </div>
 
@@ -488,7 +525,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                 {pythonMode === 'inline' && (
                   <label style={{ display: 'block', marginBottom: 14 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Script Python <span style={{ color: 'var(--error)' }}>*</span>
+                      Python script <span style={{ color: 'var(--error)' }}>*</span>
                     </span>
                     <textarea
                       value={params.script ?? ''}
@@ -516,11 +553,11 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                   </label>
                 )}
 
-                {/* Chemin fichier .py */}
+                {/* .py file path */}
                 {pythonMode === 'file' && (
                   <label style={{ display: 'block', marginBottom: 14 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Chemin fichier .py <span style={{ color: 'var(--error)' }}>*</span>
+                      .py file path <span style={{ color: 'var(--error)' }}>*</span>
                     </span>
                     <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                       <input
@@ -582,7 +619,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             )
           })()}
 
-          {/* Source DB — toggle mutuellement exclusif Table / Requête SQL */}
+          {/* Source DB — toggle mutuellement exclusif Table / SQL query */}
           {isDbSource && (() => {
             const btnStyle = (active: boolean) => ({
               flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -594,7 +631,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             return (
               <div style={{ marginBottom: 14 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Source des données
+                  Data source
                 </span>
                 <div style={{ display: 'flex', gap: 4, margin: '6px 0 12px', background: 'var(--bg-hover)', borderRadius: 8, padding: 4 }}>
                   <button style={btnStyle(sourceMode === 'table')}
@@ -603,7 +640,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                   </button>
                   <button style={btnStyle(sourceMode === 'query')}
                     onClick={() => { setSourceMode('query'); setParam('table', '') }}>
-                    🧮 Requête SQL
+                    🧮 SQL query
                   </button>
                 </div>
 
@@ -627,7 +664,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                 ) : (
                   <label style={{ display: 'block' }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Requête SQL <span style={{ color: 'var(--error)' }}>*</span>
+                      SQL query <span style={{ color: 'var(--error)' }}>*</span>
                     </span>
                     <textarea
                       value={params.query ?? ''}
@@ -647,11 +684,11 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             )
           })()}
 
-          {/* Source de droite pour le noeud join (choisie parmi les sources du canvas) */}
-          {d.nodeType === 'transform_join' && (
+          {/* Right source pour join et merge (choisie parmi les sources du canvas) */}
+          {(d.nodeType === 'transform_join' || d.nodeType === 'transform_merge' || d.nodeType === 'transform_union') && (
             <label style={{ display: 'block', marginBottom: 14 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Source de droite <span style={{ color: 'var(--error)' }}>*</span>
+                Right source <span style={{ color: 'var(--error)' }}>*</span>
               </span>
               <select
                 value={params.rightSourceId ?? ''}
@@ -662,11 +699,11 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                   borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer',
                 }}
               >
-                <option value="">- choisir une source -</option>
+                <option value="">- select a source -</option>
                 {joinSources.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
               <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                L'autre source connectee devient le flux de gauche.
+                The other connected source becomes the left flow.
               </span>
             </label>
           )}
@@ -688,31 +725,31 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }
             return (
               <div style={{ marginBottom: 14 }}>
-                <span style={lbl}>Correspondance</span>
+                <span style={lbl}>Match</span>
                 <div style={{ display: 'flex', gap: 4, margin: '6px 0 12px', background: 'var(--bg-hover)', borderRadius: 8, padding: 4 }}>
                   <button style={btnStyle(joinMode === 'common')}
                     onClick={() => { setJoinMode('common'); setParam('left_key', ''); setParam('right_key', '') }}>
-                    🔑 Clé commune
+                    🔑 Common key
                   </button>
                   <button style={btnStyle(joinMode === 'distinct')}
                     onClick={() => { setJoinMode('distinct'); setParam('key', '') }}>
-                    ⇄ Clés distinctes (self-join)
+                    ⇄ Distinct keys (self-join)
                   </button>
                 </div>
 
                 {joinMode === 'common' ? (
                   <label style={{ display: 'block' }}>
-                    <span style={lbl}>Clé de jointure <span style={{ color: 'var(--error)' }}>*</span></span>
+                    <span style={lbl}>Join key <span style={{ color: 'var(--error)' }}>*</span></span>
                     <input type="text" value={params.key ?? ''} onChange={e => setParam('key', e.target.value)} placeholder="email" style={inputStyle} />
                   </label>
                 ) : (
                   <>
                     <label style={{ display: 'block', marginBottom: 10 }}>
-                      <span style={lbl}>Clé gauche — flux principal <span style={{ color: 'var(--error)' }}>*</span></span>
+                      <span style={lbl}>Left key — main flow <span style={{ color: 'var(--error)' }}>*</span></span>
                       <input type="text" value={params.left_key ?? ''} onChange={e => setParam('left_key', e.target.value)} placeholder="manager_id" style={inputStyle} />
                     </label>
                     <label style={{ display: 'block' }}>
-                      <span style={lbl}>Clé droite — source de droite <span style={{ color: 'var(--error)' }}>*</span></span>
+                      <span style={lbl}>Right key — right source <span style={{ color: 'var(--error)' }}>*</span></span>
                       <input type="text" value={params.right_key ?? ''} onChange={e => setParam('right_key', e.target.value)} placeholder="id" style={inputStyle} />
                     </label>
                   </>
@@ -727,6 +764,8 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             if (isDbSource && (field.key === 'table' || field.key === 'query')) return null
             // Join : cle / left_key / right_key sont geres par le toggle ci-dessus
             if (d.nodeType === 'transform_join' && (field.key === 'key' || field.key === 'left_key' || field.key === 'right_key')) return null
+            // Aggregate : le champ agg est gere par AggregationBuilder ci-dessous
+            if (d.nodeType === 'transform_aggregate' && field.key === 'agg') return null
             return (
             <label key={field.key} style={{ display: 'block', marginBottom: 14 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -828,6 +867,32 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             )
           })}
 
+          {/* Aggregate — editeur en lignes (genere le JSON agg) */}
+          {d.nodeType === 'transform_aggregate' && (
+            <div style={{ display: 'block', marginBottom: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Aggregations <span style={{ color: 'var(--error)' }}>*</span>
+              </span>
+              <div style={{ marginTop: 6 }}>
+                <AggregationBuilder value={params.agg ?? ''} accent={accent} onChange={v => setParam('agg', v)} />
+              </div>
+            </div>
+          )}
+
+          {/* Script — editeur Python (contrat inputs/outputs) facon SSIS Script Component */}
+          {d.nodeType === 'transform_script' && (
+            <div style={{ display: 'block', marginBottom: 14 }}>
+              <ScriptBuilder
+                inputs={params.inputs ?? ''}
+                outputs={params.outputs ?? ''}
+                code={params.code ?? ''}
+                mode={params.mode ?? 'vectorized'}
+                accent={accent}
+                onChange={patch => Object.entries(patch).forEach(([k, v]) => setParam(k, v as string))}
+              />
+            </div>
+          )}
+
           {showExprBuilder && (
             <ExpressionBuilder
               initialExpr={params.expr ?? ''}
@@ -877,5 +942,3 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
     </div>
   )
 }
-
-

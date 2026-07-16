@@ -23,6 +23,8 @@ from api.routers import (
     fs,
     export,
     terminal,
+    transform,
+    parameters,
 )
 
 app = FastAPI(
@@ -55,3 +57,5 @@ app.include_router(system.router,       prefix="/api/system",       tags=["Syste
 app.include_router(fs.router,           prefix="/api/fs",           tags=["Filesystem"])
 app.include_router(export.router,       prefix="/api/export",       tags=["Export"])
 app.include_router(terminal.router,     prefix="/api/terminal",     tags=["Terminal"])
+app.include_router(transform.router,    prefix="/api/transform",    tags=["Transform"])
+app.include_router(parameters.router,   prefix="/api/parameters",   tags=["Parameters"])

@@ -200,6 +200,154 @@ class JoinOp(BaseModel):
         raise ValueError("join.right doit etre un id de source (str) ou une source inline (dict avec 'type')")
 
 
+class CleanOp(BaseModel):
+    """Nettoie les colonnes texte : espaces (trim + multiples) + casse."""
+    columns: Optional[List[str]] = None       # defaut: toutes les colonnes texte
+    case: str = "none"                         # none | lower | upper
+
+    @field_validator("case")
+    @classmethod
+    def _valid_case(cls, v: str) -> str:
+        if v not in ("none", "lower", "upper"):
+            raise ValueError("clean.case doit etre none|lower|upper")
+        return v
+
+
+class PivotOp(BaseModel):
+    """Long -> large (pandas pivot_table)."""
+    index: List[str] = Field(min_length=1)     # colonnes conservees en lignes
+    column: str                                # colonne dont les valeurs deviennent des colonnes
+    values: str                                # colonne des valeurs
+    aggfunc: str = "first"                     # sum|mean|first|min|max|count...
+
+
+class UnpivotOp(BaseModel):
+    """Large -> long (pandas melt)."""
+    id_vars: List[str] = Field(min_length=1)   # colonnes conservees
+    value_vars: Optional[List[str]] = None     # colonnes a depivoter (defaut: le reste)
+    var_name: str = "variable"
+    value_name: str = "value"
+
+
+class TransposeOp(BaseModel):
+    """Transpose lignes <-> colonnes (pandas .T)."""
+    index_col: Optional[str] = None   # colonne dont les valeurs deviennent les en-tetes
+    header_name: str = "column"       # nom de la colonne recevant les anciens en-tetes
+
+
+class MergeOp(BaseModel):
+    """Merge type SQL Server (upsert cible <- source, sur une cle)."""
+    right: Any                        # 2e source (id declare ou source inline)
+    key: Any                          # cle d'appariement (str ou liste)
+    delete_unmatched: bool = False    # supprime les lignes cible absentes de la source
+
+    @field_validator("key")
+    @classmethod
+    def _valid_key(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip():
+            return v
+        if isinstance(v, list) and v and all(isinstance(x, str) and x.strip() for x in v):
+            return v
+        raise ValueError("merge.key doit etre une colonne (str) ou une liste non vide")
+
+    @field_validator("right")
+    @classmethod
+    def _valid_right(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip():
+            return v
+        if isinstance(v, dict) and v.get("type"):
+            return v
+        raise ValueError("merge.right doit etre un id de source (str) ou une source inline (dict avec 'type')")
+
+
+class UnionOp(BaseModel):
+    """Union / Union All : empile une 2e source (memes colonnes)."""
+    right: Any                        # 2e source (id declare ou source inline)
+    distinct: bool = False            # True = UNION (dedoublonne) ; False = UNION ALL
+
+    @field_validator("right")
+    @classmethod
+    def _valid_right(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip():
+            return v
+        if isinstance(v, dict) and v.get("type"):
+            return v
+        raise ValueError("union.right doit etre un id de source (str) ou une source inline (dict avec 'type')")
+
+
+class ScriptOp(BaseModel):
+    """
+    Transformation Python personnalisee (facon SSIS Script Component).
+
+    L'utilisateur declare un contrat colonnes input -> colonnes output et
+    fournit un extrait de code Python execute dans un environnement restreint.
+
+    Params YAML:
+        script:
+          inputs: [price, quantity]      # colonnes lues (contrat)
+          outputs:                       # colonnes produites (+ type)
+            total: float
+            label: str
+          mode: vectorized               # vectorized | row
+          code: |
+            total = price * quantity
+            label = "big" if total.iloc[0] > 100 else "small"
+
+    Modes:
+    - vectorized : chaque colonne input est exposee comme pandas.Series ;
+                   le code doit affecter chaque colonne output (Series/scalaire).
+    - row        : le code s'execute ligne par ligne (facon SSIS
+                   ProcessInputRow) ; chaque colonne input est un scalaire.
+
+    Types outputs autorises: int, float, str, bool, date, datetime, any.
+    """
+    inputs: List[str] = Field(default_factory=list)
+    outputs: Dict[str, str] = Field(min_length=1)
+    code: str = Field(min_length=1)
+    mode: Literal["vectorized", "row"] = "vectorized"
+
+    @field_validator("inputs")
+    @classmethod
+    def _clean_inputs(cls, v: List[str]) -> List[str]:
+        cleaned = [c.strip() for c in v if isinstance(c, str) and c.strip()]
+        seen = set()
+        uniq: List[str] = []
+        for c in cleaned:
+            if c not in seen:
+                uniq.append(c)
+                seen.add(c)
+        return uniq
+
+    @field_validator("outputs")
+    @classmethod
+    def _valid_outputs(cls, v: Dict[str, str]) -> Dict[str, str]:
+        allowed = {"int", "float", "str", "bool", "date", "datetime", "any"}
+        cleaned: Dict[str, str] = {}
+        for col, typ in v.items():
+            if not isinstance(col, str) or not isinstance(typ, str):
+                raise ValueError("script.outputs doit etre un dict str->str")
+            col2, typ2 = col.strip(), typ.strip().lower()
+            if not col2:
+                raise ValueError("script.outputs: nom de colonne vide")
+            if typ2 not in allowed:
+                raise ValueError(
+                    f"script.outputs: type invalide '{typ2}' pour '{col2}' "
+                    f"(attendu: {sorted(allowed)})"
+                )
+            cleaned[col2] = typ2
+        if not cleaned:
+            raise ValueError("script.outputs ne peut pas etre vide")
+        return cleaned
+
+    @field_validator("code")
+    @classmethod
+    def _strip_code(cls, v: str) -> str:
+        v2 = v.strip("\n")
+        if not v2.strip():
+            raise ValueError("script.code ne peut pas etre vide")
+        return v2
+
+
 # -----------------------------
 # Registre des operations
 # -----------------------------
@@ -207,6 +355,7 @@ class JoinOp(BaseModel):
 OpName = Literal[
     "select", "rename", "cast", "filter", "calculate",
     "sort", "deduplicate", "fill_null", "trim", "aggregate", "join",
+    "clean", "pivot", "unpivot", "transpose", "merge", "union", "script",
 ]
 
 _OP_MODEL_MAP: Dict[str, Type[BaseModel]] = {
@@ -221,6 +370,13 @@ _OP_MODEL_MAP: Dict[str, Type[BaseModel]] = {
     "trim": TrimOp,
     "aggregate": AggregateOp,
     "join": JoinOp,
+    "clean": CleanOp,
+    "pivot": PivotOp,
+    "unpivot": UnpivotOp,
+    "transpose": TransposeOp,
+    "merge": MergeOp,
+    "union": UnionOp,
+    "script": ScriptOp,
 }
 
 
@@ -280,7 +436,7 @@ class TransformParser:
                     out[key] = json.loads(v)
                 except Exception:
                     pass
-        for key in ("columns", "by", "subset"):
+        for key in ("columns", "by", "subset", "index", "id_vars", "value_vars", "inputs"):
             v = out.get(key)
             if isinstance(v, str):
                 items = [s.strip() for s in v.split(",") if s.strip()]

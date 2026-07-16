@@ -10,7 +10,21 @@ interface TerminalPanelProps {
   onClose: () => void
 }
 
-const WS_BASE = 'ws://localhost:8000/api/terminal/ws'
+/** Construit l'URL WebSocket à partir de la même base que l'API HTTP
+ *  (VITE_API_URL sinon le proxy Vite same-origin `/api`). Évite tout port
+ *  codé en dur : le WS passe par le même chemin que les appels REST. */
+function wsUrl(shell: string): string {
+  const apiBase = ((import.meta.env.VITE_API_URL as string | undefined) ?? '/api').trim()
+  let base: string
+  if (/^https?:/i.test(apiBase)) {
+    base = apiBase.replace(/^http/i, 'ws')
+  } else {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const path = apiBase.startsWith('/') ? apiBase : `/${apiBase}`
+    base = `${proto}//${window.location.host}${path}`
+  }
+  return `${base.replace(/\/+$/, '')}/terminal/ws?shell=${shell}`
+}
 
 export default function TerminalPanel({ shell, initialCommand, onClose }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -50,13 +64,13 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
     term.loadAddon(fit)
     term.loadAddon(links)
     term.open(containerRef.current)
-    fit.fit()
+    setTimeout(() => { try { fit.fit(); term.focus() } catch { /* noop */ } }, 0)
 
-    const ws = new WebSocket(`${WS_BASE}?shell=${shell}`)
+    const ws = new WebSocket(wsUrl(shell))
     ws.binaryType = 'arraybuffer'
 
     ws.onopen = () => {
-      term.writeln(`\x1b[32m\u25cf Connexion ${shell} \xe9tablie\x1b[0m`)
+      term.writeln(`\x1b[32m● Connexion ${shell} \xe9tablie\x1b[0m`)
       if (initialCommand) {
         setTimeout(() => { ws.send(new TextEncoder().encode(initialCommand + '\r')) }, 400)
       }
@@ -69,14 +83,14 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
       term.write(data)
     }
 
-    ws.onerror  = () => { term.writeln('\r\n\x1b[31m\u2717 Erreur WebSocket\x1b[0m') }
-    ws.onclose  = () => { term.writeln('\r\n\x1b[33m\u25cf Session termin\xe9e\x1b[0m') }
+    ws.onerror = () => { term.writeln('\r\n\x1b[31m✗ Erreur WebSocket — backend injoignable\x1b[0m') }
+    ws.onclose = () => { term.writeln('\r\n\x1b[33m● Session termin\xe9e\x1b[0m') }
 
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(data))
     })
 
-    const ro = new ResizeObserver(() => { try { fit.fit() } catch {} })
+    const ro = new ResizeObserver(() => { try { fit.fit() } catch { /* noop */ } })
     ro.observe(containerRef.current!)
 
     return () => { ro.disconnect(); ws.close(); term.dispose() }
@@ -87,62 +101,32 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
     return () => { cleanup?.() }
   }, [connect])
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [onClose])
-
+  // Rendu IMBRIQUÉ : remplit le volet de l'onglet (pas d'overlay flottant).
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.65)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: 'min(960px, 93vw)', height: 'min(580px, 82vh)',
-          background: '#0d1117', borderRadius: 10,
-          border: '1px solid #30363d',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.75)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Title bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '0 14px', height: 36, flexShrink: 0,
-          background: '#161b22', borderBottom: '1px solid #30363d',
+    <div style={{ height: '100%', width: '100%', background: '#0d1117', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 28, flexShrink: 0,
+        background: '#161b22', borderBottom: '1px solid #30363d',
+      }}>
+        {(['#ff5f57', '#febc2e', '#28c840'] as const).map((c, i) => (
+          <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
+        ))}
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#8b949e', fontFamily: 'monospace', letterSpacing: 1, marginLeft: 4 }}>TERMINAL</span>
+        <span style={{
+          fontSize: 10, padding: '1px 8px', borderRadius: 4,
+          background: shell === 'powershell' ? '#2563eb22' : '#16a34a22',
+          color:      shell === 'powershell' ? '#79c0ff'   : '#56d364',
+          fontWeight: 700, letterSpacing: 0.5,
         }}>
-          {(['#ff5f57','#febc2e','#28c840'] as const).map((c, i) => (
-            <div key={i} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
-          ))}
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#8b949e', fontFamily: 'monospace', letterSpacing: 1, marginLeft: 4 }}>
-            TERMINAL
-          </span>
-          <span style={{
-            fontSize: 10, padding: '1px 8px', borderRadius: 4, marginLeft: 2,
-            background: shell === 'powershell' ? '#2563eb22' : '#16a34a22',
-            color:      shell === 'powershell' ? '#79c0ff'   : '#56d364',
-            fontWeight: 700, letterSpacing: 0.5,
-          }}>
-            {shell === 'powershell' ? 'pwsh' : 'bash'}
-          </span>
-          <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 10, color: '#484f58', fontFamily: 'monospace' }}>Esc pour fermer</span>
-          <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: '#8b949e', fontSize: 15, padding: '2px 6px', borderRadius: 4, marginLeft: 8,
-          }}>\u2715</button>
-        </div>
-
-        {/* xterm container */}
-        <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', padding: '6px 2px' }} />
+          {shell === 'powershell' ? 'pwsh' : 'bash'}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button onClick={onClose} title="Close terminal" style={{
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          color: '#8b949e', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1,
+        }}>{'✕'}</button>
       </div>
+      <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '6px' }} />
     </div>
   )
 }

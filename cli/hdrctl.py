@@ -640,11 +640,16 @@ def cli(ctx: click.Context) -> None:
               help=t("help.run.on_failure"))
 @click.option("--on-finish", "on_finish", default=None, metavar="CMD",
               help=t("help.run.on_finish"))
+@click.option("--env", "env_name", default=None, metavar="NAME",
+              help=t("help.run.env"))
+@click.option("-P", "--param", "param_overrides", multiple=True, metavar="KEY=VALUE",
+              help=t("help.run.param"))
 def cmd_run(path: str, verbosity: int, dry_run: bool,
             sources_file: Optional[str], destinations_file: Optional[str],
             pipeline_file: Optional[str], transformations_file: Optional[str],
             on_success: Optional[str], on_failure: Optional[str],
-            on_finish: Optional[str]) -> None:
+            on_finish: Optional[str],
+            env_name: Optional[str] = None, param_overrides: tuple = ()) -> None:
     """Exécute un pipeline ETL."""
     print_banner()
     job_dir = Path(path).resolve()
@@ -671,6 +676,15 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
 
     job_name = job_dir.name
 
+    # Parametres CLI (--param KEY=VALUE, repetable)
+    param_dict: dict = {}
+    for _item in param_overrides:
+        if "=" not in _item:
+            error_box(t("run.param_invalid", item=_item))
+            sys.exit(1)
+        _k, _v = _item.split("=", 1)
+        param_dict[_k.strip()] = _v.strip()
+
     # ── Mode dry-run ─────────────────────────────────────────────
     if dry_run:
         click.echo(f"\n  {c(C.YL + C.BD, t('run.dry_run_mode'))} — {c(C.DM, t('run.dry_run_no_write'))}")
@@ -696,6 +710,8 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             destinations_file=job_files["destinations"],
             pipeline_file=job_files["pipeline"],
             transformations_file=job_files["transformations"] if job_files["transformations"].exists() else None,
+            env=env_name,
+            params=param_dict,
         )
         result = executor.run()
 

@@ -1,5 +1,33 @@
 # Hydra ETL — Handoff Document
-> État au 16 juin 2026 (mis à jour après session architecture Studio). À lire avant toute intervention sur ce codebase.
+> État au 16 juillet 2026 (mis à jour pour bascule multi-IA). À lire avant toute intervention sur ce codebase.
+
+---
+
+## 0. Handoff multi-IA (Claude ↔ GPT 5.6)
+
+Ce document est **agnostique de l'assistant**. Si la limite hebdomadaire de tokens Claude est atteinte, le travail peut continuer avec **GPT 5.6** (ou tout autre agent) sans perte de contexte. À lire en premier par le nouvel agent :
+
+**Sources de vérité (dans cet ordre) :**
+1. `docs/HANDOFF.md` (ce fichier) — état, roadmap, prochaines étapes
+2. `CLAUDE.md` (racine) — contexte produit + règles critiques codebase (valables pour tout agent, pas seulement Claude)
+
+**À faire en début de session (tout agent) :**
+- Lire ce fichier + `CLAUDE.md` entièrement avant toute modification
+- Vérifier l'état réel : `git status` + `git log --oneline -10` (le doc peut être en retard sur le code)
+- Lancer les tests avant de toucher quoi que ce soit : `pytest tests/test_cli_hdrctl.py -x` et `cd studio && npx tsc --noEmit`
+
+**Différences d'environnement à noter :**
+- Les paths `/sessions/<session-id>/mnt/...` de ce doc sont **spécifiques à l'environnement Claude Cowork**. Dans un autre outil (Codex, Cursor, terminal local), utiliser les paths natifs : racine projet = `C:\Users\DELL\Desktop\Hydra`.
+- La règle NTFS `safe_write` (section 6) ne concerne **que** l'écriture depuis un mount Linux→Windows. En édition locale directe (GPT dans un IDE Windows), écrire normalement — mais garder la vérification `wc -l` / relecture après tout gros fichier.
+- Les outils diffèrent (MCP, skills Claude) mais **les règles produit et d'architecture restent identiques** — voir `CLAUDE.md` §"Règles Critiques".
+
+**Règles non négociables quel que soit l'agent :**
+- Backup horodaté avant toute modif (`_backups/`)
+- Ne jamais détruire une feature existante (lire le fichier entier avant d'éditer)
+- Ne pas casser les 49 tests CLI
+- i18n : toute string user via `t("key")`, langues limitées à en/es
+
+**Reprise en cours :** la prochaine tâche active est **P1 — Refactoring Studio Scene 1 / Scene 2** (section 4). Rien n'est commencé côté code sur ce refactoring.
 
 ---
 
@@ -462,3 +490,62 @@ Union         → cf_union (N flux → 1 par append) — à ajouter dans nodeReg
 - Tab bar bas affichant les **workflows** du projet (`wfListQuery`) → supprimée
 - Navigation entre workflows = breadcrumb `← wf1` → projet → sélection d'un autre workflow
 - `viewMode` state → remplacé par `sceneMode` + `activeJobId`
+
+---
+
+## 12. Système de Paramètres (statique, façon Postman) — ✅ FAIT
+
+Couche d'**entrées en lecture seule**, fixées AVANT l'exécution, résolues pour l'environnement actif (dev/prod). Immuables pendant le run → distribuables (compatible archi mosaïque).
+
+### Précédence (la plus forte gagne)
+```
+run (--param KEY=VALUE)  >  job  >  workflow  >  project (default)
+```
+
+### Déclaration & valeurs (fichiers YAML)
+- `parameters.yaml` (racine projet) — déclarations : `{ name: {type, default, required, description} }`
+- `environments/<env>.yaml` — valeurs par environnement (ex. `dev.yaml`, `prod.yaml`)
+
+```yaml
+# parameters.yaml
+parameters:
+  host_ip:
+    type: string
+    default: 127.0.0.1
+    required: true
+# environments/dev.yaml
+parameters:
+  host_ip: 127.0.0.1
+```
+
+### ⚠️ Deux syntaxes de référence — NON interchangeables
+
+| Syntaxe | Où | Contexte |
+|---|---|---|
+| `{{ param:NAME }}` (et `{{ env:NAME }}`) | Champs de config d'un nœud (HOST, PORT, DATABASE…), tout YAML | **YAML** |
+| `params["NAME"]` | Corps Python d'un nœud **Script** uniquement | **Python** |
+
+- `{{ param:x }}` : si la chaîne = un seul placeholder, le **type est préservé** (int/bool…) ; si intégré (`schema_{{ param:x }}`), substitution texte.
+- `params["x"]` dans un nœud Script : le dict `params` est injecté (`pandas_engine.py:540` → `g["params"]`).
+- **Piège utilisateur** : mettre `params["host_ip"]` dans un champ de formulaire (HOST) échoue → c'est pris littéralement comme hôte. Dans les formulaires, utiliser `{{ param:host_ip }}`.
+
+### Studio
+- Onglet **PARAMETERS** (`studio/src/components/canvas/ParametersPanel.tsx`) : sélecteur d'env (dev/prod), add param, colonnes TYPE / DEFAULT / VALUE / EFFECTIVE / REQ.
+- Texte d'aide (correct, ne pas inverser) : « Reference with `{{ param:name }}` in YAML, or `params["name"]` in a Script node. »
+
+### Fichiers clés
+| Fichier | Rôle |
+|---|---|
+| `internal/config/parameters.py` | `ParameterResolver` (substitution) + `build_effective` (fusion couches) |
+| `internal/runner/executor.py` | `_load_parameters()`, `_config_dirs()`, `_inject_script_params()` |
+| `internal/engines/pandas_engine.py:540` | injection `params` dans le namespace des nœuds Script |
+| `studio/.../ParametersPanel.tsx` | UI paramètres + environnements |
+
+### 🐛 Bug corrigé (16 juil. 2026) — `host=None` silencieux en exécution Studio
+**Symptôme** : DSN `mysql://hydra:***@None:3307/...` → `{{ param:host_ip }}` non résolu.
+**Cause** : Studio exécute le job dans un **dossier temporaire** hors de l'arbre projet ; `parameters.yaml`/`environments/` introuvables → paramètre non déclaré → résolveur `strict=False` renvoyait `None` en silence.
+**Fix (2 volets)** :
+1. `executor._config_dirs()` remonte désormais depuis **3 ancres** (`job_dir`, `root_dir`, `path_base`) → retrouve `parameters.yaml` via le `work_dir` projet envoyé par Studio.
+2. `ParameterResolver(..., strict=False, strict_params=True)` : nouveau flag rétrocompatible → un `{{ param:x }}` **déclaré mais non résolu** lève une erreur claire (`paramètre non résolu: 'x'`) au lieu d'un `None` silencieux. `strict` (env) inchangé.
+**Prérequis** : le frontend Studio doit envoyer `work_dir` pointant dans l'arbre projet (confirmé : `WorkflowEditor.tsx` → `api.runs.startInline`).
+**Tests** : 68 passed / 1 pré-existant (`test_dry_run_invalid_yaml_exits_nonzero`, sans lien).

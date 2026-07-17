@@ -35,6 +35,13 @@ class Trigger(BaseModel):
         return self
 
 
+class RetryPolicy(BaseModel):
+    """Politique de re-tentative d'un step (appliquée par Retry-scope)."""
+    max: int = 0                                      # re-tentatives APRÈS le 1er échec (0 = aucune)
+    delay: float = 0.0                                # secondes d'attente entre tentatives
+    backoff: Literal["fixed", "exponential"] = "fixed"
+
+
 class WorkflowStep(BaseModel):
     """Un step du workflow — soit un job Hydra, soit une action."""
     name: str
@@ -51,6 +58,7 @@ class WorkflowStep(BaseModel):
     depends_on: List[str] = Field(default_factory=list)
     on_failure: Literal["fail", "skip", "continue"] = "fail"
     enabled: bool = True    # False → step ignoré à l'exécution
+    retry: Optional[RetryPolicy] = None   # re-tentatives (via Retry-scope)
 
     @model_validator(mode="after")
     def _validate_fields(self) -> "WorkflowStep":

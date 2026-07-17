@@ -30,6 +30,8 @@ import {
   LayoutGrid, Clock, Scissors, Link2,
   // Job node
   Package,
+  // Container
+  Boxes, ShieldAlert, RotateCcw,
   // Fallback
   Briefcase,
 } from 'lucide-react'
@@ -78,6 +80,9 @@ const CATEGORY_COLORS: Record<NodeCategory, string> = {
 }
 
 const JOB_COLOR = '#8b5cf6'
+const CONTAINER_COLOR = '#f59e0b'
+const ERRORSCOPE_COLOR = '#ef4444'
+const RETRYSCOPE_COLOR = '#06b6d4'
 
 const PALETTE_KEY = 'hydra-palette-collapsed'
 
@@ -110,6 +115,7 @@ export default function NodePalette({
     destination: true,
     action: false,
     control_flow: false,
+    containers: true,
     jobs: true,
   })
 
@@ -197,6 +203,25 @@ export default function NodePalette({
             )
           })}
 
+          {/* Containers (collapsed) */}
+          <div>
+            <div style={{ height: 2, borderRadius: 1, background: `${CONTAINER_COLOR}40`, margin: '4px 4px 3px' }} />
+            <div
+              draggable
+              onDragStart={e => onDragStart(e, 'container')}
+              title="Sequence Container"
+              style={{
+                width: 40, height: 40, borderRadius: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'grab', margin: '0 auto 3px', transition: 'opacity 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+            >
+              <Boxes size={22} style={{ color: CONTAINER_COLOR }} />
+            </div>
+          </div>
+
           {/* Jobs (collapsed) — sceneMode workflow */}
           {sceneMode === 'workflow' && jobsList.length > 0 && (
             <div>
@@ -210,7 +235,6 @@ export default function NodePalette({
                   style={{
                     width: 40, height: 40, borderRadius: 10,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `${JOB_COLOR}18`, border: `1px solid ${JOB_COLOR}30`,
                     cursor: 'grab', margin: '0 auto 3px', transition: 'opacity 0.15s',
                   }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
@@ -308,8 +332,6 @@ export default function NodePalette({
                       onDragStart={e => available ? onDragStart(e, node.type) : e.preventDefault()}
                       className="flex items-center gap-2 mx-2 mb-0.5 px-2 py-2 rounded-lg transition-opacity"
                       style={{
-                        background: `${color}12`,
-                        border:     `1px solid ${color}28`,
                         cursor:     available ? 'grab' : 'not-allowed',
                         opacity:    available ? 1 : 0.4,
                       }}
@@ -318,7 +340,7 @@ export default function NodePalette({
                       <div style={{
                         width: 32, height: 32, borderRadius: 8,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: `${color}22`, flexShrink: 0,
+                        flexShrink: 0,
                       }}>
                         <Icon size={18} style={{ color }} />
                       </div>
@@ -342,6 +364,89 @@ export default function NodePalette({
           </div>
         )
       })}
+
+      {/* ── Section Containers (les deux scènes) ─────────────────────────── */}
+      <div>
+        <button
+          onClick={() => setOpen(o => ({ ...o, containers: !o.containers }))}
+          className="w-full flex items-center justify-between px-3 py-2 transition-opacity hover:opacity-70"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          <div className="flex items-center gap-1.5">
+            <Boxes size={26} style={{ color: CONTAINER_COLOR, flexShrink: 0 }} />
+            <span className="text-xs font-medium">Containers</span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>(3)</span>
+          </div>
+          {open.containers ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </button>
+
+        {open.containers && (
+          <div className="pb-1">
+            <div
+              draggable
+              onDragStart={e => onDragStart(e, 'container')}
+              className="flex items-center gap-2 mx-2 mb-0.5 px-2 py-2 rounded-lg"
+              style={{
+                cursor: 'grab',
+              }}
+              title="Glisser pour regrouper des nœuds — repliable pour gagner de la place"
+            >
+              <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <Boxes size={18} style={{ color: CONTAINER_COLOR }} />
+              </div>
+              <span className="text-xs truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                Sequence Container
+              </span>
+            </div>
+
+            <div
+              draggable
+              onDragStart={e => onDragStart(e, 'container:errorscope')}
+              className="flex items-center gap-2 mx-2 mb-0.5 px-2 py-2 rounded-lg"
+              style={{
+                cursor: 'grab',
+              }}
+              title="Politique d'erreur (on_failure) appliquée à tout le bloc"
+            >
+              <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <ShieldAlert size={18} style={{ color: ERRORSCOPE_COLOR }} />
+              </div>
+              <span className="text-xs truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                Error Scope
+              </span>
+            </div>
+
+            <div
+              draggable
+              onDragStart={e => onDragStart(e, 'container:retryscope')}
+              className="flex items-center gap-2 mx-2 mb-0.5 px-2 py-2 rounded-lg"
+              style={{
+                cursor: 'grab',
+              }}
+              title="Re-tentatives (retry) appliquées à tout le bloc"
+            >
+              <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <RotateCcw size={18} style={{ color: RETRYSCOPE_COLOR }} />
+              </div>
+              <span className="text-xs truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                Retry Scope
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Section Jobs dynamique (sceneMode === 'workflow') ──────────────── */}
       {sceneMode === 'workflow' && (
@@ -373,8 +478,6 @@ export default function NodePalette({
                   onContextMenu={e => { e.preventDefault(); onJobContextMenu?.(e, job.id) }}
                   className="flex items-center gap-2 mx-2 mb-0.5 px-2 py-2 rounded-lg"
                   style={{
-                    background: `${JOB_COLOR}12`,
-                    border:     `1px solid ${JOB_COLOR}28`,
                     cursor: 'grab',
                   }}
                   title={`Glisser pour ajouter "${job.name}" — clic droit pour les options`}
@@ -382,7 +485,7 @@ export default function NodePalette({
                   <div style={{
                     width: 32, height: 32, borderRadius: 8,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `${JOB_COLOR}22`, flexShrink: 0,
+                    flexShrink: 0,
                   }}>
                     <Package size={18} style={{ color: JOB_COLOR }} />
                   </div>
@@ -417,7 +520,6 @@ function CollapsedNodeItem({
       style={{
         width: 40, height: 40, borderRadius: 10,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: `${color}18`, border: `1px solid ${color}30`,
         cursor: 'grab', margin: '0 auto 3px', transition: 'opacity 0.15s',
       }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}

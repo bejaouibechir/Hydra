@@ -149,6 +149,9 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
   ],
   transform_script: [],
   // Actions génériques
+  action_log: [
+    { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Message écrit dans les logs du run' },
+  ],
   action_webhook: [
     { key: 'url',     label: 'URL',           type: 'text',     placeholder: 'https://example.com/hook', required: true },
     { key: 'method',  label: 'Method',       type: 'select',   options: ['POST', 'GET', 'PUT', 'PATCH', 'DELETE'] },

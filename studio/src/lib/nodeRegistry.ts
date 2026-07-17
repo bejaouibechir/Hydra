@@ -82,6 +82,7 @@ const NODES: HydraNodeDef[] = [
     description: 'ETL sub-pipeline (source → transform → dest)', maxInputs: -1, maxOutputs: -1 },
 
   // Actions workflow
+  { type: 'action_log',        label: 'Log',        category: 'action', color: '#06b6d4', icon: 'MessageSquare', description: 'Writes a message to the run logs (always succeeds)' },
   { type: 'action_webhook',    label: 'Webhook',    category: 'action', color: '#06b6d4', icon: 'Webhook',  description: 'Outgoing HTTP call' },
   { type: 'action_email',      label: 'Email',      category: 'action', color: '#06b6d4', icon: 'Mail',     description: 'Send email' },
 

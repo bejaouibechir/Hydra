@@ -247,7 +247,34 @@ class WorkflowRunner:
     # -------------------------------------------------------------------------
 
     def _execute_step(self, step: WorkflowStep) -> StepResult:
-        """Exécute un step individuel et retourne son résultat."""
+        """Exécute un step avec re-tentatives (Retry-scope) — enveloppe _execute_step_once."""
+        policy = step.retry
+        max_retries = policy.max if policy else 0
+        delay = policy.delay if policy else 0.0
+        backoff = policy.backoff if policy else "fixed"
+
+        accumulated: List[str] = []
+        attempt = 0
+        while True:
+            sr = self._execute_step_once(step)
+            accumulated.extend(sr.logs)
+            if sr.success or attempt >= max_retries:
+                if attempt > 0:
+                    verb = "réussi" if sr.success else "abandonné"
+                    accumulated.append(f"INFO [{step.name}] {verb} après {attempt} re-tentative(s)")
+                sr.logs = accumulated
+                return sr
+            attempt += 1
+            wait = delay * (2 ** (attempt - 1)) if backoff == "exponential" else delay
+            accumulated.append(
+                f"WARNING [{step.name}] échec, re-tentative {attempt}/{max_retries}"
+                + (f" dans {wait:.0f}s" if wait > 0 else "")
+            )
+            if wait > 0:
+                time.sleep(wait)
+
+    def _execute_step_once(self, step: WorkflowStep) -> StepResult:
+        """Exécute un step individuel (une seule tentative) et retourne son résultat."""
         start = time.monotonic()
 
         # Logger isolé par step — propagate=False garantit qu'aucun log d'un

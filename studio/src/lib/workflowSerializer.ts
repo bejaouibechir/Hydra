@@ -16,6 +16,13 @@ export interface WorkflowStep {
   depends_on?: string[]
   on_failure?: 'fail' | 'skip' | 'continue'
   enabled?: boolean   // false → step ignoré à l'exécution
+  retry?: RetryPolicy  // re-tentatives (via Retry-scope)
+}
+
+export interface RetryPolicy {
+  max: number                          // re-tentatives après le 1er échec
+  delay?: number                       // secondes entre tentatives
+  backoff?: 'fixed' | 'exponential'
 }
 
 export interface WorkflowYAML {
@@ -40,7 +47,22 @@ export interface FlowNodeData extends Record<string, unknown> {
   onFailure?: WorkflowStep['on_failure']
   enabled?: boolean       // false → nœud désactivé (grisé + ignoré à l'exécution)
   pinned?: boolean        // true → nœud immobilisé sur le canvas (draggable: false)
+  containerType?: 'sequence' | 'errorscope' | 'retryscope' | 'for' | 'foreach' | 'trycatch' | 'transaction'
+                          // présent uniquement sur les nœuds nodeType==='container'
+  collapsed?: boolean     // conteneur replié (réservé — collapse post-socle)
+  retry?: RetryPolicy     // config Retry-scope (sur le conteneur) recopiée aux enfants
 }
+
+/** Nœud de regroupement visuel (Sequence Container & futurs types).
+ *  N'a AUCUNE sémantique d'exécution : exclu du DAG et de la sérialisation YAML. */
+export const CONTAINER_NODE_TYPE = 'container'
+export const isContainerNode = (n: { data?: { nodeType?: unknown } }): boolean =>
+  (n?.data?.nodeType as string) === CONTAINER_NODE_TYPE
+
+/** Edge « proxy » d'un conteneur replié — visuel uniquement, jamais sérialisé. */
+export const PROXY_EDGE_PREFIX = '__cproxy__'
+export const isProxyEdge = (e: { id?: string }): boolean =>
+  typeof e?.id === 'string' && e.id.startsWith(PROXY_EDGE_PREFIX)
 
 // ── Flow → YAML ───────────────────────────────────────────────────────────────
 
@@ -49,10 +71,42 @@ export interface FlowNodeData extends Record<string, unknown> {
  * @throws si le graphe est invalide (cycle, référence inconnue, etc.)
  */
 export function flowToWorkflow(
-  nodes: Node<FlowNodeData>[],
-  edges: Edge[],
+  allNodes: Node<FlowNodeData>[],
+  allEdges: Edge[],
   meta: { name: string; triggerType: 'manual' | 'schedule' | 'webhook'; cron?: string }
 ): WorkflowYAML {
+  // Error-scope : recopier la politique on_failure du conteneur sur ses enfants
+  // (héritage résolu ICI ; l'override explicite d'un enfant reste prioritaire).
+  const scopeOnFailure = new Map<string, WorkflowStep['on_failure']>()
+  for (const c of allNodes) {
+    const cd = c.data as FlowNodeData
+    if (isContainerNode(c) && cd.containerType === 'errorscope') {
+      const pol = cd.onFailure
+      if (pol && pol !== 'fail') {
+        for (const child of allNodes) {
+          if ((child as { parentId?: string }).parentId === c.id) scopeOnFailure.set(child.id, pol)
+        }
+      }
+    }
+  }
+
+  // Retry-scope : recopier la politique retry du conteneur sur ses enfants.
+  const scopeRetry = new Map<string, RetryPolicy>()
+  for (const c of allNodes) {
+    const cd = c.data as FlowNodeData
+    if (isContainerNode(c) && cd.containerType === 'retryscope') {
+      const rp = cd.retry
+      if (rp && rp.max > 0) {
+        for (const child of allNodes) {
+          if ((child as { parentId?: string }).parentId === c.id) scopeRetry.set(child.id, rp)
+        }
+      }
+    }
+  }
+
+  // Conteneurs + edges proxy sont purement visuels : jamais dans le workflow.yaml.
+  const nodes = allNodes.filter(n => !isContainerNode(n))
+  const edges = allEdges.filter(e => !isProxyEdge(e))
   if (nodes.length === 0) {
     return {
       version: '1.0',
@@ -106,8 +160,18 @@ export function flowToWorkflow(
       })
     }
 
-    if (data.onFailure && data.onFailure !== 'fail') {
-      step.on_failure = data.onFailure as WorkflowStep['on_failure']
+    // Effectif = override explicite de l'enfant, sinon politique du conteneur Error-scope
+    const effOnFailure = (data.onFailure && data.onFailure !== 'fail')
+      ? data.onFailure
+      : scopeOnFailure.get(id)
+    if (effOnFailure && effOnFailure !== 'fail') {
+      step.on_failure = effOnFailure as WorkflowStep['on_failure']
+    }
+
+    // Effectif retry = retry propre du nœud, sinon politique du Retry-scope
+    const effRetry = (data.retry && data.retry.max > 0) ? data.retry : scopeRetry.get(id)
+    if (effRetry && effRetry.max > 0) {
+      step.retry = effRetry
     }
 
     if (data.enabled === false) {
@@ -162,6 +226,12 @@ export function workflowToYAMLString(wf: WorkflowYAML): string {
     }
     if (step.on_failure) {
       lines.push(`      on_failure: ${step.on_failure}`)
+    }
+    if (step.retry && step.retry.max > 0) {
+      lines.push(`      retry:`)
+      lines.push(`        max: ${step.retry.max}`)
+      if (step.retry.delay) lines.push(`        delay: ${step.retry.delay}`)
+      if (step.retry.backoff && step.retry.backoff !== 'fixed') lines.push(`        backoff: ${step.retry.backoff}`)
     }
     if (step.enabled === false) {
       lines.push(`      enabled: false`)

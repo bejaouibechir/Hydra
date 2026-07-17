@@ -16,11 +16,13 @@ import '@xyflow/react/dist/style.css'
 import * as YAML from 'js-yaml'
 import { api, type Run } from '@/lib/api'
 import { validateDAG, edgesToDAGNodes } from '@/lib/dag'
-import { flowToWorkflow, workflowToYAMLString, workflowToFlow, parseWorkflowYAML, type FlowNodeData } from '@/lib/workflowSerializer'
+import { flowToWorkflow, workflowToYAMLString, workflowToFlow, parseWorkflowYAML, isContainerNode, isProxyEdge, CONTAINER_NODE_TYPE, type FlowNodeData } from '@/lib/workflowSerializer'
 import { flowToHdr, parseHdr, sectionYamlsToJobModel, jobModelToFlow, flowToJobModel, jobModelToSectionYamls, type JobSectionYamls } from '@/lib/hdrSerializer'
 import type { JobFilesPayload } from '@/lib/api'
 import { getNode } from '@/lib/nodeRegistry'
 import { HydraNode } from '@/components/canvas/nodes/HydraNode'
+import { ContainerNode } from '@/components/canvas/nodes/ContainerNode'
+import { applyCollapsedState, attachNodeToContainer, detachNode, isDescendant } from '@/lib/containers'
 import NodePalette from '@/components/canvas/NodePalette'
 import CanvasToolbox, { type InteractionMode } from '@/components/canvas/CanvasToolbox'
 import PropertiesPanel from '@/components/canvas/PropertiesPanel'
@@ -35,7 +37,7 @@ import {
   Save, Play, ChevronLeft, AlertTriangle, CheckCircle2, GitBranch,
   ChevronDown, ChevronUp, Terminal, Circle, Code2, Upload,
   Undo2, Redo2, Trash2, FolderOpen, Package, MoreHorizontal,
-  Pencil, Copy, ArrowLeft, Archive,
+  Pencil, Copy, ArrowLeft, Archive, Boxes,
 } from 'lucide-react'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { loadSettings } from '@/pages/Settings'
@@ -43,7 +45,13 @@ import { SceneContext } from '@/lib/sceneContext'
 
 // ── React Flow custom node types ─────────────────────────────────────────────
 
-const NODE_TYPES = { hydraNode: HydraNode }
+const NODE_TYPES = { hydraNode: HydraNode, container: ContainerNode }
+
+// Dimensions par défaut d'un conteneur nouvellement créé + marge intérieure
+const CONTAINER_DEFAULT_W = 320
+const CONTAINER_DEFAULT_H = 220
+const CONTAINER_PAD = 40        // marge autour des nœuds enfants lors d'un « grouper »
+const CONTAINER_HEADER_H = 44   // hauteur de la barre de titre (zone non-drop haute)
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,7 +106,25 @@ function sanitizeCanvas(rawNodes?: unknown, rawEdges?: unknown): { nodes: Node<F
     return Boolean(x && typeof x.source === 'string' && typeof x.target === 'string'
       && ids.has(x.source) && ids.has(x.target))
   })
-  return { nodes, edges }
+  // Purge des parentId orphelins (conteneur supprimé hors Studio) + ordre parent-avant-enfant.
+  const cleaned = nodes.map(n => {
+    const pid = (n as { parentId?: unknown }).parentId
+    if (typeof pid === 'string' && !ids.has(pid)) {
+      const { parentId: _p, extent: _e, ...rest } = n as Node<FlowNodeData> & { extent?: unknown }
+      return rest as Node<FlowNodeData>
+    }
+    return n
+  })
+  // Rejoue l'état replié des conteneurs (nettoie + reconstruit les proxies).
+  return applyCollapsedState(reorderParentsFirst(cleaned), edges)
+}
+
+/** React Flow exige qu'un nœud parent précède ses enfants dans le tableau.
+ *  Nesting simple v1 : racines (sans parentId) d'abord, enfants ensuite. */
+function reorderParentsFirst(ns: Node<FlowNodeData>[]): Node<FlowNodeData>[] {
+  const roots    = ns.filter(n => !(n as { parentId?: unknown }).parentId)
+  const children = ns.filter(n => (n as { parentId?: unknown }).parentId)
+  return children.length ? [...roots, ...children] : ns
 }
 
 /** Injecte jobPath + stepName lisible sur les nœuds job avant sérialisation workflow.yaml */
@@ -233,6 +259,8 @@ function WorkflowEditorInner() {
   const [saveStatus, setSaveStatus]      = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   // Flag : évite l'auto-save pendant le chargement initial
   const canAutoSave = useRef(false)
+  // Workflow déjà initialisé (évite de réinitialiser scène/canvas à chaque refetch)
+  const initializedWfRef = useRef<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   // Erreurs de manifests détectées au chargement : « fichier — ligne N : message »
   const [loadIssues, setLoadIssues] = useState<string[]>([])
@@ -325,6 +353,21 @@ function WorkflowEditorInner() {
 
   /** React Flow onNodesDelete : pour un noeud job, propose scene-seule vs suppression complete (liste + disque). */
   const onNodesDelete = useCallback((deleted: Node[]) => {
+    // Conteneur supprimé → détacher ses enfants (jamais de parentId orphelin,
+    // les nœuds et leurs liens amont/aval sont préservés).
+    const deletedContainers = new Set(deleted.filter(isContainerNode).map(n => n.id))
+    if (deletedContainers.size > 0) {
+      const inst = rfInstanceRef.current
+      setNodes(nds => nds.map(n => {
+        if (n.parentId && deletedContainers.has(n.parentId)) {
+          const abs = inst?.getInternalNode(n.id)?.internals.positionAbsolute ?? n.position
+          const { parentId: _p, extent: _e, ...rest } = n as Node<FlowNodeData> & { extent?: unknown }
+          return { ...(rest as Node<FlowNodeData>), position: { x: abs.x, y: abs.y } }
+        }
+        return n
+      }))
+    }
+
     const jobNodes = deleted.filter(n => (n.data as FlowNodeData)?.nodeType === 'job')
     if (jobNodes.length === 0 || sceneMode !== 'workflow') return
     const label = jobNames.get(((jobNodes[0].data as any)?.jobRef as string) ?? jobNodes[0].id) ?? ''
@@ -346,7 +389,85 @@ function WorkflowEditorInner() {
     }
     setJobNames(next)
     if (activeJobId && !next.has(activeJobId)) setActiveJobId(next.size > 0 ? [...next.keys()][0] : null)
-  }, [sceneMode, jobNames, activeJobId, projectId])
+  }, [sceneMode, jobNames, activeJobId, projectId, setNodes])
+
+  // ── Conteneurs (Sequence Container & futurs types) ────────────────────────
+  // Regroupe la sélection courante dans un nouveau Sequence Container.
+  const groupSelectionIntoContainer = useCallback(() => {
+    const inst = rfInstanceRef.current
+    if (!inst) return
+    const selSet = new Set(multiSel.nodes.map(n => n.id))
+    const roots = multiSel.nodes.filter(n => !n.parentId || !selSet.has(n.parentId))
+    if (roots.length === 0) return
+    // Bounding box en coordonnées absolues
+    const boxes = roots.map(n => {
+      const int = inst.getInternalNode(n.id)
+      const p = int?.internals.positionAbsolute ?? n.position
+      return { x: p.x, y: p.y, w: int?.measured?.width ?? 80, h: int?.measured?.height ?? 80 }
+    })
+    const minX = Math.min(...boxes.map(b => b.x))
+    const minY = Math.min(...boxes.map(b => b.y))
+    const maxX = Math.max(...boxes.map(b => b.x + b.w))
+    const maxY = Math.max(...boxes.map(b => b.y + b.h))
+    const cx = minX - CONTAINER_PAD
+    const cy = minY - CONTAINER_PAD - CONTAINER_HEADER_H
+    const cw = Math.max(CONTAINER_DEFAULT_W, (maxX - minX) + CONTAINER_PAD * 2)
+    const ch = Math.max(CONTAINER_DEFAULT_H, (maxY - minY) + CONTAINER_PAD * 2 + CONTAINER_HEADER_H)
+    const cid = newNodeId('container')
+    const container: Node<FlowNodeData> = {
+      id: cid, type: 'container', position: { x: cx, y: cy },
+      style: { width: cw, height: ch },
+      data: { label: 'Sequence', nodeType: 'container', containerType: 'sequence', stepName: cid, enabled: true },
+    }
+    const selIds = new Set(roots.map(n => n.id))
+    pushHistory(nodes, edges)
+    setNodes(nds => {
+      const reparented = nds.map(n => {
+        if (!selIds.has(n.id)) return n
+        const p = inst.getInternalNode(n.id)?.internals.positionAbsolute ?? n.position
+        return { ...n, parentId: cid, extent: 'parent' as const, position: { x: p.x - cx, y: p.y - cy } }
+      })
+      return reorderParentsFirst([container, ...reparented])
+    })
+    setMultiSel({ nodes: [], edges: [] })
+  }, [multiSel, nodes, edges, pushHistory, setNodes])
+
+  // Drag terminé : (dé)rattache un nœud OU un conteneur au conteneur qu'il survole
+  // (imbrication supportée ; attachNodeToContainer refuse les cycles).
+  const onNodeDragStop = useCallback((_: unknown, dragged: Node) => {
+    const inst = rfInstanceRef.current
+    if (!inst) return
+    const cur = inst.getNodes() as Node<FlowNodeData>[]
+    const curEdges = inst.getEdges()
+    const draggedIsContainer = isContainerNode(dragged)
+    // conteneurs survolés, hors soi-même et hors ses propres descendants
+    const target = inst.getIntersectingNodes(dragged)
+      .filter(n => isContainerNode(n) && n.id !== dragged.id)
+      .find(t => !draggedIsContainer || !isDescendant(cur as never, t.id, dragged.id))
+    const currentParent = dragged.parentId
+    if (target && target.id !== currentParent) {
+      pushHistory(nodes, edges)
+      const res = attachNodeToContainer(cur as never, curEdges, dragged.id, target.id)
+      setNodes(res.nodes as never); setEdges(res.edges)
+    } else if (!target && currentParent) {
+      pushHistory(nodes, edges)
+      const res = detachNode(cur as never, curEdges, dragged.id)
+      setNodes(res.nodes as never); setEdges(res.edges)
+    }
+  }, [nodes, edges, pushHistory, setNodes, setEdges])
+
+  // Rattacher / détacher un nœud à un conteneur (depuis le menu contextuel « … »)
+  const attachToContainer = useCallback((nodeId: string, containerId: string) => {
+    pushHistory(nodes, edges)
+    const res = attachNodeToContainer(nodes as never, edges, nodeId, containerId)
+    setNodes(res.nodes as never); setEdges(res.edges)
+  }, [nodes, edges, pushHistory, setNodes, setEdges])
+
+  const detachFromContainer = useCallback((nodeId: string) => {
+    pushHistory(nodes, edges)
+    const res = detachNode(nodes as never, edges, nodeId)
+    setNodes(res.nodes as never); setEdges(res.edges)
+  }, [nodes, edges, pushHistory, setNodes, setEdges])
 
   const deleteSelection = useCallback(() => {
     if (multiSel.nodes.length === 0 && multiSel.edges.length === 0) return
@@ -369,6 +490,11 @@ function WorkflowEditorInner() {
 
   useEffect(() => {
     if (!wfQuery.data) return
+    // Ne (ré)initialiser QUE au 1er chargement d'un workflow. Un refetch (auto-save
+    // qui invalide la requête) ne doit PAS réinitialiser la scène ni écraser les
+    // éditions → évite les sauts involontaires Workflow ↔ Job config.
+    if (initializedWfRef.current === (workflowId ?? '')) return
+    initializedWfRef.current = workflowId ?? ''
     canAutoSave.current = false
     setLoadIssues([])
     let cancelled = false
@@ -531,10 +657,12 @@ function WorkflowEditorInner() {
   // ── Validation en temps réel ──────────────────────────────────────────────
 
   useEffect(() => {
-    if (nodes.length === 0) { setValidationErrors([]); return }
+    // Les conteneurs sont visuels : exclus du DAG de validation.
+    const dagCandidates = nodes.filter(n => !isContainerNode(n))
+    if (dagCandidates.length === 0) { setValidationErrors([]); return }
     const dagNodes = edgesToDAGNodes(
-      nodes.map(n => n.id),
-      edges.map(e => ({ source: e.source, target: e.target })),
+      dagCandidates.map(n => n.id),
+      edges.filter(e => !isProxyEdge(e)).map(e => ({ source: e.source, target: e.target })),
     )
     setValidationErrors(validateDAG(dagNodes).errors)
   }, [nodes, edges])
@@ -814,6 +942,30 @@ function WorkflowEditorInner() {
       x: e.clientX,
       y: e.clientY,
     })
+    // Conteneur : nœud de regroupement vide (glissé depuis la section Containers)
+    if (nodeType === CONTAINER_NODE_TYPE || nodeType.startsWith(CONTAINER_NODE_TYPE + ':')) {
+      const sub = nodeType.includes(':') ? nodeType.split(':')[1] : 'sequence'
+      const isErr = sub === 'errorscope'
+      const isRetry = sub === 'retryscope'
+      const cLabel = isErr ? 'Error Scope' : isRetry ? 'Retry Scope' : 'Sequence'
+      const cid = newNodeId('container')
+      const container: Node<FlowNodeData> = {
+        id: cid, type: 'container', position,
+        style: { width: CONTAINER_DEFAULT_W, height: CONTAINER_DEFAULT_H },
+        data: {
+          label: cLabel,
+          nodeType: 'container',
+          containerType: sub as FlowNodeData['containerType'],
+          stepName: cid, enabled: true,
+          ...(isErr ? { onFailure: 'skip' as const } : {}),
+          ...(isRetry ? { retry: { max: 3, delay: 5 } } : {}),
+        },
+      }
+      pushHistory(nodes, edges)
+      setNodes(nds => [container, ...nds])
+      setSelectedNode(container)
+      return
+    }
     const newNode = makeFlowNode(nodeType, position)
     pushHistory(nodes, edges)   // snapshot avant ajout du nœud
     setNodes(nds => [...nds, newNode])
@@ -835,6 +987,7 @@ function WorkflowEditorInner() {
   }, [])
 
   const onNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (isContainerNode(node)) return   // un conteneur n'a pas de config (socle)
     if ((node.data as FlowNodeData).nodeType === 'job') {
       const targetJobId = (node.data as any).jobRef ?? node.id
       switchToJobScene(targetJobId)
@@ -1014,10 +1167,15 @@ function WorkflowEditorInner() {
     mutationFn: async () => {
       if (!workflowId || !projectId) throw new Error('Workflow non initialisé')
 
-      // Mode Action Node (powershell / bash) — nœud sélectionné ou premier action sur le canvas
-      const actionNode = (selectedNode && (selectedNode.data as FlowNodeData).nodeType?.startsWith('action_'))
-        ? selectedNode
-        : nodes.find(n => (n.data as FlowNodeData).nodeType?.startsWith('action_'))
+      // Mode "action isolée" (powershell/bash/…) : UNIQUEMENT sur un canvas SANS job.
+      // Dès qu'un nœud job est présent (= vrai workflow), Run lance le WORKFLOW complet
+      // et non l'action seule (sinon l'action court-circuite l'exécution du workflow).
+      const hasJobNode = nodes.some(n => (n.data as FlowNodeData).nodeType === 'job')
+      const actionNode = hasJobNode ? undefined : (
+        (selectedNode && (selectedNode.data as FlowNodeData).nodeType?.startsWith('action_'))
+          ? selectedNode
+          : nodes.find(n => (n.data as FlowNodeData).nodeType?.startsWith('action_'))
+      )
       console.debug('[runMut] isJobScene=', isJobScene, 'actionNode=', actionNode?.id,
         'nodeType=', (actionNode?.data as any)?.nodeType,
         'params=', (actionNode?.data as any)?.params,
@@ -1709,6 +1867,25 @@ function WorkflowEditorInner() {
               )
             })()}
 
+            {/* Grouper la sélection dans un Sequence Container */}
+            {multiSel.nodes.filter(n => !isContainerNode(n) && !n.parentId).length >= 1 && (
+              <>
+                <div style={{ width: 1, height: 16, background: 'var(--bg-border)' }} />
+                <button
+                  onClick={groupSelectionIntoContainer}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    background: 'rgba(245,158,11,0.14)', color: 'var(--warning)',
+                    border: '1px solid rgba(245,158,11,0.35)', borderRadius: 6,
+                    padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
+                  }}
+                  title="Regrouper dans un Sequence Container"
+                >
+                  <Boxes size={12} /> Grouper
+                </button>
+              </>
+            )}
+
             <div style={{ width: 1, height: 16, background: 'var(--bg-border)' }} />
             <button
               onClick={deleteSelection}
@@ -1765,6 +1942,7 @@ function WorkflowEditorInner() {
             onDragOver={onDragOver}
             onNodeClick={onNodeClick}
             onNodeDoubleClick={onNodeDoubleClick}
+            onNodeDragStop={onNodeDragStop}
             onNodeContextMenu={onNodeContextMenu}
             onPaneClick={() => setContextMenu(null)}
             onSelectionChange={onSelectionChange}
@@ -1861,6 +2039,8 @@ function WorkflowEditorInner() {
             menu={contextMenu}
             isJobScene={isJobScene}
             onClose={() => setContextMenu(null)}
+            onAttachToContainer={attachToContainer}
+            onDetachFromContainer={detachFromContainer}
             onViewData={(nodeId) => { setContextMenu(null); viewDataMut.mutate(nodeId) }}
             onOpenPanel={(nodeId) => {
               const n = nodes.find(x => x.id === nodeId)

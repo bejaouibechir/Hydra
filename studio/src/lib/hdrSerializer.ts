@@ -14,7 +14,7 @@
  */
 import * as YAML from 'js-yaml'
 import type { Node, Edge } from '@xyflow/react'
-import type { FlowNodeData } from './workflowSerializer'
+import { isProxyEdge, type FlowNodeData } from './workflowSerializer'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -151,6 +151,7 @@ export function flowToHdr(
   jobName = 'my_job',
 ): string {
   if (nodes.length === 0) return ''
+  edges = edges.filter(e => !isProxyEdge(e))
 
   const get = (id: string) => nodes.find(n => n.id === id)
 
@@ -519,6 +520,7 @@ export function flowToJobModel(
   edges: Edge[],
   name = 'my_job',
 ): HydraJobModel {
+  edges = edges.filter(e => !isProxyEdge(e))
   const get = (id: string) => nodes.find(n => n.id === id)
 
   // Ordre topologique

@@ -12,7 +12,7 @@ from .postgresql_connector import PostgreSQLConnector
 
 # WebAPIConnector — optionnel (depend de jsonpath_ng)
 try:
-    from .web_api_connector import WebAPIConnector
+    from .web_api_connector_v2 import WebAPIConnector
     _WEBAPI_AVAILABLE = True
 except ImportError:
     WebAPIConnector = None  # type: ignore[assignment,misc]

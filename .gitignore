@@ -69,14 +69,12 @@ node_modules/
 studio/dist/
 studio/build/
 .vite/
+studio/vite.config.ts.timestamp-*.mjs
 
 # ===============================
 # Backups horodatés (safe_write / Règle 1)
 # ===============================
 _backups/
+_archive/
 _bak_safe_write/
-_safe_write_bak/
-*.bak
-test_scenarios/
-n8nimages/
-CLAUDE.md/
+_safe_write_b

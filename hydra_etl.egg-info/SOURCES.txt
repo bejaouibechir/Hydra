@@ -11,11 +11,13 @@ api/routers/fs.py
 api/routers/health.py
 api/routers/jobs.py
 api/routers/nodes.py
+api/routers/parameters.py
 api/routers/projects.py
 api/routers/runs.py
 api/routers/system.py
 api/routers/templates.py
 api/routers/terminal.py
+api/routers/transform.py
 api/routers/workflows.py
 cli/__init__.py
 cli/hdrctl.py
@@ -38,6 +40,7 @@ internal/cache/memory.py
 internal/config/__init__.py
 internal/config/env_loader.py
 internal/config/loader.py
+internal/config/parameters.py
 internal/config/secrets.py
 internal/config/yaml_utils.py
 internal/connector/__init__.py
@@ -127,6 +130,8 @@ tests/test_mongodb_registry.py
 tests/test_new_critical_fixes.py
 tests/test_pagination.py
 tests/test_pandas_engine.py
+tests/test_parameters.py
+tests/test_parameters_e2e.py
 tests/test_parquet_connector.py
 tests/test_parser_destiantion.py
 tests/test_retry_policy.py

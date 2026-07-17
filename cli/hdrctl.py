@@ -690,7 +690,11 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
         click.echo(f"\n  {c(C.YL + C.BD, t('run.dry_run_mode'))} — {c(C.DM, t('run.dry_run_no_write'))}")
         section(t("run.dry_run_section", job_name=c(C.CY, job_name)))
         click.echo()
-        _run_validate_only(job_dir, verbosity, job_files)
+        has_error = _run_validate_only(job_dir, verbosity, job_files)
+        if has_error:
+            click.echo()
+            error_box(t("run.dry_run_failed"))
+            sys.exit(1)
         success_box(t("run.dry_run_done"))
         info(t("run.hint", cmd=c(C.WH, f"hydra run {path}")))
         sys.exit(0)
@@ -766,8 +770,13 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
     sys.exit(0 if status == "SUCCESS" else 1)
 
 
-def _run_validate_only(job_dir: Path, verbosity: int, job_files: dict[str, Path]) -> None:
-    """Validation sans exécution (dry-run)."""
+def _run_validate_only(job_dir: Path, verbosity: int, job_files: dict[str, Path]) -> bool:
+    """Validation sans exécution (dry-run).
+
+    Retourne True si au moins une erreur de validation a été détectée,
+    False si le job est valide.
+    """
+    has_error = False
     display_names = {
         "sources": "sources.yaml",
         "destinations": "destinations.yaml",
@@ -782,6 +791,7 @@ def _run_validate_only(job_dir: Path, verbosity: int, job_files: dict[str, Path]
                 info(f"{fname:<28} — {t('validate.optional_absent')}")
             else:
                 err_line(f"{fname:<28} — {t('validate.missing')}")
+                has_error = True
             continue
         ok(f"{c(C.WH, fname):<36} — {t('validate.present')}")
 
@@ -790,6 +800,9 @@ def _run_validate_only(job_dir: Path, verbosity: int, job_files: dict[str, Path]
     errs_src = _validate_sources_yaml(job_files["sources"])
     errs_dst = _validate_destinations_yaml(job_files["destinations"])
     errs_trf = _validate_transform_yaml(job_files["transformations"])
+
+    if errs_src or errs_dst or errs_trf:
+        has_error = True
 
     if not errs_src:
         ok(f"{c(C.WH, 'sources.yaml'):<36} — {t('validate.dsl_valid')}")
@@ -821,14 +834,19 @@ def _run_validate_only(job_dir: Path, verbosity: int, job_files: dict[str, Path]
         to_id    = pipe.get("to")
         if from_id and from_id not in (sources or {}).get("sources", {}):
             err_line(t("validate.pipeline_from_missing", from_id=from_id))
+            has_error = True
         else:
             ok(f"{c(C.WH, 'pipeline.from'):<36} — {t('validate.resolved', id=from_id)}")
         if to_id and to_id not in (dests or {}).get("destinations", {}):
             err_line(t("validate.pipeline_to_missing", to_id=to_id))
+            has_error = True
         else:
             ok(f"{c(C.WH, 'pipeline.to'):<36} — {t('validate.resolved', id=to_id)}")
     except Exception as e:
         err_line(t("validate.coherence_error", error=e))
+        has_error = True
+
+    return has_error
 
 
 def _print_job_config(job_dir: Path, job_files: dict[str, Path]) -> None:

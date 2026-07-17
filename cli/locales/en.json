@@ -15,6 +15,7 @@
   "run.dry_run_no_write": "no data will be written",
   "run.dry_run_section": "Pipeline validation  {job_name}",
   "run.dry_run_done": "Dry-run complete — everything is valid. Ready to execute.",
+  "run.dry_run_failed": "Dry-run failed — validation errors detected. Fix them before running.",
   "run.hint": "Run: {cmd}",
   "run.pipeline_label": "▶  Pipeline  {name}  {path_info}",
   "run.success": "Pipeline completed successfully in {duration}s",

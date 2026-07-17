@@ -30,7 +30,7 @@ except Exception:
 
 # Import Web API connector -- optionnel
 try:
-    from internal.connector.web_api_connector import WebAPIConnector as _WebAPIConnector
+    from internal.connector.web_api_connector_v2 import WebAPIConnector as _WebAPIConnector
     _WEBAPI_AVAILABLE = True
 except Exception:
     _WebAPIConnector = None  # type: ignore[assignment,misc]

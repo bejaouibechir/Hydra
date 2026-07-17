@@ -1,17 +1,19 @@
 """
-Web API Connector v2.0 — CANDIDAT FUTUR (non actif en production).
+Web API Connector v2.0 — ACTIF (version de production).
 
-Statut : développement avancé, pas encore intégré au registry.
-Actif  : web_api_connector.py (v1) — importé par internal/connector/__init__.py
+Statut : enregistré dans le registry sous "web_api", importé par
+         internal/connector/__init__.py. Remplace la v1 (archivée dans
+         _archive/web_api_v1/) depuis juillet 2026.
 
-Améliorations prévues vs v1 :
+Fonctionnalités vs v1 :
   - Rate limiting interne (token bucket)
   - Circuit breaker (fail-fast sur API down)
   - Pagination cursor + offset (en plus de Link header)
   - Extraction incrémentale (state management)
   - Error classification (retriable vs fatal)
 
-Migration v1 → v2 : remplacer dans __init__.py quand les tests v2 sont complets.
+Politiques : plugins/web_api_policies/ (RateLimitPolicy, CircuitBreakerPolicy,
+             StateManager, ErrorClassifier).
 """
 
 from typing import Iterator, Dict, Any, Optional, List
@@ -463,8 +465,10 @@ class WebAPIConnector:
         return items
 
 
-# Import dynamique pour éviter circular imports
-from sprint2.rate_limit_policy import RateLimitPolicy
-from sprint2.circuit_breaker_policy import CircuitBreakerPolicy
-from sprint2.state_manager import StateManager
-from sprint2.error_classifier import ErrorClassifier
+# Politiques Web API (rate limit, circuit breaker, state, error classifier)
+from plugins.web_api_policies import (
+    RateLimitPolicy,
+    CircuitBreakerPolicy,
+    StateManager,
+    ErrorClassifier,
+)

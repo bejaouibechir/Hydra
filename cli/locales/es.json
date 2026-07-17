@@ -8,6 +8,7 @@
   "run.dry_run_no_write": "no se escribirán datos",
   "run.dry_run_section": "Validación del pipeline  {job_name}",
   "run.dry_run_done": "Dry-run completo — todo válido. Listo para ejecutar.",
+  "run.dry_run_failed": "Dry-run fallido — errores de validación detectados. Corríjalos antes de ejecutar.",
   "run.hint": "Ejecutar: {cmd}",
   "run.pipeline_label": "▶  Pipeline  {name}  {path_info}",
   "run.success": "Pipeline completado exitosamente en {duration}s",

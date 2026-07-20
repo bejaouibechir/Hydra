@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { WebLinksAddon } from 'xterm-addon-web-links'
@@ -26,8 +26,29 @@ function wsUrl(shell: string): string {
   return `${base.replace(/\/+$/, '')}/terminal/ws?shell=${shell}`
 }
 
+/** Sérialise le buffer xterm en texte brut (lignes vides de fin retirées). */
+function bufferText(term: Terminal): string {
+  const buf = term.buffer.active
+  const lines: string[] = []
+  for (let i = 0; i < buf.length; i++) {
+    const line = buf.getLine(i)
+    if (line) lines.push(line.translateToString(true))
+  }
+  return lines.join('\n').replace(/\s+$/, '') + '\n'
+}
+
+function defaultLogName(shell: string): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `terminal_${shell}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.log`
+}
+
 export default function TerminalPanel({ shell, initialCommand, onClose }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const termRef = useRef<Terminal | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [saveDialog, setSaveDialog] = useState(false)
+  const [fileName, setFileName] = useState('')
 
   const connect = useCallback(() => {
     if (!containerRef.current) return
@@ -58,6 +79,7 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
         brightWhite:   '#f0f6fc',
       },
     })
+    termRef.current = term
 
     const fit   = new FitAddon()
     const links = new WebLinksAddon()
@@ -93,7 +115,7 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
     const ro = new ResizeObserver(() => { try { fit.fit() } catch { /* noop */ } })
     ro.observe(containerRef.current!)
 
-    return () => { ro.disconnect(); ws.close(); term.dispose() }
+    return () => { ro.disconnect(); ws.close(); term.dispose(); termRef.current = null }
   }, [shell, initialCommand])
 
   useEffect(() => {
@@ -101,9 +123,58 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
     return () => { cleanup?.() }
   }, [connect])
 
+  // Fermer le menu contextuel au clic ailleurs / Échap
+  useEffect(() => {
+    if (!ctxMenu) return
+    const close = () => setCtxMenu(null)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null) }
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', onKey) }
+  }, [ctxMenu])
+
+  const doClear = () => { termRef.current?.clear(); setCtxMenu(null) }
+
+  const doCopy = async () => {
+    const term = termRef.current
+    if (!term) return
+    const sel = term.getSelection()
+    const text = sel && sel.trim() ? sel : bufferText(term)
+    try { await navigator.clipboard.writeText(text) } catch { /* clipboard indisponible */ }
+    setCtxMenu(null)
+  }
+
+  const doSave = () => {
+    setFileName(defaultLogName(shell))
+    setSaveDialog(true)
+    setCtxMenu(null)
+  }
+
+  const confirmSave = () => {
+    const term = termRef.current
+    if (!term) { setSaveDialog(false); return }
+    const name = (fileName.trim() || defaultLogName(shell))
+    const blob = new Blob([bufferText(term)], { type: 'text/plain;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name.endsWith('.log') || name.includes('.') ? name : `${name}.log`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    setSaveDialog(false)
+  }
+
+  const menuItemStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+    padding: '6px 14px', background: 'transparent', border: 'none',
+    color: '#c9d1d9', fontSize: 12, cursor: 'pointer', textAlign: 'left',
+  }
+
   // Rendu IMBRIQUÉ : remplit le volet de l'onglet (pas d'overlay flottant).
   return (
-    <div style={{ height: '100%', width: '100%', background: '#0d1117', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ height: '100%', width: '100%', background: '#0d1117', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 28, flexShrink: 0,
         background: '#161b22', borderBottom: '1px solid #30363d',
@@ -126,7 +197,84 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
           color: '#8b949e', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1,
         }}>{'✕'}</button>
       </div>
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '6px' }} />
+      <div
+        ref={containerRef}
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '6px' }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          const host = e.currentTarget.parentElement!.getBoundingClientRect()
+          setCtxMenu({ x: e.clientX - host.left, y: e.clientY - host.top })
+        }}
+      />
+
+      {/* Menu contextuel : Clear / Copy / Save */}
+      {ctxMenu && (
+        <div
+          style={{
+            position: 'absolute', left: Math.min(ctxMenu.x, 9999), top: ctxMenu.y, zIndex: 50,
+            background: '#161b22', border: '1px solid #30363d', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: '4px 0', minWidth: 150,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button style={menuItemStyle} onClick={doClear}
+            onMouseEnter={e => (e.currentTarget.style.background = '#21262d')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+            🧹 Clear
+          </button>
+          <button style={menuItemStyle} onClick={doCopy}
+            onMouseEnter={e => (e.currentTarget.style.background = '#21262d')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+            📋 Copy
+          </button>
+          <button style={menuItemStyle} onClick={doSave}
+            onMouseEnter={e => (e.currentTarget.style.background = '#21262d')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+            💾 Save…
+          </button>
+        </div>
+      )}
+
+      {/* Boîte de dialogue Save : nom du fichier log */}
+      {saveDialog && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 60, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)',
+        }}>
+          <div style={{
+            background: '#161b22', border: '1px solid #30363d', borderRadius: 10,
+            padding: 18, width: 380, boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#c9d1d9', marginBottom: 10 }}>
+              Sauvegarder le log du terminal
+            </div>
+            <label style={{ display: 'block', fontSize: 11, color: '#8b949e', marginBottom: 4 }}>
+              Nom du fichier
+            </label>
+            <input
+              autoFocus
+              value={fileName}
+              onChange={e => setFileName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') confirmSave(); if (e.key === 'Escape') setSaveDialog(false) }}
+              style={{
+                width: '100%', boxSizing: 'border-box', background: '#0d1117',
+                border: '1px solid #30363d', borderRadius: 6, padding: '7px 10px',
+                color: '#c9d1d9', fontSize: 12, fontFamily: 'monospace', outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button onClick={() => setSaveDialog(false)} style={{
+                background: 'transparent', border: '1px solid #30363d', borderRadius: 6,
+                padding: '5px 12px', color: '#8b949e', fontSize: 12, cursor: 'pointer',
+              }}>Annuler</button>
+              <button onClick={confirmSave} style={{
+                background: '#238636', border: '1px solid #2ea043', borderRadius: 6,
+                padding: '5px 14px', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}>Sauvegarder</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

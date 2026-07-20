@@ -92,6 +92,10 @@ const NODES: HydraNodeDef[] = [
   { type: 'action_python',     label: 'Python',     category: 'action', color: '#eab308', icon: 'FileCode2', description: 'Runs a Python script' },
   { type: 'action_ssh',        label: 'SSH',        category: 'action', color: '#0ea5e9', icon: 'Server',   description: 'Runs a remote SSH command' },
 
+  // Actions paramètres runtime (mutation à l'exécution)
+  { type: 'action_set_param',    label: 'Set Param',    category: 'action', color: '#c026d3', icon: 'Variable', description: 'Creates a runtime parameter (fails if it already exists)' },
+  { type: 'action_assign_param', label: 'Assign Param', category: 'action', color: '#c026d3', icon: 'Equal',    description: 'Assigns a value to an existing runtime parameter' },
+
   // Flux de contrôle (canvas workflow uniquement)
   { type: 'cf_condition', label: 'Condition', category: 'control_flow', color: '#f97316', icon: 'GitFork',    description: 'Branch if / else on condition' },
   { type: 'cf_parallel',  label: 'Parallel',  category: 'control_flow', color: '#f97316', icon: 'Layers',     description: 'Explicit parallel execution' },

@@ -25,7 +25,7 @@ import {
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
   Fingerprint, FunctionSquare, GitMerge,
   // Actions
-  Webhook, MessageSquare, Mail, Terminal, Network, Code,
+  Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal,
   // Control Flow
   LayoutGrid, Clock, Scissors, Link2,
   // Job node
@@ -46,7 +46,7 @@ const LUCIDE: Record<string, React.ElementType> = {
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
   Fingerprint, FunctionSquare, GitMerge,
   // Actions
-  Webhook, MessageSquare, Mail, Terminal, Network, Code,
+  Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal,
   // Control Flow
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
   // Job
@@ -132,7 +132,10 @@ export default function NodePalette({
   const visibleCategories = sceneMode === 'workflow'
     ? CATEGORIES.filter(c => c.id === 'action' || c.id === 'control_flow')
     : sceneMode === 'jobs'
-      ? CATEGORIES.filter(c => c.id === 'source' || c.id === 'transformation' || c.id === 'destination' || c.id === 'action')
+      // Pas d'Actions en mode job : un job = source → transformations → destination.
+      // Les nœuds action n'y sont pas sérialisés (piège utilisateur) — ils vivent
+      // au niveau workflow uniquement.
+      ? CATEGORIES.filter(c => c.id === 'source' || c.id === 'transformation' || c.id === 'destination')
       : CATEGORIES
 
   function isPlatformAvailable(node: HydraNodeDef): boolean {

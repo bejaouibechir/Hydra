@@ -218,7 +218,15 @@ export function workflowToYAMLString(wf: WorkflowYAML): string {
     if (step.params) {
       lines.push('      params:')
       for (const [k, v] of Object.entries(step.params)) {
-        lines.push(`        ${k}: "${String(v).replace(/\\/g, '/')}"`)
+        const sv = String(v)
+        if (sv.includes('\n')) {
+          // Valeur multi-lignes (ex. script Python) -> block scalar YAML,
+          // contenu préservé tel quel (pas de mutation des backslashes).
+          lines.push(`        ${k}: |-`)
+          for (const ln of sv.split('\n')) lines.push(`          ${ln}`)
+        } else {
+          lines.push(`        ${k}: "${sv.replace(/\\/g, '/').replace(/"/g, '\\"')}"`)
+        }
       }
     }
     if (step.depends_on?.length) {

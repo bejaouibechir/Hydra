@@ -1171,7 +1171,13 @@ function WorkflowEditorInner() {
       // Dès qu'un nœud job est présent (= vrai workflow), Run lance le WORKFLOW complet
       // et non l'action seule (sinon l'action court-circuite l'exécution du workflow).
       const hasJobNode = nodes.some(n => (n.data as FlowNodeData).nodeType === 'job')
-      const actionNode = hasJobNode ? undefined : (
+      // Action isolée UNIQUEMENT si le canvas est un seul nœud action, sans lien
+      // (aucune orchestration). Un workflow multi-nœuds — même 100% actions — doit
+      // s'exécuter EN ENTIER via l'orchestrateur, sinon set_param/assign_param et
+      // les autres steps sont ignorés. Le ▶ par-nœud (hydra:run-step) reste le
+      // moyen de tester une action isolément.
+      const isLoneAction = nodes.length === 1 && edges.length === 0
+      const actionNode = (hasJobNode || !isLoneAction) ? undefined : (
         (selectedNode && (selectedNode.data as FlowNodeData).nodeType?.startsWith('action_'))
           ? selectedNode
           : nodes.find(n => (n.data as FlowNodeData).nodeType?.startsWith('action_'))
@@ -1728,11 +1734,11 @@ function WorkflowEditorInner() {
         <button
           onClick={() => setCodeOpen(v => !v)}
           className="btn-secondary text-xs !py-1.5"
-          title={isJobScene ? 'Toggle HDR panel' : 'Toggle YAML panel'}
+          title="Afficher le code Hydra DSL"
           style={codeOpen ? { background: 'var(--primary-subtle)', color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
         >
           <Code2 size={13} />
-          {isJobScene ? 'HDR' : 'Code'}
+          Hydra DSL
         </button>
 
         <button

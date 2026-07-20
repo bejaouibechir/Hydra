@@ -195,6 +195,17 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'working_dir', label: 'Working directory',      type: 'text',     placeholder: '/home/user/project',    browseType: 'directory' },
     { key: 'timeout',     label: 'Timeout (seconds)',          type: 'number',   placeholder: '60' },
   ],
+  // Actions paramètres runtime
+  action_set_param: [
+    { key: 'name',  label: 'Parameter name', type: 'text',   required: true, placeholder: 'batch_size' },
+    { key: 'value', label: 'Value',          type: 'text',   required: true, placeholder: '100' },
+    { key: 'type',  label: 'Type',           type: 'select', options: ['any', 'int', 'float', 'str', 'bool', 'json'] },
+  ],
+  action_assign_param: [
+    { key: 'name',  label: 'Parameter name', type: 'text',   required: true, placeholder: 'batch_size' },
+    { key: 'value', label: 'Value',          type: 'text',   required: true, placeholder: '250' },
+    { key: 'type',  label: 'Type',           type: 'select', options: ['any', 'int', 'float', 'str', 'bool', 'json'] },
+  ],
 }
 
 // Nœuds action "shell" — pas de dropdown "Action type"

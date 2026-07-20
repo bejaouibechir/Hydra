@@ -3,6 +3,7 @@
  * React Flow (nodes + edges) ↔ Hydra workflow.yaml structure
  */
 import type { Node, Edge } from '@xyflow/react'
+import { load as yamlLoad } from 'js-yaml'
 import { topologicalSort, edgesToDAGNodes, validateDAG, computeLevels } from './dag'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -251,125 +252,70 @@ export function workflowToYAMLString(wf: WorkflowYAML): string {
 // ── YAML string → WorkflowYAML ───────────────────────────────────────────────
 
 /**
- * Parse un YAML Hydra workflow (format fixe généré par workflowToYAMLString).
- * Pas de dépendance externe — parser ciblé sur notre schéma exact.
+ * Parse un YAML Hydra workflow via js-yaml (support complet : block scalars,
+ * listes multi-lignes, quoting, retry, etc.).
  * Retourne null si le texte est invalide ou vide.
  */
 export function parseWorkflowYAML(text: string): WorkflowYAML | null {
   if (!text.trim()) return null
   try {
-    const lines = text.split('\n')
+    const doc = yamlLoad(text) as Record<string, unknown> | null
+    const wf = (doc as { workflow?: Record<string, unknown> } | null)?.workflow
+    if (!wf || typeof wf !== 'object') return null
 
-    const unquote = (s: string): string => {
-      s = s.trim()
-      if (s.length >= 2 && ((s[0] === '"' && s.at(-1) === '"') || (s[0] === "'" && s.at(-1) === "'")))
-        return s.slice(1, -1)
-      return s
-    }
+    const trigRaw = (wf.trigger ?? {}) as Record<string, unknown>
+    const trigType = ['manual', 'schedule', 'webhook'].includes(String(trigRaw.type))
+      ? String(trigRaw.type) as WorkflowYAML['workflow']['trigger']['type']
+      : 'manual'
 
-    const extractVal = (trimmed: string): string => {
-      const i = trimmed.indexOf(':')
-      if (i < 0) return ''
-      return unquote(trimmed.slice(i + 1).replace(/#.*$/, '').trim())
-    }
-
-    const result: WorkflowYAML = {
-      version: '1.0',
-      workflow: { name: 'workflow', trigger: { type: 'manual' }, steps: [] },
-    }
-
-    let inTrigger = false
-    let inSteps   = false
-    let inParams  = false
-    let currentStep: Partial<WorkflowStep> | null = null
-
-    const finishStep = () => {
-      if (currentStep?.name) result.workflow.steps.push(currentStep as WorkflowStep)
-      currentStep = null
-    }
-
-    for (const rawLine of lines) {
-      const trimmed = rawLine.trim()
-      if (!trimmed || trimmed.startsWith('#')) continue
-
-      const indent = rawLine.search(/\S/)
-
-      // ── Root (indent 0) ──────────────────────────────────────────────────
-      if (indent === 0) {
-        finishStep()
-        inTrigger = false; inSteps = false; inParams = false
-        // workflow: → switch context; version: → ignore
-        continue
+    const stepsRaw = Array.isArray(wf.steps) ? wf.steps : []
+    const steps: WorkflowStep[] = []
+    for (const raw of stepsRaw) {
+      if (!raw || typeof raw !== 'object') continue
+      const r = raw as Record<string, unknown>
+      const name = String(r.name ?? '').trim()
+      if (!name) continue
+      const step: WorkflowStep = {
+        name,
+        type: r.type === 'job' ? 'job' : 'action',
       }
-
-      // ── Workflow body (indent 2) ─────────────────────────────────────────
-      if (indent === 2) {
-        if (trimmed === 'trigger:') {
-          inTrigger = true; inSteps = false; continue
-        }
-        if (trimmed.startsWith('steps:')) {
-          finishStep(); inTrigger = false; inSteps = true; inParams = false; continue
-        }
-        if (trimmed.startsWith('name:')) result.workflow.name = extractVal(trimmed)
-        continue
+      if (r.job)    step.job    = String(r.job)
+      if (r.action) step.action = String(r.action)
+      if (r.params && typeof r.params === 'object' && !Array.isArray(r.params)) {
+        step.params = r.params as Record<string, unknown>
       }
-
-      // ── Trigger keys (indent 4, no list) ────────────────────────────────
-      if (indent === 4 && inTrigger) {
-        if (trimmed.startsWith('type:'))
-          result.workflow.trigger.type = extractVal(trimmed) as WorkflowYAML['workflow']['trigger']['type']
-        else if (trimmed.startsWith('cron:'))
-          result.workflow.trigger.cron = extractVal(trimmed)
-        continue
+      if (Array.isArray(r.depends_on)) {
+        step.depends_on = r.depends_on.map(d => String(d)).filter(Boolean)
       }
-
-      // ── Step list item (indent 4, "- ") ─────────────────────────────────
-      if (indent === 4 && inSteps && trimmed.startsWith('- ')) {
-        finishStep(); inParams = false
-        currentStep = {}
-        const rest = trimmed.slice(2).trim()
-        if (rest.startsWith('name:')) currentStep.name = extractVal(rest)
-        continue
+      if (['fail', 'skip', 'continue'].includes(String(r.on_failure))) {
+        step.on_failure = String(r.on_failure) as WorkflowStep['on_failure']
       }
-
-      // ── Step attribute (indent 6) ────────────────────────────────────────
-      if (indent === 6 && currentStep) {
-        inParams = false
-        const key = trimmed.split(':')[0].trim()
-        const val = extractVal(trimmed)
-        switch (key) {
-          case 'name':       currentStep.name = val; break
-          case 'type':       currentStep.type = val as WorkflowStep['type']; break
-          case 'job':        currentStep.job  = val; break
-          case 'action':     currentStep.action = val; break
-          case 'on_failure': currentStep.on_failure = val as WorkflowStep['on_failure']; break
-          case 'enabled':    if (val === 'false') currentStep.enabled = false; break
-          case 'depends_on': {
-            const m = trimmed.match(/\[([^\]]*)\]/)
-            if (m) currentStep.depends_on = m[1].split(',').map(s => unquote(s)).filter(Boolean)
-            break
+      if (r.enabled === false) step.enabled = false
+      if (r.retry && typeof r.retry === 'object') {
+        const rt = r.retry as Record<string, unknown>
+        const max = Number(rt.max ?? 0)
+        if (max > 0) {
+          step.retry = {
+            max,
+            delay: rt.delay !== undefined ? Number(rt.delay) : undefined,
+            backoff: rt.backoff === 'exponential' ? 'exponential' : 'fixed',
           }
-          case 'params': { currentStep.params = {}; inParams = true; break }
         }
-        continue
       }
-
-      // ── Params (indent 8) ────────────────────────────────────────────────
-      if (indent === 8 && currentStep && inParams) {
-        const ci = trimmed.indexOf(':')
-        if (ci > 0) {
-          const k = trimmed.slice(0, ci).trim()
-          const v = extractVal(trimmed)
-          if (!currentStep.params) currentStep.params = {}
-          currentStep.params[k] = v
-        }
-        continue
-      }
+      steps.push(step)
     }
 
-    finishStep()
-    if (!result.workflow.name) return null
-    return result
+    return {
+      version: '1.0',
+      workflow: {
+        name: String(wf.name ?? 'workflow'),
+        trigger: {
+          type: trigType,
+          cron: trigRaw.cron !== undefined ? String(trigRaw.cron) : undefined,
+        },
+        steps,
+      },
+    }
   } catch {
     return null
   }

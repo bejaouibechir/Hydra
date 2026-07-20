@@ -18,13 +18,15 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
+import threading
 import time
 import uuid
 import urllib.request
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 
 class _ListHandler(logging.Handler):
@@ -35,6 +37,27 @@ class _ListHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         self.records.append(self.format(record))
+
+
+class _JobLogCapture(logging.Handler):
+    """Capture les logs INTERNES d'un job (executor, connecteurs, engines)
+    émis dans le thread courant, et les reroute vers le logger du step.
+    Filtré par thread -> les jobs parallèles ne se contaminent pas."""
+
+    def __init__(self, step_log: logging.Logger, thread_id: int) -> None:
+        super().__init__(logging.INFO)
+        self._step_log = step_log
+        self._thread_id = thread_id
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.thread != self._thread_id:
+            return
+        if not record.name.startswith(("internal", "plugins", "etl")):
+            return
+        try:
+            self._step_log.log(record.levelno, f"  [job] {record.getMessage()}")
+        except Exception:
+            pass
 
 
 def _make_step_logger(step_name: str) -> tuple[logging.Logger, _ListHandler]:
@@ -77,6 +100,12 @@ class WorkflowRunner:
         self.workflow = workflow
         self.base_dir = Path(base_dir).resolve() if base_dir else Path.cwd()
         self.env = env
+        # Paramètres runtime MUTABLES, partagés entre tous les steps d'un run.
+        # Alimentés par les actions set_param / assign_param. Protégés par un
+        # lock car les groupes de steps peuvent s'exécuter en parallèle.
+        self.runtime_params: Dict[str, Any] = {}
+        self._params_lock = threading.Lock()
+        self._project_params_cache: Optional[Dict[str, Any]] = None
 
     # -------------------------------------------------------------------------
     # Point d'entrée principal
@@ -306,6 +335,49 @@ class WorkflowRunner:
             step_log.removeHandler(handler)
             logging.Logger.manager.loggerDict.pop(step_log.name, None)
 
+    @staticmethod
+    def _precheck_job_configured(job_path: Path, step_name: str) -> None:
+        """Vérification amont conviviale : un job requiert une source ET une
+        destination configurées (table / query / collection non vides).
+        Évite l'erreur Pydantic brute quand le job est un squelette vide
+        (ex. un job créé dans Studio sans configurer sa source)."""
+        import yaml as _yaml
+
+        def _has_target(path: Path, root_key: str, sub_key: str) -> bool:
+            f = path / f"{root_key}.yaml"
+            if not f.exists():
+                return True  # laissons JobExecutor gérer les fichiers manquants
+            try:
+                data = _yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            except Exception:
+                return True  # YAML illisible -> erreur détaillée par JobExecutor
+            entries = data.get(root_key) or {}
+            if not isinstance(entries, dict) or not entries:
+                return False
+            for cfg in entries.values():
+                block = (cfg or {}).get(sub_key) or {}
+                for key in ("table", "query", "collection"):
+                    v = block.get(key)
+                    if isinstance(v, str) and v.strip():
+                        return True
+                    if v not in (None, ""):
+                        return True
+            return False
+
+        missing = []
+        if not _has_target(job_path, "sources", "extract"):
+            missing.append("source (fichier/table/query vide)")
+        if not _has_target(job_path, "destinations", "load"):
+            missing.append("destination (fichier/table vide)")
+        if missing:
+            raise ValueError(
+                f"Job '{job_path.name}' non configuré : {' et '.join(missing)}. "
+                f"Un job requiert une source et une destination configurées — "
+                f"ouvrez le job dans Studio et renseignez ces champs. "
+                f"(Pour une simple action log/script, utilisez un nœud Action "
+                f"sur le canvas workflow, pas un job.)"
+            )
+
     def _run_job(self, step: WorkflowStep, start: float,
                  step_log: logging.Logger) -> StepResult:
         """Exécute un step de type job via JobExecutor."""
@@ -321,8 +393,29 @@ class WorkflowRunner:
         if not job_path.exists():
             raise FileNotFoundError(f"Job directory not found: {job_path}")
 
-        executor = JobExecutor(job_dir=job_path, root_dir=self.base_dir, env=self.env)
-        job_result = executor.run()
+        self._precheck_job_configured(job_path, step.name)
+
+        # Propage les paramètres runtime (set_param / assign_param) au job,
+        # comme couche de précédence maximale (équivalent --param). Le job peut
+        # ainsi résoudre {{ param:X }} avec les valeurs définies dans le workflow.
+        with self._params_lock:
+            runtime_snapshot = dict(self.runtime_params)
+        executor = JobExecutor(
+            job_dir=job_path, root_dir=self.base_dir, env=self.env,
+            params=runtime_snapshot,
+        )
+        # Détails internes du job (env, connecteurs, scripts...) -> log du step
+        capture = _JobLogCapture(step_log, threading.get_ident())
+        root_logger = logging.getLogger()
+        root_logger.addHandler(capture)
+        prev_level = root_logger.level
+        if root_logger.level > logging.INFO:
+            root_logger.setLevel(logging.INFO)
+        try:
+            job_result = executor.run()
+        finally:
+            root_logger.removeHandler(capture)
+            root_logger.setLevel(prev_level)
         duration = time.monotonic() - start
 
         if job_result.success:
@@ -344,7 +437,18 @@ class WorkflowRunner:
                     step_log: logging.Logger) -> StepResult:
         """Exécute un step de type action."""
         action = step.action or ""
-        params = step.params or {}
+
+        # Résout {{ param:NAME }} (store runtime) et {{ env:NAME }} dans les
+        # params AVANT exécution — permet à log/webhook/bash/... d'utiliser les
+        # paramètres créés par set_param / assign_param.
+        try:
+            params = self._resolve_action_params(step.params or {})
+        except Exception as exc:
+            return StepResult(
+                step_name=step.name, success=False,
+                duration=time.monotonic() - start,
+                error=f"{exc.__class__.__name__}: {exc}",
+            )
 
         action_handlers = {
             "webhook":    self._action_webhook,
@@ -353,6 +457,9 @@ class WorkflowRunner:
             "powershell": self._action_shell,
             "ssh":        self._action_ssh,
             "email":      self._action_email,
+            "python":       self._action_python,
+            "set_param":    self._action_set_param,
+            "assign_param": self._action_assign_param,
         }
 
         handler_fn = action_handlers.get(action)
@@ -365,6 +472,87 @@ class WorkflowRunner:
             )
 
         return handler_fn(step, params, start, step_log)
+
+    def _resolve_action_params(self, params: dict) -> dict:
+        """Résout les placeholders {{ param:NAME }} / {{ env:NAME }} dans les
+        valeurs des params d'action, à partir des paramètres runtime courants.
+        Un placeholder seul préserve le type ; un paramètre inconnu lève une
+        erreur claire (fail-fast / débogage)."""
+        from internal.config.parameters import ParameterResolver
+        merged = {**self._project_params(), **self._runtime_snapshot()}
+        resolver = ParameterResolver(
+            params=merged, env=dict(os.environ),
+            strict=False, strict_params=True,
+        )
+        return resolver.resolve(params)
+
+    def _runtime_snapshot(self) -> Dict[str, Any]:
+        with self._params_lock:
+            return dict(self.runtime_params)
+
+    def _project_params(self) -> Dict[str, Any]:
+        """Paramètres PROJET (parameters.yaml + environments/<env>.yaml de
+        base_dir) — mêmes fichiers que ceux lus par JobExecutor. Ils forment la
+        couche de précédence FAIBLE sous les paramètres runtime, afin que les
+        actions du workflow (log, shell, webhook...) résolvent {{ param:X }}
+        déclaré au niveau projet, exactement comme les jobs."""
+        if self._project_params_cache is not None:
+            return self._project_params_cache
+        import yaml as _yaml
+        from internal.config.parameters import build_effective
+
+        def _block(path: Path) -> Dict[str, Any]:
+            if not path.exists():
+                return {}
+            try:
+                raw = path.read_text(encoding="utf-8-sig")
+            except (OSError, UnicodeDecodeError):
+                return {}
+            try:
+                data = _yaml.safe_load(raw) or {}
+            except Exception:
+                return {}
+            if isinstance(data, dict):
+                block = data.get("parameters", data)
+                return block if isinstance(block, dict) else {}
+            return {}
+
+        declarations = _block(self.base_dir / "parameters.yaml")
+        env_values = (
+            _block(self.base_dir / "environments" / f"{self.env}.yaml")
+            if self.env else {}
+        )
+        try:
+            effective = build_effective(declarations, [env_values])
+        except Exception:
+            # Paramètre requis sans valeur -> fallback sur les défauts seuls
+            effective = {
+                k: (v or {}).get("default")
+                for k, v in declarations.items()
+                if isinstance(v, dict) and (v or {}).get("default") is not None
+            }
+        self._project_params_cache = effective
+        return effective
+
+    def _runtime_env_vars(self) -> Dict[str, str]:
+        """Convertit les paramètres runtime en variables d'environnement OS,
+        injectées dans les actions shell. Accès :
+            bash        : $NAME  /  ${NAME}
+            PowerShell  : $env:NAME
+        Seuls les noms d'identifiant valides sont exportés ; bool -> true/false.
+        Agnostique de l'OS : le même dict est passé au sous-processus, seule la
+        syntaxe d'accès (côté script utilisateur) diffère entre bash et PowerShell.
+        """
+        import re as _re
+        snapshot = {**self._project_params(), **self._runtime_snapshot()}
+        env: Dict[str, str] = {}
+        for k, v in snapshot.items():
+            if v is None:
+                continue
+            if not _re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
+                continue
+            env[k] = ("true" if v else "false") if isinstance(v, bool) else str(v)
+        return env
 
     def _action_webhook(
         self, step: WorkflowStep, params: dict, start: float,
@@ -407,6 +595,87 @@ class WorkflowRunner:
             duration=time.monotonic() - start,
         )
 
+    def _action_set_param(
+        self, step: WorkflowStep, params: dict, start: float,
+        step_log: logging.Logger,
+    ) -> StepResult:
+        """Crée un paramètre runtime au moment de l'exécution.
+
+        Échoue si le paramètre existe déjà -> utiliser assign_param pour le
+        modifier. Utile pour préparer des flux conditionnels et le débogage.
+
+        Params : name (str, requis), value (requis),
+                 type (optionnel : int|float|str|bool|json, défaut any).
+        """
+        from internal.config.parameters import coerce_value, ParameterError
+
+        name = params.get("name")
+        if not name or not isinstance(name, str):
+            raise ValueError(f"Action set_param '{step.name}' : paramètre 'name' (str) requis")
+        if "value" not in params:
+            raise ValueError(f"Action set_param '{step.name}' : paramètre 'value' requis")
+
+        typ = str(params.get("type", "any"))
+        try:
+            value = coerce_value(params["value"], typ, name)
+        except ParameterError as ex:
+            raise ValueError(f"Action set_param '{step.name}' : {ex}") from None
+
+        with self._params_lock:
+            if name in self.runtime_params:
+                raise ValueError(
+                    f"Action set_param '{step.name}' : le paramètre '{name}' existe déjà "
+                    f"(valeur={self.runtime_params[name]!r}). Utilisez assign_param pour le modifier."
+                )
+            self.runtime_params[name] = value
+
+        step_log.info(f"[{step.name}] set_param {name}={value!r} (type={typ})")
+        return StepResult(
+            step_name=step.name,
+            success=True,
+            duration=time.monotonic() - start,
+        )
+
+    def _action_assign_param(
+        self, step: WorkflowStep, params: dict, start: float,
+        step_log: logging.Logger,
+    ) -> StepResult:
+        """Affecte une valeur à un paramètre runtime DÉJÀ existant.
+
+        Échoue si le paramètre n'existe pas -> utiliser set_param d'abord.
+
+        Params : name (str, requis), value (requis), type (optionnel).
+        """
+        from internal.config.parameters import coerce_value, ParameterError
+
+        name = params.get("name")
+        if not name or not isinstance(name, str):
+            raise ValueError(f"Action assign_param '{step.name}' : paramètre 'name' (str) requis")
+        if "value" not in params:
+            raise ValueError(f"Action assign_param '{step.name}' : paramètre 'value' requis")
+
+        typ = str(params.get("type", "any"))
+        try:
+            value = coerce_value(params["value"], typ, name)
+        except ParameterError as ex:
+            raise ValueError(f"Action assign_param '{step.name}' : {ex}") from None
+
+        with self._params_lock:
+            if name not in self.runtime_params:
+                raise ValueError(
+                    f"Action assign_param '{step.name}' : le paramètre '{name}' n'existe pas. "
+                    f"Utilisez set_param pour le créer d'abord."
+                )
+            old = self.runtime_params[name]
+            self.runtime_params[name] = value
+
+        step_log.info(f"[{step.name}] assign_param {name}: {old!r} -> {value!r}")
+        return StepResult(
+            step_name=step.name,
+            success=True,
+            duration=time.monotonic() - start,
+        )
+
     def _action_shell(
         self, step: WorkflowStep, params: dict, start: float,
         step_log: logging.Logger,
@@ -433,10 +702,15 @@ class WorkflowRunner:
 
         step_log.info(f"[{step.name}] {action}: {command[:80]}{'…' if len(command) > 80 else ''}")
 
+        # Paramètres runtime exposés comme variables d'environnement OS
+        # ($NAME en bash, $env:NAME en PowerShell), en plus du templating
+        # {{ param:NAME }} déjà résolu dans la commande.
+        run_env = {**os.environ, **self._runtime_env_vars()}
         result = subprocess.run(
             shell_args,
             capture_output=True, text=True,
             cwd=work_dir, timeout=timeout,
+            env=run_env,
         )
         for line in (result.stdout + result.stderr).splitlines():
             step_log.info(f"  {line}")
@@ -444,6 +718,65 @@ class WorkflowRunner:
         if result.returncode != 0:
             raise RuntimeError(
                 f"Commande terminée avec code {result.returncode}\n{result.stderr[:500]}"
+            )
+
+        return StepResult(
+            step_name=step.name, success=True,
+            duration=time.monotonic() - start,
+        )
+
+    def _action_python(
+        self, step: WorkflowStep, params: dict, start: float,
+        step_log: logging.Logger,
+    ) -> StepResult:
+        """Exécute un script Python (inline ou fichier .py) via l'interpréteur
+        courant — cross-platform (Windows / Linux / macOS).
+
+        Params : script (str, code inline) OU file_path (chemin .py),
+                 working_dir (optionnel), timeout (optionnel, défaut 60s).
+
+        Les {{ param:X }} sont résolus dans le script AVANT exécution, et les
+        paramètres (projet + runtime) sont aussi exposés en variables
+        d'environnement (os.environ["X"]).
+        """
+        import subprocess, sys as _sys
+
+        script    = params.get("script") or ""
+        file_path = params.get("file_path") or ""
+        work_dir  = params.get("working_dir") or None
+        timeout   = int(params.get("timeout", 60))
+
+        if not script.strip() and not file_path.strip():
+            raise ValueError(
+                f"Action python '{step.name}' : 'script' (inline) ou 'file_path' requis"
+            )
+
+        if file_path.strip():
+            fp = Path(file_path)
+            if not fp.is_absolute():
+                fp = self.base_dir / fp
+            if not fp.exists():
+                raise FileNotFoundError(f"Script Python introuvable : {fp}")
+            args = [_sys.executable, str(fp)]
+            shown = str(fp)
+        else:
+            args = [_sys.executable, "-c", script]
+            shown = script.replace(chr(10), " ")[:80]
+
+        step_log.info(f"[{step.name}] python: {shown}{'…' if len(shown) >= 80 else ''}")
+
+        run_env = {**os.environ, **self._runtime_env_vars()}
+        result = subprocess.run(
+            args, capture_output=True, text=True,
+            cwd=work_dir, timeout=timeout, env=run_env,
+        )
+        for line in (result.stdout + result.stderr).splitlines():
+            step_log.info(f"  {line}")
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Script Python terminé avec code {result.returncode}"
+                f"{chr(10)}{result.stderr[:500]}"
             )
 
         return StepResult(
@@ -487,7 +820,10 @@ class WorkflowRunner:
 
         try:
             client.connect(**connect_kwargs)
-            _, stdout, stderr = client.exec_command(command, timeout=timeout)
+            _, stdout, stderr = client.exec_command(
+                command, timeout=timeout,
+                environment=self._runtime_env_vars() or None,
+            )
             out = stdout.read().decode("utf-8", errors="replace")
             err = stderr.read().decode("utf-8", errors="replace")
             rc  = stdout.channel.recv_exit_status()

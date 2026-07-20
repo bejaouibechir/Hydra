@@ -20,8 +20,12 @@ from __future__ import annotations
 
 import ast
 import builtins as _bi
+import contextlib
+import io
+import logging
 import math
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +33,22 @@ import numpy as np
 import pandas as pd
 
 from internal.transform.engine_interface import StepResult, TransformEngine
+
+logger = logging.getLogger(__name__)
+
+# Verrou pour la capture stdout des scripts (evite le melange entre
+# jobs paralleles — sys.stdout est global au processus)
+_SCRIPT_STDOUT_LOCK = threading.Lock()
+
+
+def _emit_script_output(buf: io.StringIO) -> None:
+    """Reroute les print() du script utilisateur vers le logger
+    (visibles dans les logs du run Studio/CLI)."""
+    text = buf.getvalue()
+    if not text:
+        return
+    for line in text.splitlines():
+        logger.info(f"script> {line}")
 
 
 # --------------------------------------------------
@@ -542,10 +562,14 @@ class PandasEngine(TransformEngine):
 
         if mode == "vectorized":
             local_ns: Dict[str, Any] = {c: out[c] for c in inputs}
+            _buf = io.StringIO()
             try:
-                exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
+                with _SCRIPT_STDOUT_LOCK, contextlib.redirect_stdout(_buf):
+                    exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
             except Exception as ex:
+                _emit_script_output(_buf)
                 raise ValueError(f"script: erreur d'execution: {ex}") from None
+            _emit_script_output(_buf)
             for col, typ in outputs.items():
                 if col not in local_ns:
                     raise ValueError(
@@ -556,18 +580,23 @@ class PandasEngine(TransformEngine):
 
         # mode == "row"
         collected: Dict[str, list] = {col: [] for col in outputs}
-        for _, row in out.iterrows():
-            local_ns = {c: row[c] for c in inputs}
-            try:
-                exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
-            except Exception as ex:
-                raise ValueError(f"script: erreur d'execution (mode row): {ex}") from None
-            for col in outputs:
-                if col not in local_ns:
-                    raise ValueError(
-                        f"script: colonne de sortie '{col}' non definie par le code"
-                    )
-                collected[col].append(local_ns[col])
+        _buf = io.StringIO()
+        try:
+            with _SCRIPT_STDOUT_LOCK, contextlib.redirect_stdout(_buf):
+                for _, row in out.iterrows():
+                    local_ns = {c: row[c] for c in inputs}
+                    try:
+                        exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
+                    except Exception as ex:
+                        raise ValueError(f"script: erreur d'execution (mode row): {ex}") from None
+                    for col in outputs:
+                        if col not in local_ns:
+                            raise ValueError(
+                                f"script: colonne de sortie '{col}' non definie par le code"
+                            )
+                        collected[col].append(local_ns[col])
+        finally:
+            _emit_script_output(_buf)
         for col, typ in outputs.items():
             out[col] = _coerce_output(pd.Series(collected[col], index=out.index), typ, col)
         return out

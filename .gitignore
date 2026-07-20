@@ -77,4 +77,16 @@ studio/vite.config.ts.timestamp-*.mjs
 _backups/
 _archive/
 _bak_safe_write/
-_safe_write_b
+_safe_write_bak/
+*.bak
+test_scenarios/
+n8nimages/
+CLAUDE.md/
+
+# ===============================
+# Résidus de test workflow / scratch
+# ===============================
+_rmtest*
+my_wf/
+par_wf/
+sched_wf/

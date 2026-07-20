@@ -35,6 +35,7 @@ from typing import Dict, List, Optional
 
 import yaml
 
+from internal.fs_atomic import atomic_write_text
 from api.models import (
     EnvironmentResponse,
     ProjectResponse,
@@ -68,7 +69,7 @@ def _load_hidden() -> set:
 
 
 def _save_hidden(ids: set) -> None:
-    _HIDDEN_FILE.write_text(json.dumps(sorted(ids)), encoding="utf-8")
+    atomic_write_text(_HIDDEN_FILE, json.dumps(sorted(ids)))
 
 STUDIO_DIR = ".hydra"
 
@@ -83,7 +84,7 @@ def _load_index() -> Dict[str, str]:
 
 
 def _save_index(index: Dict[str, str]) -> None:
-    _INDEX_FILE.write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(_INDEX_FILE, json.dumps(index, indent=2, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +151,7 @@ def _read_manifest(project_path: Path) -> Optional[dict]:
 def _write_manifest(project_path: Path, manifest: dict) -> None:
     f = _studio_meta_file(project_path)
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(f, json.dumps(manifest, indent=2, ensure_ascii=False))
 
 
 def _looks_like_hydra_project(path: Path) -> bool:
@@ -440,8 +441,9 @@ def _discover_disk_content(project_path: Path, project_id: str) -> None:
             layout=None,
         )
         meta_dir.mkdir(parents=True, exist_ok=True)
-        _wf_meta_new(project_path, wf_id).write_text(
-            wf.model_dump_json(indent=2, exclude={"yaml_content"}), encoding="utf-8")
+        atomic_write_text(
+            _wf_meta_new(project_path, wf_id),
+            wf.model_dump_json(indent=2, exclude={"yaml_content"}))
         _register_workflow_in_manifest(project_path, wf_id, wf.name, f"workflows/{f.name}")
 
 
@@ -540,11 +542,11 @@ def get_workflow(project_id: str, workflow_id: str) -> Optional[WorkflowResponse
 def _save_wf_meta(project_path: Path, wf: WorkflowResponse) -> None:
     payload = wf.model_dump_json(indent=2, exclude={"yaml_content"})
     if _is_legacy_wf(project_path, wf.id):
-        _wf_meta_legacy(project_path, wf.id).write_text(payload, encoding="utf-8")
+        atomic_write_text(_wf_meta_legacy(project_path, wf.id), payload)
     else:
         meta = _wf_meta_new(project_path, wf.id)
         meta.parent.mkdir(parents=True, exist_ok=True)
-        meta.write_text(payload, encoding="utf-8")
+        atomic_write_text(meta, payload)
 
 
 def create_workflow(
@@ -575,9 +577,9 @@ def create_workflow(
             "steps": [],
         },
     }
-    wf_file.write_text(
+    atomic_write_text(
+        wf_file,
         yaml.dump(manifest, default_flow_style=False, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
     )
 
     wf = WorkflowResponse(
@@ -613,7 +615,7 @@ def _materialize_jobs(project_path: Path, jobs: List[dict]) -> None:
             ("pipeline.yaml", "pipeline"),
         ):
             content = job.get(key) or ""
-            (job_dir / fname).write_text(content, encoding="utf-8")
+            atomic_write_text(job_dir / fname, content)
         _register_job_in_manifest(project_path, name, f"jobs/{name}")
 
 
@@ -641,7 +643,7 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
         wf_file = _wf_yaml_file(project_path, workflow_id)
         if wf_file:
             wf_file.parent.mkdir(parents=True, exist_ok=True)
-            wf_file.write_text(yaml_content, encoding="utf-8")
+            atomic_write_text(wf_file, yaml_content)
 
     return wf_updated
 
@@ -730,7 +732,7 @@ def get_environment(project_id: str, env_name: str) -> Optional[EnvironmentRespo
 
 def create_environment(project_id: str, name: str, vars: dict) -> EnvironmentResponse:
     f = _env_file(project_id, name)
-    f.write_text(_dump_dotenv(vars), encoding="utf-8")
+    atomic_write_text(f, _dump_dotenv(vars))
     return EnvironmentResponse(id=f"{project_id}_{name}", name=name, project_id=project_id, vars=vars)
 
 
@@ -740,7 +742,7 @@ def update_environment(project_id: str, env_name: str, vars: dict) -> Optional[E
         return None
     existing = _parse_dotenv(f)
     existing.update(vars)
-    f.write_text(_dump_dotenv(existing), encoding="utf-8")
+    atomic_write_text(f, _dump_dotenv(existing))
     return EnvironmentResponse(id=f"{project_id}_{env_name}", name=env_name, project_id=project_id, vars=existing)
 
 

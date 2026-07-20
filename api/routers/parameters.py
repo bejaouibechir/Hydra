@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from api import store
+from internal.fs_atomic import atomic_write_text
 
 router = APIRouter()
 
@@ -76,17 +77,17 @@ def save_parameters(body: ParametersPayload) -> ParametersResponse:
                 status_code=400,
                 detail=f"Dossier projet introuvable sur disk : {root}",
             )
-        (root / "parameters.yaml").write_text(
+        atomic_write_text(
+            root / "parameters.yaml",
             yaml.safe_dump({"parameters": body.declarations}, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
         )
         env_dir = root / "environments"
         env_dir.mkdir(parents=True, exist_ok=True)
         for name, values in body.environments.items():
             safe = "".join(c for c in name if c.isalnum() or c in ("-", "_")) or "default"
-            (env_dir / f"{safe}.yaml").write_text(
+            atomic_write_text(
+                env_dir / f"{safe}.yaml",
                 yaml.safe_dump({"parameters": values or {}}, sort_keys=False, allow_unicode=True),
-                encoding="utf-8",
             )
         return _load(root)
     except HTTPException:

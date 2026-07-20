@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api import store
+from internal.fs_atomic import atomic_write_text
 
 router = APIRouter()
 
@@ -273,8 +274,10 @@ def scaffold_job(body: JobScaffoldRequest):
     }
 
     for fname, data in files.items():
-        with open(job_dir / fname, "w", encoding="utf-8") as f:
-            _yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        atomic_write_text(
+            job_dir / fname,
+            _yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False),
+        )
 
     return JobScaffoldResponse(job_path=str(job_dir), created=True)
 

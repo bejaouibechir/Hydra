@@ -9,6 +9,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Literal, Optional
 
+from internal.fs_atomic import atomic_write_text
+
 router = APIRouter()
 
 
@@ -53,7 +55,6 @@ def export_save(body: ExportRequest) -> ExportResponse:
     if not path:
         return ExportResponse(saved=False, cancelled=True)
 
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(body.content)
+    atomic_write_text(path, body.content)
 
     return ExportResponse(saved=True, path=path)

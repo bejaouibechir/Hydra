@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "hydra-native"
+version = "0.1.0"
+description = "Native (Rust) accelerators for Hydra ETL"
+requires-python = ">=3.9"
+license = "AGPL-3.0-or-later"
+dependencies = ["pyarrow>=14"]
+
+[tool.maturin]
+features = ["extension-module"]
+module-name = "hydra_native"

@@ -1,0 +1,16 @@
+include README.md
+include LICENSE
+recursive-include hydra_etl/cli/locales *.json
+recursive-include hydra_etl/studio_dist *
+
+# Jamais dans la distribution : sauvegardes, caches, archives, sources du Studio.
+recursive-exclude hydra_etl *.pyc
+recursive-exclude hydra_etl/_backups *
+global-exclude __pycache__/*
+prune tests
+prune tests/e2e
+prune examples
+prune _archive
+prune _backups
+prune studio/node_modules
+prune test_scenarios

@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/pipeline-v1.json",
+  "title": "Hydra — pipeline.yaml",
+  "description": "Job wiring: which source feeds which destination.",
+  "type": "object",
+  "required": ["pipeline"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Hydra DSL version.",
+      "default": "1.0",
+      "examples": ["1.0"]
+    },
+    "pipeline": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": true,
+      "description": "A Hydra job connects exactly one source to one destination. Only 'from' and 'to' drive execution; Hydra Studio also writes 'name' and 'transformations', which the engine ignores.",
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier of a source declared in sources.yaml. Must match a key of the 'sources' section exactly.",
+          "examples": ["src_input", "src_mysql"]
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier of a destination declared in destinations.yaml. Must match a key of the 'destinations' section exactly.",
+          "examples": ["dst_output", "dst_mysql"]
+        },
+        "name": {
+          "type": "string",
+          "description": "Written by Hydra Studio for readability. The engine does not read it.",
+          "examples": ["first-job"]
+        },
+        "transformations": {
+          "type": "string",
+          "description": "Written by Hydra Studio to point at the transformations section. The engine reads transformations.yaml regardless.",
+          "examples": ["transformations"]
+        }
+      }
+    }
+  }
+}

@@ -1,212 +1,200 @@
-# Hydra ETL Platform
+# Hydra ETL
 
-**Version** 1.2.0 · Declarative, extensible data platform. The ETL Engine is free and open-source; advanced engines are planned on top of it.
+**A declarative ETL engine with a CLI, a REST API and a visual editor — in one `pip install`.**
 
-Hydra is a three-headed data platform — each head is a distinct engine:
-
-| Engine | Role | Status |
-| ------ | ---- | ------ |
-| **ETL Engine** | Declarative ETL framework (jobs, workflows, Studio) | Active — v1 |
-| **Feature Detection Engine** | Automated feature engineering for ML / prediction | Planned |
-| **Execution Intelligence Engine** | HydraLM + MCP connectors + pipeline intelligence | Planned |
-
-Website (planned): [hydraetl.com](https://hydraetl.com)
-
----
-
-## What ships today — ETL Engine
-
-- **CLI** (`hydra` / `hdrctl`) built on Click, bilingual (English + Spanish)
-- **Job runner** — the atomic unit: `1 source -> N transformations -> 1 destination`
-- **Workflow runner** — multi-job orchestration as a DAG (`depends_on`, implicit parallelism, actions)
-- **Connectors** — CSV, JSON, Parquet, MySQL/MariaDB, PostgreSQL, MongoDB, Web API
-- **Transformation engines** — Pandas and DuckDB
-- **Extensible plugin system** — auth, cache, retry, pagination, metrics, operations, and more
-- **REST API** — FastAPI backend to drive and monitor jobs/workflows (`hydra serve`)
-- **Studio** — visual workflow editor (React Flow), n8n-inspired
-
----
-
-## Installation
-
-Requires Python 3.9+ (cross-platform: Linux / macOS / Windows).
+You describe a pipeline in YAML. Hydra runs it, from the terminal or from a
+browser canvas, with the same engine underneath.
 
 ```bash
-git clone <repo-url> hydra
-cd hydra
-pip install -e .          # editable install — no reinstall after edits
+pip install "hydra-etl[server]"
+hdrctl serve
 ```
 
-Optional connector dependencies (install as needed): `mysql-connector-python`,
-`psycopg2-binary`, `pymongo`, `pyarrow`. See `requirements.txt`.
+Open **http://localhost:5678** — that is Hydra Studio. No Node, no build step,
+nothing else to start.
 
 ---
 
-## Quick start
+## What you get
 
-### 1. Create and run a job
+| | |
+|---|---|
+| **Engine** | Declarative jobs: one source, N transformations, one destination |
+| **CLI** | `hdrctl` — scaffold, validate, run, inspect. English and Spanish |
+| **API** | FastAPI, with interactive docs at `/docs` |
+| **Studio** | Visual editor for jobs and workflows, served by the same process |
+| **Workflows** | Multi-job DAG with dependencies, actions, retries and runtime parameters |
 
-```bash
-hydra init my_job                # scaffold a job from a template
-hydra validate my_job            # strict DSL validation
-hydra run my_job --dry-run       # validate without writing data
-hydra run my_job -vv             # execute with metrics
-```
+Connectors: **CSV, JSON, Parquet, MySQL/MariaDB, PostgreSQL, MongoDB, Web API**.
+Transformation engines: **Pandas** and **DuckDB**.
 
-A job is a folder holding `sources.yaml`, `destinations.yaml`, `pipeline.yaml`,
-and an optional `transformations.yaml` (or a single `pipeline.yaml`).
+---
 
-**sources.yaml**
+## A job in four files
+
+A job is a folder. Four manifests describe it, and each one answers a single
+question.
+
+**`sources.yaml`** — where the data comes from
 
 ```yaml
+version: "1.0"
 sources:
   src_input:
     type: csv
     extract:
-      table: data/input.csv
+      table: ./input.csv
 ```
 
-**transformations.yaml**
+**`transformations.yaml`** — how it is reshaped
 
 ```yaml
+version: "1.0"
 steps:
-  - select:
-      columns: [id, name, amount]
+  - cast:
+      mapping:
+        amount: float
   - filter:
       expr: "amount > 0"
   - aggregate:
-      group_by: [name]
-      metrics:
-        total: { op: sum, column: amount }
+      by: [name]
+      agg:
+        total: { func: sum, col: amount }
 ```
 
-**destinations.yaml**
+A CSV carries no types, so `cast` comes before any numeric comparison.
+
+**`destinations.yaml`** — where it goes
 
 ```yaml
+version: "1.0"
 destinations:
   dest_output:
     type: csv
     load:
-      table: output.csv
+      table: ./output.csv
       mode: replace          # append | replace | upsert
 ```
 
-**pipeline.yaml**
+**`pipeline.yaml`** — which source feeds which destination
 
 ```yaml
+version: "1.0"
 pipeline:
   from: src_input
   to: dest_output
 ```
 
-### 2. Orchestrate a workflow
+Then:
 
 ```bash
-hydra workflow init my_flow --template parallel
-hydra workflow validate my_flow/workflow.yaml
-hydra workflow run my_flow/workflow.yaml
+hdrctl init my_job          # scaffold one of six templates
+hdrctl validate my_job      # strict validation, no data touched
+hdrctl run my_job           # execute
 ```
+
+---
+
+## A workflow orders several jobs
 
 ```yaml
 version: "1.0"
 workflow:
-  name: "daily_etl"
+  name: daily_etl
   trigger:
     type: schedule
     cron: "0 8 * * *"
   steps:
     - name: extract
       type: job
-      job: "./jobs/extract.yaml"
+      job: ./jobs/extract
+      depends_on: []
+
     - name: transform
       type: job
-      job: "./jobs/transform.yaml"
-      depends_on: ["extract"]      # always a list (supports fan-in / merge)
+      job: ./jobs/transform
+      depends_on: ["extract"]     # always a list — supports fan-in
+
     - name: notify
       type: action
       action: webhook
-      params: { url: "{{ env.WEBHOOK_URL }}" }
+      params: { url: "{{ env:WEBHOOK_URL }}" }
       depends_on: ["transform"]
       on_failure: skip
 ```
 
-### 3. Start the API + Studio backend
+```bash
+hdrctl workflow validate ./workflow.yaml
+hdrctl workflow run      ./workflow.yaml
+```
+
+An edge is a **dependency**, not a pipe: it decides *when* a job runs, never
+what data reaches it. Steps that share no dependency run in parallel.
+
+---
+
+## Parameters
+
+Values can be declared once and reused, or created while the workflow runs.
+
+```yaml
+- filter:
+    expr: "region == '{{ param:region }}'"
+```
+
+`{{ param:NAME }}` reads a parameter, `{{ env:NAME }}` an environment variable.
+The `set_param` and `assign_param` actions create and change parameters
+mid-run, so two jobs can share a placeholder and produce different results.
+
+---
+
+## Install what you need
+
+The base install is the engine and the CLI. Everything else is opt-in.
 
 ```bash
-hydra serve                      # FastAPI on http://localhost:8000
-# API docs: http://localhost:8000/docs
+pip install hydra-etl                  # engine + CLI
+pip install "hydra-etl[server]"        # + API + Studio
+pip install "hydra-etl[postgres]"      # + PostgreSQL driver
+pip install "hydra-etl[all]"           # everything
 ```
+
+Available extras: `server`, `duckdb`, `parquet`, `mysql`, `postgres`,
+`mongodb`, `http`, `all`.
+
+Requires **Python 3.9+**. Runs on Linux, macOS and Windows.
 
 ---
 
-## Architecture
-
-**Job = atomic unit.** One source, N transformations, one destination. Two
-transformation categories:
-
-- **Job transformations** operate on columns/rows inside a job:
-  `filter, select, rename, cast, aggregate, sort, deduplicate, derive, calculate,
-  pivot, unpivot, clean, fill_null, trim, index`.
-- **Workflow transformations** operate on execution flow between jobs (canvas nodes):
-  `split, merge, multicast, union, join, lookup, condition, loop, parallel`.
-
-Rule of thumb: acts on columns/rows -> job transformation; acts on routing between
-jobs -> workflow transformation.
-
-**Workflow = orchestrator.** A DAG of jobs and actions. `depends_on` is always a
-list. Steps without a common dependency run in parallel.
-
-**Studio hierarchy:** `Project -> Workflows -> Jobs (canvas nodes)`. Persistence in
-v1 is YAML files on disk — no database.
-
-**Long-term vision — mosaic architecture.** Hydra is designed as a distributed
-mosaic of autonomous nodes (peer-to-peer, no central authority), not a monolith.
-
----
-
-## Project layout
-
-```
-cli/                CLI (hdrctl.py) + i18n (en/es)
-internal/           Core: runner, connectors, engines, parsers, schema, cache
-workflow/           Workflow parser + DAG runner
-api/                FastAPI app and routers
-plugins/            Extensible plugins (auth, cache, retry, pagination, ...)
-studio/             React Flow visual editor (Vite + TypeScript)
-tests/              Test suite (unit + e2e)
-examples/           Sample jobs and workflows
-docs/               Project documentation
-```
-
----
-
-## Testing
+## Serving
 
 ```bash
-pip install pytest
-pytest tests/test_cli_hdrctl.py tests/test_workflow.py   # CLI + workflow suite
-pytest                                                    # full suite
+hdrctl serve                 # Studio and API on port 5678
+hdrctl serve --open          # and open the browser
+hdrctl serve --no-studio     # API only, for a headless server
+hdrctl serve --port 8080
 ```
 
-Notes:
-- `tests/conftest.py` sets `HYDRA_LANG=en` before imports (required for CLI tests).
-- E2E tests (`tests/e2e/`) need Docker (MySQL, MongoDB) and are skipped without it.
-- `pyarrow` is optional — Parquet tests skip cleanly if it is absent.
+The server writes projects into the directory you launch it from.
 
 ---
 
-## Roadmap (ETL Engine v1)
+## Documentation
 
-- [x] CLI + i18n (en/es)
-- [x] Job runner (source -> transformations -> destination)
-- [x] Connectors (CSV, JSON, Parquet, MySQL, PostgreSQL, MongoDB, Web API)
-- [x] Workflow runner (DAG, parallelism, `depends_on`)
-- [x] REST API (FastAPI)
-- [x] Studio — React Flow canvas editor
-- [ ] Documentation site (hydraetl.com, GitHub Pages)
+Guides, DSL reference and a browser playground: **[hydraetl.com](https://hydraetl.com)**
+
+There is also a VS Code extension providing completion and validation for the
+manifests, without installing Hydra.
 
 ---
 
 ## License
 
-Hydra ETL Engine is intended to be free and open-source. See repository for details.
+Hydra ETL is released under the **GNU Affero General Public License v3 or
+later** — see [LICENSE](LICENSE).
+
+In short: you may use, modify and redistribute it freely, including
+commercially. If you modify Hydra and let others use it — even only over a
+network — you must make your modified source available under the same terms.
+
+For a licence without that obligation, contact the author.

@@ -89,7 +89,7 @@ export function topologicalSort(nodes: DAGNode[]): string[] {
   for (const node of nodes) {
     for (const dep of node.dependsOn) {
       if (!index.has(dep)) {
-        throw new Error(`Dépendance inconnue : "${dep}" référencée par "${node.id}"`)
+        throw new Error(`Unknown dependency: "${dep}" referenced by "${node.id}"`)
       }
       inDegree.set(node.id, (inDegree.get(node.id) ?? 0) + 1)
     }
@@ -124,7 +124,7 @@ export function topologicalSort(nodes: DAGNode[]): string[] {
   }
 
   if (result.length !== nodes.length) {
-    throw new Error('Cycle détecté — tri topologique impossible')
+    throw new Error('Cycle detected — topological sort is impossible')
   }
 
   return result
@@ -182,7 +182,7 @@ export function validateDAG(nodes: DAGNode[]): DAGValidationResult {
   const ids = nodes.map(n => n.id)
   const seen = new Set<string>()
   for (const id of ids) {
-    if (seen.has(id)) errors.push(`ID dupliqué : "${id}"`)
+    if (seen.has(id)) errors.push(`Duplicate ID: "${id}"`)
     seen.add(id)
   }
 
@@ -191,14 +191,14 @@ export function validateDAG(nodes: DAGNode[]): DAGValidationResult {
   for (const node of nodes) {
     for (const dep of node.dependsOn) {
       if (!idSet.has(dep)) {
-        errors.push(`"${node.id}" dépend de "${dep}" qui n'existe pas`)
+        errors.push(`"${node.id}" depends on "${dep}", which does not exist`)
       }
     }
   }
 
   // Cycle
   if (hasCycle(nodes)) {
-    errors.push('Le graphe contient un cycle')
+    errors.push('The graph contains a cycle')
   }
 
   // Nœuds isolés (sans dépendances et sans enfants) — warning, pas erreur

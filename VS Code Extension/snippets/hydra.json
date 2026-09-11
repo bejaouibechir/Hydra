@@ -1,0 +1,436 @@
+{
+  "Hydra — full sources.yaml": {
+    "prefix": "hsources",
+    "description": "Complete sources.yaml skeleton",
+    "body": [
+      "version: \"1.0\"",
+      "sources:",
+      "  src_${1:name}:",
+      "    type: ${2|csv,json,parquet,mysql,mariadb,postgresql,mongodb,web_api|}",
+      "    extract:",
+      "      table: ${3:data/input.csv}",
+      "      batch_size: ${4:10000}",
+      "$0"
+    ]
+  },
+
+  "Hydra — CSV source": {
+    "prefix": "hsrc-csv",
+    "description": "CSV file source",
+    "body": [
+      "src_${1:name}:",
+      "  type: csv",
+      "  extract:",
+      "    table: ${2:data/input.csv}",
+      "    batch_size: ${3:50000}",
+      "$0"
+    ]
+  },
+
+  "Hydra — MySQL / MariaDB source": {
+    "prefix": "hsrc-mysql",
+    "description": "MySQL or MariaDB source using environment variables",
+    "body": [
+      "src_${1:name}:",
+      "  type: ${2|mysql,mariadb|}",
+      "  connection:",
+      "    host: \\${ENV:DB_HOST}",
+      "    port: 3306",
+      "    database: \\${ENV:DB_NAME}",
+      "    user: \\${ENV:DB_USER}",
+      "    password: \\${ENV:DB_PASS}",
+      "  extract:",
+      "    ${3|table,query|}: ${4:source_table}",
+      "    batch_size: ${5:10000}",
+      "$0"
+    ]
+  },
+
+  "Hydra — PostgreSQL source": {
+    "prefix": "hsrc-pg",
+    "description": "PostgreSQL source using environment variables",
+    "body": [
+      "src_${1:name}:",
+      "  type: postgresql",
+      "  connection:",
+      "    host: \\${ENV:PG_HOST}",
+      "    port: 5432",
+      "    database: \\${ENV:PG_DB}",
+      "    user: \\${ENV:PG_USER}",
+      "    password: \\${ENV:PG_PASS}",
+      "  extract:",
+      "    ${2|table,query|}: ${3:source_table}",
+      "    batch_size: ${4:10000}",
+      "$0"
+    ]
+  },
+
+  "Hydra — MongoDB source": {
+    "prefix": "hsrc-mongo",
+    "description": "MongoDB source with schema inference",
+    "body": [
+      "src_${1:name}:",
+      "  type: mongodb",
+      "  connection:",
+      "    host: \\${ENV:MONGO_HOST}",
+      "    port: 27017",
+      "    database: \\${ENV:MONGO_DB}",
+      "  extract:",
+      "    collection: ${2:my_collection}",
+      "    batch_size: ${3:1000}",
+      "  schema:",
+      "    mode: ${4|auto,manual,infer_strict,hybrid|}",
+      "    drift_policy: ${5|warn,fail,ignore,adapt|}",
+      "    sample_size: ${6:100}",
+      "$0"
+    ]
+  },
+
+  "Hydra — HTTP API source": {
+    "prefix": "hsrc-api",
+    "description": "web_api source with authentication and pagination",
+    "body": [
+      "src_${1:name}:",
+      "  type: web_api",
+      "  connection:",
+      "    base_url: \\${ENV:API_BASE_URL}",
+      "    auth:",
+      "      type: ${2|bearer,basic,api_key,none|}",
+      "      token: \\${ENV:API_TOKEN}",
+      "    pagination:",
+      "      strategy: ${3|cursor,offset,page,none|}",
+      "      cursor_field: ${4:next_cursor}",
+      "      page_size: ${5:100}",
+      "  extract:",
+      "    table: ${6:/v1/records}",
+      "    batch_size: ${7:100}",
+      "$0"
+    ]
+  },
+
+  "Hydra — full destinations.yaml": {
+    "prefix": "hdestinations",
+    "description": "Complete destinations.yaml skeleton",
+    "body": [
+      "version: \"1.0\"",
+      "destinations:",
+      "  dst_${1:name}:",
+      "    type: ${2|csv,json,parquet,mysql,mariadb,postgresql,mongodb|}",
+      "    load:",
+      "      table: ${3:data/output.csv}",
+      "      mode: ${4|append,replace,upsert|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — CSV destination": {
+    "prefix": "hdst-csv",
+    "description": "CSV file destination",
+    "body": [
+      "dst_${1:name}:",
+      "  type: csv",
+      "  load:",
+      "    table: ${2:data/output.csv}",
+      "    mode: ${3|replace,append|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — SQL destination in upsert mode": {
+    "prefix": "hdst-upsert",
+    "description": "SQL destination in upsert mode (key required)",
+    "body": [
+      "dst_${1:name}:",
+      "  type: ${2|mysql,mariadb,postgresql|}",
+      "  connection:",
+      "    host: \\${ENV:DB_HOST}",
+      "    port: ${3|3306,5432|}",
+      "    database: \\${ENV:DB_NAME}",
+      "    user: \\${ENV:DB_USER}",
+      "    password: \\${ENV:DB_PASS}",
+      "  load:",
+      "    table: ${4:target_table}",
+      "    mode: upsert",
+      "    key: [${5:id}]",
+      "    batch_size: ${6:5000}",
+      "$0"
+    ]
+  },
+
+  "Hydra — pipeline.yaml": {
+    "prefix": "hpipeline",
+    "description": "Wire a source to a destination",
+    "body": [
+      "version: \"1.0\"",
+      "pipeline:",
+      "  from: ${1:src_name}",
+      "  to: ${2:dst_name}",
+      "$0"
+    ]
+  },
+
+  "Hydra — full transformations.yaml": {
+    "prefix": "htransformations",
+    "description": "Complete transformations.yaml skeleton",
+    "body": [
+      "version: \"1.0\"",
+      "steps:",
+      "  - select:",
+      "      columns: [${1:id, name}]",
+      "$0"
+    ]
+  },
+
+  "Hydra — select step": {
+    "prefix": "hselect",
+    "description": "Keep only certain columns",
+    "body": ["- select:", "    columns: [${1:id, name}]", "$0"]
+  },
+
+  "Hydra — filter step": {
+    "prefix": "hfilter",
+    "description": "Filter rows",
+    "body": ["- filter:", "    expr: \"${1:amount > 0}\"", "$0"]
+  },
+
+  "Hydra — rename step": {
+    "prefix": "hrename",
+    "description": "Rename columns",
+    "body": [
+      "- rename:",
+      "    mapping:",
+      "      ${1:old_name}: ${2:new_name}",
+      "$0"
+    ]
+  },
+
+  "Hydra — cast step": {
+    "prefix": "hcast",
+    "description": "Convert column types",
+    "body": [
+      "- cast:",
+      "    mapping:",
+      "      ${1:column}: ${2|int,float,str,bool,date,datetime|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — calculate step": {
+    "prefix": "hcalculate",
+    "description": "Add a computed column",
+    "body": [
+      "- calculate:",
+      "    column: ${1:new_column}",
+      "    expr: \"${2:price * quantity}\"",
+      "$0"
+    ]
+  },
+
+  "Hydra — sort step": {
+    "prefix": "hsort",
+    "description": "Sort rows",
+    "body": [
+      "- sort:",
+      "    by: [${1:created_at}]",
+      "    ascending: ${2|true,false|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — deduplicate step": {
+    "prefix": "hdedup",
+    "description": "Remove duplicate rows",
+    "body": [
+      "- deduplicate:",
+      "    columns: [${1:email}]",
+      "    keep: ${2|first,last,none|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — clean step": {
+    "prefix": "hclean",
+    "description": "Clean text columns",
+    "body": [
+      "- clean:",
+      "    columns: [${1:name}]",
+      "    case: ${2|none,lower,upper|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — fill_null step": {
+    "prefix": "hfillnull",
+    "description": "Replace missing values",
+    "body": [
+      "- fill_null:",
+      "    columns:",
+      "      ${1:column}: ${2:0}",
+      "$0"
+    ]
+  },
+
+  "Hydra — aggregate step": {
+    "prefix": "haggregate",
+    "description": "Group and aggregate",
+    "body": [
+      "- aggregate:",
+      "    by: [${1:region}]",
+      "    agg:",
+      "      ${2:total}:",
+      "        func: ${3|sum,count,mean,avg,min,max,first,last|}",
+      "        col: ${4:amount}",
+      "$0"
+    ]
+  },
+
+  "Hydra — join step": {
+    "prefix": "hjoin",
+    "description": "Join with a declared source",
+    "body": [
+      "- join:",
+      "    right: ${1:src_reference}",
+      "    key: ${2:id}",
+      "    how: ${3|inner,left,right,outer|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — union step": {
+    "prefix": "hunion",
+    "description": "Stack a second stream",
+    "body": [
+      "- union:",
+      "    right: ${1:src_other}",
+      "    distinct: ${2|false,true|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — merge step": {
+    "prefix": "hmerge",
+    "description": "Upsert between two streams",
+    "body": [
+      "- merge:",
+      "    right: ${1:src_reference}",
+      "    key: ${2:id}",
+      "    delete_unmatched: ${3|false,true|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — pivot step": {
+    "prefix": "hpivot",
+    "description": "Long to wide",
+    "body": [
+      "- pivot:",
+      "    index: [${1:date}]",
+      "    column: ${2:product}",
+      "    values: ${3:amount}",
+      "    aggfunc: ${4|first,sum,mean,min,max,count|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — unpivot step": {
+    "prefix": "hunpivot",
+    "description": "Wide to long",
+    "body": [
+      "- unpivot:",
+      "    id_vars: [${1:date}]",
+      "    var_name: ${2:variable}",
+      "    value_name: ${3:value}",
+      "$0"
+    ]
+  },
+
+  "Hydra — script step": {
+    "prefix": "hscript",
+    "description": "Custom Python transformation",
+    "body": [
+      "- script:",
+      "    inputs: [${1:price, quantity}]",
+      "    outputs:",
+      "      ${2:total}: ${3|float,int,str,bool,date,datetime,any|}",
+      "    mode: ${4|vectorized,row|}",
+      "    code: |",
+      "      ${5:total = price * quantity}",
+      "$0"
+    ]
+  },
+
+  "Hydra — full workflow.yaml": {
+    "prefix": "hworkflow",
+    "description": "Complete workflow.yaml skeleton",
+    "body": [
+      "workflow:",
+      "  name: \"${1:my_workflow}\"",
+      "  description: \"${2:What this workflow does}\"",
+      "  trigger:",
+      "    type: ${3|manual,schedule,webhook|}",
+      "  steps:",
+      "    - name: \"${4:extract}\"",
+      "      type: job",
+      "      job: \"./jobs/${4:extract}\"",
+      "      depends_on: []",
+      "      on_failure: ${5|fail,skip,continue|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — workflow job step": {
+    "prefix": "hstep-job",
+    "description": "Step running a Hydra job",
+    "body": [
+      "- name: \"${1:step_name}\"",
+      "  type: job",
+      "  job: \"./jobs/${1:step_name}\"",
+      "  depends_on: [${2}]",
+      "  on_failure: ${3|fail,skip,continue|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — workflow action step": {
+    "prefix": "hstep-action",
+    "description": "Step running a built-in action",
+    "body": [
+      "- name: \"${1:notify}\"",
+      "  type: action",
+      "  action: ${2|log,delay,condition,webhook,email,bash,powershell,ssh,python,set_param,assign_param|}",
+      "  params:",
+      "    ${3:message}: \"${4:Workflow finished.}\"",
+      "  depends_on: [${5}]",
+      "  on_failure: ${6|skip,fail,continue|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — workflow step with retries": {
+    "prefix": "hstep-retry",
+    "description": "Step with a retry policy",
+    "body": [
+      "- name: \"${1:step_name}\"",
+      "  type: job",
+      "  job: \"./jobs/${1:step_name}\"",
+      "  depends_on: [${2}]",
+      "  on_failure: fail",
+      "  retry:",
+      "    max: ${3:3}",
+      "    delay: ${4:5}",
+      "    backoff: ${5|exponential,fixed|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — scheduled trigger": {
+    "prefix": "htrigger-cron",
+    "description": "Cron-scheduled trigger",
+    "body": [
+      "trigger:",
+      "  type: schedule",
+      "  cron: \"${1|0 8 * * *,0 2 * * *,*/15 * * * *,0 0 * * 1|}\"",
+      "$0"
+    ]
+  }
+}

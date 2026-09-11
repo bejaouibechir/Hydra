@@ -20,6 +20,8 @@ import { flowToWorkflow, workflowToYAMLString, workflowToFlow, parseWorkflowYAML
 import { flowToHdr, parseHdr, sectionYamlsToJobModel, jobModelToFlow, flowToJobModel, jobModelToSectionYamls, type JobSectionYamls } from '@/lib/hdrSerializer'
 import type { JobFilesPayload } from '@/lib/api'
 import { getNode } from '@/lib/nodeRegistry'
+import { validateConnection } from '@/lib/nodeValidation'
+import { useNotifications } from '@/contexts/NotificationContext'
 import { HydraNode } from '@/components/canvas/nodes/HydraNode'
 import { ContainerNode } from '@/components/canvas/nodes/ContainerNode'
 import { applyCollapsedState, attachNodeToContainer, detachNode, isDescendant } from '@/lib/containers'
@@ -182,18 +184,18 @@ function DataViewerModal({ rows, cols, loading, error, limitRows, onClose }: {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 'min(860px, 92vw)', maxHeight: '82vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', border: '1px solid var(--bg-border)', borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
         <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', letterSpacing: 1 }}>DONNÉES DE SORTIE</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', letterSpacing: 1 }}>OUTPUT DATA</span>
           <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>top {limitRows}</span>
           <div className="flex-1" />
           <button onClick={onClose} className="btn-secondary text-xs !py-0.5">✕</button>
         </div>
         <div className="flex-1 overflow-auto" style={{ fontSize: 11 }}>
           {loading ? (
-            <div className="flex items-center justify-center" style={{ height: 160, color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 12 }}>Lecture de la destination…</div>
+            <div className="flex items-center justify-center" style={{ height: 160, color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 12 }}>Reading destination…</div>
           ) : error ? (
             <div className="flex items-center justify-center px-4 text-center" style={{ height: 160, color: 'var(--error)', fontFamily: 'monospace', fontSize: 12 }}>{error}</div>
           ) : rows.length === 0 ? (
-            <div className="flex items-center justify-center" style={{ height: 160, color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 12 }}>Aucune donnée dans la destination.</div>
+            <div className="flex items-center justify-center" style={{ height: 160, color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 12 }}>No data in the destination.</div>
           ) : (
             <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 'max-content' }}>
               <thead>
@@ -373,10 +375,10 @@ function WorkflowEditorInner() {
     const label = jobNames.get(((jobNodes[0].data as any)?.jobRef as string) ?? jobNodes[0].id) ?? ''
     const alsoDelete = window.confirm(
       (jobNodes.length === 1
-        ? `Job "${label}" retire de la scene.`
-        : `${jobNodes.length} jobs retires de la scene.`) +
-      `\n\nOK = supprimer aussi le job (retire de la liste Jobs + dossier disque)\n` +
-      `Annuler = retirer de la scene seulement`
+        ? `Job "${label}" removed from the scene.`
+        : `${jobNodes.length} jobs removed from the scene.`) +
+      `\n\nOK = also delete the job (remove it from the Jobs list and delete its folder)\n` +
+      `Cancel = remove from the scene only`
     )
     if (!alsoDelete) return
     const ids = jobNodes.map(n => ((n.data as any)?.jobRef as string) ?? n.id)
@@ -559,9 +561,9 @@ function WorkflowEditorInner() {
         try { YAML.load(text); return true } catch (e) {
           const mark = (e as { mark?: { line?: number; column?: number } }).mark
           const pos = mark?.line != null
-            ? ` — ligne ${mark.line + 1}${mark.column != null ? `, colonne ${mark.column + 1}` : ''}`
+            ? ` — line ${mark.line + 1}${mark.column != null ? `, column ${mark.column + 1}` : ''}`
             : ''
-          issues.push(`${label}${pos} : ${(((e as Error).message) ?? 'YAML invalide').split('\n')[0]}`)
+          issues.push(`${label}${pos}: ${(((e as Error).message) ?? 'Invalid YAML').split('\n')[0]}`)
           return false
         }
       }
@@ -580,7 +582,7 @@ function WorkflowEditorInner() {
             const reqOk = (['sources', 'destinations', 'pipeline'] as const)
               .map(sec => files[sec]?.trim()
                 ? checkYaml(`jobs/${jobName}/${sec}.yaml`, files[sec])
-                : (issues.push(`jobs/${jobName}/${sec}.yaml : fichier vide ou introuvable`), false))
+                : (issues.push(`jobs/${jobName}/${sec}.yaml: empty or missing file`), false))
               .every(Boolean)
             const tfOk = !files.transformations?.trim()
               || checkYaml(`jobs/${jobName}/transformations.yaml`, files.transformations)
@@ -590,13 +592,13 @@ function WorkflowEditorInner() {
               destinations: files.destinations, pipeline: files.pipeline,
             }, jobName)
             if (!model) {
-              issues.push(`jobs/${jobName}/ : structure incohérente (sections sources/destinations/pipeline)`)
+              issues.push(`jobs/${jobName}/: inconsistent structure (sources/destinations/pipeline sections)`)
               return null
             }
             const canvas = jobModelToFlow(model)
             return { jobName, canvas }
           } catch (e) {
-            issues.push(`jobs/${jobName}/ : ${(e as Error).message ?? 'chargement impossible'}`)
+            issues.push(`jobs/${jobName}/: ${(e as Error).message ?? 'unable to load'}`)
             return null
           }
         })).then(results => {
@@ -732,14 +734,14 @@ function WorkflowEditorInner() {
     setTabMenu(null)
     const wfNodes = sceneMode === 'workflow' ? nodes : ((wfSnapshot?.nodes ?? []) as Node<FlowNodeData>[])
     if (wfNodes.some(n => n.id === jobId || (n.data as any)?.jobRef === jobId)) {
-      alert(`Impossible de supprimer "${jobNames.get(jobId) ?? jobId}" : retirez-le d'abord du canvas "Workflow configuration".`)
+      alert(`Unable to delete "${jobNames.get(jobId) ?? jobId}": remove it from the Workflow configuration canvas first.`)
       return
     }
     const delName = jobNames.get(jobId) ?? jobId
     const alsoDisk = window.confirm(
-      `Supprimer le job "${delName}".\n\n` +
-      `OK = supprimer aussi le dossier sur le disque (jobs/${delName}/)\n` +
-      `Annuler = retirer de Hydra Studio seulement`
+      `Delete job "${delName}".\n\n` +
+      `OK = also delete the folder from disk (jobs/${delName}/)\n` +
+      `Cancel = remove from Hydra Studio only`
     )
     const newNames = new Map(jobNames)
     newNames.delete(jobId)
@@ -768,7 +770,7 @@ function WorkflowEditorInner() {
     setTabMenu(null)
     const wfNodes = sceneMode === 'workflow' ? nodes : ((wfSnapshot?.nodes ?? []) as Node<FlowNodeData>[])
     if (wfNodes.some(n => n.id === jobId || (n.data as any)?.jobRef === jobId)) {
-      alert(`Impossible d'archiver "${jobNames.get(jobId) ?? jobId}" : retirez-le d'abord du canvas "Workflow configuration".`)
+      alert(`Unable to archive "${jobNames.get(jobId) ?? jobId}": remove it from the Workflow configuration canvas first.`)
       return
     }
     const name = jobNames.get(jobId) ?? jobId
@@ -802,7 +804,7 @@ function WorkflowEditorInner() {
     if (!sourceNode) return
     const origJobId = (sourceNode.data as any)?.jobRef ?? nodeId
     const jobName   = jobNames.get(origJobId) ?? origJobId
-    if (!window.confirm(`Dupliquer "${jobName}" sur le canvas ?\nLes deux nœuds pointeront vers le même pipeline.`)) return
+    if (!window.confirm(`Duplicate "${jobName}" on the canvas?\nBoth nodes will reference the same pipeline.`)) return
     const dupId   = `${nodeId}_dup_${Date.now()}`
     const dupNode = {
       ...sourceNode,
@@ -857,10 +859,19 @@ function WorkflowEditorInner() {
 
   // ── Connexions ────────────────────────────────────────────────────────────
 
+  const { add: notifyConn } = useNotifications()
+
   const onConnect = useCallback((params: Connection) => {
+    // Validation : refuse boucle sur soi, doublon, conteneur, dépassement de
+    // capacité (maxInputs/maxOutputs) et création de cycle.
+    const check = validateConnection(params, nodes, edges)
+    if (!check.ok) {
+      notifyConn('warning', 'Connection rejected', check.reason)
+      return
+    }
     pushHistory(nodes, edges)   // snapshot avant ajout de lien
     setEdges(eds => addEdge({ ...params, type: 'smoothstep', animated: false, markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 } }, eds))
-  }, [nodes, edges, pushHistory])
+  }, [nodes, edges, pushHistory, setEdges, notifyConn])
 
   // Double-clic sur une contrainte (arête) -> suppression immediate
   const onEdgeDoubleClick = useCallback((_evt: React.MouseEvent, edge: Edge) => {
@@ -894,7 +905,7 @@ function WorkflowEditorInner() {
     if (jobRefId && rfInstance) {
       const alreadyOnCanvas = nodes.some(n => n.id === jobRefId || (n.data as any)?.jobRef === jobRefId)
       if (alreadyOnCanvas) {
-        alert(`Le job "${jobNames.get(jobRefId) ?? jobRefId}" est déjà sur le canvas.\nUtilisez le clic droit pour dupliquer.`)
+        alert(`Job "${jobNames.get(jobRefId) ?? jobRefId}" is already on the canvas.\nRight-click it to duplicate it.`)
         return
       }
       const jobName = jobNames.get(jobRefId) ?? jobRefId
@@ -1151,7 +1162,7 @@ function WorkflowEditorInner() {
     if (!lastRun) return []
     const L: string[] = []
     L.push(`Run ${lastRun.run_id} — ${lastRun.workflow_name} [${lastRun.status.toUpperCase()}]`)
-    if (lastRun.duration != null) L.push(`Durée totale : ${lastRun.duration.toFixed(2)}s`)
+    if (lastRun.duration != null) L.push(`Total duration: ${lastRun.duration.toFixed(2)}s`)
     if (lastRun.error) L.push(`ERROR ${lastRun.error}`)
     for (const s of lastRun.steps ?? []) {
       L.push(`— step ${s.step_name} : ${s.skipped ? 'SKIP' : s.success ? '✓ success' : '✗ FAILED'}${s.duration != null ? ` (${Number(s.duration).toFixed(2)}s)` : ''}`)
@@ -1159,13 +1170,13 @@ function WorkflowEditorInner() {
       if (s.error) L.push(`    ERROR ${s.error}`)
       for (const line of s.logs ?? []) L.push(`    ${line}`)
     }
-    if (lastRun.status === 'pending' || lastRun.status === 'running') L.push('… exécution en cours')
+    if (lastRun.status === 'pending' || lastRun.status === 'running') L.push('… run in progress')
     return L
   }, [lastRun])
 
   const runMut = useMutation({
     mutationFn: async () => {
-      if (!workflowId || !projectId) throw new Error('Workflow non initialisé')
+      if (!workflowId || !projectId) throw new Error('Workflow is not initialized')
 
       // Mode "action isolée" (powershell/bash/…) : UNIQUEMENT sur un canvas SANS job.
       // Dès qu'un nœud job est présent (= vrai workflow), Run lance le WORKFLOW complet
@@ -1195,9 +1206,9 @@ function WorkflowEditorInner() {
                         : nodeType === 'action_python'  ? (p.script ?? p.file_path ?? '')
                         : (p.command ?? '')
           if (!command.trim()) throw new Error(
-            nodeType === 'action_webhook' ? 'Configurez d\'abord l\'URL dans le nœud (double-clic).'
-            : nodeType === 'action_python' ? 'Configurez d\'abord le script Python dans le nœud (double-clic).'
-            : 'Configurez d\'abord la commande dans le nœud (double-clic).'
+            nodeType === 'action_webhook' ? 'Configure the URL in the node first (double-click).'
+            : nodeType === 'action_python' ? 'Configure the Python script in the node first (double-click).'
+            : 'Configure the command in the node first (double-click).'
           )
           return api.runs.startAction({
             node_type:   nodeType,
@@ -1226,7 +1237,7 @@ function WorkflowEditorInner() {
       }
 
       // Mode Workflow Orchestrateur : auto-save → disk → run
-      if (!wfQuery.data?.path) throw new Error('Workflow non initialisé')
+      if (!wfQuery.data?.path) throw new Error('Workflow is not initialized')
       const wf   = flowToWorkflow(withJobPaths(nodes, jobNames), edges, {
         name:        wfQuery.data?.name ?? 'workflow',
         triggerType: (wfQuery.data?.trigger_type ?? 'manual') as 'manual' | 'schedule' | 'webhook',
@@ -1257,7 +1268,7 @@ function WorkflowEditorInner() {
   const viewDataMut = useMutation({
     mutationFn: async (nodeId: string) => {
       const node = nodes.find(n => n.id === nodeId)
-      if (!node) throw new Error('Nœud introuvable')
+      if (!node) throw new Error('Node not found')
       const cfg = (node.data.params ?? {}) as Record<string, unknown>
       const connType = DEST_TYPE[node.data.nodeType as string] ?? 'csv'
       const isDb = !['csv', 'json', 'parquet'].includes(connType)
@@ -1283,7 +1294,7 @@ function WorkflowEditorInner() {
   const stepRunMut = useMutation({
     mutationFn: async (nodeId: string) => {
       const node = nodes.find(n => n.id === nodeId)
-      if (!node) throw new Error('Nœud introuvable')
+      if (!node) throw new Error('Node not found')
       const cat = getNode(node.data.nodeType as string)?.category
       const tfNodes = nodes.filter(n => getNode(n.data?.nodeType as string)?.category === 'transformation')
       const sorted = [...tfNodes].sort((a, b) => (a.position?.x ?? 0) - (b.position?.x ?? 0))
@@ -1323,15 +1334,15 @@ function WorkflowEditorInner() {
 
     // Validation selon le type
     if (nt === 'action_ssh') {
-      if (!p.host?.trim())     { alert('SSH : configurez le champ "Hôte" (double-clic).'); return }
-      if (!p.username?.trim()) { alert('SSH : configurez le champ "Utilisateur" (double-clic).'); return }
-      if (!p.command?.trim())  { alert('SSH : configurez la commande distante (double-clic).'); return }
+      if (!p.host?.trim())     { alert('SSH: configure the "Host" field (double-click).'); return }
+      if (!p.username?.trim()) { alert('SSH: configure the "Username" field (double-click).'); return }
+      if (!p.command?.trim())  { alert('SSH: configure the remote command (double-click).'); return }
     } else if (nt === 'action_webhook') {
       if (!p.url?.trim())    { alert('Webhook : configurez l\'URL (double-clic).'); return }
     } else if (nt === 'action_python') {
-      if (!p.script?.trim() && !p.file_path?.trim()) { alert('Python : renseignez le script inline ou le chemin du fichier .py (double-clic).'); return }
+      if (!p.script?.trim() && !p.file_path?.trim()) { alert('Python: enter an inline script or a .py file path (double-click).'); return }
     } else {
-      if (!p.command?.trim()) { alert('Configurez d\'abord la commande dans le nœud (double-clic → champ Commande).'); return }
+      if (!p.command?.trim()) { alert('Configure the command in the node first (double-click → Command field).'); return }
     }
 
     const command = nt === 'action_webhook' ? (p.url ?? '')
@@ -1364,7 +1375,7 @@ function WorkflowEditorInner() {
       const text = ev.target?.result as string
       if (!text) return
       const result = parseHdr(text)
-      if (!result) { alert('Fichier HDR invalide — vérifiez la structure YAML.'); return }
+      if (!result) { alert('Invalid HDR file — check the YAML structure.'); return }
       setNodes(result.nodes as Node<FlowNodeData>[])
       setEdges(result.edges)
       setTimeout(() => rfInstance?.fitView({ padding: 0.15, duration: 350 }), 80)
@@ -1404,7 +1415,7 @@ function WorkflowEditorInner() {
 
       const missing = EXPECTED.filter(n => !byName[n])
       if (missing.length) {
-        alert(`Fichiers manquants à la racine du dossier :\n${missing.join('\n')}`)
+        alert(`Missing files at the folder root:\n${missing.join('\n')}`)
         return
       }
 
@@ -1419,7 +1430,7 @@ function WorkflowEditorInner() {
         try {
           const yamls: JobSectionYamls = { sources, transformations, destinations, pipeline }
           const model = sectionYamlsToJobModel(yamls, rootFolder)
-          if (!model) { alert('Structure YAML invalide — vérifiez les 4 fichiers.'); return }
+          if (!model) { alert('Invalid YAML structure — check all four files.'); return }
           const { nodes: jobNodes, edges: jobEdges } = jobModelToFlow(model)
 
           const newJobId   = `job_${Date.now()}`
@@ -1461,16 +1472,16 @@ function WorkflowEditorInner() {
             }))
           }
         } catch (err) {
-          console.error('[importJobScene2] erreur traitement YAML:', err)
-          alert(`Erreur lors du traitement des fichiers YAML :\n${err instanceof Error ? err.message : String(err)}`)
+          console.error('[importJobScene2] YAML processing error:', err)
+          alert(`Error while processing YAML files:\n${err instanceof Error ? err.message : String(err)}`)
         }
       }).catch(err => {
-        console.error('[importJobScene2] erreur lecture fichiers:', err)
-        alert('Erreur de lecture des fichiers — vérifiez les permissions.')
+        console.error('[importJobScene2] file read error:', err)
+        alert('Unable to read files — check permissions.')
       })
     } catch (err) {
-      console.error('[importJobScene2] erreur inattendue:', err)
-      alert(`Erreur inattendue :\n${err instanceof Error ? err.message : String(err)}`)
+      console.error('[importJobScene2] unexpected error:', err)
+      alert(`Unexpected error:\n${err instanceof Error ? err.message : String(err)}`)
     }
   }, [nodes, edges, sceneMode, wfSnapshot, pushHistory, rfInstance])
 
@@ -1489,7 +1500,7 @@ function WorkflowEditorInner() {
 
     const missing = EXPECTED.filter(n => !byName[n])
     if (missing.length) {
-      alert(`Fichiers manquants dans le dossier :\n${missing.join('\n')}`)
+      alert(`Missing files in the folder:\n${missing.join('\n')}`)
       e.target.value = ''; return
     }
 
@@ -1508,7 +1519,7 @@ function WorkflowEditorInner() {
     )).then(([sources, transformations, destinations, pipeline]) => {
       const yamls: JobSectionYamls = { sources, transformations, destinations, pipeline }
       const model = sectionYamlsToJobModel(yamls, 'imported_job')
-      if (!model) { alert('Structure YAML invalide — vérifiez les 4 fichiers.'); return }
+      if (!model) { alert('Invalid YAML structure — check all four files.'); return }
       const { nodes: n, edges: ex } = jobModelToFlow(model)
       pushHistory(nodes, edges)
       setNodes(n as Node<FlowNodeData>[])
@@ -1525,7 +1536,7 @@ function WorkflowEditorInner() {
           }
         }).catch(() => setImportedJobPath(undefined))
       }
-    }).catch(() => alert('Erreur de lecture des fichiers.'))
+    }).catch(() => alert('Unable to read files.'))
 
     e.target.value = ''
   }, [rfInstance, pushHistory])
@@ -1603,10 +1614,10 @@ function WorkflowEditorInner() {
     <div className="flex flex-col items-center justify-center py-20 gap-4">
       <AlertTriangle size={40} style={{ color: 'var(--error)' }} />
       <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-        Impossible de charger le workflow
+        Unable to load the workflow
       </p>
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-        Vérifiez que le backend est démarré (<code>hdrctl serve</code>) et rafraîchissez la page.
+        Make sure the backend is running (<code>hdrctl serve</code>), then refresh the page.
       </p>
     </div>
   )
@@ -1661,12 +1672,12 @@ function WorkflowEditorInner() {
 
         {/* Undo / Redo */}
         <button onClick={handleUndo} disabled={!canUndo}
-          className="btn-secondary text-xs !py-1.5" title="Annuler (Ctrl+Z)"
+          className="btn-secondary text-xs !py-1.5" title="Undo (Ctrl+Z)"
           style={{ opacity: canUndo ? 1 : 0.35 }}>
           <Undo2 size={13} />
         </button>
         <button onClick={handleRedo} disabled={!canRedo}
-          className="btn-secondary text-xs !py-1.5" title="Rétablir (Ctrl+Y)"
+          className="btn-secondary text-xs !py-1.5" title="Redo (Ctrl+Y)"
           style={{ opacity: canRedo ? 1 : 0.35 }}>
           <Redo2 size={13} />
         </button>
@@ -1686,7 +1697,7 @@ function WorkflowEditorInner() {
             <button
               onClick={() => setImportMenuOpen(v => !v)}
               className="btn-secondary text-xs !py-1.5"
-              title="Importer un job dans le workflow"
+              title="Import a job into the workflow"
             >
               <Upload size={13} />
               Import
@@ -1719,9 +1730,9 @@ function WorkflowEditorInner() {
                   >
                     <FolderOpen size={14} style={{ color: '#8b5cf6', flexShrink: 0 }} />
                     <div>
-                      <div style={{ fontWeight: 600 }}>Importer un job</div>
+                      <div style={{ fontWeight: 600 }}>Import a job</div>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                        Sélectionner un dossier job (4 YAML) → nœud sur le canvas
+                        Select a job folder (4 YAML files) → add a node to the canvas
                       </div>
                     </div>
                   </button>
@@ -1734,7 +1745,7 @@ function WorkflowEditorInner() {
         <button
           onClick={() => setCodeOpen(v => !v)}
           className="btn-secondary text-xs !py-1.5"
-          title="Afficher le code Hydra DSL"
+          title="Show Hydra DSL code"
           style={codeOpen ? { background: 'var(--primary-subtle)', color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
         >
           <Code2 size={13} />
@@ -1755,7 +1766,7 @@ function WorkflowEditorInner() {
         <button onClick={() => saveMut.mutate()}
           disabled={saveMut.isPending || validationErrors.length > 0}
           className="btn-primary text-xs !py-1.5"
-          title={saveStatus === 'error' ? 'Erreur sauvegarde' : 'Sauvegarder (Ctrl+S)'}
+          title={saveStatus === 'error' ? 'Save error' : 'Save (Ctrl+S)'}
           style={saveStatus === 'error' ? { background: 'var(--error)' } : {}}
         >
           {saveMut.isPending ? <Spinner size="sm" /> : <Save size={13} />}
@@ -1773,9 +1784,9 @@ function WorkflowEditorInner() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: 'var(--warning)' }}>
             <AlertTriangle size={13} />
-            Fichiers manifest invalides — les éléments concernés ont été ignorés
+            Invalid manifest files — affected items were ignored
             <div style={{ flex: 1 }} />
-            <button onClick={() => setLoadIssues([])} title="Masquer"
+            <button onClick={() => setLoadIssues([])} title="Hide"
               style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13, padding: 2 }}>✕</button>
           </div>
           {loadIssues.map((m, i) => (
@@ -1864,7 +1875,7 @@ function WorkflowEditorInner() {
                       border:     sh === 'powershell' ? '1px solid rgba(37,99,235,0.4)' : '1px solid rgba(22,163,74,0.4)',
                       borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
                     }}
-                    title={`Ouvrir terminal ${sh}`}
+                    title={`Open ${sh} terminal`}
                   >
                     <Terminal size={11} />
                     {sh === 'powershell' ? 'PowerShell' : 'Bash'}
@@ -1885,7 +1896,7 @@ function WorkflowEditorInner() {
                     border: '1px solid rgba(245,158,11,0.35)', borderRadius: 6,
                     padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
                   }}
-                  title="Regrouper dans un Sequence Container"
+                  title="Group in a Sequence Container"
                 >
                   <Boxes size={12} /> Grouper
                 </button>
@@ -1901,7 +1912,7 @@ function WorkflowEditorInner() {
                 border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6,
                 padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
               }}
-              title="Supprimer la sélection (Delete)"
+              title="Delete selection (Delete)"
             >
               <Trash2 size={12} /> Delete
             </button>
@@ -2126,7 +2137,7 @@ function WorkflowEditorInner() {
         }}>
           {/* Splitter horizontal */}
           <div
-            title="Glisser pour redimensionner"
+            title="Drag to resize"
             style={{ position: 'absolute', top: -4, left: 0, right: 0, height: 8, cursor: 'row-resize', zIndex: 10 }}
             onMouseDown={e => {
               e.preventDefault()
@@ -2159,7 +2170,7 @@ function WorkflowEditorInner() {
               </span>
             )}
             <div className="flex-1" />
-            <button onClick={() => setLogsOpen(false)} className="btn-secondary text-xs !py-0.5" title="Fermer">✕</button>
+            <button onClick={() => setLogsOpen(false)} className="btn-secondary text-xs !py-0.5" title="Close">✕</button>
           </div>
           {/* Contenu */}
           <div style={{ flex: 1, overflow: bottomTab === 'params' ? 'auto' : 'hidden', padding: bottomTab === 'terminal' ? 0 : '6px 10px' }}>
@@ -2170,7 +2181,7 @@ function WorkflowEditorInner() {
             ) : lastRun
               ? <LogViewer lines={logLines} maxHeight={logsPanelH - 70} title={lastRun.workflow_name} />
               : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace' }}>
-                  Lancez un job ou un workflow pour voir les logs.
+                  Run a job or workflow to view logs.
                 </div>}
           </div>
         </div>
@@ -2190,7 +2201,7 @@ function WorkflowEditorInner() {
               <div
                 key={jobId}
                 onClick={() => !isRenaming && switchToJobScene(jobId)}
-                title="Double-clic pour renommer"
+                title="Double-click to rename"
                 onDoubleClick={() => setRenamingJobId(jobId)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
@@ -2251,7 +2262,7 @@ function WorkflowEditorInner() {
           {/* Bouton + : nouveau job */}
           <button
             onClick={addJob}
-            title="Ajouter un nouveau job"
+            title="Add a new job"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               padding: '0 12px', background: 'transparent', color: 'var(--text-muted)',
@@ -2291,7 +2302,7 @@ function WorkflowEditorInner() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <Pencil size={13} /> Renommer
+              <Pencil size={13} /> Rename
             </button>
             <button
               onClick={() => archiveJob(tabMenu.jobId)}
@@ -2299,7 +2310,7 @@ function WorkflowEditorInner() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <Archive size={13} /> Archiver
+              <Archive size={13} /> Archive
             </button>
             <div style={{ height: 1, background: 'var(--bg-border)' }} />
             <button
@@ -2313,7 +2324,7 @@ function WorkflowEditorInner() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <Trash2 size={13} /> Supprimer
+              <Trash2 size={13} /> Delete
             </button>
           </div>
         </>
@@ -2347,7 +2358,7 @@ function WorkflowEditorInner() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <ArrowLeft size={13} /> Ouvrir dans Jobs config
+              <ArrowLeft size={13} /> Open in Jobs configuration
             </button>
             <div style={{ height: 1, background: 'var(--bg-border)' }} />
             <button
@@ -2361,7 +2372,7 @@ function WorkflowEditorInner() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <Copy size={13} /> Dupliquer
+              <Copy size={13} /> Duplicate
             </button>
           </div>
         </>

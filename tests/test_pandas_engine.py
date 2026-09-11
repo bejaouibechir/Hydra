@@ -17,7 +17,7 @@ CORRECTIONS APPLIQUÉES (v1.1) :
 import pandas as pd
 import pytest
 
-from internal.engines.pandas_engine import PandasEngine
+from hydra_etl.internal.engines.pandas_engine import PandasEngine
 
 
 # ---------------------------------------------------------------------
@@ -572,7 +572,7 @@ def test_engine_works_with_transform_parser():
 
     Ce test garantit la compatibilité Parser → Engine.
     """
-    from internal.parser.transform import TransformParser
+    from hydra_etl.internal.parser.transform import TransformParser
 
     # Parser un YAML réel
     raw = {
@@ -625,7 +625,7 @@ def test_engine_with_parser_validation_errors():
     Test d'intégration : vérifier que les erreurs de parsing
     sont bien propagées avant l'exécution.
     """
-    from internal.parser.transform import TransformParser
+    from hydra_etl.internal.parser.transform import TransformParser
 
     # YAML invalide (colonne vide dans select)
     raw = {"steps": [{"select": {"columns": []}}]}

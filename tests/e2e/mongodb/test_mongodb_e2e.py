@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 import csv
 
-from internal.connector.registry import build_connector
+from hydra_etl.internal.connector.registry import build_connector
 
 
 # ============================================================

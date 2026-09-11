@@ -5,7 +5,7 @@ Run with: pytest tests/test_source_parser_schema.py -v
 """
 
 import pytest
-from internal.parser.source import SourceParser, SourcesConfig
+from hydra_etl.internal.parser.source import SourceParser, SourcesConfig
 
 
 # ============================================================

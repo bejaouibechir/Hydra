@@ -9,6 +9,9 @@ import { api, type Run, type Workflow } from '@/lib/api'
 
 interface Toast { id: string; type: 'success' | 'error'; title: string; message: string; link?: string }
 
+const TRIGGER_LABEL: Record<string, string> = { manual: 'manual', schedule: 'scheduled', webhook: 'webhook' }
+function fmtDur(s: number) { return s < 60 ? `${s.toFixed(1)}s` : `${(s / 60).toFixed(1)}m` }
+
 /** Surveille les transitions de statut des runs, pousse des notifications
  *  ET affiche des toasts visibles sur toutes les vues (éditeur compris).
  *  Le nom du JOB en échec est résolu (jamais son identifiant interne),
@@ -63,16 +66,26 @@ function RunNotifier() {
           ? `/workflows/${wf.id}?projectId=${wf.project_id}${failStep ? `&jobId=${encodeURIComponent(failStep)}` : ''}`
           : `/runs/${run.run_id}`
 
+        const trigLabel = TRIGGER_LABEL[run.trigger ?? 'manual'] ?? run.trigger
         if (run.status === 'success') {
-          const msg = `${run.workflow_name} a réussi`
-          add('success', 'Run terminé', msg, wf ? `/workflows/${wf.id}?projectId=${wf.project_id}` : `/runs/${run.run_id}`)
-          pushToast({ id: run.run_id + '-s', type: 'success', title: 'Run terminé', message: msg, link: wf ? `/workflows/${wf.id}?projectId=${wf.project_id}` : `/runs/${run.run_id}` })
+          const okSteps = run.steps?.filter(s => s.success).length ?? 0
+          const total   = run.steps?.length ?? 0
+          const msg = [
+            `${run.workflow_name} succeeded`,
+            trigLabel,
+            total ? `${okSteps}/${total} steps` : null,
+            run.duration != null ? fmtDur(run.duration) : null,
+          ].filter(Boolean).join(' · ')
+          const runLink = `/runs/${run.run_id}`
+          add('success', 'Run completed', msg, runLink)
+          pushToast({ id: run.run_id + '-s', type: 'success', title: 'Run completed', message: msg, link: runLink })
         } else {
-          const msg = friendly
-            ? `${run.workflow_name} : le job « ${friendly} » a échoué — ${run.error ?? 'erreur inconnue'}`
-            : `${run.workflow_name} : ${run.error ?? 'erreur inconnue'}`
-          add('error', 'Run échoué', msg, link)
-          pushToast({ id: run.run_id + '-f', type: 'error', title: 'Run échoué', message: msg, link })
+          const base = friendly
+            ? `${run.workflow_name}: job “${friendly}” failed — ${run.error ?? 'unknown error'}`
+            : `${run.workflow_name}: ${run.error ?? 'unknown error'}`
+          const msg = `${trigLabel} · ${base}`
+          add('error', 'Run failed', msg, link)
+          pushToast({ id: run.run_id + '-f', type: 'error', title: 'Run failed', message: msg, link })
         }
       }
       prev.set(run.run_id, run.status)
@@ -88,7 +101,7 @@ function RunNotifier() {
     }}>
       {toasts.map(t => (
         <div key={t.id}
-          title="Double-clic : ouvrir le job concerné"
+          title="Double-click to open the affected job"
           onDoubleClick={() => { dismissToast(t.id); navigate(t.link ?? '/runs') }}
           style={{
             display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',

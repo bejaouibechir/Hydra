@@ -1,0 +1,34 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/transpose.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Transpose lignes <-> colonnes (pandas .T).",
+  "properties": {
+    "header_name": {
+      "default": "column",
+      "title": "Header Name",
+      "type": "string"
+    },
+    "index_col": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Index Col"
+    }
+  },
+  "title": "TransposeOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "transpose",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.TransposeOp"
+  }
+}

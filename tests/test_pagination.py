@@ -4,8 +4,8 @@ import pytest
 
 import sys
 
-from plugins.pagination_strategies import NextLinkPagination
-from plugins.pagination_strategies import PaginationState
+from hydra_etl.plugins.pagination_strategies import NextLinkPagination
+from hydra_etl.plugins.pagination_strategies import PaginationState
 
 
 # ============================================================

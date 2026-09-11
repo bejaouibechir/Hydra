@@ -1,0 +1,28 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/union.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Union / Union All : empile une 2e source (memes colonnes).",
+  "properties": {
+    "distinct": {
+      "default": false,
+      "title": "Distinct",
+      "type": "boolean"
+    },
+    "right": {
+      "title": "Right"
+    }
+  },
+  "required": [
+    "right"
+  ],
+  "title": "UnionOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "union",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.UnionOp"
+  }
+}

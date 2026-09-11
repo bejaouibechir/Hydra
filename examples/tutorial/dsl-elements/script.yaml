@@ -1,0 +1,13 @@
+version: "1.0"
+transformations:
+  steps:
+    - cast:
+        mapping:
+          amount: float
+    - script:
+        inputs: [amount]
+        outputs:
+          amount_with_tax: float
+        mode: row
+        code: |
+          amount_with_tax = amount * 1.2

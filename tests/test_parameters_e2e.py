@@ -10,7 +10,7 @@ Prouve : résolution {{ param }} dans les YAML + injection du dict `params`
 import csv
 from pathlib import Path
 
-from internal.runner.executor import JobExecutor
+from hydra_etl.internal.runner.executor import JobExecutor
 
 
 def _write(p: Path, text: str) -> None:

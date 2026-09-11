@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from internal.parser.transform import TransformParser
+from hydra_etl.internal.parser.transform import TransformParser
 
 
 def test_transform_parser_ok_minimal():

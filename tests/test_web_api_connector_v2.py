@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 # Imports Sprint 2
-from plugins.web_api_policies import (
+from hydra_etl.plugins.web_api_policies import (
     RateLimitPolicy, 
     RateLimitExceeded,
     CircuitBreakerPolicy, 
@@ -30,9 +30,9 @@ from plugins.web_api_policies import (
     StateError
 )
 
-from plugins.pagination_strategies import CursorPagination, OffsetPagination
-from plugins.auth_providers import APIKeyAuth
-from plugins.retry_policies import RetryPolicy
+from hydra_etl.plugins.pagination_strategies import CursorPagination, OffsetPagination
+from hydra_etl.plugins.auth_providers import APIKeyAuth
+from hydra_etl.plugins.retry_policies import RetryPolicy
 
 
 # ============================================================

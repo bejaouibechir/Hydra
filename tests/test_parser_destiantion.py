@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from internal.parser.destination import (
+from hydra_etl.internal.parser.destination import (
     DestinationParser,
     LoadMode,
     LoadConfig,

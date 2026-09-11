@@ -23,10 +23,10 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from internal.config.secrets import SecretResolver, SecretResolutionError
-from internal.parser.source import SourceParser
-from internal.parser.destination import DestinationParser
-from internal.parser.transform import TransformParser
+from hydra_etl.internal.config.secrets import SecretResolver, SecretResolutionError
+from hydra_etl.internal.parser.source import SourceParser
+from hydra_etl.internal.parser.destination import DestinationParser
+from hydra_etl.internal.parser.transform import TransformParser
 
 
 # ----------------------------

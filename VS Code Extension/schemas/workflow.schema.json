@@ -1,0 +1,214 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/workflow-v1.json",
+  "title": "Hydra — workflow.yaml",
+  "description": "Orchestration of several Hydra jobs and actions, expressed as a dependency graph.",
+  "type": "object",
+  "required": ["workflow"],
+  "additionalProperties": false,
+  "properties": {
+    "workflow": { "$ref": "#/definitions/workflowDef" }
+  },
+
+  "definitions": {
+    "workflowDef": {
+      "type": "object",
+      "required": ["name", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "default": "1.0",
+          "description": "Workflow DSL version.",
+          "examples": ["1.0"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Workflow name. Appears in logs and run results.",
+          "examples": ["daily_sales_etl"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Free-form description of the workflow."
+        },
+        "trigger": { "$ref": "#/definitions/trigger" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Workflow steps. Execution order is driven by 'depends_on', not by list order. Step names must be unique.",
+          "items": { "$ref": "#/definitions/step" }
+        }
+      }
+    },
+
+    "trigger": {
+      "type": "object",
+      "description": "What starts the workflow.",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["manual", "schedule", "webhook"],
+          "default": "manual",
+          "description": "Trigger type.",
+          "enumDescriptions": [
+            "manual — started on demand with hdrctl workflow run.",
+            "schedule — started automatically according to 'cron'. The 'cron' field becomes required.",
+            "webhook — started by an incoming HTTP call."
+          ]
+        },
+        "cron": {
+          "type": "string",
+          "description": "Five-field cron expression: minute hour day month weekday. Required when type is 'schedule'.",
+          "examples": ["0 8 * * *", "*/15 * * * *", "0 2 * * 1"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "schedule" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["cron"] }
+        }
+      ]
+    },
+
+    "step": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Step identifier, unique within the workflow. Other steps refer to it in their 'depends_on'.",
+          "examples": ["extract", "transform_a"]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["job", "action"],
+          "description": "What the step runs.",
+          "enumDescriptions": [
+            "job — runs a Hydra job. The 'job' field becomes required.",
+            "action — runs a built-in action. The 'action' field becomes required."
+          ]
+        },
+        "job": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the job directory, relative to workflow.yaml. The directory must contain sources.yaml, destinations.yaml and pipeline.yaml.",
+          "examples": ["./jobs/extract", "./jobs/load"]
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "log",
+            "delay",
+            "condition",
+            "webhook",
+            "email",
+            "bash",
+            "powershell",
+            "ssh",
+            "python",
+            "set_param",
+            "assign_param"
+          ],
+          "description": "Built-in action to run.",
+          "enumDescriptions": [
+            "log — write a message to the workflow log.",
+            "delay — pause the workflow.",
+            "condition — evaluate an expression and branch on the result.",
+            "webhook — send an HTTP request.",
+            "email — send an email.",
+            "bash — run a shell command (Linux/macOS).",
+            "powershell — run a PowerShell command (Windows).",
+            "ssh — run a command on a remote host.",
+            "python — run Python code.",
+            "set_param — define a runtime parameter for later steps.",
+            "assign_param — assign a computed value to a runtime parameter."
+          ]
+        },
+        "params": {
+          "type": "object",
+          "description": "Action parameters. Values may reference a runtime parameter using the {{ param:NAME }} syntax.",
+          "additionalProperties": true,
+          "examples": [{ "message": "Workflow finished." }]
+        },
+        "depends_on": {
+          "type": "array",
+          "default": [],
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Names of the steps that must finish before this one. An empty list starts the step immediately. Steps sharing the same dependencies run in parallel.",
+          "examples": [[], ["extract"], ["transform_a", "transform_b"]]
+        },
+        "on_failure": {
+          "type": "string",
+          "enum": ["fail", "skip", "continue"],
+          "default": "fail",
+          "description": "What happens when this step fails.",
+          "enumDescriptions": [
+            "fail — stop the workflow. The default; keep it for critical steps.",
+            "skip — mark the step as skipped and carry on.",
+            "continue — carry on despite the failure."
+          ]
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Set to false to disable a step without deleting it from the file."
+        },
+        "when": {
+          "type": "string",
+          "description": "Conditional guard: the step runs only when the expression is true.",
+          "examples": ["{{ param:env }} == 'prod'"]
+        },
+        "retry": { "$ref": "#/definitions/retryPolicy" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "job" } }, "required": ["type"] },
+          "then": { "required": ["job"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "action" } }, "required": ["type"] },
+          "then": { "required": ["action"] }
+        }
+      ]
+    },
+
+    "retryPolicy": {
+      "type": "object",
+      "description": "Retry policy applied when the step fails.",
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of retries AFTER the first failure. 0 disables retrying.",
+          "examples": [3]
+        },
+        "delay": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Seconds to wait between attempts.",
+          "examples": [5]
+        },
+        "backoff": {
+          "type": "string",
+          "enum": ["fixed", "exponential"],
+          "default": "fixed",
+          "description": "How the delay evolves between attempts.",
+          "enumDescriptions": [
+            "fixed — constant delay.",
+            "exponential — delay doubles on each attempt. Recommended for network calls."
+          ]
+        }
+      }
+    }
+  }
+}

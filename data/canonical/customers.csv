@@ -1,0 +1,9 @@
+customer_id,name,city,country,signup_date,segment
+C001,  ALICE martin ,Paris,FR,2024-01-15,pro
+C002,bob  DUPONT,Lyon,FR,2024-02-03,particulier
+C003, Carla  Ruiz,Madrid,ES,2024-02-28,pro
+C004,DIETER  schmidt ,,DE,2024-03-11,pro
+C005,elena  Gomez ,Barcelona,ES,2024-04-02,particulier
+C006, Farid Benali,Marseille,FR,2024-05-19,particulier
+C007,GRETA  mueller,Berlin,DE,2024-06-07,pro
+C008,hugo  Lefevre  ,Nantes,FR,2024-07-23,

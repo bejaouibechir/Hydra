@@ -13,7 +13,7 @@ except ImportError:
     PYARROW_AVAILABLE = False
     pytestmark = pytest.mark.skip(reason="PyArrow non installé. Installer: pip install pyarrow pandas")
 
-from internal.connector.parquet_connector import ParquetConnector
+from hydra_etl.internal.connector.parquet_connector import ParquetConnector
 
 
 # ============================================================

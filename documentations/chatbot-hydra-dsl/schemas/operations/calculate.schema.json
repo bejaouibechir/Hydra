@@ -1,0 +1,30 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/calculate.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "column": {
+      "minLength": 1,
+      "title": "Column",
+      "type": "string"
+    },
+    "expr": {
+      "minLength": 1,
+      "title": "Expr",
+      "type": "string"
+    }
+  },
+  "required": [
+    "column",
+    "expr"
+  ],
+  "title": "CalculateOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "calculate",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.CalculateOp"
+  }
+}

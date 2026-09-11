@@ -8,6 +8,7 @@ import { X, FolderOpen, Eye, EyeOff } from 'lucide-react'
 import { getNode } from '@/lib/nodeRegistry'
 import type { FlowNodeData } from '@/lib/workflowSerializer'
 import { api } from '@/lib/api'
+import { pickPath } from '@/components/ui/FolderPicker'
 import { useQuery } from '@tanstack/react-query'
 import JobCreatorWizard from '@/components/canvas/JobCreatorWizard'
 import ExpressionBuilder from '@/components/canvas/ExpressionBuilder'
@@ -26,6 +27,7 @@ interface FieldDef {
   options?: string[]
   browseType?: 'file' | 'directory' | 'save_file'  // active le bouton Parcourir
   browseExt?:  string                                // filtre extension ex: '.csv'
+  min?: number                                       // borne min pour type=number
 }
 
 // ── Champs par type de nœud ───────────────────────────────────────────────────
@@ -150,7 +152,10 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
   transform_script: [],
   // Actions génériques
   action_log: [
-    { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Message écrit dans les logs du run' },
+    { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Message written to the run logs' },
+  ],
+  action_delay: [
+    { key: 'seconds', label: 'Delay (seconds)', type: 'number', placeholder: '5', required: true, min: 0 },
   ],
   action_webhook: [
     { key: 'url',     label: 'URL',           type: 'text',     placeholder: 'https://example.com/hook', required: true },
@@ -270,6 +275,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
   const [stepName,  setStepName]  = useState(d.stepName ?? '')
   const [jobPath,   setJobPath]   = useState(d.jobPath  ?? '')
   const [onFailure, setOnFailure] = useState<'fail' | 'skip' | 'continue'>(d.onFailure ?? 'fail')
+  const [whenExpr,  setWhenExpr]  = useState(d.when ?? '')
   const [params,    setParams]    = useState<Record<string, string>>(
     Object.fromEntries(
       Object.entries((d.params as Record<string, unknown>) ?? {}).map(([k, v]) => [k, String(v ?? '')])
@@ -314,7 +320,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, stepName, jobPath, onFailure, params])
+  }, [onClose, stepName, jobPath, onFailure, whenExpr, params])
 
   const handleSave = () => {
     let finalParams = params
@@ -325,6 +331,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
       stepName:  stepName.trim() || d.stepName,
       jobPath:   jobPath || undefined,
       onFailure,
+      when:      whenExpr.trim() || undefined,
       params:    Object.keys(finalParams).length ? finalParams : undefined,
     })
     onClose()
@@ -339,7 +346,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
       onClick={async () => {
         setBrowsing(true)
         try {
-          const res = await api.system.browse(browseType, ext)
+          const res = await pickPath(browseType, ext)
           if (res.path) onResult(res.path)
         } finally { setBrowsing(false) }
       }}
@@ -511,6 +518,67 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
               </select>
             </label>
           )}
+
+          {/* Nœud Condition — mode Expression (A2) ou Structuré (A1), exclusifs */}
+          {d.nodeType === 'action_condition' && (() => {
+            const condMode = (params.mode as string) ?? 'expr'
+            const inStyle: React.CSSProperties = {
+              display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box',
+              background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
+              borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+            }
+            const modeBtn = (active: boolean): React.CSSProperties => ({
+              flex: 1, padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              border: '1px solid ' + (active ? 'var(--primary)' : 'var(--bg-border)'),
+              background: active ? 'var(--primary)' : 'transparent',
+              color: active ? '#fff' : 'var(--text-secondary)',
+            })
+            return (
+              <>
+                <label style={{ display: 'block', marginBottom: 14 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Result variable name
+                  </span>
+                  <input value={params.name ?? ''} onChange={e => setParam('name', e.target.value)} placeholder="check" style={inStyle} />
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{'Reusable downstream via when: {{ param:<name> }}'}</span>
+                </label>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button onClick={() => setParam('mode', 'expr')} style={modeBtn(condMode !== 'structured')}>Expression</button>
+                  <button onClick={() => setParam('mode', 'structured')} style={modeBtn(condMode === 'structured')}>Structured</button>
+                </div>
+                {condMode === 'structured' ? (
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                    <input value={params.left ?? ''} onChange={e => setParam('left', e.target.value)} placeholder="{{ param:count }}" style={{ ...inStyle, flex: 2, marginTop: 0 }} />
+                    <select value={params.op ?? '=='} onChange={e => setParam('op', e.target.value)} style={{ ...inStyle, flex: 1, marginTop: 0, cursor: 'pointer' }}>
+                      {['==', '!=', '<', '<=', '>', '>=', 'contains'].map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <input value={params.right ?? ''} onChange={e => setParam('right', e.target.value)} placeholder="10" style={{ ...inStyle, flex: 2, marginTop: 0 }} />
+                  </div>
+                ) : (
+                  <label style={{ display: 'block', marginBottom: 14 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Boolean expression</span>
+                    <textarea value={params.expr ?? ''} onChange={e => setParam('expr', e.target.value)} rows={2}
+                      placeholder={"{{ param:count }} > 10 and {{ param:env }} == 'prod'"}
+                      style={{ ...inStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
+                  </label>
+                )}
+              </>
+            )
+          })()}
+
+          {/* Garde d'exécution `when` (jobs + actions, hors Condition) */}
+          {(d.nodeType === 'job' || d.nodeType.startsWith('action_')) && d.nodeType !== 'action_condition' && (
+            <label style={{ display: 'block', marginBottom: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Run condition (when)
+              </span>
+              <input value={whenExpr} onChange={e => setWhenExpr(e.target.value)}
+                placeholder={"e.g. {{ param:check }} — empty = always run"}
+                style={{ display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box', background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none', fontFamily: 'monospace' }} />
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Runs only if true (result of an upstream Condition node).</span>
+            </label>
+          )}
+
 
           {/* Python — toggle inline / fichier (mutuellement exclusifs) */}
           {d.nodeType === 'action_python' && (() => {
@@ -786,31 +854,61 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                 {field.label}{field.required && <span style={{ color: 'var(--error)', marginLeft: 3 }}>*</span>}
               </span>
               {field.type === 'password' ? (
-                <div style={{ position: 'relative', marginTop: 6 }}>
-                  <input
-                    type={revealed[field.key] ? 'text' : 'password'}
-                    value={params[field.key] ?? ''}
-                    onChange={e => setParam(field.key, e.target.value)}
-                    placeholder={field.placeholder}
-                    autoComplete="new-password"
-                    style={{
-                      display: 'block', width: '100%', boxSizing: 'border-box',
-                      background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
-                      borderRadius: 8, padding: '8px 40px 8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setRevealed(r => ({ ...r, [field.key]: !r[field.key] }))}
-                    title={revealed[field.key] ? 'Masquer' : 'Afficher'}
-                    style={{
-                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4,
-                    }}
-                  >
-                    {revealed[field.key] ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={revealed[field.key] ? 'text' : 'password'}
+                      value={params[field.key] ?? ''}
+                      onChange={e => setParam(field.key, e.target.value)}
+                      placeholder={field.placeholder ?? '${ENV:MY_SECRET}'}
+                      autoComplete="new-password"
+                      style={{
+                        display: 'block', width: '100%', boxSizing: 'border-box',
+                        background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
+                        borderRadius: 8, padding: '8px 40px 8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRevealed(r => ({ ...r, [field.key]: !r[field.key] }))}
+                      title={revealed[field.key] ? 'Hide' : 'Show'}
+                      style={{
+                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4,
+                      }}
+                    >
+                      {revealed[field.key] ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {(() => {
+                    // Sécurité (Volet B) : ne jamais persister le secret en clair.
+                    // On encourage une référence ${ENV:NOM} ; la valeur réelle vit
+                    // dans un Environnement (.env, hors Git), résolue par le moteur.
+                    const raw = String(params[field.key] ?? '')
+                    const isRef = /^\s*\$\{(ENV|SECRET):[A-Za-z0-9_.-]+\}\s*$/.test(raw)
+                    const base = String(d.label || d.nodeType || 'node').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+                    const suggested = '${ENV:' + (base ? base + '_' : '') + field.key.toUpperCase() + '}'
+                    if (raw && !isRef) {
+                      return (
+                        <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.45, color: 'var(--error)' }}>
+                          ⚠ Plain-text secret — it will be written to the project files. Reference it here and store the actual value in <b>Environments</b>.
+                          <button
+                            type="button"
+                            onClick={() => setParam(field.key, suggested)}
+                            style={{ display: 'inline-block', marginTop: 5, background: 'transparent', border: '1px solid var(--bg-border)', borderRadius: 6, padding: '2px 8px', color: 'var(--primary)', cursor: 'pointer', fontSize: 11, fontFamily: 'monospace' }}
+                          >
+                            Utiliser {suggested}
+                          </button>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.45, color: 'var(--text-muted)' }}>
+                        Security tip: reference a secret with <code style={{ fontFamily: 'monospace' }}>{'${ENV:NAME}'}</code> — define the actual value in <b>Environments</b> (.env, outside Git), never here.
+                      </div>
+                    )
+                  })()}
                 </div>
               ) : field.type === 'textarea' ? (
                 <textarea
@@ -861,14 +959,19 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                     placeholder={field.placeholder}
                     style={{ flex: 1, boxSizing: 'border-box', background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
                   />
-                  <button type="button" onClick={() => setShowExprBuilder(true)} title="Assistant d'expression"
+                  <button type="button" onClick={() => setShowExprBuilder(true)} title="Expression assistant"
                     style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 800, fontStyle: 'italic', border: '1px solid var(--bg-border)', background: 'var(--bg-hover)', color: accent, cursor: 'pointer', flexShrink: 0 }}>fx</button>
                 </div>
               ) : (
                 <input
                   type={field.type === 'number' ? 'number' : 'text'}
+                  min={field.type === 'number' ? field.min : undefined}
                   value={params[field.key] ?? ''}
-                  onChange={e => setParam(field.key, e.target.value)}
+                  onChange={e => {
+                    let v = e.target.value
+                    if (field.type === 'number' && field.min !== undefined && v !== '' && Number(v) < field.min) v = String(field.min)
+                    setParam(field.key, v)
+                  }}
                   placeholder={field.placeholder}
                   style={{
                     display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box',

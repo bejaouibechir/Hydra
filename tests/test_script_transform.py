@@ -13,8 +13,8 @@ Couvre :
 import pandas as pd
 import pytest
 
-from internal.engines.pandas_engine import PandasEngine
-from internal.parser.transform import TransformParser
+from hydra_etl.internal.engines.pandas_engine import PandasEngine
+from hydra_etl.internal.parser.transform import TransformParser
 
 
 @pytest.fixture

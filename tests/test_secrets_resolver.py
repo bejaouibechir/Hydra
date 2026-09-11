@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pytest
 
-from internal.config.secrets import SecretResolver, SecretResolutionError
+from hydra_etl.internal.config.secrets import SecretResolver, SecretResolutionError
 
 
 def test_resolve_env_placeholder(monkeypatch):

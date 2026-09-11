@@ -1,0 +1,27 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/rename.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "mapping": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "minProperties": 1,
+      "title": "Mapping",
+      "type": "object"
+    }
+  },
+  "required": [
+    "mapping"
+  ],
+  "title": "RenameOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "rename",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.RenameOp"
+  }
+}

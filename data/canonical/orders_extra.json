@@ -1,0 +1,38 @@
+[
+  {
+    "order_id": "O2001",
+    "customer_id": "C002",
+    "product_id": "P01",
+    "quantity": "2",
+    "amount": "9.00",
+    "status": "paid",
+    "order_date": "2025-05-04"
+  },
+  {
+    "order_id": "O2002",
+    "customer_id": "C005",
+    "product_id": "P02",
+    "quantity": "1",
+    "amount": "24.00",
+    "status": "paid",
+    "order_date": "2025-05-08"
+  },
+  {
+    "order_id": "O2003",
+    "customer_id": "C007",
+    "product_id": "P03",
+    "quantity": "1",
+    "amount": "39.90",
+    "status": "pending",
+    "order_date": "2025-05-12"
+  },
+  {
+    "order_id": "O2004",
+    "customer_id": "C001",
+    "product_id": "P05",
+    "quantity": "5",
+    "amount": "36.25",
+    "status": "paid",
+    "order_date": "2025-05-15"
+  }
+]

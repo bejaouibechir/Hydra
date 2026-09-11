@@ -21,14 +21,14 @@ export default function Insights() {
   return (
     <div>
       <h1 className="text-xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Insights</h1>
-      {runsQ.isPending && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Chargement…</p>}
-      {runsQ.isError  && <p className="text-sm" style={{ color: 'var(--error)' }}>Erreur : {(runsQ.error as Error).message}</p>}
+      {runsQ.isPending && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>}
+      {runsQ.isError  && <p className="text-sm" style={{ color: 'var(--error)' }}>Error: {(runsQ.error as Error).message}</p>}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-8">
         {[
           { label: 'Total runs',    value: total   },
-          { label: '✓ Succès',      value: success },
-          { label: '✗ Échecs',      value: failed  },
-          { label: '⟳ En cours',   value: running },
+          { label: '✓ Successful',  value: success },
+          { label: '✗ Failed',      value: failed  },
+          { label: '⟳ Running',     value: running },
         ].map(({ label, value }) => (
           <div key={label} className="card p-4">
             <p className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{value}</p>
@@ -38,7 +38,7 @@ export default function Insights() {
       </div>
       <div className="card p-4">
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Durée moyenne : <strong style={{ color: 'var(--text-primary)' }}>{avgDuration} s</strong>
+          Average duration: <strong style={{ color: 'var(--text-primary)' }}>{avgDuration} s</strong>
         </p>
       </div>
     </div>

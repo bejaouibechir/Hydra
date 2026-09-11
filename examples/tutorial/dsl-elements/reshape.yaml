@@ -1,0 +1,8 @@
+version: "1.0"
+transformations:
+  steps:
+    - unpivot:
+        id_vars: [region]
+        value_vars: [q1, q2, q3, q4]
+        var_name: quarter
+        value_name: revenue

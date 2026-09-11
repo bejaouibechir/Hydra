@@ -14,8 +14,8 @@ from __future__ import annotations
 import pytest
 import pandas as pd
 
-from internal.engines.pandas_engine import PandasEngine
-from internal.transform.engine_interface import StepResult, TransformEngine
+from hydra_etl.internal.engines.pandas_engine import PandasEngine
+from hydra_etl.internal.transform.engine_interface import StepResult, TransformEngine
 
 
 # ─────────────────────────────────────────────
@@ -116,7 +116,7 @@ class TestCastOpAliases:
 
     @pytest.fixture
     def parser(self):
-        from internal.parser.transform import TransformParser
+        from hydra_etl.internal.parser.transform import TransformParser
         return TransformParser()
 
     def test_alias_integer(self, parser):
@@ -153,20 +153,20 @@ class TestCastOpAliases:
 class TestParsersAccessibility:
 
     def test_destination_parser_importable(self):
-        from internal.parser.destination import DestinationParser, LoadMode
+        from hydra_etl.internal.parser.destination import DestinationParser, LoadMode
         assert DestinationParser is not None
         assert LoadMode.UPSERT.value == "upsert"
 
     def test_transform_parser_importable(self):
-        from internal.parser.transform import TransformParser
+        from hydra_etl.internal.parser.transform import TransformParser
         assert TransformParser is not None
 
     def test_destination_parser_not_from_backup(self):
-        import internal.parser.destination as mod
+        import hydra_etl.internal.parser.destination as mod
         assert "backup" not in mod.__file__
 
     def test_transform_parser_not_from_backup(self):
-        import internal.parser.transform as mod
+        import hydra_etl.internal.parser.transform as mod
         assert "backup" not in mod.__file__
 
 
@@ -231,7 +231,7 @@ class TestDestinationParser:
 
     @pytest.fixture
     def parser(self):
-        from internal.parser.destination import DestinationParser
+        from hydra_etl.internal.parser.destination import DestinationParser
         return DestinationParser()
 
     def _raw(self, mode, key=None, table="tbl"):
@@ -250,17 +250,17 @@ class TestDestinationParser:
 
     def test_mode_append_parsed(self, parser):
         cfg = parser.parse(self._raw("append"))
-        from internal.parser.destination import LoadMode
+        from hydra_etl.internal.parser.destination import LoadMode
         assert cfg.destinations["dest"].load.mode == LoadMode.APPEND
 
     def test_mode_replace_parsed(self, parser):
         cfg = parser.parse(self._raw("replace"))
-        from internal.parser.destination import LoadMode
+        from hydra_etl.internal.parser.destination import LoadMode
         assert cfg.destinations["dest"].load.mode == LoadMode.REPLACE
 
     def test_mode_upsert_with_key_ok(self, parser):
         cfg = parser.parse(self._raw("upsert", key=["id"]))
-        from internal.parser.destination import LoadMode
+        from hydra_etl.internal.parser.destination import LoadMode
         assert cfg.destinations["dest"].load.mode == LoadMode.UPSERT
         assert cfg.destinations["dest"].load.key == ["id"]
 
@@ -293,7 +293,7 @@ class TestTransformParserEdgeCases:
 
     @pytest.fixture
     def parser(self):
-        from internal.parser.transform import TransformParser
+        from hydra_etl.internal.parser.transform import TransformParser
         return TransformParser()
 
     def test_unknown_op_raises(self, parser):

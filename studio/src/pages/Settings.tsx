@@ -40,11 +40,11 @@ export default function Settings() {
     <div className="card" style={{ maxWidth: 520 }}>
       <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Settings</h2>
       <p className="text-slate-400 text-sm" style={{ marginBottom: 20 }}>
-        Préférences de l\'éditeur Hydra Studio.
+        Hydra Studio editor preferences.
       </p>
 
       <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-        Visionneuse — nombre de lignes de sortie à afficher
+        Data viewer — number of output rows to display
       </label>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <input
@@ -61,11 +61,11 @@ export default function Settings() {
           }}
         />
         <span className="text-slate-400 text-xs">
-          lignes (défaut : 10) — appliqué au clic droit « View data » sur une destination.
+          rows (default: 10) — used when you right-click a destination and select “View data”.
         </span>
       </div>
       {saved && (
-        <div style={{ marginTop: 12, fontSize: 12, color: 'var(--primary)' }}>✓ Enregistré</div>
+        <div style={{ marginTop: 12, fontSize: 12, color: 'var(--primary)' }}>✓ Saved</div>
       )}
     </div>
   )

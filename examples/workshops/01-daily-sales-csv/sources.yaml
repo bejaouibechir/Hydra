@@ -1,0 +1,9 @@
+version: "1.0"
+sources:
+  src_sales:
+    type: csv
+    connection:
+      base_path: "examples/workshops/01-daily-sales-csv/data"
+    extract:
+      table: sales_2025-03-04.csv
+      batch_size: 10000

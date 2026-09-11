@@ -1,0 +1,188 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/destinations-v1.json",
+  "title": "Hydra — destinations.yaml",
+  "description": "Destinations declared for a Hydra job.",
+  "type": "object",
+  "required": ["destinations"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Hydra DSL version.",
+      "default": "1.0",
+      "examples": ["1.0"]
+    },
+    "destinations": {
+      "type": "object",
+      "description": "Destinations keyed by identifier. The identifier is what pipeline.yaml refers to in its 'to' field.",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/definitions/destinationDefinition" }
+    }
+  },
+  "definitions": {
+    "destinationDefinition": {
+      "type": "object",
+      "required": ["type", "load"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/definitions/connectorType" },
+        "connection": {
+          "type": "object",
+          "description": "Connection settings. Values may reference an environment variable using the ${ENV:VARIABLE_NAME} syntax.",
+          "additionalProperties": true
+        },
+        "load": { "$ref": "#/definitions/loadConfig" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "enum": ["mysql", "mariadb", "postgresql", "postgres"] } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": { "connection": { "$ref": "#/definitions/sqlConnection" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "mongodb" } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": { "connection": { "$ref": "#/definitions/mongoConnection" } }
+          }
+        }
+      ]
+    },
+
+    "connectorType": {
+      "description": "Target connector type.",
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "csv",
+            "json",
+            "parquet",
+            "mysql",
+            "mariadb",
+            "postgresql",
+            "postgres",
+            "mongodb"
+          ],
+          "enumDescriptions": [
+            "CSV file — 'load.table' holds the file path.",
+            "JSON file — 'load.table' holds the file path.",
+            "Parquet file (optional dependency: pyarrow).",
+            "MySQL database.",
+            "MariaDB database (same connector as MySQL).",
+            "PostgreSQL database.",
+            "Alias for postgresql.",
+            "MongoDB database (optional dependency: pymongo)."
+          ]
+        },
+        {
+          "type": "string",
+          "description": "Connector supplied by a plugin (plugins/connectors directory)."
+        }
+      ]
+    },
+
+    "sqlConnection": {
+      "type": "object",
+      "description": "SQL database connection.",
+      "properties": {
+        "host": { "type": "string", "examples": ["localhost", "${ENV:DB_HOST}"] },
+        "port": {
+          "anyOf": [{ "type": "integer" }, { "type": "string" }],
+          "description": "MySQL/MariaDB: 3306. PostgreSQL: 5432.",
+          "examples": [3306, 5432]
+        },
+        "database": { "type": "string", "examples": ["${ENV:DB_NAME}"] },
+        "user": { "type": "string", "examples": ["${ENV:DB_USER}"] },
+        "password": {
+          "type": "string",
+          "description": "Never write it in plain text: use ${ENV:DB_PASS} together with an untracked .env file.",
+          "examples": ["${ENV:DB_PASS}"]
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "mongoConnection": {
+      "type": "object",
+      "description": "MongoDB connection.",
+      "properties": {
+        "host": { "type": "string", "examples": ["${ENV:MONGO_HOST}"] },
+        "port": {
+          "anyOf": [{ "type": "integer" }, { "type": "string" }],
+          "default": 27017
+        },
+        "database": { "type": "string" },
+        "collection": { "type": "string" },
+        "user": { "type": "string" },
+        "password": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+
+    "loadConfig": {
+      "type": "object",
+      "description": "How rows are written to the destination.",
+      "anyOf": [{ "required": ["table"] }, { "required": ["collection"] }],
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target table. For file connectors (csv, json, parquet): the output file path.",
+          "examples": ["orders", "data/output.csv"]
+        },
+        "collection": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target MongoDB collection. Alias for 'table'."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["append", "replace", "upsert"],
+          "default": "append",
+          "description": "Load mode.",
+          "enumDescriptions": [
+            "append — add rows (INSERT). Existing data is kept.",
+            "replace — empty the target, then insert (TRUNCATE + INSERT). Destructive.",
+            "upsert — insert or update based on 'key'. Requires the 'key' field."
+          ]
+        },
+        "key": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Columns used to match existing rows. Required when mode is 'upsert'. Single key [id] or composite key [region, product_id].",
+          "examples": [["id"], ["region", "product_id"]]
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 100000,
+          "default": 10000,
+          "description": "Rows written per batch, between 10 and 100000. Lower it if the server reports a 'packet too large' error.",
+          "examples": [1000, 5000, 10000]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "mode": { "const": "upsert" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "required": ["key"]
+          }
+        }
+      ]
+    }
+  }
+}

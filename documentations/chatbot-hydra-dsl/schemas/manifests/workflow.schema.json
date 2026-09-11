@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "RetryPolicy": {
+      "description": "Politique de re-tentative d'un step (appliquée par Retry-scope).",
+      "properties": {
+        "backoff": {
+          "default": "fixed",
+          "enum": [
+            "fixed",
+            "exponential"
+          ],
+          "title": "Backoff",
+          "type": "string"
+        },
+        "delay": {
+          "default": 0.0,
+          "title": "Delay",
+          "type": "number"
+        },
+        "max": {
+          "default": 0,
+          "title": "Max",
+          "type": "integer"
+        }
+      },
+      "title": "RetryPolicy",
+      "type": "object"
+    },
+    "Trigger": {
+      "description": "Déclencheur du workflow.",
+      "properties": {
+        "cron": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cron"
+        },
+        "type": {
+          "default": "manual",
+          "enum": [
+            "manual",
+            "schedule",
+            "webhook"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Trigger",
+      "type": "object"
+    },
+    "WorkflowStep": {
+      "description": "Un step du workflow — soit un job Hydra, soit une action.",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action"
+        },
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "job": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "on_failure": {
+          "default": "fail",
+          "enum": [
+            "fail",
+            "skip",
+            "continue"
+          ],
+          "title": "On Failure",
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RetryPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "enum": [
+            "job",
+            "action"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "WorkflowStep",
+      "type": "object"
+    }
+  },
+  "$id": "https://hydra.local/schemas/0.9.6/manifests/workflow.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Définition complète d'un workflow — issu de workflow.yaml.",
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/WorkflowStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "trigger": {
+      "$ref": "#/$defs/Trigger"
+    },
+    "version": {
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "steps"
+  ],
+  "title": "WorkflowDef",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "workflow",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "manifest",
+    "productVersion": "0.9.6",
+    "sourceModel": "workflow.models.WorkflowDef"
+  }
+}

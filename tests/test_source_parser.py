@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from internal.parser.source import SourceParser
+from hydra_etl.internal.parser.source import SourceParser
 
 
 def test_sources_parser_ok_minimal_table():

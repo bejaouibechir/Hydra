@@ -41,6 +41,8 @@ requests-mock>=1.11.0
 # --- API FastAPI ---
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
+# Scheduler des triggers `schedule` (cron)
+APScheduler>=3.10.0
 # Terminal interactif (ConPTY) — Windows uniquement
 pywinpty>=2.0.0; sys_platform == "win32"
 

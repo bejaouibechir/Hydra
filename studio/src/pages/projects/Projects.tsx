@@ -5,6 +5,7 @@ import { Plus, FolderOpen, Trash2, ArrowRight, Calendar, FolderSearch } from 'lu
 import EmptyState from '@/components/ui/EmptyState'
 import Spinner from '@/components/ui/Spinner'
 import Modal from '@/components/ui/Modal'
+import { pickPath } from '@/components/ui/FolderPicker'
 import { Link, useNavigate } from 'react-router-dom'
 
 function CreateProjectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -32,7 +33,7 @@ function CreateProjectModal({ open, onClose }: { open: boolean; onClose: () => v
   const browse = async () => {
     setBrowsing(true)
     try {
-      const res = await api.system.browse('directory')
+      const res = await pickPath('directory')
       if (res.path) setProjPath(res.path)
     } finally { setBrowsing(false) }
   }
@@ -50,50 +51,48 @@ function CreateProjectModal({ open, onClose }: { open: boolean; onClose: () => v
           <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
             Project name <span style={{ color: 'var(--error)' }}>*</span>
           </label>
-          <input className="input" placeholder="mon-projet-etl" value={name}
+          <input className="input" placeholder="my-etl-project" value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && name.trim() && mut.mutate()} />
         </div>
         <div>
           <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Description</label>
-          <input className="input" placeholder="Description optionnelle" value={desc} onChange={e => setDesc(e.target.value)} />
+          <input className="input" placeholder="Optional description" value={desc} onChange={e => setDesc(e.target.value)} />
         </div>
 
         {/* Répertoire du projet */}
         <div>
           <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
-            Dossier parent
+            Parent folder
             <span className="ml-1 font-normal" style={{ color: 'var(--text-muted)' }}>
-              (optionnel — ex: D:\Projets → crée D:\Projets\monprojet)
+              (optional — e.g. D:\Projects → creates D:\Projects\my-project)
             </span>
           </label>
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               className="input"
-              placeholder="Laissez vide pour utiliser l'espace de travail par défaut"
+              placeholder="Leave empty to use the default workspace"
               value={projPath}
               onChange={e => setProjPath(e.target.value)}
               style={{ flex: 1 }}
             />
-            {sysInfo?.is_windows && (
-              <button
-                onClick={browse}
-                disabled={browsing}
-                title="Choisir un dossier"
-                style={{
-                  padding: '0 12px', borderRadius: 8, flexShrink: 0,
-                  background: 'var(--bg-hover)', border: '1px solid var(--bg-border)',
-                  color: 'var(--text-secondary)', cursor: browsing ? 'wait' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 4, fontSize: 12,
-                }}
-              >
-                <FolderSearch size={14} />
-                {browsing ? '…' : 'Parcourir'}
-              </button>
-            )}
+            <button
+              onClick={browse}
+              disabled={browsing}
+              title="Choose a folder"
+              style={{
+                padding: '0 12px', borderRadius: 8, flexShrink: 0,
+                background: 'var(--bg-hover)', border: '1px solid var(--bg-border)',
+                color: 'var(--text-secondary)', cursor: browsing ? 'wait' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 4, fontSize: 12,
+              }}
+            >
+              <FolderSearch size={14} />
+              {browsing ? '…' : 'Browse'}
+            </button>
           </div>
           <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-            Crée automatiquement : <code>jobs/</code>, <code>data/input/</code>, <code>data/output/</code>
+            Automatically creates: <code>jobs/</code>, <code>data/input/</code>, <code>data/output/</code>
           </p>
         </div>
 
@@ -139,7 +138,7 @@ function ProjectCard({ project }: { project: Project }) {
             Open <ArrowRight size={12} />
           </Link>
           <button
-            onClick={() => { if (confirm('Supprimer "' + project.name + '" ?')) del.mutate() }}
+            onClick={() => { if (confirm('Delete "' + project.name + '"?')) del.mutate() }}
             disabled={del.isPending}
             className="btn-secondary text-xs flex items-center gap-1 py-1"
             style={{ color: 'var(--error)' }}
@@ -163,7 +162,7 @@ export default function Projects() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Projects</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Gérez vos projets ETL Hydra</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Manage your Hydra ETL projects</p>
         </div>
         <button className="btn-primary flex items-center gap-2" onClick={() => setCreateOpen(true)}>
           <Plus size={16} /> New Project
@@ -174,8 +173,8 @@ export default function Projects() {
       {projectsQ.data?.length === 0 && (
         <EmptyState
           icon={<FolderOpen size={40} style={{ color: 'var(--text-muted)' }} />}
-          title="Aucun projet"
-          description="Créez votre premier projet pour commencer."
+          title="No projects"
+          description="Create your first project to get started."
           action={<button className="btn-primary flex items-center gap-2" onClick={() => setCreateOpen(true)}><Plus size={16} /> New Project</button>}
         />
       )}
@@ -188,4 +187,3 @@ export default function Projects() {
     </div>
   )
 }
-

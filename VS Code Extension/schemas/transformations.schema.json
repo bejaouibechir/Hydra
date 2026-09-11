@@ -1,0 +1,499 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/transformations-v1.json",
+  "title": "Hydra — transformations.yaml",
+  "description": "Ordered list of operations applied between the source and the destination. Each step is a single-key mapping whose key is the operation name.",
+  "type": "object",
+  "anyOf": [{ "required": ["steps"] }, { "required": ["transformations"] }],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "default": "1.0",
+      "description": "Hydra DSL version.",
+      "examples": ["1.0"]
+    },
+    "steps": { "$ref": "#/definitions/stepList" },
+    "transformations": {
+      "type": "object",
+      "description": "Nested form, equivalent to 'steps' at the root.",
+      "required": ["steps"],
+      "additionalProperties": false,
+      "properties": { "steps": { "$ref": "#/definitions/stepList" } }
+    }
+  },
+
+  "definitions": {
+    "stepList": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Operations run in list order.",
+      "items": { "$ref": "#/definitions/step" }
+    },
+
+    "step": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "description": "A step carries exactly one operation.",
+      "properties": {
+        "select": { "$ref": "#/definitions/opSelect" },
+        "rename": { "$ref": "#/definitions/opRename" },
+        "cast": { "$ref": "#/definitions/opCast" },
+        "filter": { "$ref": "#/definitions/opFilter" },
+        "calculate": { "$ref": "#/definitions/opCalculate" },
+        "sort": { "$ref": "#/definitions/opSort" },
+        "deduplicate": { "$ref": "#/definitions/opDeduplicate" },
+        "fill_null": { "$ref": "#/definitions/opFillNull" },
+        "trim": { "$ref": "#/definitions/opTrim" },
+        "clean": { "$ref": "#/definitions/opClean" },
+        "aggregate": { "$ref": "#/definitions/opAggregate" },
+        "join": { "$ref": "#/definitions/opJoin" },
+        "merge": { "$ref": "#/definitions/opMerge" },
+        "union": { "$ref": "#/definitions/opUnion" },
+        "pivot": { "$ref": "#/definitions/opPivot" },
+        "unpivot": { "$ref": "#/definitions/opUnpivot" },
+        "transpose": { "$ref": "#/definitions/opTranspose" },
+        "script": { "$ref": "#/definitions/opScript" }
+      }
+    },
+
+    "columnList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+
+    "rightSource": {
+      "description": "Second stream: either the identifier of a source declared in sources.yaml, or an inline source definition (an object with at least a 'type' key).",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier of a source declared in sources.yaml."
+        },
+        {
+          "type": "object",
+          "required": ["type"],
+          "description": "Inline source, same structure as an entry in sources.yaml.",
+          "properties": {
+            "type": { "type": "string", "minLength": 1 },
+            "connection": { "type": "object", "additionalProperties": true },
+            "extract": { "type": "object", "additionalProperties": true }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+
+    "joinKey": {
+      "description": "A single column name, or a list of column names.",
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      ]
+    },
+
+    "opSelect": {
+      "type": "object",
+      "description": "Keep only the listed columns, in the given order. Duplicates are removed.",
+      "required": ["columns"],
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Columns to keep.",
+          "examples": [["id", "name", "created_at"]]
+        }
+      }
+    },
+
+    "opRename": {
+      "type": "object",
+      "description": "Rename columns. Columns absent from the mapping are left untouched.",
+      "required": ["mapping"],
+      "additionalProperties": false,
+      "properties": {
+        "mapping": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Mapping of old_name: new_name.",
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "examples": [{ "cust_id": "customer_id" }]
+        }
+      }
+    },
+
+    "opCast": {
+      "type": "object",
+      "description": "Convert column types.",
+      "required": ["mapping"],
+      "additionalProperties": false,
+      "properties": {
+        "mapping": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Mapping of column: target_type.",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["int", "float", "str", "bool", "date", "datetime"],
+            "description": "Target type."
+          },
+          "examples": [{ "id": "int", "amount": "float" }]
+        }
+      }
+    },
+
+    "opFilter": {
+      "type": "object",
+      "description": "Keep only the rows satisfying the expression.",
+      "required": ["expr"],
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Boolean expression evaluated per row, using pandas.query syntax. Quote string literals with single quotes inside the expression.",
+          "examples": ["amount > 0", "status == 'paid' and country == 'FR'"]
+        }
+      }
+    },
+
+    "opCalculate": {
+      "type": "object",
+      "description": "Add a column computed from existing columns.",
+      "required": ["column", "expr"],
+      "additionalProperties": false,
+      "properties": {
+        "column": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the resulting column. An existing column with the same name is overwritten.",
+          "examples": ["total_with_tax"]
+        },
+        "expr": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Arithmetic expression, using pandas.eval syntax.",
+          "examples": ["price * quantity", "amount * 1.2"]
+        }
+      }
+    },
+
+    "opSort": {
+      "type": "object",
+      "description": "Sort rows.",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": {
+        "by": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Sort columns, in priority order.",
+          "examples": [["created_at"], ["region", "amount"]]
+        },
+        "ascending": {
+          "description": "A single boolean applied to every column, or a list of booleans the same length as 'by'.",
+          "default": true,
+          "anyOf": [
+            { "type": "boolean" },
+            { "type": "array", "items": { "type": "boolean" } }
+          ],
+          "examples": [true, false, [true, false]]
+        }
+      }
+    },
+
+    "opDeduplicate": {
+      "type": "object",
+      "description": "Remove duplicate rows.",
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Columns that define a duplicate. Defaults to all columns.",
+          "examples": [["email"]]
+        },
+        "keep": {
+          "type": "string",
+          "enum": ["first", "last", "none"],
+          "default": "first",
+          "description": "Which duplicate to keep.",
+          "enumDescriptions": [
+            "first — keep the first occurrence.",
+            "last — keep the last occurrence.",
+            "none — drop every duplicated row."
+          ]
+        }
+      }
+    },
+
+    "opFillNull": {
+      "type": "object",
+      "description": "Replace missing values.",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "description": "Single value applied to every column.",
+          "examples": [0, ""]
+        },
+        "columns": {
+          "type": "object",
+          "description": "Replacement value per column. Takes precedence over 'value'.",
+          "additionalProperties": true,
+          "examples": [{ "amount": 0, "country": "unknown" }]
+        }
+      }
+    },
+
+    "opTrim": {
+      "type": "object",
+      "description": "Strip leading and trailing whitespace.",
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Columns to trim. Defaults to every text column."
+        }
+      }
+    },
+
+    "opClean": {
+      "type": "object",
+      "description": "Clean text columns: collapse whitespace and normalise case.",
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Columns to clean. Defaults to every text column."
+        },
+        "case": {
+          "type": "string",
+          "enum": ["none", "lower", "upper"],
+          "default": "none",
+          "description": "Case normalisation applied after whitespace cleanup."
+        }
+      }
+    },
+
+    "opAggregate": {
+      "type": "object",
+      "description": "Group rows and compute aggregates. Columns absent from both 'by' and 'agg' are dropped from the result.",
+      "required": ["by", "agg"],
+      "additionalProperties": false,
+      "properties": {
+        "by": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Grouping columns.",
+          "examples": [["region"], ["region", "product_id"]]
+        },
+        "agg": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Mapping of output_column: {func, col}.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["func", "col"],
+            "additionalProperties": false,
+            "properties": {
+              "func": {
+                "type": "string",
+                "enum": ["sum", "count", "mean", "avg", "min", "max", "first", "last"],
+                "description": "Aggregate function."
+              },
+              "col": { "type": "string", "minLength": 1, "description": "Source column." }
+            }
+          },
+          "examples": [{ "total": { "func": "sum", "col": "amount" } }]
+        }
+      }
+    },
+
+    "opJoin": {
+      "type": "object",
+      "description": "Join with a second stream. Provide either 'key' (a shared column name) or both 'left_key' and 'right_key'.",
+      "required": ["right"],
+      "anyOf": [{ "required": ["key"] }, { "required": ["left_key", "right_key"] }],
+      "additionalProperties": false,
+      "properties": {
+        "right": { "$ref": "#/definitions/rightSource" },
+        "key": {
+          "allOf": [{ "$ref": "#/definitions/joinKey" }],
+          "description": "Column present on both sides under the same name."
+        },
+        "left_key": {
+          "allOf": [{ "$ref": "#/definitions/joinKey" }],
+          "description": "Column of the current stream, when the names differ."
+        },
+        "right_key": {
+          "allOf": [{ "$ref": "#/definitions/joinKey" }],
+          "description": "Column of the right stream, when the names differ."
+        },
+        "how": {
+          "type": "string",
+          "enum": ["inner", "left", "right", "outer"],
+          "default": "inner",
+          "description": "Join type.",
+          "enumDescriptions": [
+            "inner — only rows present on both sides.",
+            "left — every row of the current stream; right columns are null when unmatched.",
+            "right — every row of the right stream.",
+            "outer — union of both, missing values set to null."
+          ]
+        }
+      }
+    },
+
+    "opMerge": {
+      "type": "object",
+      "description": "Upsert between the current stream and a second stream, matched on a key.",
+      "required": ["right", "key"],
+      "additionalProperties": false,
+      "properties": {
+        "right": { "$ref": "#/definitions/rightSource" },
+        "key": {
+          "allOf": [{ "$ref": "#/definitions/joinKey" }],
+          "description": "Matching key."
+        },
+        "delete_unmatched": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, rows of the current stream absent from the right stream are deleted. Destructive: verify the key before enabling it."
+        }
+      }
+    },
+
+    "opUnion": {
+      "type": "object",
+      "description": "Stack a second stream below the current one. Both must share the same columns.",
+      "required": ["right"],
+      "additionalProperties": false,
+      "properties": {
+        "right": { "$ref": "#/definitions/rightSource" },
+        "distinct": {
+          "type": "boolean",
+          "default": false,
+          "description": "false: UNION ALL, duplicates kept. true: UNION, duplicates removed."
+        }
+      }
+    },
+
+    "opPivot": {
+      "type": "object",
+      "description": "Long to wide: the values of one column become columns.",
+      "required": ["index", "column", "values"],
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Columns kept as rows.",
+          "examples": [["date"]]
+        },
+        "column": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Column whose values become column names.",
+          "examples": ["product"]
+        },
+        "values": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Column supplying the cell values.",
+          "examples": ["amount"]
+        },
+        "aggfunc": {
+          "type": "string",
+          "default": "first",
+          "description": "Function applied when several rows land in the same cell.",
+          "examples": ["first", "sum", "mean", "min", "max", "count"]
+        }
+      }
+    },
+
+    "opUnpivot": {
+      "type": "object",
+      "description": "Wide to long: several columns become variable/value pairs.",
+      "required": ["id_vars"],
+      "additionalProperties": false,
+      "properties": {
+        "id_vars": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Columns kept unchanged.",
+          "examples": [["date"]]
+        },
+        "value_vars": {
+          "allOf": [{ "$ref": "#/definitions/columnList" }],
+          "description": "Columns to unpivot. Defaults to every other column."
+        },
+        "var_name": {
+          "type": "string",
+          "default": "variable",
+          "description": "Name of the column receiving the former column names."
+        },
+        "value_name": {
+          "type": "string",
+          "default": "value",
+          "description": "Name of the column receiving the values."
+        }
+      }
+    },
+
+    "opTranspose": {
+      "type": "object",
+      "description": "Swap rows and columns. Best kept for small volumes.",
+      "additionalProperties": false,
+      "properties": {
+        "index_col": {
+          "type": "string",
+          "description": "Column whose values become the new headers."
+        },
+        "header_name": {
+          "type": "string",
+          "default": "column",
+          "description": "Name of the column receiving the former headers."
+        }
+      }
+    },
+
+    "opScript": {
+      "type": "object",
+      "description": "Custom Python transformation, run in a restricted environment. The inputs/outputs contract is mandatory.",
+      "required": ["outputs", "code"],
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Columns read by the code. Only these are exposed.",
+          "examples": [["price", "quantity"]]
+        },
+        "outputs": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Columns produced and their type. The code must assign every one of them.",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["int", "float", "str", "bool", "date", "datetime", "any"]
+          },
+          "examples": [{ "total": "float" }]
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["vectorized", "row"],
+          "default": "vectorized",
+          "description": "Execution model.",
+          "enumDescriptions": [
+            "vectorized — columns exposed as pandas.Series. Much faster; prefer this.",
+            "row — executed row by row, each column is a scalar. Readable but slow on large volumes."
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Python code. Use a literal block | for multi-line code.",
+          "examples": ["total = price * quantity"]
+        }
+      }
+    }
+  }
+}

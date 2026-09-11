@@ -5,7 +5,7 @@ Tests schema descriptor, policies, and validation.
 """
 
 import pytest
-from internal.schema import (
+from hydra_etl.internal.schema import (
     SchemaDescriptor,
     FieldDescriptor,
     FieldType,

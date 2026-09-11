@@ -10,9 +10,9 @@ from __future__ import annotations
 import pytest
 import requests_mock as rm_lib
 
-from internal.connector.web_api_connector_v2 import WebAPIConnector
-from plugins.auth_providers import APIKeyAuth
-from plugins.pagination_strategies import OffsetPagination
+from hydra_etl.internal.connector.web_api_connector_v2 import WebAPIConnector
+from hydra_etl.plugins.auth_providers import APIKeyAuth
+from hydra_etl.plugins.pagination_strategies import OffsetPagination
 
 BASE = "https://api.example.com"
 

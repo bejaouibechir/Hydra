@@ -1,0 +1,9 @@
+version: "1.0"
+destinations:
+  dest_large_orders:
+    type: csv
+    connection:
+      base_path: "examples/workshops/01-daily-sales-csv/out"
+    load:
+      table: large_orders.csv
+      mode: replace

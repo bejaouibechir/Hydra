@@ -36,7 +36,7 @@ import pytest
 # PYTHONPATH
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from internal.connector.json_connector import JSONConnector
+from hydra_etl.internal.connector.json_connector import JSONConnector
 
 
 # ============================================================================

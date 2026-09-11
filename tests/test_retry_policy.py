@@ -4,7 +4,7 @@ import pytest
 
 import sys
 
-from  plugins.retry_policies import RetryPolicy
+from hydra_etl.plugins.retry_policies import RetryPolicy
 
 
 # ============================================================

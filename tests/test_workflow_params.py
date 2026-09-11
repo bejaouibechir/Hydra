@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from workflow.models import WorkflowDef, WorkflowStep
-from workflow.runner import WorkflowRunner
+from hydra_etl.workflow.models import WorkflowDef, WorkflowStep
+from hydra_etl.workflow.runner import WorkflowRunner
 
 
 def _wf(*steps: WorkflowStep) -> WorkflowDef:
@@ -163,7 +163,7 @@ class TestJobPropagation:
             captured.update(kwargs)
             return fake_exec
 
-        with patch("internal.runner.executor.JobExecutor", side_effect=factory):
+        with patch("hydra_etl.internal.runner.executor.JobExecutor", side_effect=factory):
             result = runner.run()
 
         assert result.success
@@ -220,7 +220,7 @@ class TestJobPrecheck:
 
     def test_placeholder_source_passes_precheck(self, tmp_path):
         j = self._mk_job(tmp_path, "{{ param:src }}", "out.csv")
-        from workflow.runner import WorkflowRunner as WR
+        from hydra_etl.workflow.runner import WorkflowRunner as WR
         # le precheck ne doit PAS lever pour un placeholder non vide
         WR._precheck_job_configured(j, "j")
 

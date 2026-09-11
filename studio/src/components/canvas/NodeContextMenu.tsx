@@ -6,7 +6,7 @@
  *   Execute step   (Space) → run jusqu'à ce step
  *   Rename         (R)  → focus sur le champ stepName du panel
  *   Deactivate/Activate (D) → toggle enabled
- *   Ajouter au conteneur / Retirer du conteneur (sous-menu si plusieurs conteneurs)
+ *   Add to container / Remove from container (submenu if several containers)
  *   ─────────────────────────
  *   Delete         (Del) → supprime le nœud
  */
@@ -97,7 +97,7 @@ export default function NodeContextMenu({
     if (parentId && onDetachFromContainer) {
       containerItems.push({
         icon: LogOut,
-        label: 'Retirer du conteneur',
+        label: 'Remove from container',
         dividerBefore: true,
         action: () => { onDetachFromContainer(menu.nodeId); onClose() },
       })
@@ -106,14 +106,14 @@ export default function NodeContextMenu({
         const c = containers[0]
         containerItems.push({
           icon: Boxes,
-          label: 'Ajouter au conteneur',
+          label: 'Add to container',
           dividerBefore: true,
           action: () => { onAttachToContainer(menu.nodeId, c.id); onClose() },
         })
       } else {
         containerItems.push({
           icon: Boxes,
-          label: 'Ajouter au conteneur',
+          label: 'Add to container',
           dividerBefore: true,
           submenu: containers.map(c => ({
             label: c.label,

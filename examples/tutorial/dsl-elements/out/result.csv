@@ -1,0 +1,7 @@
+order_id,customer_id,product_id,quantity,amount,status,order_date
+O1011,C006,P05,8,58.0,paid,2025-02-14
+O1012,C007,P02,3,72.0,paid,2025-02-17
+O1017,C002,P04,5,60.0,paid,2025-03-09
+O1019,C005,P03,2,79.8,paid,2025-03-16
+O1020,C007,P01,12,54.0,paid,2025-03-20
+O1022,C002,P06,3,54.0,refunded,2025-03-27

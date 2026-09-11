@@ -1,0 +1,346 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/sources-v1.json",
+  "title": "Hydra — sources.yaml",
+  "description": "Data sources declared for a Hydra job.",
+  "type": "object",
+  "required": ["sources"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Hydra DSL version.",
+      "default": "1.0",
+      "examples": ["1.0"]
+    },
+    "sources": {
+      "type": "object",
+      "description": "Sources keyed by identifier. The identifier is what pipeline.yaml refers to in its 'from' field.",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/definitions/sourceDefinition" }
+    }
+  },
+  "definitions": {
+    "sourceDefinition": {
+      "type": "object",
+      "required": ["type", "extract"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/definitions/connectorType" },
+        "connection": {
+          "type": "object",
+          "description": "Connection settings. Values may reference an environment variable using the ${ENV:VARIABLE_NAME} syntax.",
+          "additionalProperties": true
+        },
+        "extract": { "$ref": "#/definitions/extractConfig" },
+        "schema": { "$ref": "#/definitions/schemaConfig" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "enum": ["mysql", "mariadb", "postgresql", "postgres"] } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": { "connection": { "$ref": "#/definitions/sqlConnection" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "mongodb" } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": { "connection": { "$ref": "#/definitions/mongoConnection" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "web_api" } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": { "connection": { "$ref": "#/definitions/webApiConnection" } }
+          }
+        }
+      ]
+    },
+
+    "connectorType": {
+      "description": "Connector type. The listed types are those registered in CONNECTOR_REGISTRY; mongodb, parquet and web_api require their optional dependencies.",
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "csv",
+            "json",
+            "parquet",
+            "mysql",
+            "mariadb",
+            "postgresql",
+            "postgres",
+            "mongodb",
+            "web_api"
+          ],
+          "enumDescriptions": [
+            "CSV file — 'extract.table' holds the file path.",
+            "JSON file — 'extract.table' holds the file path.",
+            "Parquet file (optional dependency: pyarrow).",
+            "MySQL database.",
+            "MariaDB database (same connector as MySQL).",
+            "PostgreSQL database.",
+            "Alias for postgresql.",
+            "MongoDB database (optional dependency: pymongo).",
+            "Paginated HTTP API (optional dependency: requests)."
+          ]
+        },
+        {
+          "type": "string",
+          "description": "Connector supplied by a plugin (plugins/connectors directory)."
+        }
+      ]
+    },
+
+    "sqlConnection": {
+      "type": "object",
+      "description": "SQL database connection.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Server host.",
+          "examples": ["localhost", "${ENV:DB_HOST}"]
+        },
+        "port": {
+          "anyOf": [{ "type": "integer" }, { "type": "string" }],
+          "description": "Server port. MySQL/MariaDB: 3306. PostgreSQL: 5432.",
+          "examples": [3306, 5432, "${ENV:DB_PORT}"]
+        },
+        "database": {
+          "type": "string",
+          "description": "Database name.",
+          "examples": ["${ENV:DB_NAME}"]
+        },
+        "user": {
+          "type": "string",
+          "description": "Database user.",
+          "examples": ["${ENV:DB_USER}"]
+        },
+        "password": {
+          "type": "string",
+          "description": "Password. Never write it in plain text: use ${ENV:DB_PASS} together with an untracked .env file.",
+          "examples": ["${ENV:DB_PASS}"]
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "mongoConnection": {
+      "type": "object",
+      "description": "MongoDB connection.",
+      "properties": {
+        "host": { "type": "string", "examples": ["${ENV:MONGO_HOST}"] },
+        "port": {
+          "anyOf": [{ "type": "integer" }, { "type": "string" }],
+          "default": 27017,
+          "examples": [27017]
+        },
+        "database": { "type": "string", "examples": ["${ENV:MONGO_DB}"] },
+        "collection": {
+          "type": "string",
+          "description": "Default collection.",
+          "examples": ["${ENV:MONGO_COLLECTION}"]
+        },
+        "user": { "type": "string" },
+        "password": { "type": "string", "examples": ["${ENV:MONGO_PASS}"] }
+      },
+      "additionalProperties": true
+    },
+
+    "webApiConnection": {
+      "type": "object",
+      "description": "HTTP API connection.",
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": "API root. The endpoint path goes in extract.table.",
+          "examples": ["https://api.example.com", "${ENV:API_BASE_URL}"]
+        },
+        "auth": {
+          "type": "object",
+          "description": "Authentication settings.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["bearer", "basic", "api_key", "none"],
+              "description": "Authentication scheme."
+            },
+            "token": { "type": "string", "examples": ["${ENV:API_TOKEN}"] },
+            "user": { "type": "string" },
+            "password": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "pagination": {
+          "type": "object",
+          "description": "Pagination strategy.",
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "enum": ["cursor", "offset", "page", "none"],
+              "description": "cursor: follows a cursor field. offset/page: increments a query parameter."
+            },
+            "cursor_field": {
+              "type": "string",
+              "description": "Response field holding the next cursor.",
+              "examples": ["next_cursor"]
+            },
+            "page_size": { "type": "integer", "minimum": 1, "examples": [100] }
+          },
+          "additionalProperties": true
+        },
+        "headers": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
+    },
+
+    "extractConfig": {
+      "type": "object",
+      "description": "What to read from the source. At least one of 'table', 'query' or 'collection' is required.",
+      "anyOf": [
+        { "required": ["table"] },
+        { "required": ["query"] },
+        { "required": ["collection"] }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Table to read. For file connectors (csv, json, parquet): the file path, relative to the job directory. For web_api: the endpoint path.",
+          "examples": ["orders", "data/input.csv", "/v1/records"]
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "description": "SQL query to run, as an alternative to 'table'. Use a literal block | for multi-line queries.",
+          "examples": ["SELECT id, name FROM orders WHERE status = 'paid'"]
+        },
+        "collection": {
+          "type": "string",
+          "minLength": 1,
+          "description": "MongoDB collection to read."
+        },
+        "filter": {
+          "type": "object",
+          "description": "MongoDB filter applied while reading.",
+          "additionalProperties": true,
+          "examples": [{ "status": "active" }]
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of rows to read. Useful to smoke-test a job before a full run."
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 10,
+          "default": 10000,
+          "description": "Rows read per batch. Minimum 10. Lower it under memory pressure, raise it to speed up large volumes.",
+          "examples": [1000, 10000, 50000]
+        }
+      }
+    },
+
+    "schemaConfig": {
+      "type": "object",
+      "description": "Schema handling for sources without a fixed schema (MongoDB, JSON, HTTP APIs).",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["auto", "manual", "infer_strict", "hybrid"],
+          "default": "auto",
+          "description": "How the schema is determined.",
+          "enumDescriptions": [
+            "auto — inferred from a sample of documents.",
+            "manual — only the declared fields are read.",
+            "infer_strict — inferred once, then frozen.",
+            "hybrid — declared fields plus inference for the rest."
+          ]
+        },
+        "fields": {
+          "type": "array",
+          "description": "Explicitly declared fields. Required in manual mode.",
+          "items": { "$ref": "#/definitions/schemaField" }
+        },
+        "drift_policy": {
+          "type": "string",
+          "enum": ["fail", "warn", "ignore", "adapt"],
+          "default": "warn",
+          "description": "What to do when the observed schema differs from the expected one. In production prefer 'fail', so incomplete data is never loaded silently.",
+          "enumDescriptions": [
+            "fail — stop the job.",
+            "warn — log a warning and continue.",
+            "ignore — say nothing and continue.",
+            "adapt — accept the new schema."
+          ]
+        },
+        "validation_policy": {
+          "type": "string",
+          "enum": ["strict", "best_effort", "permissive"],
+          "default": "best_effort",
+          "description": "How non-conforming rows are handled.",
+          "enumDescriptions": [
+            "strict — any non-conforming row fails the job.",
+            "best_effort — convert where possible.",
+            "permissive — no checking at all."
+          ]
+        },
+        "sample_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100,
+          "description": "Number of documents sampled to infer the schema. Raise it when documents are heterogeneous."
+        }
+      }
+    },
+
+    "schemaField": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "description": "Name of the resulting column." },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target type of the field.",
+          "examples": ["int", "float", "str", "bool", "date", "datetime"]
+        },
+        "path": {
+          "type": "string",
+          "description": "Access path inside a nested document, in dotted notation.",
+          "examples": ["customer.address.city"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, a missing field is handled according to validation_policy."
+        },
+        "default": { "description": "Value used when the field is absent." },
+        "array_handling": {
+          "type": "string",
+          "enum": ["keep", "flatten", "explode", "json"],
+          "description": "How array values are handled.",
+          "enumDescriptions": [
+            "keep — keep the list as-is.",
+            "flatten — spread into indexed columns.",
+            "explode — one row per element.",
+            "json — serialise to a JSON string."
+          ]
+        },
+        "description": { "type": "string", "description": "Free-form documentation for the field." }
+      }
+    }
+  }
+}

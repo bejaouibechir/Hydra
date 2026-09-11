@@ -1,0 +1,9 @@
+version: "1.0"
+sources:
+  src_orders:
+    type: csv
+    connection:
+      base_path: "data/canonical"
+    extract:
+      table: orders.csv
+      batch_size: 10000

@@ -1,0 +1,8 @@
+order_id,customer,city,amount,status,order_date
+A-1001,Alice Martin,Paris,120.50,paid,2025-03-04
+A-1002,Bob Dupont,Lyon,45.00,pending,2025-03-04
+A-1003,Chloe Ruiz,Madrid,310.75,paid,2025-03-04
+A-1004,Driss Benali,Marseille,18.20,refunded,2025-03-04
+A-1005,Emma Gomez,Barcelona,95.00,paid,2025-03-04
+A-1006,Farid Ziani,Nantes,260.00,paid,2025-03-04
+A-1007,Greta Muller,Berlin,72.40,pending,2025-03-04

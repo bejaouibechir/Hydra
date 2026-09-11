@@ -16,14 +16,14 @@ from __future__ import annotations
 import pytest
 from unittest.mock import Mock
 
-from internal.connector.registry import (
+from hydra_etl.internal.connector.registry import (
     build_connector,
     CONNECTOR_REGISTRY,
     _build_csv_connector,
     _build_db_connector,
 )
-from internal.connector.csv_connector import CSVConnector
-from internal.connector.mysql_mariadb_connector import MySQLMariaDBConnector
+from hydra_etl.internal.connector.csv_connector import CSVConnector
+from hydra_etl.internal.connector.mysql_mariadb_connector import MySQLMariaDBConnector
 
 
 # ============================================================
@@ -186,7 +186,7 @@ def test_registry_extensibility_one_line():
     Valide qu'ajouter un nouveau type de connecteur ne nécessite
     aucune modification de build_connector() ou de logique dispatch.
     """
-    from internal.connector.interface import Connector
+    from hydra_etl.internal.connector.interface import Connector
     
     # Mock PostgreSQL Connector
     class MockPostgreSQLConnector(Connector):

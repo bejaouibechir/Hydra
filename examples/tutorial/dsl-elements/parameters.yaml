@@ -1,0 +1,5 @@
+parameters:
+  MIN_AMOUNT:
+    type: float
+    default: 50
+    description: Minimum order amount retained by the documentation example.

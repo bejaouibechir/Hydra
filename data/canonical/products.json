@@ -1,0 +1,38 @@
+[
+  {
+    "product_id": "P01",
+    "product_name": "Carnet A5",
+    "category": "books",
+    "unit_price": "4.50"
+  },
+  {
+    "product_id": "P02",
+    "product_name": "Stylo plume",
+    "category": "tools",
+    "unit_price": "24.00"
+  },
+  {
+    "product_id": "P03",
+    "product_name": "Atlas illustre",
+    "category": "books",
+    "unit_price": "39.90"
+  },
+  {
+    "product_id": "P04",
+    "product_name": "Cube en bois",
+    "category": "toys",
+    "unit_price": "12.00"
+  },
+  {
+    "product_id": "P05",
+    "product_name": "Regle metal",
+    "category": "tools",
+    "unit_price": "7.25"
+  },
+  {
+    "product_id": "P06",
+    "product_name": "Guide du papier",
+    "category": null,
+    "unit_price": "18.00"
+  }
+]

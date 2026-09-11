@@ -18,15 +18,15 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from cli.hdrctl import cli
-from workflow.models import (
+from hydra_etl.cli.hdrctl import cli
+from hydra_etl.workflow.models import (
     Trigger,
     WorkflowDef,
     WorkflowResult,
     WorkflowStep,
 )
-from workflow.parser import load_workflow, validate_workflow
-from workflow.runner import WorkflowRunner
+from hydra_etl.workflow.parser import load_workflow, validate_workflow
+from hydra_etl.workflow.runner import WorkflowRunner
 
 
 # ─────────────────────────────────────────────────────────────────────────────

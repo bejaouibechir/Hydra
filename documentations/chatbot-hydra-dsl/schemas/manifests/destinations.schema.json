@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "DestinationDefinition": {
+      "description": "Définition d'une destination.\n\nExemples de type:\n- mysql\n- mariadb\n- csv\n- postgresql (futur)",
+      "properties": {
+        "connection": {
+          "additionalProperties": true,
+          "title": "Connection",
+          "type": "object"
+        },
+        "load": {
+          "$ref": "#/$defs/LoadConfig"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "load"
+      ],
+      "title": "DestinationDefinition",
+      "type": "object"
+    },
+    "LoadConfig": {
+      "description": "Configuration de chargement (section load dans destinations.yaml).\n\nChamps:\n- table: Nom de la table/fichier cible\n- mode: Mode de chargement (append|replace|upsert)\n- key: Colonnes clé (obligatoire si mode=upsert)\n- batch_size: Taille des batchs (défaut: 10 000)\n\nValidation stricte:\n- mode upsert → key obligatoire et non vide\n- key peut être clé simple [id] ou composite [region, product_id]\n\nExemples:\n    # Append simple\n    load:\n      table: orders\n      mode: append\n    \n    # Upsert clé simple\n    load:\n      table: users\n      mode: upsert\n      key: [id]\n    \n    # Upsert clé composite\n    load:\n      table: sales\n      mode: upsert\n      key: [region, product_id]",
+      "properties": {
+        "batch_size": {
+          "default": 10000,
+          "maximum": 100000,
+          "minimum": 10,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "collection": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Collection"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Key"
+        },
+        "mode": {
+          "$ref": "#/$defs/LoadMode",
+          "default": "append"
+        },
+        "table": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table"
+        }
+      },
+      "title": "LoadConfig",
+      "type": "object"
+    },
+    "LoadMode": {
+      "description": "Modes de chargement supportés.\n\n- append: Ajoute les données (INSERT)\n- replace: Efface puis insère (TRUNCATE + INSERT)\n- upsert: Insert ou update si clé existe (INSERT ... ON DUPLICATE KEY UPDATE)",
+      "enum": [
+        "append",
+        "replace",
+        "upsert"
+      ],
+      "title": "LoadMode",
+      "type": "string"
+    }
+  },
+  "$id": "https://hydra.local/schemas/0.9.6/manifests/destinations.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Racine du fichier destinations.yaml.\n\nExemple:\n    destinations:\n      dest_dwh:\n        type: mysql\n        connection: {...}\n        load:\n          table: orders\n          mode: upsert\n          key: [id]",
+  "properties": {
+    "destinations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DestinationDefinition"
+      },
+      "minProperties": 1,
+      "title": "Destinations",
+      "type": "object"
+    }
+  },
+  "required": [
+    "destinations"
+  ],
+  "title": "DestinationsConfig",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "destinations",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "manifest",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.destination.DestinationsConfig"
+  }
+}

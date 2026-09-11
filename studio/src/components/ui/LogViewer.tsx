@@ -233,10 +233,10 @@ export default function LogViewer({ lines, maxHeight = 320, title }: Props) {
             padding: 18, width: 380, boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
           }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#c9d1d9', marginBottom: 10 }}>
-              Sauvegarder les logs
+              Save logs
             </div>
             <label style={{ display: 'block', fontSize: 11, color: '#8b949e', marginBottom: 4 }}>
-              Nom du fichier
+              File name
             </label>
             <input
               autoFocus
@@ -253,11 +253,11 @@ export default function LogViewer({ lines, maxHeight = 320, title }: Props) {
               <button onClick={() => setSaveDialog(false)} style={{
                 background: 'transparent', border: '1px solid #30363d', borderRadius: 6,
                 padding: '5px 12px', color: '#8b949e', fontSize: 12, cursor: 'pointer',
-              }}>Annuler</button>
+              }}>Cancel</button>
               <button onClick={confirmSave} style={{
                 background: '#238636', border: '1px solid #2ea043', borderRadius: 6,
                 padding: '5px 14px', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              }}>Sauvegarder</button>
+              }}>Save</button>
             </div>
           </div>
         </div>

@@ -1,0 +1,43 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/pivot.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Long -> large (pandas pivot_table).",
+  "properties": {
+    "aggfunc": {
+      "default": "first",
+      "title": "Aggfunc",
+      "type": "string"
+    },
+    "column": {
+      "title": "Column",
+      "type": "string"
+    },
+    "index": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Index",
+      "type": "array"
+    },
+    "values": {
+      "title": "Values",
+      "type": "string"
+    }
+  },
+  "required": [
+    "index",
+    "column",
+    "values"
+  ],
+  "title": "PivotOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "pivot",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.PivotOp"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/clean.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Nettoie les colonnes texte : espaces (trim + multiples) + casse.",
+  "properties": {
+    "case": {
+      "default": "none",
+      "title": "Case",
+      "type": "string"
+    },
+    "columns": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Columns"
+    }
+  },
+  "title": "CleanOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "clean",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.CleanOp"
+  }
+}

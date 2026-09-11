@@ -27,11 +27,11 @@ const DEST_MODES = ['replace', 'append']
 
 const TRANSFORM_OPS = [
   { op: 'filter',  label: 'Filter',  hint: 'Expression Pandas ex: age > 18' },
-  { op: 'select',  label: 'Select',  hint: 'Colonnes à garder ex: id, nom, email' },
-  { op: 'rename',  label: 'Rename',  hint: 'JSON {"ancien": "nouveau"}' },
-  { op: 'cast',    label: 'Cast',    hint: 'JSON {"prix": "float", "qté": "int"}' },
-  { op: 'derive',  label: 'Derive',  hint: 'Nouvelle colonne calculée' },
-  { op: 'sort',    label: 'Sort',    hint: 'Colonnes pour trier ex: nom, age' },
+  { op: 'select',  label: 'Select',  hint: 'Columns to keep, e.g. id, name, email' },
+  { op: 'rename',  label: 'Rename',  hint: 'JSON {"old": "new"}' },
+  { op: 'cast',    label: 'Cast',    hint: 'JSON {"price": "float", "quantity": "int"}' },
+  { op: 'derive',  label: 'Derive',  hint: 'New calculated column' },
+  { op: 'sort',    label: 'Sort',    hint: 'Columns to sort by, e.g. name, age' },
 ]
 
 // ── Helpers styles ────────────────────────────────────────────────────────────
@@ -106,10 +106,10 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
   // ── Soumission ─────────────────────────────────────────────────────────────
 
   const handleCreate = useCallback(async () => {
-    if (!jobName.trim())   { setError('Nom du job requis'); return }
-    if (!baseDir.trim())   { setError('Répertoire de base requis'); return }
-    if (!srcPath.trim())   { setError('Chemin source requis'); return }
-    if (!destPath.trim())  { setError('Chemin destination requis'); return }
+    if (!jobName.trim())   { setError('Job name is required'); return }
+    if (!baseDir.trim())   { setError('Base directory is required'); return }
+    if (!srcPath.trim())   { setError('Source path is required'); return }
+    if (!destPath.trim())  { setError('Destination path is required'); return }
 
     setLoading(true); setError(null)
 
@@ -133,7 +133,7 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
 
       onCreated(res.job_path)
     } catch (e: any) {
-      setError(e?.message ?? 'Erreur lors de la création')
+      setError(e?.message ?? 'An error occurred while creating the job')
     } finally {
       setLoading(false)
     }
@@ -169,9 +169,9 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
       case 'derive':
         return (
           <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
-            <input style={{ ...input, marginTop: 0, width: '35%' }} placeholder="nom colonne"
+            <input style={{ ...input, marginTop: 0, width: '35%' }} placeholder="column name"
               value={t.params.column ?? ''} onChange={e => updateTransformParam(t.id, 'column', e.target.value)} />
-            <input style={{ ...input, marginTop: 0, flex: 1 }} placeholder="prix * qté"
+            <input style={{ ...input, marginTop: 0, flex: 1 }} placeholder="price * quantity"
               value={t.params.expr ?? ''} onChange={e => updateTransformParam(t.id, 'expr', e.target.value)} />
           </div>
         )
@@ -198,16 +198,16 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
     <div>
       {/* Job identity */}
       <div style={section}>
-        <p style={{ ...label12, marginBottom: 10 }}>Identité du job</p>
+        <p style={{ ...label12, marginBottom: 10 }}>Job identity</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 8 }}>
           <label>
-            <span style={label12}>Nom <span style={{ color: 'var(--error)' }}>*</span></span>
+            <span style={label12}>Name <span style={{ color: 'var(--error)' }}>*</span></span>
             <input style={input} placeholder="preparer_sources"
               value={jobName} onChange={e => setJobName(e.target.value.replace(/\s+/g, '_'))} />
           </label>
           <label>
-            <span style={label12}>Répertoire de base <span style={{ color: 'var(--error)' }}>*</span></span>
-            <input style={input} placeholder="D:\monprojet\jobs"
+            <span style={label12}>Base directory <span style={{ color: 'var(--error)' }}>*</span></span>
+            <input style={input} placeholder="D:\my-project\jobs"
               value={baseDir} onChange={e => setBaseDir(e.target.value)} />
           </label>
         </div>
@@ -224,8 +224,8 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
             </select>
           </label>
           <label>
-            <span style={label12}>Chemin fichier <span style={{ color: 'var(--error)' }}>*</span></span>
-            <input style={input} placeholder="D:\monprojet\data\input\fichier.csv"
+            <span style={label12}>File path <span style={{ color: 'var(--error)' }}>*</span></span>
+            <input style={input} placeholder="D:\my-project\data\input\file.csv"
               value={srcPath} onChange={e => setSrcPath(e.target.value)} />
           </label>
         </div>
@@ -239,13 +239,13 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
             style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600,
               background: 'var(--primary-subtle)', color: 'var(--primary)', border: 'none',
               borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
-            <Plus size={12} /> Ajouter
+            <Plus size={12} /> Add
           </button>
         </div>
 
         {transforms.length === 0 && (
           <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
-            Aucune transformation — les données passent telles quelles.
+            No transformations — data passes through unchanged.
           </p>
         )}
 
@@ -287,8 +287,8 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
             </select>
           </label>
           <label>
-            <span style={label12}>Chemin fichier <span style={{ color: 'var(--error)' }}>*</span></span>
-            <input style={input} placeholder="D:\monprojet\data\output\result.csv"
+            <span style={label12}>File path <span style={{ color: 'var(--error)' }}>*</span></span>
+            <input style={input} placeholder="D:\my-project\data\output\result.csv"
               value={destPath} onChange={e => setDestPath(e.target.value)} />
           </label>
           <label>
@@ -319,8 +319,8 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
             border: 'none', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
         >
           {loading
-            ? <><Loader2 size={14} className="animate-spin" /> Création…</>
-            : <><CheckCircle2 size={14} /> Créer le job</>}
+            ? <><Loader2 size={14} className="animate-spin" /> Creating…</>
+            : <><CheckCircle2 size={14} /> Create job</>}
         </button>
         <button
           onClick={onCancel}
@@ -328,7 +328,7 @@ export default function JobCreatorWizard({ defaultJobName = '', onCreated, onCan
             background: 'var(--bg-hover)', color: 'var(--text-secondary)',
             border: '1px solid var(--bg-border)', cursor: 'pointer' }}
         >
-          Annuler
+          Cancel
         </button>
       </div>
     </div>

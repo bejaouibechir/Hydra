@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ===============================
+# Clés privées / certificats — ne JAMAIS committer
+# ===============================
+*.pem
+*.key
+*.p12
+*.pfx
+*.pkcs12
+id_rsa
+id_ed25519

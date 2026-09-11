@@ -247,7 +247,7 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
     debounceRef.current = setTimeout(() => {
       try {
         const model = sectionYamlsToJobModel(next, meta.name || 'my_job')
-        if (!model) throw new Error('Structure invalide')
+        if (!model) throw new Error('Invalid structure')
         const { nodes: n, edges: e } = jobModelToFlow(model)
         onApply(n, e)
         setTabErrors(prev => { const p = { ...prev }; delete p[tab]; return p })
@@ -284,7 +284,7 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
     debounceRef.current = setTimeout(() => {
       try {
         const wf = parseWorkflowYAML(value)
-        if (!wf) throw new Error('Structure YAML invalide')
+        if (!wf) throw new Error('Invalid YAML structure')
         const { nodes: n, edges: e } = workflowToFlow(wf)
         onApply(n as Node<FlowNodeData>[], e)
         setStatus('synced'); setErrorMsg(null)
@@ -345,7 +345,7 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
       {/* ── Resize handle (pill élégant, cohérent avec Output panel) ── */}
       <div
         onMouseDown={handleResizeDown}
-        title="Glisser pour redimensionner"
+        title="Drag to resize"
         style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: 6,
           cursor: 'col-resize', zIndex: 20,
@@ -458,5 +458,3 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
     </div>
   )
 }
-
-

@@ -10,6 +10,7 @@ import Spinner from '@/components/ui/Spinner'
 import Modal from '@/components/ui/Modal'
 import * as yaml from 'js-yaml'
 import { sectionYamlsToJobModel, jobModelToFlow, type JobSectionYamls } from '@/lib/hdrSerializer'
+import { buildWorkflowLayout, type ImportStep } from '@/lib/workflowImport'
 
 function CreateWorkflowModal({ projectId, open, onClose }: { projectId: string; open: boolean; onClose: () => void }) {
   const qc = useQueryClient()
@@ -60,6 +61,65 @@ function CreateWorkflowModal({ projectId, open, onClose }: { projectId: string; 
   )
 }
 
+function TriggerEditor({ wf, projectId }: { wf: Workflow; projectId: string }) {
+  const qc = useQueryClient()
+  const [type, setType] = useState<'manual' | 'schedule' | 'webhook'>(
+    (wf.trigger_type as 'manual' | 'schedule' | 'webhook') ?? 'manual')
+  const [cron, setCron] = useState(wf.cron ?? '0 8 * * *')
+
+  const mut = useMutation({
+    mutationFn: (patch: { trigger_type: string; cron?: string }) =>
+      api.workflows.update(wf.id, projectId, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflows', projectId] }),
+  })
+  const apply = (t: string, c: string) =>
+    mut.mutate({ trigger_type: t, cron: t === 'schedule' ? c : undefined })
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <label className="text-xs shrink-0" style={{ color: 'var(--text-secondary)' }}>Trigger</label>
+        <select
+          className="input !py-1 text-xs flex-1"
+          value={type}
+          onChange={e => { const t = e.target.value as typeof type; setType(t); apply(t, cron) }}
+        >
+          <option value="manual">Manual</option>
+          <option value="schedule">Schedule (cron)</option>
+          <option value="webhook">Webhook</option>
+        </select>
+        {mut.isPending && <Spinner size="sm" />}
+      </div>
+      {type === 'schedule' && (
+        <>
+          <input
+            className="input !py-1 text-xs font-mono"
+            value={cron}
+            placeholder="0 8 * * *"
+            onChange={e => setCron(e.target.value)}
+            onBlur={() => apply('schedule', cron)}
+            onKeyDown={e => { if (e.key === 'Enter') apply('schedule', cron) }}
+          />
+          <a
+            href="http://127.0.0.1:5678/api/workflows/scheduled/list"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs"
+            style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
+            title="Opens the list of scheduled jobs with their next run time"
+          >
+            Next run time → /api/workflows/scheduled/list
+          </a>
+        </>
+      )}
+      {mut.isError && (
+        <span className="text-xs" style={{ color: 'var(--error)' }}>{(mut.error as Error).message}</span>
+      )}
+    </div>
+  )
+}
+
+
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>()
   const qc = useQueryClient()
@@ -67,10 +127,6 @@ export default function ProjectDetail() {
   const [showCreate, setShowCreate] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
-
-  // ── Types inline pour le layout React Flow (évite la dépendance @xyflow/react ici) ──
-  type FlowNode = { id: string; type: string; position: { x: number; y: number }; data: Record<string, unknown> }
-  type FlowEdge = { id: string; source: string; target: string; type: string }
 
   const importMut = useMutation({
     mutationFn: async (files: File[]) => {
@@ -81,7 +137,7 @@ export default function ProjectDetail() {
         const parts = rel.split('/')
         return parts.length === 2 && parts[1].toLowerCase() === 'workflow.yaml'
       })
-      if (!wfFile) throw new Error('workflow.yaml introuvable à la racine du dossier sélectionné.')
+      if (!wfFile) throw new Error('workflow.yaml was not found at the root of the selected folder.')
 
       const wfText = await wfFile.text()
       const parsed = yaml.load(wfText) as any
@@ -102,19 +158,17 @@ export default function ProjectDetail() {
         fileIndex.set(rel.toLowerCase(), f)
       }
 
-      // 3. Traiter les steps de type job
-      const stepNameToJobId = new Map<string, string>()
-      const jobCanvases: Record<string, { nodes: any[]; edges: any[] }> = {}
-      const jobNamesMap: Record<string, string> = {}
+      // 3. Layout du canvas workflow — TOUS les steps, jobs et actions.
+      //    La construction est isolée dans lib/workflowImport.ts pour être
+      //    testable seule.
+      const {
+        nodes: wfNodes,
+        edges: wfEdges,
+        stepNameToJobId,
+        jobNames: jobNamesMap,
+      } = buildWorkflowLayout(steps as ImportStep[])
 
-      // Assigner des IDs stables (timestamp + index)
-      let idx = 0
-      for (const step of steps) {
-        if (step.type !== 'job') continue
-        const jobId = `job_${Date.now()}_${idx++}`
-        stepNameToJobId.set(step.name, jobId)
-        jobNamesMap[jobId] = step.name
-      }
+      const jobCanvases: Record<string, { nodes: any[]; edges: any[] }> = {}
 
       // Parser les YAML de chaque job
       for (const step of steps) {
@@ -154,82 +208,6 @@ export default function ProjectDetail() {
         } catch { jobCanvases[jobId] = { nodes: [], edges: [] } }
       }
 
-      // 4. Construire le layout Scene 2 (DAG)
-      // Calcul des profondeurs par BFS
-      const depthMap = new Map<string, number>()
-      for (const step of steps) {
-        if (step.type !== 'job') continue
-        const jobId = stepNameToJobId.get(step.name)!
-        const deps: string[] = Array.isArray(step.depends_on)
-          ? step.depends_on
-          : step.depends_on ? [step.depends_on] : []
-        if (deps.length === 0) depthMap.set(jobId, 0)
-      }
-      let changed = true
-      while (changed) {
-        changed = false
-        for (const step of steps) {
-          if (step.type !== 'job') continue
-          const jobId = stepNameToJobId.get(step.name)!
-          const deps: string[] = Array.isArray(step.depends_on)
-            ? step.depends_on
-            : step.depends_on ? [step.depends_on] : []
-          if (deps.length > 0) {
-            const parentDs = deps.map(d => depthMap.get(stepNameToJobId.get(d) ?? '') ?? -1)
-            if (parentDs.every(d => d >= 0)) {
-              const newD = Math.max(...parentDs) + 1
-              if (depthMap.get(jobId) !== newD) { depthMap.set(jobId, newD); changed = true }
-            }
-          }
-        }
-      }
-      // Profondeur par défaut 0 pour les non-résolus
-      for (const [stepName] of stepNameToJobId) {
-        const jobId = stepNameToJobId.get(stepName)!
-        if (!depthMap.has(jobId)) depthMap.set(jobId, 0)
-      }
-
-      // Positionner les nœuds par niveau de profondeur
-      const byDepth = new Map<number, string[]>()
-      for (const [jobId, d] of depthMap) {
-        if (!byDepth.has(d)) byDepth.set(d, [])
-        byDepth.get(d)!.push(jobId)
-      }
-      const wfNodes: FlowNode[] = []
-      for (const [depth, jobIds] of byDepth) {
-        const count = jobIds.length
-        jobIds.forEach((jobId, i) => {
-          wfNodes.push({
-            id: jobId,
-            type: 'hydraNode',
-            position: { x: depth * 300 + 100, y: (i - (count - 1) / 2) * 160 + 300 },
-            data: {
-              label: jobNamesMap[jobId],
-              nodeType: 'job',
-              stepName: jobId,
-              jobRef: jobId,
-              onFailure: 'fail',
-              enabled: true,
-            },
-          })
-        })
-      }
-
-      // Edges depuis depends_on
-      const wfEdges: FlowEdge[] = []
-      for (const step of steps) {
-        if (step.type !== 'job') continue
-        const jobId = stepNameToJobId.get(step.name)!
-        const deps: string[] = Array.isArray(step.depends_on)
-          ? step.depends_on
-          : step.depends_on ? [step.depends_on] : []
-        for (const dep of deps) {
-          const srcId = stepNameToJobId.get(dep)
-          if (srcId) {
-            wfEdges.push({ id: `e_${srcId}_${jobId}`, source: srcId, target: jobId, type: 'smoothstep' })
-          }
-        }
-      }
 
       // 5. Créer le workflow via API
       const created = await api.workflows.create({
@@ -286,10 +264,10 @@ export default function ProjectDetail() {
 
   const fmtAgo = (iso: string) => {
     const s = (Date.now() - new Date(iso).getTime()) / 1000
-    if (s < 60) return 'à l\'instant'
-    if (s < 3600) return `il y a ${Math.floor(s / 60)} min`
-    if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`
-    return `il y a ${Math.floor(s / 86400)} j`
+    if (s < 60) return 'just now'
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`
+    if (s < 86400) return `${Math.floor(s / 3600)} hr ago`
+    return `${Math.floor(s / 86400)} days ago`
   }
 
   if (project.isLoading) return <div className="flex justify-center py-20"><Spinner size="lg" /></div>
@@ -305,7 +283,7 @@ export default function ProjectDetail() {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
         <Link to="/overview" className="flex items-center gap-1 hover:opacity-70 transition-opacity">
-          <ChevronLeft size={14} /> Accueil
+          <ChevronLeft size={14} /> Overview
         </Link>
         <span>/</span>
         <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{project.data.name}</span>
@@ -341,10 +319,10 @@ export default function ProjectDetail() {
             mozdirectory=""
           />
           <button className="btn-secondary" onClick={() => importRef.current?.click()} disabled={importMut.isPending}>
-            <Upload size={15} /> {importMut.isPending ? 'Import…' : 'Importer un workflow'}
+            <Upload size={15} /> {importMut.isPending ? 'Importing…' : 'Import workflow'}
           </button>
           <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus size={16} /> Nouveau workflow
+            <Plus size={16} /> New workflow
           </button>
         </div>
         {importError && (
@@ -355,9 +333,9 @@ export default function ProjectDetail() {
       {workflows.isLoading
         ? <div className="flex justify-center py-20"><Spinner size="lg" /></div>
         : workflows.data?.length === 0
-          ? <EmptyState icon={GitBranch} title="Aucun workflow"
-              description="Créez votre premier workflow pour commencer à construire des pipelines ETL."
-              action={<button className="btn-primary" onClick={() => setShowCreate(true)}><Plus size={16} /> Nouveau workflow</button>} />
+          ? <EmptyState icon={GitBranch} title="No workflows"
+              description="Create your first workflow to start building ETL pipelines."
+              action={<button className="btn-primary" onClick={() => setShowCreate(true)}><Plus size={16} /> New workflow</button>} />
           : <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16 }}>
               {workflows.data?.map(wf => {
                 const lastRun  = lastRunFor(wf)
@@ -388,10 +366,10 @@ export default function ProjectDetail() {
                     </div>
                     <button
                       onClick={() => {
-                        if (window.confirm(`Supprimer le workflow « ${wf.name} » ?\nLe fichier workflow.yaml sera supprimé (les jobs restent intacts).`))
+                        if (window.confirm(`Delete workflow “${wf.name}”?\nThe workflow.yaml file will be deleted; jobs will remain unchanged.`))
                           delWf.mutate(wf.id)
                       }}
-                      title="Supprimer le workflow"
+                      title="Delete workflow"
                       className="btn-ghost p-1.5 !gap-0 opacity-0 group-hover:opacity-100"
                       style={{ color: 'var(--error)' }}>
                       <Trash2 size={14} />
@@ -403,21 +381,24 @@ export default function ProjectDetail() {
                     <StatusBadge status={wf.published ? 'published' : 'draft'} />
                     {lastRun ? (
                       <Link to={`/runs/${lastRun.run_id}`} className="flex items-center gap-1.5"
-                        style={{ textDecoration: 'none' }} title="Voir le dernier run">
+                        style={{ textDecoration: 'none' }} title="View latest run">
                         <StatusBadge status={lastRun.status} />
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                           {fmtAgo(lastRun.started_at)}
                         </span>
                       </Link>
                     ) : (
-                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>jamais exécuté</span>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>never run</span>
                     )}
                   </div>
+
+                  {/* Trigger — modifiable après création */}
+                  <TriggerEditor wf={wf} projectId={projectId!} />
 
                   {/* Action : éditeur */}
                   <Link to={`/workflows/${wf.id}?projectId=${projectId}`}
                     className="btn-secondary w-full justify-between text-xs !py-1.5" style={{ marginTop: 'auto' }}>
-                    Ouvrir dans l'éditeur <ArrowRight size={13} />
+                    Open in editor <ArrowRight size={13} />
                   </Link>
                 </div>
               )})}

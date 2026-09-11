@@ -3,7 +3,7 @@
  * React Flow (nodes + edges) ↔ Hydra workflow.yaml structure
  */
 import type { Node, Edge } from '@xyflow/react'
-import { load as yamlLoad } from 'js-yaml'
+import { load as yamlLoad, dump as yamlDump } from 'js-yaml'
 import { topologicalSort, edgesToDAGNodes, validateDAG, computeLevels } from './dag'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -18,6 +18,7 @@ export interface WorkflowStep {
   on_failure?: 'fail' | 'skip' | 'continue'
   enabled?: boolean   // false → step ignoré à l'exécution
   retry?: RetryPolicy  // re-tentatives (via Retry-scope)
+  when?: string        // garde conditionnelle : step exécuté seulement si l'expression est vraie
 }
 
 export interface RetryPolicy {
@@ -48,6 +49,7 @@ export interface FlowNodeData extends Record<string, unknown> {
   onFailure?: WorkflowStep['on_failure']
   enabled?: boolean       // false → nœud désactivé (grisé + ignoré à l'exécution)
   pinned?: boolean        // true → nœud immobilisé sur le canvas (draggable: false)
+  when?: string           // garde conditionnelle 'when' (routage via nœud Condition)
   containerType?: 'sequence' | 'errorscope' | 'retryscope' | 'for' | 'foreach' | 'trycatch' | 'transaction'
                           // présent uniquement sur les nœuds nodeType==='container'
   collapsed?: boolean     // conteneur replié (réservé — collapse post-socle)
@@ -57,8 +59,13 @@ export interface FlowNodeData extends Record<string, unknown> {
 /** Nœud de regroupement visuel (Sequence Container & futurs types).
  *  N'a AUCUNE sémantique d'exécution : exclu du DAG et de la sérialisation YAML. */
 export const CONTAINER_NODE_TYPE = 'container'
-export const isContainerNode = (n: { data?: { nodeType?: unknown } }): boolean =>
-  (n?.data?.nodeType as string) === CONTAINER_NODE_TYPE
+// Accepte undefined/null : les appelants passent souvent un `Map.get()`, dont
+// le type est `N | undefined`. Le corps gere deja ce cas via l'acces optionnel ;
+// seule la signature l'interdisait, ce qui cassait `tsc -b` sans jamais gener
+// `npm run dev` (le serveur de developpement ne verifie pas les types).
+export const isContainerNode = (
+  n: { data?: { nodeType?: unknown } } | null | undefined,
+): boolean => (n?.data?.nodeType as string) === CONTAINER_NODE_TYPE
 
 /** Edge « proxy » d'un conteneur replié — visuel uniquement, jamais sérialisé. */
 export const PROXY_EDGE_PREFIX = '__cproxy__'
@@ -119,7 +126,7 @@ export function flowToWorkflow(
   const dagNodes = edgesToDAGNodes(nodes.map(n => n.id), edges.map(e => ({ source: e.source, target: e.target })))
   const validation = validateDAG(dagNodes)
   if (!validation.valid) {
-    throw new Error(`Workflow invalide : ${validation.errors.join(', ')}`)
+    throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`)
   }
 
   // Ordre d'exécution
@@ -179,6 +186,10 @@ export function flowToWorkflow(
       step.enabled = false
     }
 
+    if (data.when && String(data.when).trim()) {
+      step.when = String(data.when).trim()
+    }
+
     return step
   })
 
@@ -197,56 +208,42 @@ export function flowToWorkflow(
  * Pas de dépendance yaml — génération manuelle suffisante pour notre schema.
  */
 export function workflowToYAMLString(wf: WorkflowYAML): string {
-  const lines: string[] = []
-  lines.push(`version: "${wf.version}"`)
-  lines.push('workflow:')
-  lines.push(`  name: "${wf.workflow.name}"`)
-  lines.push('  trigger:')
-  lines.push(`    type: ${wf.workflow.trigger.type}`)
-  if (wf.workflow.trigger.cron) {
-    lines.push(`    cron: "${wf.workflow.trigger.cron}"`)
-  }
-  if (wf.workflow.steps.length === 0) {
-    lines.push('  steps: []')
-    return lines.join('\n')
-  }
-  lines.push('  steps:')
-  for (const step of wf.workflow.steps) {
-    lines.push(`    - name: "${step.name}"`)
-    lines.push(`      type: ${step.type}`)
-    if (step.job)    lines.push(`      job: "${step.job.replace(/\\/g, '/')}"`)
-    if (step.action) lines.push(`      action: ${step.action}`)
-    if (step.params) {
-      lines.push('      params:')
-      for (const [k, v] of Object.entries(step.params)) {
-        const sv = String(v)
-        if (sv.includes('\n')) {
-          // Valeur multi-lignes (ex. script Python) -> block scalar YAML,
-          // contenu préservé tel quel (pas de mutation des backslashes).
-          lines.push(`        ${k}: |-`)
-          for (const ln of sv.split('\n')) lines.push(`          ${ln}`)
-        } else {
-          lines.push(`        ${k}: "${sv.replace(/\\/g, '/').replace(/"/g, '\\"')}"`)
-        }
-      }
-    }
-    if (step.depends_on?.length) {
-      lines.push(`      depends_on: [${step.depends_on.map(d => `"${d}"`).join(', ')}]`)
-    }
-    if (step.on_failure) {
-      lines.push(`      on_failure: ${step.on_failure}`)
-    }
+  const trigger: Record<string, unknown> = { type: wf.workflow.trigger.type }
+  if (wf.workflow.trigger.cron) trigger.cron = wf.workflow.trigger.cron
+
+  const steps = wf.workflow.steps.map(step => {
+    const s: Record<string, unknown> = { name: step.name, type: step.type }
+    if (step.job)    s.job = step.job.replace(/\\/g, '/')   // chemins job en posix
+    if (step.action) s.action = step.action
+    if (step.params && Object.keys(step.params).length > 0) s.params = step.params
+    if (step.depends_on?.length) s.depends_on = step.depends_on
+    if (step.on_failure) s.on_failure = step.on_failure
     if (step.retry && step.retry.max > 0) {
-      lines.push(`      retry:`)
-      lines.push(`        max: ${step.retry.max}`)
-      if (step.retry.delay) lines.push(`        delay: ${step.retry.delay}`)
-      if (step.retry.backoff && step.retry.backoff !== 'fixed') lines.push(`        backoff: ${step.retry.backoff}`)
+      const r: Record<string, unknown> = { max: step.retry.max }
+      if (step.retry.delay) r.delay = step.retry.delay
+      if (step.retry.backoff && step.retry.backoff !== 'fixed') r.backoff = step.retry.backoff
+      s.retry = r
     }
-    if (step.enabled === false) {
-      lines.push(`      enabled: false`)
-    }
+    if (step.enabled === false) s.enabled = false
+    if (step.when) s.when = step.when
+    return s
+  })
+
+  const doc = {
+    version: wf.version,
+    workflow: { name: wf.workflow.name, trigger, steps },
   }
-  return lines.join('\n')
+
+  // js-yaml : sérialisation TYPÉE et sans perte — nombres, booléens, listes, objets
+  // et block scalars préservés. Remplace l'ancien builder manuel qui coercait tout
+  // en chaîne (String(v) -> "[object Object]") et écrasait les backslashes des valeurs.
+  return yamlDump(doc, {
+    lineWidth: -1,      // pas de repli de ligne (préserve les longues valeurs)
+    noRefs: true,       // pas d'ancres/alias YAML
+    sortKeys: false,    // conserve l'ordre d'insertion
+    quotingType: '"',
+    skipInvalid: true,  // ignore les valeurs undefined plutôt que d'échouer
+  })
 }
 
 // ── YAML string → WorkflowYAML ───────────────────────────────────────────────
@@ -291,6 +288,7 @@ export function parseWorkflowYAML(text: string): WorkflowYAML | null {
         step.on_failure = String(r.on_failure) as WorkflowStep['on_failure']
       }
       if (r.enabled === false) step.enabled = false
+      if (r.when !== undefined && r.when !== null && String(r.when).trim()) step.when = String(r.when)
       if (r.retry && typeof r.retry === 'object') {
         const rt = r.retry as Record<string, unknown>
         const max = Number(rt.max ?? 0)
@@ -381,6 +379,7 @@ export function workflowToFlow(wf: WorkflowYAML): {
         params:    step.params,
         onFailure: step.on_failure,
         enabled:   step.enabled !== false,
+        when:      step.when,
       },
     }
   })
@@ -403,4 +402,3 @@ export function workflowToFlow(wf: WorkflowYAML): {
     meta: { name: wf.workflow.name, triggerType: wf.workflow.trigger.type, cron: wf.workflow.trigger.cron },
   }
 }
-

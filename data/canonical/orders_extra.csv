@@ -1,0 +1,5 @@
+order_id,customer_id,product_id,quantity,amount,status,order_date
+O2001,C002,P01,2,9.00,paid,2025-05-04
+O2002,C005,P02,1,24.00,paid,2025-05-08
+O2003,C007,P03,1,39.90,pending,2025-05-12
+O2004,C001,P05,5,36.25,paid,2025-05-15

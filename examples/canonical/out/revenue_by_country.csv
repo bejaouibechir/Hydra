@@ -1,0 +1,8 @@
+country,status,total,orders
+FR,paid,245.8,5
+ES,paid,211.8,5
+DE,paid,147.75,3
+FR,refunded,93.9,2
+FR,pending,72.0,2
+ES,refunded,29.0,1
+DE,pending,24.0,1

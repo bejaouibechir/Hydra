@@ -8,7 +8,7 @@ import requests
 
 import sys
 
-from plugins.auth_providers import AuthenticationError, APIKeyAuth, BearerTokenAuth, OAuth2InMemoryAuth
+from hydra_etl.plugins.auth_providers import AuthenticationError, APIKeyAuth, BearerTokenAuth, OAuth2InMemoryAuth
 
 
 # ============================================================

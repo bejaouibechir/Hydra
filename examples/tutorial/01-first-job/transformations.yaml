@@ -1,0 +1,10 @@
+version: "1.0"
+transformations:
+  steps:
+    - cast:
+        mapping:
+          amount: float
+    - filter:
+        expr: "amount > 50"
+    - select:
+        columns: [order_id, customer_id, amount, status]

@@ -1,0 +1,27 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/select.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "columns": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Columns",
+      "type": "array"
+    }
+  },
+  "required": [
+    "columns"
+  ],
+  "title": "SelectOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "select",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.SelectOp"
+  }
+}

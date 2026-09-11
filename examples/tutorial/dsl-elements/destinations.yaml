@@ -1,0 +1,10 @@
+version: "1.0"
+destinations:
+  dest_output:
+    type: csv
+    connection:
+      base_path: "examples/tutorial/dsl-elements/out"
+    load:
+      table: result.csv
+      mode: replace
+      batch_size: 10000

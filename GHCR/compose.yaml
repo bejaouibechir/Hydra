@@ -1,0 +1,21 @@
+name: hydra-local
+
+services:
+  hydra:
+    image: hydra:local
+    build:
+      context: ..
+      dockerfile: GHCR/Dockerfile
+    init: true
+    ports:
+      - "${HYDRA_PORT:-5678}:5678"
+    environment:
+      HYDRA_LANG: en
+      HYDRA_WORKSPACE: /workspace
+    volumes:
+      - hydra-workspace:/workspace
+    restart: unless-stopped
+
+volumes:
+  hydra-workspace:
+    name: hydra-local-workspace

@@ -129,7 +129,7 @@ export const ContainerNode = memo(({ id, data, selected }: NodeProps) => {
         >
           <button
             onClick={toggle}
-            title={collapsed ? 'Déplier' : 'Replier'}
+            title={collapsed ? 'Expand' : 'Collapse'}
             className="nodrag"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -156,7 +156,7 @@ export const ContainerNode = memo(({ id, data, selected }: NodeProps) => {
                 borderRadius: 10, padding: '0px 7px',
                 fontFamily: 'monospace',
               }}
-              title={`${childCount} élément(s) regroupé(s)`}
+              title={`${childCount} grouped item(s)`}
             >
               {childCount}
             </span>
@@ -186,7 +186,7 @@ export const ContainerNode = memo(({ id, data, selected }: NodeProps) => {
               borderBottom: `1px solid ${meta.accent}33`,
             }}
           >
-            <span>En cas d'échec d'un enfant :</span>
+            <span>On child failure:</span>
             <select
               value={onFailure}
               onChange={e => { e.stopPropagation(); updateNodeData(id, { onFailure: e.target.value }) }}
@@ -214,14 +214,14 @@ export const ContainerNode = memo(({ id, data, selected }: NodeProps) => {
               borderBottom: `1px solid ${meta.accent}33`,
             }}
           >
-            <span>Re-tentatives</span>
+            <span>Retries</span>
             <input
               type="number" min={0} value={retry.max ?? 3}
               onChange={e => { e.stopPropagation(); setRetry({ max: Math.max(0, Number(e.target.value) || 0) }) }}
               onClick={e => e.stopPropagation()}
               style={numInputStyle}
             />
-            <span>×, délai</span>
+            <span>×, delay</span>
             <input
               type="number" min={0} value={retry.delay ?? 5}
               onChange={e => { e.stopPropagation(); setRetry({ delay: Math.max(0, Number(e.target.value) || 0) }) }}
@@ -246,7 +246,7 @@ export const ContainerNode = memo(({ id, data, selected }: NodeProps) => {
               </div>
             )}
             {childLabels.length === 0 && (
-              <div style={{ fontSize: 10, fontStyle: 'italic', color: 'var(--text-muted)' }}>vide</div>
+              <div style={{ fontSize: 10, fontStyle: 'italic', color: 'var(--text-muted)' }}>empty</div>
             )}
             {shown.map((name, i) => (
               <div

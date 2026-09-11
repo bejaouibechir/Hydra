@@ -69,7 +69,7 @@ export default function NotificationDropdown() {
             </span>
             {notifications.length > 0 && (
               <button onClick={clear} className="btn-ghost !px-2 !py-1 text-xs !gap-1">
-                <Trash2 size={12} /> Tout effacer
+                <Trash2 size={12} /> Clear all
               </button>
             )}
           </div>
@@ -78,14 +78,14 @@ export default function NotificationDropdown() {
           <div className="max-h-72 overflow-y-auto">
             {notifications.length === 0 ? (
               <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>
-                Aucune notification
+                No notifications
               </p>
             ) : (
               notifications.map((n, i) => (
                 <div
                   key={n.id}
                   className="flex items-start gap-3 px-4 py-3"
-                  title={n.link ? 'Double-clic : ouvrir l\'élément concerné' : undefined}
+                  title={n.link ? 'Double-click to open the affected item' : undefined}
                   onDoubleClick={() => { if (n.link) { setOpen(false); navigate(n.link) } }}
                   style={{
                     borderBottom: i < notifications.length - 1 ? '1px solid var(--bg-border)' : 'none',

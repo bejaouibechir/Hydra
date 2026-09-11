@@ -1,0 +1,9 @@
+version: "1.0"
+destinations:
+  dest_big_orders:
+    type: csv
+    connection:
+      base_path: "examples/tutorial/01-first-job/out"
+    load:
+      table: big_orders.csv
+      mode: replace

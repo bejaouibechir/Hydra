@@ -13,8 +13,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 import pytest
 
-from internal.connector.interface import Batch, Connector
-from internal.transform.engine_interface import StepResult, TransformEngine
+from hydra_etl.internal.connector.interface import Batch, Connector
+from hydra_etl.internal.transform.engine_interface import StepResult, TransformEngine
 
 
 class DummyConnector(Connector):

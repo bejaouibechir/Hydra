@@ -1,0 +1,8 @@
+version: "1.0"
+transformations:
+  steps:
+    - cast:
+        mapping:
+          amount: float
+    - filter:
+        expr: "amount > {{ env:MIN_AMOUNT }}"

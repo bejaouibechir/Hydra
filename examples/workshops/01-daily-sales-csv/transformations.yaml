@@ -1,0 +1,7 @@
+version: "1.0"
+steps:
+  - cast:
+      mapping:
+        amount: float
+  - filter:
+      expr: "amount >= 100"

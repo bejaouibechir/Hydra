@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Set, Optional
 from collections import Counter
 import logging
 
-from internal.schema import (
+from hydra_etl.internal.schema import (
     SchemaDescriptor,
     FieldDescriptor,
     FieldType,

@@ -177,7 +177,7 @@ describe('validateDAG', () => {
   it('détecte un ID dupliqué', () => {
     const result = validateDAG([n('a'), n('a', 'b'), n('b')])
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes('dupliqué'))).toBe(true)
+    expect(result.errors.some(e => e.includes('Duplicate'))).toBe(true)
   })
 
   it('détecte une référence inconnue', () => {

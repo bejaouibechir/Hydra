@@ -1,0 +1,9 @@
+version: "1.0"
+destinations:
+  dest_report:
+    type: csv
+    connection:
+      base_path: "examples/canonical/out"
+    load:
+      table: revenue_by_country.csv
+      mode: replace

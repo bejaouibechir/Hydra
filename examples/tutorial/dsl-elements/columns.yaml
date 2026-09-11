@@ -1,0 +1,11 @@
+version: "1.0"
+transformations:
+  steps:
+    - cast:
+        mapping:
+          amount: float
+    - rename:
+        mapping:
+          amount: total_amount
+    - select:
+        columns: [order_id, customer_id, total_amount, status]

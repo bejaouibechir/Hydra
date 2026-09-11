@@ -1,0 +1,15 @@
+version: "1.0"
+destinations:
+  dst_dwh:
+    type: postgresql
+    connection:
+      host: ${ENV:PG_HOST}
+      port: 5432
+      database: ${ENV:PG_DB}
+      user: ${ENV:PG_USER}
+      password: ${ENV:PG_PASS}
+    load:
+      table: fact_orders
+      mode: upsert
+      key: [id]
+      batch_size: 5000

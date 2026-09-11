@@ -1,0 +1,104 @@
+{
+  "name": "hydra-etl",
+  "displayName": "HYDRA ETL",
+  "description": "Autocompletion, validation and snippets for HYDRA ETL manifests — jobs and workflows.",
+  "version": "0.1.3",
+  "publisher": "Bechir Bejaoui",
+  "author": {
+    "name": "Bechir Bejaoui"
+  },
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0d0d0d",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Snippets",
+    "Linters",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "hydra",
+    "hydra etl",
+    "etl",
+    "yaml",
+    "data pipeline",
+    "hdrctl"
+  ],
+  "extensionDependencies": [
+    "redhat.vscode-yaml"
+  ],
+  "contributes": {
+    "yamlValidation": [
+      {
+        "fileMatch": [
+          "sources.yaml",
+          "sources.yml",
+          "**/sources.yaml",
+          "**/sources.yml"
+        ],
+        "url": "./schemas/sources.schema.json"
+      },
+      {
+        "fileMatch": [
+          "destinations.yaml",
+          "destinations.yml",
+          "**/destinations.yaml",
+          "**/destinations.yml"
+        ],
+        "url": "./schemas/destinations.schema.json"
+      },
+      {
+        "fileMatch": [
+          "pipeline.yaml",
+          "pipeline.yml",
+          "**/pipeline.yaml",
+          "**/pipeline.yml"
+        ],
+        "url": "./schemas/pipeline.schema.json"
+      },
+      {
+        "fileMatch": [
+          "transformations.yaml",
+          "transformations.yml",
+          "**/transformations.yaml",
+          "**/transformations.yml"
+        ],
+        "url": "./schemas/transformations.schema.json"
+      },
+      {
+        "fileMatch": [
+          "workflow.yaml",
+          "workflow.yml",
+          "**/workflow.yaml",
+          "**/workflow.yml"
+        ],
+        "url": "./schemas/workflow.schema.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "yaml",
+        "path": "./snippets/hydra.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[yaml]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.autoIndent": "advanced",
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        },
+        "editor.suggest.snippetsPreventQuickSuggestions": false
+      }
+    }
+  },
+  "homepage": "https://hydraetl.com"
+}

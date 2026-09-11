@@ -14,6 +14,7 @@ import {
 import { useNotifications } from '@/contexts/NotificationContext'
 import Spinner from '@/components/ui/Spinner'
 import Modal from '@/components/ui/Modal'
+import { pickPath } from '@/components/ui/FolderPicker'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useRunsList } from '@/hooks/useRunPolling'
 
@@ -60,52 +61,50 @@ function CreateProjectModal({ open, onClose }: { open: boolean; onClose: () => v
 
   const browse = async () => {
     setBrowsing(true)
-    try { const r = await api.system.browse('directory'); if (r.path) setProjPath(r.path) }
+    try { const r = await pickPath('directory'); if (r.path) setProjPath(r.path) }
     finally { setBrowsing(false) }
   }
 
   return (
-    <Modal title="Nouveau projet" open={open} onClose={onClose}
+    <Modal title="New project" open={open} onClose={onClose}
       footer={<>
-        <button className="btn-secondary" onClick={onClose}>Annuler</button>
+        <button className="btn-secondary" onClick={onClose}>Cancel</button>
         <button className="btn-primary" onClick={() => mut.mutate()} disabled={!name.trim() || mut.isPending}>
-          {mut.isPending ? 'Création…' : 'Créer le projet'}
+          {mut.isPending ? 'Creating…' : 'Create project'}
         </button>
       </>}>
       <div className="space-y-3">
         <div>
           <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
-            Nom du projet <span style={{ color: 'var(--error)' }}>*</span>
+            Project name <span style={{ color: 'var(--error)' }}>*</span>
           </label>
-          <input className="input" placeholder="mon-projet-etl" value={name}
+          <input className="input" placeholder="my-etl-project" value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && name.trim() && mut.mutate()} />
         </div>
         <div>
           <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Description</label>
-          <input className="input" placeholder="Description optionnelle" value={desc}
+          <input className="input" placeholder="Optional description" value={desc}
             onChange={e => setDesc(e.target.value)} />
         </div>
         <div>
           <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
-            Dossier parent
+            Parent folder
             <span className="ml-1 font-normal" style={{ color: 'var(--text-muted)' }}>
-              (optionnel)
+              (optional)
             </span>
           </label>
           <div style={{ display: 'flex', gap: 6 }}>
-            <input className="input" placeholder="Laisser vide = espace de travail par défaut"
+            <input className="input" placeholder="Leave empty to use the default workspace"
               value={projPath} onChange={e => setProjPath(e.target.value)} style={{ flex: 1 }} />
-            {sysInfo?.is_windows && (
-              <button onClick={browse} disabled={browsing} style={{
-                padding: '0 12px', borderRadius: 8, flexShrink: 0,
-                background: 'var(--bg-hover)', border: '1px solid var(--bg-border)',
-                color: 'var(--text-secondary)', cursor: browsing ? 'wait' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 4, fontSize: 12,
-              }}>
-                <FolderSearch size={14} />{browsing ? '…' : 'Parcourir'}
-              </button>
-            )}
+            <button onClick={browse} disabled={browsing} style={{
+              padding: '0 12px', borderRadius: 8, flexShrink: 0,
+              background: 'var(--bg-hover)', border: '1px solid var(--bg-border)',
+              color: 'var(--text-secondary)', cursor: browsing ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4, fontSize: 12,
+            }}>
+              <FolderSearch size={14} />{browsing ? '…' : 'Browse'}
+            </button>
           </div>
         </div>
         {mut.isError && <p className="text-xs" style={{ color: 'var(--error)' }}>{(mut.error as Error).message}</p>}
@@ -141,7 +140,7 @@ function ProjectRow({
       {/* Pin toggle */}
       <button
         onClick={e => { e.stopPropagation(); onTogglePin() }}
-        title={pinned ? 'Désépingler' : 'Épingler'}
+        title={pinned ? 'Unpin' : 'Pin'}
         style={{
           background: 'none', border: 'none', cursor: 'pointer', padding: 2,
           color: pinned ? 'var(--warning)' : 'var(--text-muted)',
@@ -180,13 +179,13 @@ function ProjectRow({
 
       {/* Date */}
       <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
-        {new Date(project.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' })}
+        {new Date(project.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: '2-digit' })}
       </span>
 
       {/* Supprimer */}
       <button
         onClick={e => { e.stopPropagation(); onDelete() }}
-        title="Supprimer le projet (dossier + raccourci)"
+        title="Delete project (folder and shortcut)"
         style={{
           background: 'none', border: 'none', cursor: 'pointer', padding: 3,
           color: 'var(--text-muted)', flexShrink: 0, borderRadius: 6,
@@ -313,7 +312,7 @@ export default function Overview() {
       if (removeFiles) await api.projects.delete(p.id)
       else             await api.projects.unlist(p.id)
     } catch (err) {
-      alert(`Suppression impossible :\n${err instanceof Error ? err.message : String(err)}`)
+      alert(`Unable to delete:\n${err instanceof Error ? err.message : String(err)}`)
       setDeleting(false)
       return
     }
@@ -334,7 +333,7 @@ export default function Overview() {
     setOpening(true)
     setOpenError(null)
     try {
-      const r = await api.system.browse('directory')
+      const r = await pickPath('directory')
       if (!r.path) return                       // dialogue annulé
       const proj = await api.projects.open(r.path, adopt)
       recordOpen(proj.id)
@@ -343,7 +342,7 @@ export default function Overview() {
       // Mauvais choix de dossier → notification + bannière, on reste sur l'accueil
       const msg = err instanceof Error ? err.message : String(err)
       setOpenError(msg)
-      notify('warning', 'Impossible d\'ouvrir ce dossier', msg)
+      notify('warning', 'Unable to open this folder', msg)
     } finally {
       setOpening(false)
     }
@@ -384,7 +383,7 @@ export default function Overview() {
             Hydra Studio
           </h1>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-            Plateforme ETL data — ETL Engine · Feature Engine · Intelligence Engine
+            Data platform — ETL Engine · Feature Engine · Intelligence Engine
           </p>
         </div>
       </div>
@@ -399,13 +398,13 @@ export default function Overview() {
           <AlertTriangle size={15} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: 1 }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--warning)' }}>
-              Ce dossier ne représente pas un projet Hydra
+              This folder is not a Hydra project
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.45 }}>
               {openError}
             </div>
           </div>
-          <button onClick={() => setOpenError(null)} title="Fermer"
+          <button onClick={() => setOpenError(null)} title="Close"
             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 2 }}>
             ✕
           </button>
@@ -427,7 +426,7 @@ export default function Overview() {
               }} />
               <input
                 className="input"
-                placeholder="Rechercher un projet…"
+                placeholder="Search projects…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ paddingLeft: 30, height: 32, fontSize: 12 }}
@@ -441,13 +440,13 @@ export default function Overview() {
             <div style={{ textAlign: 'center', padding: '48px 24px' }}>
               <FolderOpen size={40} style={{ color: 'var(--text-muted)', marginBottom: 12, opacity: 0.4 }} />
               <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                Aucun projet pour l'instant
+                No projects yet
               </p>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-                Créez votre premier projet pour commencer à construire des pipelines ETL.
+                Create your first project to start building ETL pipelines.
               </p>
               <button className="btn-primary" onClick={() => setShowCreate(true)}>
-                <Plus size={15} /> Nouveau projet
+                <Plus size={15} /> New project
               </button>
             </div>
           ) : (
@@ -456,7 +455,7 @@ export default function Overview() {
               {/* Épinglés */}
               {pinnedProjects.length > 0 && (
                 <>
-                  <SectionLabel>⭐ Épinglés</SectionLabel>
+                  <SectionLabel>⭐ Pinned</SectionLabel>
                   {pinnedProjects.map(p => (
                     <ProjectRow key={p.id} project={p} pinned
                       onTogglePin={() => togglePin(p.id)}
@@ -469,7 +468,7 @@ export default function Overview() {
               {/* Récents */}
               {recentProjects.length > 0 && (
                 <>
-                  <SectionLabel>🕐 Récemment ouverts</SectionLabel>
+                  <SectionLabel>🕐 Recently opened</SectionLabel>
                   {recentProjects.map(p => (
                     <ProjectRow key={p.id} project={p} pinned={false}
                       onTogglePin={() => togglePin(p.id)}
@@ -483,7 +482,7 @@ export default function Overview() {
               {otherProjects.length > 0 && (
                 <>
                   {(recentProjects.length > 0 || pinnedProjects.length > 0) && (
-                    <SectionLabel>Tous les projets</SectionLabel>
+                    <SectionLabel>All projects</SectionLabel>
                   )}
                   {otherProjects.map(p => (
                     <ProjectRow key={p.id} project={p} pinned={false}
@@ -497,7 +496,7 @@ export default function Overview() {
               {/* Aucun résultat */}
               {filtered.length === 0 && (
                 <p style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                  Aucun projet ne correspond à « {search} »
+                  No project matches “{search}”
                 </p>
               )}
             </div>
@@ -510,24 +509,24 @@ export default function Overview() {
           {/* Actions rapides */}
           <div className="card" style={{ padding: 16 }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>
-              Démarrer
+              Get started
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <StartAction icon={GitBranch} title="Cloner un dépôt"
-                desc="Obtenir un projet depuis un dépôt en ligne, par exemple GitHub ou Azure DevOps — bientôt disponible"
+              <StartAction icon={GitBranch} title="Clone a repository"
+                desc="Get a project from an online repository such as GitHub or Azure DevOps — coming soon"
                 disabled />
-              <StartAction icon={FolderOpen} title="Ouvrir un projet"
-                desc="Sélectionner le dossier d'un projet Hydra existant — workflows et jobs chargés automatiquement"
+              <StartAction icon={FolderOpen} title="Open a project"
+                desc="Select an existing Hydra project folder — workflows and jobs load automatically"
                 onClick={() => openFromDisk(false)} disabled={opening} />
-              <StartAction icon={Plus} title="Créer un projet" primary
-                desc="Nouveau projet avec structure générée : Data, output, jobs, workflows"
+              <StartAction icon={Plus} title="Create a project" primary
+                desc="Create a project with generated data, output, jobs, and workflows folders"
                 onClick={() => setShowCreate(true)} />
             </div>
 
             <div style={{ height: 1, background: 'var(--bg-border)', margin: '14px 0' }} />
 
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>
-              Liens
+              Links
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {[
@@ -545,13 +544,13 @@ export default function Overview() {
           {/* Stats */}
           <div className="card" style={{ padding: 16 }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>
-              Statistiques
+              Statistics
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { label: 'Projets', value: allProjects.length, icon: FolderOpen, color: 'var(--primary)' },
-                { label: 'Runs actifs', value: activeRuns, icon: Activity, color: 'var(--success)' },
-                { label: 'Taux de succès', value: successRate !== null ? `${successRate}%` : '—', icon: CheckCircle2, color: 'var(--warning)' },
+                { label: 'Projects', value: allProjects.length, icon: FolderOpen, color: 'var(--primary)' },
+                { label: 'Active runs', value: activeRuns, icon: Activity, color: 'var(--success)' },
+                { label: 'Success rate', value: successRate !== null ? `${successRate}%` : '—', icon: CheckCircle2, color: 'var(--warning)' },
               ].map(({ label, value, icon: Icon, color }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -569,9 +568,9 @@ export default function Overview() {
             <div className="card" style={{ padding: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0 }}>
-                  Derniers runs
+                  Recent runs
                 </p>
-                <Link to="/runs" style={{ fontSize: 10, color: 'var(--primary)', textDecoration: 'none' }}>Voir tous →</Link>
+                <Link to="/runs" style={{ fontSize: 10, color: 'var(--primary)', textDecoration: 'none' }}>View all →</Link>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {recentRunList.map(run => (
@@ -595,30 +594,30 @@ export default function Overview() {
       <CreateProjectModal open={showCreate} onClose={() => setShowCreate(false)} />
 
       {/* ── Modal suppression : raccourci seul OU raccourci + dossier ── */}
-      <Modal title="Supprimer le projet" open={deleteTarget != null} onClose={() => setDeleteTarget(null)}
+      <Modal title="Delete project" open={deleteTarget != null} onClose={() => setDeleteTarget(null)}
         footer={<>
           <button className="btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
-            Annuler
+            Cancel
           </button>
           <button className="btn-secondary" disabled={deleting}
             onClick={() => deleteTarget && confirmDelete(deleteTarget, false)}>
-            Retirer de la liste
+            Remove from list
           </button>
           <button className="btn-primary" disabled={deleting}
             style={{ background: 'var(--error)', borderColor: 'var(--error)' }}
             onClick={() => deleteTarget && confirmDelete(deleteTarget, true)}>
-            {deleting ? 'Suppression…' : 'Supprimer aussi le dossier'}
+            {deleting ? 'Deleting…' : 'Delete folder too'}
           </button>
         </>}>
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-          « {deleteTarget?.name} »
+          “{deleteTarget?.name}”
         </p>
         <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 4 }}>
           {deleteTarget?.path}
         </p>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.5 }}>
-          <strong>Retirer de la liste</strong> — enlève le raccourci, le dossier reste intact sur le disque.<br />
-          <strong>Supprimer aussi le dossier</strong> — efface définitivement le dossier du projet et tout son contenu.
+          <strong>Remove from list</strong> — removes the shortcut and keeps the folder unchanged on disk.<br />
+          <strong>Delete folder too</strong> — permanently deletes the project folder and all of its contents.
         </p>
       </Modal>
     </div>

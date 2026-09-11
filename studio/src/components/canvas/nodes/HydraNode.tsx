@@ -15,7 +15,7 @@ import {
   Play, PowerOff, Trash2, MoreHorizontal,
   Briefcase, Zap, Database, FileText, Globe,
   GitBranch, Shuffle, Layers, AlertCircle, Pin,
-  ExternalLink,
+  ExternalLink, Clock,
 } from 'lucide-react'
 import type { FlowNodeData } from '@/lib/workflowSerializer'
 import { isNodeConfigured } from '@/lib/nodeValidation'
@@ -26,6 +26,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   job:             Briefcase,
   action_webhook:  Globe,
   action_log:      FileText,
+  action_delay:    Clock,
+  action_condition: GitBranch,
   action_email:    FileText,
   action_slack:    FileText,
   source_csv:      Database,

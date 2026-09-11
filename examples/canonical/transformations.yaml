@@ -1,0 +1,31 @@
+version: "1.0"
+transformations:
+  steps:
+    - deduplicate: {}
+    - cast:
+        mapping:
+          quantity: int
+          amount: float
+    - fill_null:
+        columns:
+          amount: 0.0
+    - filter:
+        expr: "amount > 20"
+    - calculate:
+        column: unit_price
+        expr: "amount / quantity"
+    - join:
+        right: src_customers
+        key: customer_id
+        how: left
+    - clean:
+        columns: [name]
+        case: lower
+    - aggregate:
+        by: [country, status]
+        agg:
+          total: {func: sum, col: amount}
+          orders: {func: count, col: order_id}
+    - sort:
+        by: [total]
+        ascending: false

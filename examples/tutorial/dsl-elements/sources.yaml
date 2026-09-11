@@ -1,0 +1,27 @@
+version: "1.0"
+sources:
+  src_orders:
+    type: csv
+    connection:
+      base_path: "data/canonical"
+    extract:
+      table: orders.csv
+      batch_size: 10000
+    schema:
+      mode: manual
+      fields:
+        - name: order_id
+          type: string
+          required: true
+        - name: amount
+          type: float
+      drift_policy: warn
+      validation_policy: best_effort
+      sample_size: 100
+  src_orders_extra:
+    type: csv
+    connection:
+      base_path: "data/canonical"
+    extract:
+      table: orders_extra.csv
+      batch_size: 10000

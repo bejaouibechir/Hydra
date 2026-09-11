@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "TransformStep": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "op": {
+          "enum": [
+            "select",
+            "rename",
+            "cast",
+            "filter",
+            "calculate",
+            "sort",
+            "deduplicate",
+            "fill_null",
+            "trim",
+            "aggregate",
+            "join",
+            "clean",
+            "pivot",
+            "unpivot",
+            "transpose",
+            "merge",
+            "union",
+            "script"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "params": {
+          "title": "Params"
+        }
+      },
+      "required": [
+        "op",
+        "params"
+      ],
+      "title": "TransformStep",
+      "type": "object"
+    }
+  },
+  "$id": "https://hydra.local/schemas/0.9.6/manifests/transformations.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/TransformStep"
+      },
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "steps"
+  ],
+  "title": "TransformConfig",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "transformations",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "manifest",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.TransformConfig"
+  }
+}

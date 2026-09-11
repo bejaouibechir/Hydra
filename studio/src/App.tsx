@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import AppLayout from '@/components/layout/AppLayout'
 import RouteErrorBoundary from '@/components/ui/ErrorBoundary'
+import { FolderPickerHost } from '@/components/ui/FolderPicker'
 import Overview      from '@/pages/Overview'
 import ProjectDetail from '@/pages/projects/ProjectDetail'
 import Runs          from '@/pages/runs/Runs'
@@ -46,6 +47,7 @@ function ThemedApp() {
         </Routes>
         </RouteErrorBoundary>
       </BrowserRouter>
+      <FolderPickerHost />
       </NotificationProvider>
     </ThemeContext.Provider>
   )

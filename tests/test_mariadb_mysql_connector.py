@@ -15,7 +15,7 @@ from typing import List
 from unittest.mock import Mock, MagicMock
 
 # Import du connecteur
-from internal.connector.mysql_mariadb_connector import MySQLMariaDBConnector
+from hydra_etl.internal.connector.mysql_mariadb_connector import MySQLMariaDBConnector
 
 
 # ============================================================

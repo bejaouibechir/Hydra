@@ -18,10 +18,11 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from hydra_etl import __version__
 import yaml
 from click.testing import CliRunner
 
-from cli.hdrctl import cli, VALID_TEMPLATES, validate_job_dir, find_jobs, resolve_job_files
+from hydra_etl.cli.hdrctl import cli, VALID_TEMPLATES, validate_job_dir, find_jobs, resolve_job_files
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,7 +84,8 @@ class TestHelp:
     def test_version(self, runner):
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "1.2.0" in result.output
+        # Regle 3.1 : le test lit la source de verite, il ne recopie pas le numero.
+        assert __version__ in result.output
         assert "hydra" in result.output or "hdrctl" in result.output
 
     def test_run_help(self, runner):

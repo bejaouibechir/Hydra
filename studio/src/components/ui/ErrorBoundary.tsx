@@ -17,7 +17,7 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
-    console.error('[Hydra Studio] Erreur de rendu interceptée :', error, info.componentStack)
+    console.error('[Hydra Studio] Rendering error caught:', error, info.componentStack)
   }
 
   render() {
@@ -29,12 +29,12 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
       }}>
         <AlertTriangle size={44} style={{ color: 'var(--error)' }} />
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-          Une erreur est survenue dans cette vue
+          An error occurred in this view
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 520, textAlign: 'center' }}>
-          Vos fichiers projet n'ont pas été modifiés. Si le problème persiste,
-          un fichier du projet est peut-être invalide — vérifiez les YAML
-          du workflow et des jobs concernés.
+          Your project files have not been modified. If the problem persists,
+          a project file may be invalid — check the YAML files for the affected
+          workflow and jobs.
         </div>
         <pre style={{
           fontSize: 11, fontFamily: 'monospace', color: 'var(--error)',
@@ -46,10 +46,10 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
         </pre>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-primary" onClick={() => this.setState({ error: null })}>
-            <RotateCcw size={14} /> Réessayer
+            <RotateCcw size={14} /> Try again
           </button>
           <a href="/overview" className="btn-secondary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Home size={14} /> Retour à l'accueil
+            <Home size={14} /> Back to overview
           </a>
         </div>
       </div>

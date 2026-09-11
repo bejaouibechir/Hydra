@@ -1,0 +1,11 @@
+version: "1.0"
+transformations:
+  steps:
+    - cast:
+        mapping:
+          amount: float
+    - aggregate:
+        by: [status]
+        agg:
+          total_amount: {func: sum, col: amount}
+          order_count: {func: count, col: order_id}

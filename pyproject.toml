@@ -1,0 +1,100 @@
+[build-system]
+# setuptools >= 77 : requis pour l'expression SPDX de `license` (PEP 639).
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hydra-etl"
+description = "Declarative ETL engine with a CLI, a REST API and a visual studio."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Bechir Bejaoui" }]
+keywords = ["etl", "data", "pipeline", "workflow", "yaml", "orchestration"]
+
+# Règle 3.1 — la version est lue dans hydra_etl/__init__.py, jamais recopiée.
+dynamic = ["version"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+# Le socle : moteur + CLI. Suffisant pour `hdrctl run` sur des fichiers.
+dependencies = [
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "click>=8.1",
+    "pandas>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+# L'API et le Studio. `pip install hydra-etl[server]` puis `hdrctl serve`.
+server = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "apscheduler>=3.10",
+]
+duckdb = ["duckdb>=0.10"]
+parquet = ["pyarrow>=14.0"]
+mysql = ["mysql-connector-python>=8.3"]
+postgres = ["psycopg2-binary>=2.9"]
+mongodb = ["pymongo>=4.6"]
+http = ["requests>=2.31"]
+# Tout ce qu'un utilisateur peut vouloir, en une commande.
+all = [
+    "hydra-etl[server]",
+    "hydra-etl[duckdb]",
+    "hydra-etl[parquet]",
+    "hydra-etl[mysql]",
+    "hydra-etl[postgres]",
+    "hydra-etl[mongodb]",
+    "hydra-etl[http]",
+]
+dev = [
+    "pytest>=8.0",
+    "build>=1.2",
+    "twine>=5.0",
+    "black>=24.0",
+]
+
+[project.urls]
+Homepage = "https://hydraetl.com"
+Documentation = "https://hydraetl.com"
+
+[project.scripts]
+hydra = "hydra_etl.cli.hdrctl:main"
+hdrctl = "hydra_etl.cli.hdrctl:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "hydra_etl.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["hydra_etl*"]
+# Les dossiers de sauvegarde ne partent jamais dans le wheel (Règle 1).
+exclude = ["*._backups*", "*.backup*", "*__pycache__*", "tests*", "examples*"]
+
+[tool.setuptools.package-data]
+# Fichiers non-Python indispensables à l'exécution.
+"hydra_etl.cli" = ["locales/*.json"]
+# studio_dist/ est produit par `python scripts/build_studio.py` avant la
+# construction du wheel. C'est ce qui dispense l'utilisateur de Node.
+"hydra_etl" = ["py.typed", "studio_dist/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["tests/e2e", "tests/_archive", "_archive", "_backups", "studio"]

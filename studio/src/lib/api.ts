@@ -40,6 +40,7 @@ export interface Run {
   status: 'pending' | 'running' | 'success' | 'failed'
   started_at: string; finished_at?: string; duration?: number
   error?: string; steps: StepResult[]
+  trigger?: string            // manual | schedule | webhook — source du run
 }
 export interface StepResult {
   step_name: string
@@ -149,6 +150,10 @@ export const api = {
     info:   ()                      => get<{ platform: string; python_version: string; hydra_version: string; homedir: string; is_windows: boolean }>('/system/info'),
     browse: (type: 'file' | 'directory' | 'save_file', filter?: string) =>
       get<{ path: string | null }>(`/system/browse?type=${type}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`),
+    fsRoots: () => get<{ roots: { name: string; path: string }[] }>(`/fs/roots`),
+    fsList: (path: string, dirsOnly?: boolean, ext?: string) =>
+      get<{ path: string; parent: string | null; sep: string; entries: { name: string; path: string; is_dir: boolean }[] }>(
+        `/fs/list?path=${encodeURIComponent(path)}${dirsOnly ? '&dirs_only=true' : ''}${ext ? `&ext=${encodeURIComponent(ext)}` : ''}`),
   },
 
   templates: {

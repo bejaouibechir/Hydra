@@ -1,0 +1,13 @@
+version: "1.0"
+sources:
+  src_orders:
+    type: mysql
+    connection:
+      host: ${ENV:DB_HOST}
+      port: 3306
+      database: ${ENV:DB_NAME}
+      user: ${ENV:DB_USER}
+      password: ${ENV:DB_PASS}
+    extract:
+      table: orders
+      batch_size: 10000

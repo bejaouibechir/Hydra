@@ -1,0 +1,9 @@
+version: "1.0"
+transformations:
+  steps:
+    - cast:
+        mapping:
+          amount: float
+    - calculate:
+        column: amount_with_tax
+        expr: "amount * 1.2"

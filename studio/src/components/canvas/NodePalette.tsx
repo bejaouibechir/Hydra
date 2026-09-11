@@ -338,7 +338,7 @@ export default function NodePalette({
                         cursor:     available ? 'grab' : 'not-allowed',
                         opacity:    available ? 1 : 0.4,
                       }}
-                      title={available ? node.description : `${node.description} — non disponible sur cette plateforme`}
+                      title={available ? node.description : `${node.description} — unavailable on this platform`}
                     >
                       <div style={{
                         width: 32, height: 32, borderRadius: 8,
@@ -392,7 +392,7 @@ export default function NodePalette({
               style={{
                 cursor: 'grab',
               }}
-              title="Glisser pour regrouper des nœuds — repliable pour gagner de la place"
+              title="Drag to group nodes — collapsible to save space"
             >
               <div style={{
                 width: 32, height: 32, borderRadius: 8,
@@ -413,7 +413,7 @@ export default function NodePalette({
               style={{
                 cursor: 'grab',
               }}
-              title="Politique d'erreur (on_failure) appliquée à tout le bloc"
+              title="Error policy (on_failure) applied to the whole block"
             >
               <div style={{
                 width: 32, height: 32, borderRadius: 8,
@@ -434,7 +434,7 @@ export default function NodePalette({
               style={{
                 cursor: 'grab',
               }}
-              title="Re-tentatives (retry) appliquées à tout le bloc"
+              title="Retries applied to the whole block"
             >
               <div style={{
                 width: 32, height: 32, borderRadius: 8,
@@ -471,7 +471,7 @@ export default function NodePalette({
             <div className="pb-1">
               {jobsList.length === 0 ? (
                 <p className="text-xs mx-3 mb-2 italic" style={{ color: 'var(--text-muted)' }}>
-                  Aucun job défini — créez-en dans l'onglet Jobs configuration.
+                  No jobs defined — create one in the Jobs configuration tab.
                 </p>
               ) : jobsList.map(job => (
                 <div
@@ -483,7 +483,7 @@ export default function NodePalette({
                   style={{
                     cursor: 'grab',
                   }}
-                  title={`Glisser pour ajouter "${job.name}" — clic droit pour les options`}
+                  title={`Drag to add "${job.name}" — right-click for options`}
                 >
                   <div style={{
                     width: 32, height: 32, borderRadius: 8,

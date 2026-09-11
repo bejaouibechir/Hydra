@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from internal.connector.csv_connector import CSVConnector
+from hydra_etl.internal.connector.csv_connector import CSVConnector
 
 
 def _fixtures_dir() -> Path:

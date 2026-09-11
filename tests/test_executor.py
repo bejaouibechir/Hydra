@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 import yaml
 
-from internal.runner.executor import JobExecutor
+from hydra_etl.internal.runner.executor import JobExecutor
 
 
 # =========================================================================
@@ -351,7 +351,7 @@ def test_executor_validation_key_column_not_in_data_fails(tmp_path: Path):
     
     # ✅ FIX: Patcher _build_connector au lieu de registry
     with patch.object(JobExecutor, '_build_connector') as mock_build_method:
-        from internal.connector.csv_connector import CSVConnector
+        from hydra_etl.internal.connector.csv_connector import CSVConnector
         
         # Mock retourne vrai CSV pour source, mock pour destination
         def build_side_effect(name, definition, is_source):
@@ -404,7 +404,7 @@ def test_executor_validation_mysql_upsert_with_key_ok(tmp_path: Path):
     
     # ✅ FIX: Patcher _build_connector
     with patch.object(JobExecutor, '_build_connector') as mock_build_method:
-        from internal.connector.csv_connector import CSVConnector
+        from hydra_etl.internal.connector.csv_connector import CSVConnector
         
         def build_side_effect(name, definition, is_source):
             if is_source:

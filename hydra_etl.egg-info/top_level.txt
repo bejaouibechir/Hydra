@@ -1,6 +1,0 @@
-api
-cli
-etl
-internal
-plugins
-workflow

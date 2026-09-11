@@ -47,8 +47,8 @@ export const EXPR_CATEGORIES: ExprCategory[] = [
       { label: 'Lowercase',       template: "col.str.lower()",                    desc: 'Converts to lowercase.' },
       { label: 'Length',         template: "col.str.len()",                      desc: 'Number of characters.' },
       { label: 'Concatenate',       template: "col1.str.cat(col2, sep=' ')",        desc: 'Joins two text columns with a separator.' },
-      { label: 'Replace',        template: "col.str.replace('ancien', 'nouveau')", desc: 'Replaces one pattern with another.' },
-      { label: 'Contains',         template: "col.str.contains('texte')",          desc: 'True if the column contains the text.' },
+      { label: 'Replace',        template: "col.str.replace('old', 'new')",         desc: 'Replaces one pattern with another.' },
+      { label: 'Contains',       template: "col.str.contains('text')",              desc: 'True if the column contains the text.' },
       { label: 'Substring',      template: "col.str.slice(0, 3)",                desc: 'Extracts characters from start to end (0-based).' },
       { label: 'Trim spaces', template: "col.str.strip()",                   desc: 'Removes leading/trailing spaces.' },
     ],
@@ -56,7 +56,7 @@ export const EXPR_CATEGORIES: ExprCategory[] = [
   {
     name: 'Date / Time',
     fns: [
-      { label: 'Year',            template: 'col.dt.year',                desc: "Année d'une colonne datetime." },
+      { label: 'Year',            template: 'col.dt.year',                desc: 'Year from a datetime column.' },
       { label: 'Month',             template: 'col.dt.month',               desc: 'Month (1-12).' },
       { label: 'Day',             template: 'col.dt.day',                 desc: 'Day of month.' },
       { label: 'Format',           template: "col.dt.strftime('%Y-%m-%d')", desc: 'Formats the date as text.' },

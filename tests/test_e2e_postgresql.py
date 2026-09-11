@@ -31,7 +31,7 @@ import os
 # Ajouter le repertoire racine au PYTHONPATH
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from internal.connector.postgresql_connector import PostgreSQLConnector
+from hydra_etl.internal.connector.postgresql_connector import PostgreSQLConnector
 
 
 def get_test_connector(container="postgres1"):

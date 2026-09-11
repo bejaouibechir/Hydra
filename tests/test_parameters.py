@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-from internal.config.parameters import (
+from hydra_etl.internal.config.parameters import (
     ParameterError,
     ParameterResolver,
     build_effective,

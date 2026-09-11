@@ -22,7 +22,7 @@ import yaml
 from pathlib import Path
 from decimal import Decimal
 
-from internal.runner.executor import JobExecutor
+from hydra_etl.internal.runner.executor import JobExecutor
 
 
 # ============================================================

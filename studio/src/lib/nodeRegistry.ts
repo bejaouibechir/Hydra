@@ -97,13 +97,8 @@ const NODES: HydraNodeDef[] = [
   { type: 'action_assign_param', label: 'Assign Param', category: 'action', color: '#c026d3', icon: 'Equal',    description: 'Assigns a value to an existing runtime parameter' },
 
   // Flux de contrôle (canvas workflow uniquement)
-  { type: 'cf_condition', label: 'Condition', category: 'control_flow', color: '#f97316', icon: 'GitFork',    description: 'Branch if / else on condition' },
-  { type: 'cf_parallel',  label: 'Parallel',  category: 'control_flow', color: '#f97316', icon: 'Layers',     description: 'Explicit parallel execution' },
-  { type: 'cf_delay',     label: 'Delay',     category: 'control_flow', color: '#f97316', icon: 'Clock',      description: 'Timed wait' },
-  { type: 'cf_split',     label: 'Split',     category: 'control_flow', color: '#f97316', icon: 'Split',      description: '1 flow → N branches' },
-  { type: 'cf_merge',     label: 'Merge',     category: 'control_flow', color: '#f97316', icon: 'GitMerge',   description: 'N flows → 1 flow (by key)' },
-  { type: 'cf_join',      label: 'Join',      category: 'control_flow', color: '#f97316', icon: 'Link',       description: 'N flows → 1 flow (common key)' },
+  { type: 'action_condition', label: 'Condition', category: 'control_flow', color: '#f97316', icon: 'GitBranch',  description: 'Evaluates a condition into a variable (used by downstream when)' },
+  { type: 'action_delay', label: 'Delay',     category: 'control_flow', color: '#f97316', icon: 'Clock',      description: 'Waits N seconds before continuing' },
 ]
 
 NODES.forEach(def => registerNode(def))
-

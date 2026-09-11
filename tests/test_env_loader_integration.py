@@ -15,7 +15,7 @@ import pytest
 
 # ⚠️ Adapter l'import à ton arborescence réelle
 # Exemple : from internal.config.env_loader import load_env_layers
-from internal.config.env_loader import load_env_layers
+from hydra_etl.internal.config.env_loader import load_env_layers
 
 
 @pytest.fixture

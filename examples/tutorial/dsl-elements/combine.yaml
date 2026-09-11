@@ -1,0 +1,6 @@
+version: "1.0"
+transformations:
+  steps:
+    - union:
+        right: src_orders_extra
+        distinct: false

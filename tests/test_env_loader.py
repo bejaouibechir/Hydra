@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from internal.config.env_loader import (
+from hydra_etl.internal.config.env_loader import (
     EnvFileParseError,
     load_env_layers,
     parse_env_text,

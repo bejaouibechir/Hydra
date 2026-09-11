@@ -5,9 +5,9 @@ Run with: pytest tests/test_mongodb_registry.py -v
 """
 
 import pytest
-from internal.connector.registry import build_connector, CONNECTOR_REGISTRY
+from hydra_etl.internal.connector.registry import build_connector, CONNECTOR_REGISTRY
 try:
-    from plugins.connectors.mongodb import MongoDBConnector
+    from hydra_etl.plugins.connectors.mongodb import MongoDBConnector
     _MONGO_AVAILABLE = True
 except Exception:
     MongoDBConnector = None  # type: ignore

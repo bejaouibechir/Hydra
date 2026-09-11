@@ -1,0 +1,24 @@
+workflow:
+  version: "1.0"
+  name: docs_workflow
+  description: Two actions used by the DSL documentation.
+  trigger:
+    type: manual
+  steps:
+    - name: prepare
+      type: action
+      action: log
+      params:
+        message: "Preparation complete."
+      retry:
+        max: 2
+        delay: 0
+        backoff: fixed
+    - name: publish
+      type: action
+      action: log
+      params:
+        message: "Publication complete."
+      depends_on: [prepare]
+      when: "1 == 1"
+      on_failure: fail

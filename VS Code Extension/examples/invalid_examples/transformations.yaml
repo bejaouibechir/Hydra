@@ -1,0 +1,36 @@
+# This file contains DELIBERATE errors.
+
+version: "1.0"
+steps:
+  - select:
+      columns: []
+      # ERROR 1 — the column list must hold at least one entry.
+
+  - cast:
+      mapping:
+        id: integer
+        # ERROR 2 — 'integer' is not a valid type.
+        # Valid types are int, float, str, bool, date, datetime.
+
+  - filter:
+      condition: "amount > 0"
+      # ERROR 3 — the key is 'expr', not 'condition'.
+
+  - select:
+      columns: [id]
+    filter:
+      expr: "id > 0"
+      # ERROR 4 — a step carries exactly one operation.
+      # These must be two separate list entries.
+
+  - trasnform:
+      columns: [id]
+      # ERROR 5 — unknown operation (typo).
+
+  - aggregate:
+      by: [region]
+      agg:
+        total:
+          func: somme
+          col: amount
+      # ERROR 6 — 'somme' is not a valid function. Use 'sum'.

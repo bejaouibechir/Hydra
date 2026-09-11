@@ -1,4 +1,4 @@
-# ===============================
+bbb# ===============================
 # Python
 # ===============================
 __pycache__/
@@ -89,4 +89,19 @@ CLAUDE.md/
 _rmtest*
 my_wf/
 par_wf/
-sched_wf/
+sched_w
+
+# ===============================
+# Clés privées / certificats — ne JAMAIS committer
+# ===============================
+*.pem
+*.key
+*.p12
+*.pfx
+*.pkcs12
+id_rsa
+id_ed25519
+
+# Bundle du Studio : artefact de build, regenere par scripts/build_studio.py
+# et embarque dans le wheel. Jamais commite.
+hydra_etl/studio_dist/

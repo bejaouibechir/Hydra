@@ -1,0 +1,37 @@
+# This file contains DELIBERATE errors.
+# Open it: every block flagged below should be underlined in red,
+# and the error should show up in the Problems panel (Ctrl+Shift+M).
+
+version: "1.0"
+destinations:
+  dst_upsert_without_key:
+    type: mysql
+    load:
+      table: orders
+      mode: upsert
+      # ERROR 1 — mode 'upsert' requires 'key'.
+      # Expected message: Missing property "key".
+
+  dst_batch_too_large:
+    type: csv
+    load:
+      table: data/output.csv
+      mode: replace
+      batch_size: 500000
+      # ERROR 2 — batch_size exceeds the maximum of 100000.
+
+  dst_unknown_key:
+    type: csv
+    load:
+      table: data/output.csv
+      mode: append
+      compression: gzip
+      # ERROR 3 — 'compression' does not exist in LoadConfig.
+
+  dst_invalid_mode:
+    type: csv
+    load:
+      table: data/output.csv
+      mode: overwrite
+      # ERROR 4 — 'overwrite' is not a valid mode.
+      # Valid values are append, replace, upsert.

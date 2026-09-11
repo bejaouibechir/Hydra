@@ -1,0 +1,66 @@
+[
+  {
+    "customer_id": "C001",
+    "name": "  ALICE martin ",
+    "city": "Paris",
+    "country": "FR",
+    "signup_date": "2024-01-15",
+    "segment": "pro"
+  },
+  {
+    "customer_id": "C002",
+    "name": "bob  DUPONT",
+    "city": "Lyon",
+    "country": "FR",
+    "signup_date": "2024-02-03",
+    "segment": "particulier"
+  },
+  {
+    "customer_id": "C003",
+    "name": " Carla  Ruiz",
+    "city": "Madrid",
+    "country": "ES",
+    "signup_date": "2024-02-28",
+    "segment": "pro"
+  },
+  {
+    "customer_id": "C004",
+    "name": "DIETER  schmidt ",
+    "city": null,
+    "country": "DE",
+    "signup_date": "2024-03-11",
+    "segment": "pro"
+  },
+  {
+    "customer_id": "C005",
+    "name": "elena  Gomez ",
+    "city": "Barcelona",
+    "country": "ES",
+    "signup_date": "2024-04-02",
+    "segment": "particulier"
+  },
+  {
+    "customer_id": "C006",
+    "name": " Farid Benali",
+    "city": "Marseille",
+    "country": "FR",
+    "signup_date": "2024-05-19",
+    "segment": "particulier"
+  },
+  {
+    "customer_id": "C007",
+    "name": "GRETA  mueller",
+    "city": "Berlin",
+    "country": "DE",
+    "signup_date": "2024-06-07",
+    "segment": "pro"
+  },
+  {
+    "customer_id": "C008",
+    "name": "hugo  Lefevre  ",
+    "city": "Nantes",
+    "country": "FR",
+    "signup_date": "2024-07-23",
+    "segment": null
+  }
+]

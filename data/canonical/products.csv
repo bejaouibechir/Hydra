@@ -1,0 +1,7 @@
+product_id,product_name,category,unit_price
+P01,Carnet A5,books,4.50
+P02,Stylo plume,tools,24.00
+P03,Atlas illustre,books,39.90
+P04,Cube en bois,toys,12.00
+P05,Regle metal,tools,7.25
+P06,Guide du papier,,18.00

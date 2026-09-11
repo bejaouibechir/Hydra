@@ -1,0 +1,33 @@
+# This file contains DELIBERATE errors.
+# Every block below should raise an error in the Problems panel.
+
+workflow:
+  name: "test_workflow"
+  trigger:
+    type: schedule
+    # ERROR 1 — type 'schedule' requires 'cron'.
+
+  steps:
+    - name: "job_step_without_path"
+      type: job
+      depends_on: []
+      # ERROR 2 — type 'job' requires the 'job' field.
+
+    - name: "action_step_without_action"
+      type: action
+      depends_on: []
+      # ERROR 3 — type 'action' requires the 'action' field.
+
+    - name: "unknown_action"
+      type: action
+      action: telegram
+      depends_on: []
+      # ERROR 4 — 'telegram' is not a supported action.
+
+    - name: "invalid_on_failure"
+      type: job
+      job: "./jobs/example"
+      on_failure: retry
+      # ERROR 5 — 'retry' is not a valid on_failure value.
+      # Valid values are fail, skip, continue.
+      # To retry a step, use the separate 'retry:' block.

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "dslVersion": "1.0",
+  "generatedFrom": "Pydantic model_json_schema(mode='validation')",
+  "productVersion": "0.9.6",
+  "schemaCount": 22,
+  "schemas": [
+    {
+      "dslName": "sources",
+      "kind": "manifest",
+      "path": "manifests/sources.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.source.SourcesConfig"
+    },
+    {
+      "dslName": "transformations",
+      "kind": "manifest",
+      "path": "manifests/transformations.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.TransformConfig"
+    },
+    {
+      "dslName": "destinations",
+      "kind": "manifest",
+      "path": "manifests/destinations.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.destination.DestinationsConfig"
+    },
+    {
+      "dslName": "workflow",
+      "kind": "manifest",
+      "path": "manifests/workflow.schema.json",
+      "sourceModel": "workflow.models.WorkflowDef"
+    },
+    {
+      "dslName": "select",
+      "kind": "transformation",
+      "path": "operations/select.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.SelectOp"
+    },
+    {
+      "dslName": "rename",
+      "kind": "transformation",
+      "path": "operations/rename.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.RenameOp"
+    },
+    {
+      "dslName": "cast",
+      "kind": "transformation",
+      "path": "operations/cast.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.CastOp"
+    },
+    {
+      "dslName": "filter",
+      "kind": "transformation",
+      "path": "operations/filter.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.FilterOp"
+    },
+    {
+      "dslName": "calculate",
+      "kind": "transformation",
+      "path": "operations/calculate.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.CalculateOp"
+    },
+    {
+      "dslName": "sort",
+      "kind": "transformation",
+      "path": "operations/sort.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.SortOp"
+    },
+    {
+      "dslName": "deduplicate",
+      "kind": "transformation",
+      "path": "operations/deduplicate.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.DeduplicateOp"
+    },
+    {
+      "dslName": "fill_null",
+      "kind": "transformation",
+      "path": "operations/fill_null.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.FillNullOp"
+    },
+    {
+      "dslName": "trim",
+      "kind": "transformation",
+      "path": "operations/trim.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.TrimOp"
+    },
+    {
+      "dslName": "aggregate",
+      "kind": "transformation",
+      "path": "operations/aggregate.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.AggregateOp"
+    },
+    {
+      "dslName": "join",
+      "kind": "transformation",
+      "path": "operations/join.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.JoinOp"
+    },
+    {
+      "dslName": "clean",
+      "kind": "transformation",
+      "path": "operations/clean.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.CleanOp"
+    },
+    {
+      "dslName": "pivot",
+      "kind": "transformation",
+      "path": "operations/pivot.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.PivotOp"
+    },
+    {
+      "dslName": "unpivot",
+      "kind": "transformation",
+      "path": "operations/unpivot.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.UnpivotOp"
+    },
+    {
+      "dslName": "transpose",
+      "kind": "transformation",
+      "path": "operations/transpose.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.TransposeOp"
+    },
+    {
+      "dslName": "merge",
+      "kind": "transformation",
+      "path": "operations/merge.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.MergeOp"
+    },
+    {
+      "dslName": "union",
+      "kind": "transformation",
+      "path": "operations/union.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.UnionOp"
+    },
+    {
+      "dslName": "script",
+      "kind": "transformation",
+      "path": "operations/script.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.ScriptOp"
+    }
+  ],
+  "unmodelledManifests": [
+    {
+      "name": "pipeline",
+      "reason": "pipeline.yaml ne possède pas encore de modèle Pydantic actif"
+    }
+  ]
+}

@@ -45,7 +45,9 @@ SPLASH = f"""{LOGO}
 {C.DM}  ──────────────────────────────────────────{C.RS}
 """
 
-VERSION = "1.2.0"
+# Simulateur d'UX, hors paquet : pas d'import de hydra_etl pour rester
+# autonome. Ce numero est un decor, pas une version publiee.
+VERSION = "0.0.0-preview"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

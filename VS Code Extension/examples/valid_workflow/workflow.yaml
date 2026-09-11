@@ -1,0 +1,42 @@
+workflow:
+  name: "daily_sales_etl"
+  description: "Daily extract, two transforms in parallel, then load"
+  trigger:
+    type: schedule
+    cron: "0 8 * * *"
+  steps:
+    - name: "extract"
+      type: job
+      job: "./jobs/extract"
+      depends_on: []
+      on_failure: fail
+      retry:
+        max: 3
+        delay: 5
+        backoff: exponential
+
+    - name: "transform_a"
+      type: job
+      job: "./jobs/transform_a"
+      depends_on: ["extract"]
+      on_failure: fail
+
+    - name: "transform_b"
+      type: job
+      job: "./jobs/transform_b"
+      depends_on: ["extract"]
+      on_failure: fail
+
+    - name: "load"
+      type: job
+      job: "./jobs/load"
+      depends_on: ["transform_a", "transform_b"]
+      on_failure: fail
+
+    - name: "notify"
+      type: action
+      action: log
+      params:
+        message: "Workflow daily_sales_etl finished."
+      depends_on: ["load"]
+      on_failure: skip

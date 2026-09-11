@@ -54,7 +54,7 @@ export default function CanvasToolbox({
       />
       <Btn
         icon={<MousePointer2 size={15} />}
-        title="Sélection (V)"
+        title="Select (V)"
         active={interactionMode === 'select'}
         onClick={() => onModeChange('select')}
       />
@@ -64,14 +64,14 @@ export default function CanvasToolbox({
       {/* ── Historique ── */}
       <Btn
         icon={<Undo2 size={15} />}
-        title="Annuler (Ctrl+Z)"
+        title="Undo (Ctrl+Z)"
         active={false}
         disabled={!canUndo}
         onClick={onUndo}
       />
       <Btn
         icon={<Redo2 size={15} />}
-        title="Rétablir (Ctrl+Y)"
+        title="Redo (Ctrl+Y)"
         active={false}
         disabled={!canRedo}
         onClick={onRedo}

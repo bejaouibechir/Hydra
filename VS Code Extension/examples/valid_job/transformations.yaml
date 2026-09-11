@@ -1,0 +1,28 @@
+version: "1.0"
+steps:
+  - select:
+      columns: [id, customer_id, amount, status, created_at]
+
+  - filter:
+      expr: "status == 'paid'"
+
+  - cast:
+      mapping:
+        id: int
+        amount: float
+
+  - calculate:
+      column: amount_with_tax
+      expr: "amount * 1.2"
+
+  - clean:
+      columns: [status]
+      case: lower
+
+  - deduplicate:
+      columns: [id]
+      keep: last
+
+  - sort:
+      by: [created_at]
+      ascending: false

@@ -92,7 +92,7 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
     ws.binaryType = 'arraybuffer'
 
     ws.onopen = () => {
-      term.writeln(`\x1b[32m● Connexion ${shell} \xe9tablie\x1b[0m`)
+      term.writeln(`\x1b[32m● ${shell} connection established\x1b[0m`)
       if (initialCommand) {
         setTimeout(() => { ws.send(new TextEncoder().encode(initialCommand + '\r')) }, 400)
       }
@@ -105,8 +105,8 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
       term.write(data)
     }
 
-    ws.onerror = () => { term.writeln('\r\n\x1b[31m✗ Erreur WebSocket — backend injoignable\x1b[0m') }
-    ws.onclose = () => { term.writeln('\r\n\x1b[33m● Session termin\xe9e\x1b[0m') }
+    ws.onerror = () => { term.writeln('\r\n\x1b[31m✗ WebSocket error — backend unreachable\x1b[0m') }
+    ws.onclose = () => { term.writeln('\r\n\x1b[33m● Session ended\x1b[0m') }
 
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(data))
@@ -246,10 +246,10 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
             padding: 18, width: 380, boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
           }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#c9d1d9', marginBottom: 10 }}>
-              Sauvegarder le log du terminal
+              Save terminal log
             </div>
             <label style={{ display: 'block', fontSize: 11, color: '#8b949e', marginBottom: 4 }}>
-              Nom du fichier
+              File name
             </label>
             <input
               autoFocus
@@ -266,11 +266,11 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
               <button onClick={() => setSaveDialog(false)} style={{
                 background: 'transparent', border: '1px solid #30363d', borderRadius: 6,
                 padding: '5px 12px', color: '#8b949e', fontSize: 12, cursor: 'pointer',
-              }}>Annuler</button>
+              }}>Cancel</button>
               <button onClick={confirmSave} style={{
                 background: '#238636', border: '1px solid #2ea043', borderRadius: 6,
                 padding: '5px 14px', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              }}>Sauvegarder</button>
+              }}>Save</button>
             </div>
           </div>
         </div>

@@ -45,6 +45,7 @@ def _frames(path, backend, bs, cfg):
 def _reset(monkeypatch):
     # Fichiers de test minuscules : on force le lecteur Rust malgré le seuil de taille.
     monkeypatch.setattr(CSVConnector, "rust_min_bytes", 0)
+    monkeypatch.setattr(CSVConnector, "rust_min_write_rows", 0)
     _backend.reload()
     yield
     _backend.reload()
@@ -119,3 +120,64 @@ def test_job_output_identical(tmp_path, steps):
     data = _write(tmp_path, "sales", CSV_CASES["regular"])
     out = {b: _run(_make_job(tmp_path, f"job_{b}", data, steps, 100), b) for b in ("python", "rust")}
     assert out["python"] == out["rust"]
+
+
+# --- écriture (opération csv.write) ---------------------------------------
+
+def _write_frames(path, frames, backend, mode="replace", cfg=None):
+    from hydra_etl.internal.connector.frame_batch import FrameBatch
+    c = CSVConnector(name="dst", config=dict(cfg or {}))
+    m = mode
+    for f in frames:
+        c.load_batches([FrameBatch.wrap(f)], table=str(path), mode=m, backend=backend)
+        m = "append"
+    return path.read_bytes()
+
+
+def _typed_frames():
+    """Cadres couvrant les types écrits par le moteur, plus des cas limites."""
+    return [
+        pd.DataFrame({
+            "s": ["plain", 'say "hi"', "a,b", "line\nbreak", "cr\rreturn", "Zoë", ""],
+            "i": pd.array([1, -2, 3, None, 5, 6, 7], dtype="Int64"),
+            "f": [1.5, -0.1, 1e20, 1e-5, 0.0, 123456789.123, 2.0],
+            "b": pd.array([True, False, None, True, False, True, False], dtype="boolean"),
+        }),
+        pd.DataFrame({"s": ["x"], "i": pd.array([9], dtype="Int64"), "f": [0.1], "b": [True]}),
+        pd.DataFrame({"s": pd.Series([], dtype="str"), "i": pd.array([], dtype="Int64"),
+                      "f": pd.Series([], dtype="float64"), "b": pd.array([], dtype="boolean")}),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["replace", "append"])
+@pytest.mark.parametrize("cfg", [{}, {"delimiter": ";", "quotechar": "'"}], ids=["comma", "semicolon"])
+def test_rust_write_same_bytes(tmp_path, mode, cfg):
+    frames = _typed_frames()
+    out = {}
+    for backend in ("python", "rust"):
+        p = tmp_path / f"out_{mode}_{backend}_{len(cfg)}.csv"
+        if mode == "append":
+            p.write_text("", encoding="utf-8")
+        out[backend] = _write_frames(p, frames, backend, mode=mode, cfg=cfg)
+    assert out["python"] == out["rust"]
+
+
+def test_small_writes_use_python(tmp_path, monkeypatch):
+    monkeypatch.setattr(CSVConnector, "rust_min_write_rows", 1_000_000)
+    import hydra_native
+    monkeypatch.setattr(hydra_native, "write_csv", None)   # ne doit pas être appelé
+    data = _write_frames(tmp_path / "small.csv", _typed_frames(), "rust")
+    assert data.startswith(b"s,i,f,b")
+
+
+def test_rust_write_falls_back_on_unsupported_types(tmp_path):
+    """Dates, NaN dans une colonne float non nullable : le chemin Python reprend."""
+    frames = [
+        pd.DataFrame({"d": pd.to_datetime(["2024-01-15", "2024-02-01 10:30"], format="ISO8601"), "n": [1, 2]}),
+        pd.DataFrame({"f": [1.5, float("nan")], "n": [1, 2]}),
+        pd.DataFrame({"o": ["a", None], "n": [1, 2]}),
+    ]
+    for i, f in enumerate(frames):
+        py = _write_frames(tmp_path / f"py{i}.csv", [f], "python")
+        rs = _write_frames(tmp_path / f"rs{i}.csv", [f], "rust")
+        assert py == rs, f.dtypes.to_dict()

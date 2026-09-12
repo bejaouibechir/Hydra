@@ -492,6 +492,7 @@ class CSVConnector(Connector):
             )
         return csv_path
 
+    @dual("csv.write", rust="_load_batches_rust")
     def load_batches(
         self,
         batches: Iterable[Batch],
@@ -500,8 +501,19 @@ class CSVConnector(Connector):
         mode: str = "append",
         key: Optional[List[str]] = None,
     ) -> None:
+        """Écriture CSV — aiguillage Python / Rust (opération « csv.write »)."""
+        return self._load_batches_python(batches, table=table, mode=mode, key=key)
+
+    def _load_batches_python(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+    ) -> None:
         """
-        Charge des batches dans un fichier CSV.
+        Charge des batches dans un fichier CSV (implémentation de référence).
 
         Modes MVP :
         - replace : écrase le fichier et réécrit l'en-tête
@@ -623,6 +635,105 @@ class CSVConnector(Connector):
     # ---------------------------------------------------------------------
     # Ecriture par batch
     # ---------------------------------------------------------------------
+
+    # En dessous de ce nombre de lignes, le surcoût fixe du chemin Rust dépasse
+    # le gain (mesuré : 20 lignes -> +8 % sans ce seuil).
+    rust_min_write_rows = 5_000
+
+    # dtypes pandas dont le rendu texte est reproduit à l'identique côté Rust.
+    _RUST_WRITE_DTYPES = ("str", "string", "int64", "int32", "Int64", "Int32",
+                          "float64", "float32", "Float64", "Float32", "bool", "boolean")
+
+    @classmethod
+    def _rust_writable(cls, frame: "pd.DataFrame") -> bool:
+        """Vrai si chaque colonne a un équivalent exact côté Rust.
+
+        Une valeur manquante n'est écrite de la même façon que si le type la
+        représente par pd.NA (Int64, boolean, Float64, string), rendu « vide ».
+        Les types dont la valeur manquante est NaN (float64, dtype « str » de
+        pandas 3) s'écrivent « nan » côté Python : ces colonnes ne passent par
+        Rust que si elles ne contiennent aucune valeur manquante."""
+        import pandas as pd
+
+        for _, col in frame.items():
+            if str(col.dtype) not in cls._RUST_WRITE_DTYPES:
+                return False
+            if getattr(col.dtype, "na_value", None) is not pd.NA and col.isna().any():
+                return False
+        return True
+
+    def _load_batches_rust(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+    ) -> None:
+        """
+        Implémentation Rust de « csv.write » : rend les mêmes octets que le
+        chemin Python (voir rust/hydra_native/src/writer.rs). Repasse la main à
+        Python — validations, messages d'erreur, types non gérés — dès que la
+        parité n'est pas garantie.
+        """
+        import pyarrow as pa
+        import hydra_native
+
+        items = list(batches)
+        frames = [b for b in items if isinstance(b, FrameBatch) and len(b)]
+        usable = (
+            items
+            and key is None
+            and isinstance(mode, str)
+            and mode.strip().lower() in {"append", "replace"}
+            and all(isinstance(b, FrameBatch) for b in items)
+            and frames
+            and sum(len(f) for f in frames) >= self.rust_min_write_rows
+            and all(f.columns == frames[0].columns for f in frames)
+            and all(self._rust_writable(f.frame) for f in frames)
+        )
+        if not usable:
+            return self._load_batches_python(items, table=table, mode=mode, key=key)
+
+        mode_norm = mode.strip().lower()
+        csv_path = self._resolve_path(table)
+        try:
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            return self._load_batches_python(items, table=table, mode=mode, key=key)
+
+        fieldnames = [str(c) for c in frames[0].columns]
+        need_header = mode_norm == "replace" or not csv_path.exists() or csv_path.stat().st_size == 0
+        append = mode_norm != "replace"
+
+        written = 0
+        try:
+            for frame_batch in frames:
+                rb = pa.RecordBatch.from_pandas(frame_batch.frame, preserve_index=False)
+                hydra_native.write_csv(
+                    str(csv_path),
+                    rb,
+                    append=append,
+                    header=fieldnames if need_header else None,
+                    delimiter=self._settings.delimiter,
+                    quotechar=self._settings.quotechar,
+                    lineterminator=self._settings.lineterminator,
+                )
+                written += 1
+                need_header = False
+                append = True
+        except hydra_native.CsvFallback as e:
+            if written:
+                # Des lignes sont déjà écrites : repasser par Python les dupliquerait.
+                raise ValueError(
+                    f"CSVConnector [{self.name}]: Échec écriture CSV.\n"
+                    f"  Chemin : {csv_path}\n"
+                    f"  Erreur : {e.args[0]}"
+                ) from e
+            from hydra_etl._backend import _t
+            warn_once(f"csv.write:{csv_path}:{e.args[0]}",
+                      _t("backend.rust_fallback", path=str(csv_path), reason=str(e.args[0])))
+            return self._load_batches_python(items, table=table, mode=mode, key=key)
 
     def _write_one_batch(self, writer: csv.DictWriter, batch: Batch, fieldnames: List[str]) -> None:
         """

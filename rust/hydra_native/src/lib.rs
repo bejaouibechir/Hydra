@@ -6,6 +6,7 @@
 //! side decides whether and how to use it.
 
 pub mod tokenizer;
+pub mod writer;
 
 use std::fs::File;
 use std::io::BufReader;
@@ -18,6 +19,9 @@ use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;
+
+use std::io::Write as _;
+use writer::{render_csv, Dialect, WriteError};
 
 use tokenizer::{precheck, Fallback, Precheck, Tokenizer};
 
@@ -43,6 +47,14 @@ pub struct CsvBatchReader {
     unique_header: bool,
     batch_size: usize,
     rows_emitted: usize,
+}
+
+fn single_char(name: &str, value: &str) -> PyResult<char> {
+    let mut it = value.chars();
+    match (it.next(), it.next()) {
+        (Some(c), None) => Ok(c),
+        _ => Err(CsvFallback::new_err((format!("unsupported {name}: {value:?}"), 0usize))),
+    }
 }
 
 fn single_ascii(name: &str, value: &str) -> PyResult<u8> {
@@ -194,9 +206,50 @@ impl CsvBatchReader {
     }
 }
 
+/// Writes `batch` as CSV, exactly as `csv.writer` would write the Python rows
+/// of `DataFrame.to_dict("records")` (see writer.rs).
+///
+/// `append` selects the open mode; `header` is written first when given.
+/// Raises `CsvFallback` for a column type this writer does not handle, before
+/// touching the file.
+#[pyfunction]
+#[pyo3(signature = (path, batch, *, append, header=None, delimiter=",", quotechar="\"", lineterminator="\r\n"))]
+fn write_csv(
+    py: Python<'_>,
+    path: &str,
+    batch: PyRecordBatch,
+    append: bool,
+    header: Option<Vec<String>>,
+    delimiter: &str,
+    quotechar: &str,
+    lineterminator: &str,
+) -> PyResult<usize> {
+    let d = Dialect {
+        delimiter: single_char("delimiter", delimiter)?,
+        quotechar: single_char("quotechar", quotechar)?,
+        lineterminator: lineterminator.to_string(),
+    };
+    let rb = batch.into_inner();
+    let rows = rb.num_rows();
+    let text = py
+        .detach(|| render_csv(&rb, header.as_deref(), &d))
+        .map_err(|WriteError::Unsupported(t)| {
+            CsvFallback::new_err((format!("unsupported column type: {t}"), 0usize))
+        })?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(append)
+        .write(!append)
+        .truncate(!append)
+        .open(path)?;
+    py.detach(|| f.write_all(text.as_bytes()))?;
+    Ok(rows)
+}
+
 #[pymodule]
 fn hydra_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CsvBatchReader>()?;
+    m.add_function(wrap_pyfunction!(write_csv, m)?)?;
     m.add("CsvFallback", m.py().get_type::<CsvFallback>())?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())

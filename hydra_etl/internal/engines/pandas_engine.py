@@ -430,12 +430,10 @@ class PandasEngine(TransformEngine):
 
             try:
                 if t in {"int", "integer"}:
-                    out[col] = pd.to_numeric(out[col], errors="raise").astype("Int64")
+                    out[col] = self._to_numeric_fast(out[col], "Int64")
 
                 elif t == "float":
-                    out[col] = pd.to_numeric(out[col], errors="raise").astype(
-                        "float64"
-                    )
+                    out[col] = self._to_numeric_fast(out[col], "float64")
 
                 elif t in {"str", "string"}:
                     out[col] = out[col].astype("string")
@@ -944,6 +942,73 @@ class PandasEngine(TransformEngine):
     # Helpers
     # --------------------------------------------------
 
+    @staticmethod
+    def _decimal_strings_only(series: pd.Series) -> bool:
+        """
+        Vrai si la colonne est une colonne de texte dont **aucune** valeur ne
+        contient autre chose que des caractères décimaux `[0-9 + - . e E]` ou des
+        blancs.
+
+        C'est la condition qui rend `astype` interchangeable avec `to_numeric` :
+        `astype` reconnaît en plus l'hexadécimal (`"0x10"` → 16), les tirets bas
+        (`"1_000"`), les mots `nan` / `inf`, et les chiffres non ASCII, que
+        `to_numeric` refuse. Tous exigent un caractère hors de cet ensemble.
+
+        La vérification est faite par pyarrow (une passe C++ sur le tampon de
+        caractères) : sans pyarrow, ou sur une colonne d'objets, il n'existe pas
+        de test assez rapide pour valoir la peine, et on répond non.
+        """
+        if series.empty or getattr(series.dtype, "storage", None) != "pyarrow":
+            return False
+        try:
+            import pyarrow as pa
+            import pyarrow.compute as pc
+
+            arr = pa.array(series.array)
+            if not (pa.types.is_string(arr.type) or pa.types.is_large_string(arr.type)):
+                return False
+            ok = pc.all(pc.match_substring_regex(arr, r"^[0-9+\-.eE \t\r\n]*$"),
+                        min_count=0).as_py()
+            return ok is True
+        except Exception:  # noqa: BLE001 - pyarrow absent ou type inattendu
+            return False
+
+    @staticmethod
+    def _to_numeric_fast(series: pd.Series, dtype: str) -> pd.Series:
+        """
+        Conversion numérique d'une colonne, résultat identique à
+        ``pd.to_numeric(series, errors="raise").astype(dtype)``.
+
+        `astype` lit les chaînes de caractères directement (une passe C), là où
+        `to_numeric` construit un tableau d'objets Python : cinq à dix fois plus
+        rapide sur un million de lignes. Mais les deux ne reconnaissent pas la
+        même grammaire, donc le chemin rapide n'est pris que sur une colonne
+        vérifiée décimale (`_decimal_strings_only`) — et toute valeur qu'il
+        refuse malgré tout repasse par `to_numeric`, qui reste la référence :
+        même résultat, même message d'erreur.
+        """
+        if PandasEngine._decimal_strings_only(series):
+            try:
+                out = series.astype(dtype)
+            except (ValueError, TypeError):
+                out = None
+            if out is not None and not PandasEngine._has_negative_zero(out):
+                return out
+        return pd.to_numeric(series, errors="raise").astype(dtype)
+
+    @staticmethod
+    def _has_negative_zero(series: pd.Series) -> bool:
+        """
+        Dernier écart connu entre les deux voies : `to_numeric` lit `"-0"` comme
+        l'entier 0 et rend `+0.0`, tandis qu'`astype` rend `-0.0` (`"-0.0"`, lui,
+        donne `-0.0` des deux côtés). Le cas est rare ; on le détecte d'une passe
+        vectorisée et on laisse alors la référence faire le travail.
+        """
+        if series.dtype != "float64":
+            return False
+        values = np.asarray(series, dtype="float64")
+        return bool(np.any(np.signbit(values) & (values == 0.0)))
+
     def _cast_to_bool(self, series: pd.Series) -> pd.Series:
         """
         Convertit une Series vers boolean avec gestion flexible des formats.
@@ -969,4 +1034,21 @@ class PandasEngine(TransformEngine):
                 raise ValueError(f"String '{v}' non convertible en bool")
             raise ValueError(f"Type {type(v).__name__} non convertible en bool")
 
-        return series.map(normalize)
+        # `normalize` est une fonction Python : l'appeler une fois par ligne coûte
+        # cher. Une colonne booléenne n'a en pratique qu'une poignée de valeurs
+        # distinctes, donc on ne l'appelle qu'une fois par valeur distincte puis
+        # on substitue. `unique()` conserve l'ordre d'apparition : la première
+        # valeur invalide, et donc le message d'erreur, restent les mêmes.
+        if series.empty:
+            return series.map(normalize)
+        try:
+            uniques = pd.unique(series)
+            # `map` passe des objets Python à la fonction ; `unique` rend des
+            # scalaires numpy (np.bool_, np.int64), que `normalize` refuserait.
+            # `tolist()` rétablit les types que voyait l'implémentation d'origine.
+            table = {v: normalize(v) for v in uniques.tolist()}
+        except TypeError:
+            # Valeurs non hachables (listes, dicts) : `unique` ne sait pas les
+            # traiter, on revient au parcours ligne à ligne.
+            return series.map(normalize)
+        return series.map(table)

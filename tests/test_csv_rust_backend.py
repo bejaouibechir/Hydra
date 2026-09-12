@@ -41,6 +41,20 @@ def _frames(path, backend, bs, cfg):
     return list(c.extract_frames(table=str(path), batch_size=bs, backend=backend))
 
 
+def _frames_or_error(path, backend, bs, cfg):
+    """Lots lus, ou le message d'erreur si la lecture échoue.
+
+    Certains contenus sont refusés par le module `csv` selon la version de
+    Python (un NUL lève « line contains NUL » jusqu'à 3.10, plus après) : les
+    deux backends doivent alors échouer de la même façon, pas seulement rendre
+    les mêmes lots.
+    """
+    try:
+        return _frames(path, backend, bs, cfg), None
+    except ValueError as exc:  # message final, sans les chemins temporaires
+        return None, str(exc).strip().splitlines()[-1].strip()
+
+
 @pytest.fixture(autouse=True)
 def _reset(monkeypatch):
     # Fichiers de test minuscules : on force le lecteur Rust malgré le seuil de taille.
@@ -67,8 +81,11 @@ def test_rust_frames_equal_python_frames(tmp_path, name, bs):
     cfg = {"delimiter": ";"} if name == "semicolon" else {}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # avertissements de repli attendus
-        expected = _frames(path, "python", bs, cfg)
-        got = _frames(path, "rust", bs, cfg)
+        expected, py_error = _frames_or_error(path, "python", bs, cfg)
+        got, rust_error = _frames_or_error(path, "rust", bs, cfg)
+    assert rust_error == py_error
+    if py_error is not None:
+        return
     assert len(got) == len(expected)
     for a, b in zip(expected, got):
         pd.testing.assert_frame_equal(a, b, check_dtype=True)

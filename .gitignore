@@ -105,3 +105,10 @@ id_ed25519
 # Bundle du Studio : artefact de build, regenere par scripts/build_studio.py
 # et embarque dans le wheel. Jamais commite.
 hydra_etl/studio_dist/
+
+# Bundle hors ligne pour Rust (scripts/prepare_rust_vendor.sh). Jamais commite.
+_vendor/
+
+# Rust : artefacts de build et config locale (chemin du vendor propre a chaque machine)
+rust/**/target/
+rust/**/.cargo/

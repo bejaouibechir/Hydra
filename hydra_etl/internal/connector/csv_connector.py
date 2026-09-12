@@ -26,6 +26,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 from hydra_etl.internal.connector.interface import Batch, Connector, Row
 from hydra_etl.internal.connector.frame_batch import FrameBatch
+from hydra_etl._backend import dual, warn_once
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,11 @@ class CSVConnector(Connector):
 
     # Étape 0-bis : load_batches accepte des FrameBatch ; extract_frames disponible.
     accepts_frame_batches = True
+
+    # Backend Rust de « csv.read » : en dessous de cette taille de fichier, le
+    # surcoût fixe (pyarrow, double passage) dépasse le gain ; Python est utilisé.
+    # Mesuré : 1 000 lignes / 64 Ko -> égalité ; 20 lignes -> Rust +10 %.
+    rust_min_bytes = 64 * 1024
 
     def __init__(self, name: str, config: Dict[str, Any], job_dir: Optional[str] = None) -> None:
         """
@@ -279,6 +285,7 @@ class CSVConnector(Connector):
     # ---------------------------------------------------------------------
     # Étape 0-bis : lecture en DataFrames (sans dict par ligne)
     # ---------------------------------------------------------------------
+    @dual("csv.read", rust="_extract_frames_rust")
     def extract_frames(
         self,
         *,
@@ -296,10 +303,16 @@ class CSVConnector(Connector):
         - Lignes régulières (autant de champs que l'en-tête) : construction par colonnes.
         - Lot contenant une ligne irrégulière ou en-tête à noms dupliqués : on
           reproduit exactement csv.DictReader (restval=None, restkey=None).
+        - Aiguillage Python / Rust : opération « csv.read » (voir hydra_etl/_backend.py) ;
+          argument supplémentaire backend="python"|"rust".
         """
-        import pandas as pd
-
         csv_path = self._validated_source_path(table=table, batch_size=batch_size, query=query)
+        yield from self._frames_python(csv_path, batch_size)
+
+    def _frames_python(self, csv_path: Path, batch_size: int, skip_rows: int = 0) -> Iterator["pd.DataFrame"]:
+        """Lecture Python (référence). `skip_rows` : lignes de données (non vides) à
+        sauter, pour reprendre après un lecteur Rust qui a rendu la main."""
+        import pandas as pd
 
         try:
             with csv_path.open("r", encoding=self._settings.encoding, newline="") as f:
@@ -323,6 +336,9 @@ class CSVConnector(Connector):
                     gc.disable()
                     for row in dict_reader.reader:
                         if row == []:          # csv.DictReader saute les lignes vides
+                            continue
+                        if skip_rows:
+                            skip_rows -= 1
                             continue
                         rows.append(row)
                         if len(rows) >= batch_size:
@@ -357,6 +373,72 @@ class CSVConnector(Connector):
                 f"  base_path : {self._settings.base_path}\n"
                 f"  Erreur : {type(e).__name__}: {e}"
             ) from e
+
+    def _extract_frames_rust(
+        self,
+        *,
+        table: str,
+        batch_size: int = 10_000,
+        query: Optional[str] = None,
+    ) -> Iterator["pd.DataFrame"]:
+        """
+        Implémentation Rust de « csv.read » (module hydra_native), mêmes lots et
+        mêmes DataFrames que la version Python. Rend la main à Python, avec un
+        avertissement, dès que le lecteur Rust ne peut garantir un résultat
+        identique (encodage autre qu'UTF-8, BOM, UTF-8 invalide, NUL, guillemet
+        ouvert en fin de fichier...) — y compris en cours de lecture, en reprenant
+        après les lignes déjà rendues.
+        """
+        import pandas as pd
+        import hydra_native
+
+        csv_path = self._validated_source_path(table=table, batch_size=batch_size, query=query)
+
+        def handover(reason: str, skip_rows: int = 0) -> Iterator["pd.DataFrame"]:
+            from hydra_etl._backend import _t
+            warn_once(f"csv.read:{csv_path}:{reason}",
+                      _t("backend.rust_fallback", path=str(csv_path), reason=reason))
+            return self._frames_python(csv_path, batch_size, skip_rows=skip_rows)
+
+        if csv_path.stat().st_size < self.rust_min_bytes:
+            logger.debug("CSVConnector: %s below rust_min_bytes, Python reader used", csv_path)
+            yield from self._frames_python(csv_path, batch_size)
+            return
+        if self._settings.encoding.strip().lower().replace("_", "-") not in ("utf-8", "utf8"):
+            yield from handover(f"encoding {self._settings.encoding!r}")
+            return
+        try:
+            reader = hydra_native.CsvBatchReader(
+                str(csv_path),
+                delimiter=self._settings.delimiter,
+                quotechar=self._settings.quotechar,
+                batch_size=batch_size,
+            )
+        except hydra_native.CsvFallback as e:
+            yield from handover(str(e.args[0]))
+            return
+        except Exception as e:  # noqa: BLE001 - Python produira son propre message d'erreur
+            yield from handover(f"{type(e).__name__}: {e}")
+            return
+
+        header = reader.header
+        if not header:
+            raise ValueError(f"CSVConnector: en-tête CSV manquante ou vide: {csv_path}")
+        regular_header = len(set(header)) == len(header)
+
+        batches = iter(reader)
+        while True:
+            try:
+                batch = next(batches)
+            except StopIteration:
+                return
+            except hydra_native.CsvFallback as e:
+                yield from handover(str(e.args[0]), skip_rows=reader.rows_emitted)
+                return
+            if isinstance(batch, list):
+                yield self._rows_to_frame(batch, header, regular_header, pd)
+            else:
+                yield batch.to_pandas()
 
     @staticmethod
     def _rows_to_frame(rows: List[List[str]], header: List[str], regular_header: bool, pd: Any) -> Any:

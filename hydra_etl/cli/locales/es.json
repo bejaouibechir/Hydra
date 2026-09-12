@@ -101,5 +101,9 @@
   "help.workflow.init.docstring": "\b\nPlantillas disponibles:\n  basic      — Secuencial: job_a → job_b → notify\n  parallel   — Fan-out/fan-in: extract → [a, b] → load\n  scheduled  — Con trigger cron\n  notify     — Con acción webhook\n\n\b\nEjemplos:\n  hydra workflow init mi_workflow\n  hydra workflow init diario --template scheduled",
   "help.workflow.init.name": "Nombre del archivo workflow (sin .yaml)",
   "help.workflow.init.template": "Plantilla a usar (basic, parallel, scheduled, notify)",
-  "help.workflow.init.force": "Sobrescribir archivo existente"
+  "help.workflow.init.force": "Sobrescribir archivo existente",
+  "backend.rust_unavailable": "Se solicitó el backend Rust para '{operation}', pero no está disponible: {reason}. Se usa Python.",
+  "backend.rust_fallback": "El lector CSV de Rust devolvió '{path}' a Python: {reason}.",
+  "backend.invalid_value": "Se ignora el valor de backend no válido '{value}' ({origin}): se esperaba 'python' o 'rust'.",
+  "backend.config_unreadable": "No se puede leer la configuración de backend '{path}': {error}. Se usan los valores por defecto."
 }

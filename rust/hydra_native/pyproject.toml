@@ -1,0 +1,25 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "hydra-native"
+version = "0.1.0"
+description = "Native (Rust) accelerators for Hydra ETL"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Bechir Bejaoui" }]
+keywords = ["etl", "csv", "arrow", "rust", "hydra"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Rust",
+  "Topic :: Database",
+]
+license = "AGPL-3.0-or-later"
+dependencies = ["pyarrow>=14"]
+
+[tool.maturin]
+features = ["extension-module"]
+module-name = "hydra_native"

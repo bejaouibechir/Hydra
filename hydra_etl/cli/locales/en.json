@@ -136,5 +136,9 @@
   "help.workflow.init.docstring": "\\b\\nAvailable templates:\\n  basic      — Sequential: job_a → job_b → notify\\n  parallel   — Fan-out/fan-in: extract → [a, b] → load\\n  scheduled  — With cron trigger\\n  notify     — With webhook action\\n\\n\\b\\nExamples:\\n  hydra workflow init my_workflow\\n  hydra workflow init daily --template scheduled\\n  hydra workflow init etl --template parallel",
   "help.workflow.init.name": "Workflow file name (without .yaml)",
   "help.workflow.init.template": "Template to use (basic, parallel, scheduled, notify)",
-  "help.workflow.init.force": "Overwrite existing file"
+  "help.workflow.init.force": "Overwrite existing file",
+  "backend.rust_unavailable": "Rust backend requested for '{operation}' but unavailable: {reason}. Using Python.",
+  "backend.rust_fallback": "Rust CSV reader handed '{path}' over to Python: {reason}.",
+  "backend.invalid_value": "Ignoring invalid backend value '{value}' ({origin}): expected 'python' or 'rust'.",
+  "backend.config_unreadable": "Cannot read backend configuration '{path}': {error}. Using defaults."
 }

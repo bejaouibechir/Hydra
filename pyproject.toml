@@ -49,6 +49,9 @@ server = [
     "uvicorn[standard]>=0.29",
     "apscheduler>=3.10",
 ]
+# Accélérateurs natifs (Rust) : optionnels, Hydra fonctionne sans.
+# Voir rust/hydra_native et hydra.backends.yaml.
+native = ["hydra-native>=0.1,<0.2", "pyarrow>=14.0"]
 duckdb = ["duckdb>=0.10"]
 parquet = ["pyarrow>=14.0"]
 mysql = ["mysql-connector-python>=8.3"]
@@ -59,6 +62,7 @@ http = ["requests>=2.31"]
 all = [
     "hydra-etl[server]",
     "hydra-etl[duckdb]",
+    "hydra-etl[native]",
     "hydra-etl[parquet]",
     "hydra-etl[mysql]",
     "hydra-etl[postgres]",

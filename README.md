@@ -159,10 +159,45 @@ pip install "hydra-etl[postgres]"      # + PostgreSQL driver
 pip install "hydra-etl[all]"           # everything
 ```
 
-Available extras: `server`, `duckdb`, `parquet`, `mysql`, `postgres`,
+Available extras: `server`, `native`, `duckdb`, `parquet`, `mysql`, `postgres`,
 `mongodb`, `http`, `all`.
 
 Requires **Python 3.9+**. Runs on Linux, macOS and Windows.
+
+---
+
+## Native acceleration (optional)
+
+Parts of the engine have a Rust implementation. It is optional and off by
+default: without it, Hydra behaves exactly as it always has.
+
+```bash
+pip install "hydra-etl[native]"
+```
+
+Turn it on per operation, either with an environment variable:
+
+```bash
+HYDRA_BACKEND=rust hdrctl run ./jobs/sales
+```
+
+or with a `hydra.backends.yaml` file next to the job you run:
+
+```yaml
+default: python
+overrides:
+  csv.read: rust      # currently the only accelerated operation
+```
+
+What it changes, on a 1-million-row job: reading a CSV is about four times
+faster, which makes a filter-and-sort job about 1.5x faster end to end and an
+aggregation about 2x. Output files are byte-for-byte identical.
+
+The Python implementation stays in charge whenever the native one cannot
+guarantee the same result — a file that is not UTF-8, a byte order mark, a
+quoted field left open at the end of the file — and says so with a warning.
+Small files (under 64 KB) always use Python, where the native path would be
+slower. If the package is not installed, Hydra warns once and runs in Python.
 
 ---
 

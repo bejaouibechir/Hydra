@@ -1,0 +1,111 @@
+# Builds and publishes the optional native accelerators (rust/hydra_native).
+#
+# Separate from the Hydra wheel: hydra-native has its own version and its own
+# tag (`native-vX.Y.Z`), like the VS Code extension. Hydra itself never depends
+# on it — `pip install "hydra-etl[native]"` pulls it in for those who want it.
+name: native-wheels
+
+on:
+  push:
+    tags: ["native-v*"]
+  pull_request:
+    paths:
+      - "rust/**"
+      - ".github/workflows/native-wheels.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUST_VERSION: "1.95.0"
+  CRATE_DIR: rust/hydra_native
+
+jobs:
+  test:
+    name: tests (linux, python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Rust unit tests
+        working-directory: ${{ env.CRATE_DIR }}
+        run: cargo test --locked
+      - name: Build and install the extension
+        run: |
+          python -m pip install --upgrade pip maturin
+          python -m pip install pandas pyarrow pytest pyyaml pydantic click python-dotenv
+          maturin build --release --locked --out dist --manifest-path ${{ env.CRATE_DIR }}/Cargo.toml
+          python -m pip install --no-index --find-links dist hydra_native
+      - name: Parity of the CSV reader with Python's csv module
+        run: python -m pytest -q ${{ env.CRATE_DIR }}/tests
+      - name: Hydra test suite, Python backend then Rust backend
+        run: |
+          python -m pytest -q --ignore=tests/e2e --ignore=tests/test_auth_providers.py --ignore=tests/test_web_api_connector_v2_class.py
+          HYDRA_BACKEND=rust python -m pytest -q --ignore=tests/e2e --ignore=tests/test_auth_providers.py --ignore=tests/test_web_api_connector_v2_class.py
+
+  build:
+    name: wheel ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      # No abi3 (pyo3-arrow needs the full C API): one wheel per Python version.
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --locked --out dist --interpreter python${{ matrix.python }} --manifest-path ${{ env.CRATE_DIR }}/Cargo.toml
+          manylinux: auto
+      - name: Smoke test the wheel
+        shell: bash
+        run: |
+          python -m pip install --no-index --find-links dist hydra_native
+          python -c "import hydra_native; print(hydra_native.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-py${{ matrix.python }}
+          path: dist/*.whl
+
+  sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist --manifest-path ${{ env.CRATE_DIR }}/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    name: publish to PyPI
+    needs: [test, build, sdist]
+    if: startsWith(github.ref, 'refs/tags/native-v')
+    runs-on: ubuntu-latest
+    environment: pypi          # configure the trusted publisher for hydra-native there
+    permissions:
+      id-token: write          # PyPI trusted publishing, no token stored in the repo
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1

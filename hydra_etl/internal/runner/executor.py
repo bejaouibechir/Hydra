@@ -30,6 +30,7 @@ from hydra_etl.internal.config.parameters import ParameterResolver, build_effect
 from hydra_etl.internal.connector.interface import Connector
 from hydra_etl.internal.connector.frame_batch import FrameBatch, frame_io_enabled
 from hydra_etl.internal.connector.registry import build_connector
+from hydra_etl.internal.engines.frame_copy import copy_on_write
 from hydra_etl.internal.engines.pandas_engine import PandasEngine
 from hydra_etl.internal.runner.profiler import (
     JobProfiler,
@@ -115,6 +116,12 @@ class JobExecutor:
 
     def run(self) -> JobResult:
         """Exécute le job ETL."""
+        # Copy-on-Write : les copies défensives des opérations deviennent
+        # paresseuses (comportement natif de pandas 3, aligné ici sur pandas 2).
+        with copy_on_write():
+            return self._run()
+
+    def _run(self) -> JobResult:
         start = time.monotonic()
         prof = self._profiler
         rows_in = 0

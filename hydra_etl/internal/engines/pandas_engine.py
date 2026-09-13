@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from hydra_etl.internal.engines.frame_copy import lazy_copy
 from hydra_etl.internal.transform.engine_interface import StepResult, TransformEngine
 
 logger = logging.getLogger(__name__)
@@ -366,7 +367,7 @@ class PandasEngine(TransformEngine):
                 f"Colonnes disponibles : {list(df.columns)}"
             )
 
-        return df.loc[:, cols].copy()
+        return lazy_copy(df.loc[:, cols])
 
     def _op_rename(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """
@@ -392,7 +393,7 @@ class PandasEngine(TransformEngine):
                 f"Colonnes disponibles : {list(df.columns)}"
             )
 
-        return df.rename(columns=mapping).copy()
+        return df.rename(columns=mapping)
 
     def _op_cast(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """
@@ -412,7 +413,7 @@ class PandasEngine(TransformEngine):
                 f"cast.mapping doit être un dict, reçu {type(mapping).__name__}"
             )
 
-        out = df.copy()
+        out = lazy_copy(df)
 
         for col, typ in mapping.items():
             if col not in out.columns:
@@ -486,7 +487,7 @@ class PandasEngine(TransformEngine):
             raise ValueError("filter.expr ne peut pas être un string vide")
 
         try:
-            return df.query(expr, engine="python").copy()
+            return lazy_copy(df.query(expr, engine="python"))
         except Exception as e:
             raise ValueError(
                 f"filter : expression invalide '{expr}'. Erreur : {e}"
@@ -556,7 +557,7 @@ class PandasEngine(TransformEngine):
 
         g = _script_globals()
         g["params"] = dict(p.get("_params") or {})  # parametres (lecture seule)
-        out = df.copy()
+        out = lazy_copy(df)
 
         if mode == "vectorized":
             local_ns: Dict[str, Any] = {c: out[c] for c in inputs}
@@ -637,7 +638,7 @@ class PandasEngine(TransformEngine):
         """
         idx = p.get("index_col")
         header_name = p.get("header_name") or "column"
-        out = df.copy()
+        out = lazy_copy(df)
         if idx:
             if idx not in out.columns:
                 raise ValueError(f"transpose: index_col '{idx}' inexistante. Disponibles: {list(out.columns)}")
@@ -654,7 +655,7 @@ class PandasEngine(TransformEngine):
         import re
         cols = p.get("columns")
         case = str(p.get("case", "none")).lower()
-        out = df.copy()
+        out = lazy_copy(df)
         targets = cols if cols else [c for c in out.columns if out[c].dtype == object]
         for c in targets:
             if c not in out.columns:
@@ -801,7 +802,7 @@ class PandasEngine(TransformEngine):
         if not expr:
             raise ValueError("calculate.expr ne peut pas être un string vide")
 
-        out = df.copy()
+        out = lazy_copy(df)
         try:
             out[col] = out.eval(expr, engine="python")
         except Exception as e:
@@ -863,7 +864,7 @@ class PandasEngine(TransformEngine):
             columns: List[str] - colonnes a trimmer (defaut : toutes les colonnes string)
         """
         cols = p.get("columns")
-        out = df.copy()
+        out = lazy_copy(df)
         if cols:
             for c in cols:
                 if c in out.columns:

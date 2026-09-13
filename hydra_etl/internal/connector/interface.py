@@ -77,6 +77,14 @@ class Connector(ABC):
         """
         return None
 
+    def reader_releases_gil(self, table: Optional[str] = None) -> bool:
+        """True si la lecture relâche le GIL (lecteur natif, pilote C...).
+
+        L'executor s'en sert pour décider s'il vaut la peine de lire le lot
+        suivant dans un thread pendant que le lot courant est transformé.
+        """
+        return False
+
     def __init__(self, name: str, config: Dict[str, Any]) -> None:
         # name : identifiant stable (ex: "src_orders", "dest_dwh")
         # config: configuration résolue (secrets déjà substitués)

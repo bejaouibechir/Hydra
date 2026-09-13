@@ -33,6 +33,7 @@ from hydra_etl.internal.connector.registry import build_connector
 from hydra_etl.internal.engines.frame_copy import copy_on_write
 from hydra_etl.internal.engines.pandas_engine import PandasEngine
 from hydra_etl.internal.runner import batch_size as batch_size_policy
+from hydra_etl.internal.runner.prefetch import prefetch, should_prefetch
 from hydra_etl.internal.runner.projection import required_columns
 from hydra_etl.internal.runner.profiler import (
     JobProfiler,
@@ -250,11 +251,18 @@ class JobExecutor:
 
             # 7) Streaming batch par batch
             extract = source_connector.extract_frames if frames_in else source_connector.extract_batches
-            for batch in prof.iterate("extract", extract(
+            # Le lot suivant est lu pendant que le lot courant est transformé :
+            # « extract » ne compte plus que le temps réellement bloqué.
+            # Rien a recouvrir si la boucle ne fait qu'empiler les lots pour une
+            # operation globale : le thread n'apporterait que du surcout.
+            avance = bool(stream_steps or not global_steps) and should_prefetch(
+                source_connector, extract_table
+            )
+            for batch in prof.iterate("extract", prefetch(extract(
                 table=extract_table,
                 batch_size=extract_batch_size,
                 query=extract_query,
-            )):
+            ), enabled=avance)):
                 rows_in += len(batch)
                 out_batch = batch
 

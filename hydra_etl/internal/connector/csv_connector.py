@@ -98,6 +98,21 @@ class CSVConnector(Connector):
         """
         self._projection = {str(c) for c in columns} if columns else None
 
+    def reader_releases_gil(self, table: Optional[str] = None) -> bool:
+        """Vrai quand « csv.read » passe par le module natif : le lecteur Rust
+        relâche le GIL pendant l'analyse du fichier, ce qui rend le
+        préchargement du lot suivant réellement utile. Le lecteur Python, lui,
+        garde le GIL : y ajouter un thread ne ferait que du surcoût."""
+        try:
+            from hydra_etl._backend import native_status, resolve
+
+            if resolve("csv.read") != "rust":
+                return False
+            ok, _ = native_status()
+            return bool(ok)
+        except Exception:  # noqa: BLE001
+            return False
+
     def estimate_row_bytes(self, table: Optional[str]) -> Optional[float]:
         """Octets qu'occupe une ligne une fois en DataFrame, estimés sur un
         échantillon du fichier. None si l'estimation n'est pas possible.

@@ -63,6 +63,20 @@ class Connector(ABC):
     Le core n'impose aucune librairie (mysql-connector, pandas, etc.).
     """
 
+    # Projection : un connecteur qui sait ne lire qu'un sous-ensemble de
+    # colonnes passe ce drapeau à True et honore set_projection().
+    supports_projection: bool = False
+
+    def set_projection(self, columns: Optional[List[str]]) -> None:
+        """Restreint la lecture aux colonnes indiquées (None = toutes).
+
+        La restriction est *souple* : une colonne demandée mais absente du
+        fichier n'est pas une erreur ici — l'opération qui en a besoin
+        produira son propre message, comme avant. Un connecteur qui ne sait
+        pas projeter ignore simplement l'appel.
+        """
+        return None
+
     def __init__(self, name: str, config: Dict[str, Any]) -> None:
         # name : identifiant stable (ex: "src_orders", "dest_dwh")
         # config: configuration résolue (secrets déjà substitués)

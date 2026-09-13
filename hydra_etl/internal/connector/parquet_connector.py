@@ -42,6 +42,10 @@ class ParquetConnector(Connector):
 
     VALID_COMPRESSIONS = {"snappy", "gzip", "brotli", "none"}
 
+    # Parquet est un format colonne : ne lire que les colonnes utiles evite
+    # de decompresser les autres.
+    supports_projection = True
+
     def __init__(self, name: str, config: Dict[str, Any], job_dir: Optional[str] = None) -> None:
         super().__init__(name, config)
         self._job_dir = job_dir or config.get("job_dir")
@@ -49,6 +53,12 @@ class ParquetConnector(Connector):
             raise ValueError(f"ParquetConnector [{self.name}]: 'job_dir' requis.")
         if not os.path.isdir(self._job_dir):
             raise ValueError(f"ParquetConnector [{self.name}]: job_dir '{self._job_dir}' inexistant.")
+        self._projection: Optional[set] = None
+
+    def set_projection(self, columns: Optional[List[str]]) -> None:
+        """Ne lire que ces colonnes (None = toutes). Souple : une colonne
+        absente du fichier est ignoree ici."""
+        self._projection = {str(c) for c in columns} if columns else None
 
     @property
     def capabilities(self) -> ConnectorCapabilities:
@@ -89,7 +99,12 @@ class ParquetConnector(Connector):
             raise ValueError(f"ParquetConnector [{self.name}]: fichier '{resolved_path}' introuvable.")
         try:
             parquet_file = pq.ParquetFile(resolved_path)
-            for record_batch in parquet_file.iter_batches(batch_size=batch_size):
+            columns = None
+            if self._projection:
+                present = [c for c in parquet_file.schema_arrow.names if c in self._projection]
+                if present and len(present) < len(parquet_file.schema_arrow.names):
+                    columns = present
+            for record_batch in parquet_file.iter_batches(batch_size=batch_size, columns=columns):
                 df = record_batch.to_pandas()
                 batch = df.to_dict(orient="records")
                 if batch:

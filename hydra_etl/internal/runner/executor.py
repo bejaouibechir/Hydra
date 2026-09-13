@@ -32,6 +32,7 @@ from hydra_etl.internal.connector.frame_batch import FrameBatch, frame_io_enable
 from hydra_etl.internal.connector.registry import build_connector
 from hydra_etl.internal.engines.frame_copy import copy_on_write
 from hydra_etl.internal.engines.pandas_engine import PandasEngine
+from hydra_etl.internal.runner.projection import required_columns
 from hydra_etl.internal.runner.profiler import (
     JobProfiler,
     format_profile,
@@ -158,6 +159,10 @@ class JobExecutor:
             # 3) Instancier les connecteurs via le registry
             source_connector = self._build_connector(src_id, src_def, is_source=True)
             dest_connector = self._build_connector(dest_id, dest_def, is_source=False)
+
+            # 3-bis) Projection : ne lire que les colonnes dont le job se sert.
+            #        L'analyse rend None au moindre doute -> lecture complète.
+            self._apply_projection(source_connector, steps)
 
             # 4) Extraire les paramètres d'extraction et de chargement
             extract_table, extract_batch_size, extract_query = self._source_extract_params(src_def)
@@ -346,6 +351,23 @@ class JobExecutor:
                 error=error_msg,
                 profile=profile_data,
             )
+
+    def _apply_projection(self, source_connector: Connector, steps: List[Dict[str, Any]]) -> None:
+        """Restreint la lecture de la source aux colonnes utiles au job."""
+        if not steps or not getattr(source_connector, "supports_projection", False):
+            return
+        needed = required_columns(steps)
+        if not needed:
+            return
+        try:
+            source_connector.set_projection(sorted(needed))
+        except Exception as exc:  # noqa: BLE001 - jamais bloquant
+            logger.debug("Projection ignorée : %s", exc)
+            return
+        logger.info(
+            "Job '%s': lecture restreinte à %d colonne(s) : %s",
+            self.job_id, len(needed), ", ".join(sorted(needed)),
+        )
 
     # =========================================================================
     # Helpers - Chargement YAML

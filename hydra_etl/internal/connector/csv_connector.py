@@ -67,6 +67,9 @@ class CSVConnector(Connector):
     # Mesuré : 1 000 lignes / 64 Ko -> égalité ; 20 lignes -> Rust +10 %.
     rust_min_bytes = 64 * 1024
 
+    # Projection : le lecteur sait ne construire que les colonnes demandées.
+    supports_projection = True
+
     def __init__(self, name: str, config: Dict[str, Any], job_dir: Optional[str] = None) -> None:
         """
         Args:
@@ -83,6 +86,26 @@ class CSVConnector(Connector):
 
         # On normalise les settings une seule fois (plus simple + plus sûr).
         self._settings = self._normalize_settings(config, self._job_dir)
+
+        # Colonnes demandées par le job (None = toutes). Voir set_projection.
+        self._projection: Optional[set] = None
+
+    def set_projection(self, columns: Optional[List[str]]) -> None:
+        """Ne construire que ces colonnes (None = toutes).
+
+        Souple : une colonne demandée mais absente du fichier est ignorée ici,
+        l'opération qui en a besoin produira son message habituel.
+        """
+        self._projection = {str(c) for c in columns} if columns else None
+
+    def _kept_columns(self, header: List[str]) -> Optional[List[str]]:
+        """Colonnes du fichier à garder, ou None s'il faut tout garder."""
+        if not self._projection:
+            return None
+        kept = [h for h in header if h in self._projection]
+        if not kept or len(kept) == len(header):
+            return None  # rien à gagner, ou projection vide : on lit tout
+        return kept
 
     # ---------------------------------------------------------------------
     # Helpers internes
@@ -326,6 +349,7 @@ class CSVConnector(Connector):
 
                 header = list(dict_reader.fieldnames)
                 regular_header = len(set(header)) == len(header)
+                keep = self._kept_columns(header)
                 rows: List[List[str]] = []
                 # Le ramasse-miettes est suspendu pendant la lecture d'un lot : les
                 # milliers de listes créées déclenchent sinon des collectes complètes
@@ -342,14 +366,14 @@ class CSVConnector(Connector):
                             continue
                         rows.append(row)
                         if len(rows) >= batch_size:
-                            frame = self._rows_to_frame(rows, header, regular_header, pd)
+                            frame = self._rows_to_frame(rows, header, regular_header, pd, keep)
                             rows = []
                             if gc_was_enabled:
                                 gc.enable()
                             yield frame
                             gc.disable()
                     if rows:
-                        frame = self._rows_to_frame(rows, header, regular_header, pd)
+                        frame = self._rows_to_frame(rows, header, regular_header, pd, keep)
                         rows = []
                         if gc_was_enabled:
                             gc.enable()
@@ -425,6 +449,7 @@ class CSVConnector(Connector):
         if not header:
             raise ValueError(f"CSVConnector: en-tête CSV manquante ou vide: {csv_path}")
         regular_header = len(set(header)) == len(header)
+        keep = self._kept_columns(header)
 
         batches = iter(reader)
         while True:
@@ -436,16 +461,27 @@ class CSVConnector(Connector):
                 yield from handover(str(e.args[0]), skip_rows=reader.rows_emitted)
                 return
             if isinstance(batch, list):
-                yield self._rows_to_frame(batch, header, regular_header, pd)
+                yield self._rows_to_frame(batch, header, regular_header, pd, keep)
             else:
+                if keep:
+                    # sous-ensemble côté Arrow : les colonnes écartées ne sont
+                    # jamais converties en pandas
+                    batch = batch.select(list(keep))
                 yield batch.to_pandas()
 
     @staticmethod
-    def _rows_to_frame(rows: List[List[str]], header: List[str], regular_header: bool, pd: Any) -> Any:
+    def _rows_to_frame(rows: List[List[str]], header: List[str], regular_header: bool, pd: Any,
+                       keep: Optional[List[str]] = None) -> Any:
         n = len(header)
         if regular_header and all(len(r) == n for r in rows):
+            if keep:
+                # Les colonnes ecartees ne deviennent jamais des Series.
+                wanted = set(keep)
+                cols = {h: list(col) for h, col in zip(header, zip(*rows)) if h in wanted}
+                return pd.DataFrame(cols, columns=keep)
             return pd.DataFrame({h: list(col) for h, col in zip(header, zip(*rows))}, columns=header)
-        # Cas irrégulier : reproduction exacte de csv.DictReader.__next__
+        # Cas irrégulier : reproduction exacte de csv.DictReader.__next__,
+        # puis restriction — la parité prime sur le gain.
         records: List[Dict[str, Any]] = []
         for r in rows:
             d = dict(zip(header, r))
@@ -456,7 +492,12 @@ class CSVConnector(Connector):
                 for key in header[lr:]:
                     d[key] = None
             records.append(d)
-        return pd.DataFrame(records)
+        frame = pd.DataFrame(records)
+        if keep:
+            present = [c for c in keep if c in frame.columns]
+            if present:
+                frame = frame.loc[:, present]
+        return frame
 
     def _validated_source_path(self, *, table: str, batch_size: int, query: Optional[str]) -> Path:
         """Mêmes contrôles et mêmes messages que le début d'extract_batches.

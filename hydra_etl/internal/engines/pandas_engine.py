@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from hydra_etl.internal.engines.expr_engine import choose_expr_engine
 from hydra_etl.internal.engines.frame_copy import lazy_copy
 from hydra_etl.internal.transform.engine_interface import StepResult, TransformEngine
 
@@ -486,6 +487,12 @@ class PandasEngine(TransformEngine):
         if not expr:
             raise ValueError("filter.expr ne peut pas être un string vide")
 
+        engine = choose_expr_engine(df, expr)
+        if engine != "python":
+            try:
+                return lazy_copy(df.query(expr, engine=engine))
+            except Exception:
+                pass  # repli : le moteur d'origine tranche, message compris
         try:
             return lazy_copy(df.query(expr, engine="python"))
         except Exception as e:
@@ -802,7 +809,14 @@ class PandasEngine(TransformEngine):
         if not expr:
             raise ValueError("calculate.expr ne peut pas être un string vide")
 
+        engine = choose_expr_engine(df, expr)
         out = lazy_copy(df)
+        if engine != "python":
+            try:
+                out[col] = out.eval(expr, engine=engine)
+                return out
+            except Exception:
+                out = lazy_copy(df)  # repli propre
         try:
             out[col] = out.eval(expr, engine="python")
         except Exception as e:

@@ -194,11 +194,21 @@ class JobExecutor:
             stream_steps, global_steps = self._split_global_steps(steps)
             global_frames: List[pd.DataFrame] = []
 
-            # Échanges par DataFrame (étape 0-bis) : seulement avec des transformations
-            # (sans transformation, les dicts de la source partent tels quels, comme avant),
-            # et seulement si le connecteur le propose. HYDRA_FRAME_IO=0 pour désactiver.
-            frames_in = bool(steps) and frame_io_enabled() and callable(
+            # Échanges par DataFrame (étape 0-bis). Avec transformations, c'est
+            # toujours gagnant. Sans transformation (job E-L pur), ça ne l'est
+            # que si les DEUX bouts sont colonnes : sinon on remplace des dicts
+            # par une construction de DataFrame suivie de sa relecture ligne à
+            # ligne — mesuré 2,3 -> 4,0 s en tout-Python, contre 2,9 -> 2,0 s
+            # quand lecteur et écrivain sont natifs.
+            # HYDRA_FRAME_IO=0 pour revenir au chemin historique.
+            frames_in = frame_io_enabled() and callable(
                 getattr(source_connector, "extract_frames", None))
+            if not steps:
+                frames_in = frames_in and self._columnar(
+                    source_connector, "reader_is_columnar", extract_table
+                ) and self._columnar(
+                    dest_connector, "writer_is_columnar", load_table
+                )
             frames_out = frame_io_enabled() and bool(
                 getattr(dest_connector, "accepts_frame_batches", False))
 
@@ -265,6 +275,15 @@ class JobExecutor:
             ), enabled=avance)):
                 rows_in += len(batch)
                 out_batch = batch
+
+                if not steps:
+                    # E-L pur : le lot part tel quel, en DataFrame si la
+                    # destination sait le prendre.
+                    if isinstance(batch, pd.DataFrame):
+                        with prof.span("DataFrame -> sortie"):
+                            out_batch = _out_batch(batch)
+                    _emit(out_batch)
+                    continue
 
                 if global_steps:
                     with prof.span("batch -> DataFrame"):
@@ -362,6 +381,17 @@ class JobExecutor:
                 error=error_msg,
                 profile=profile_data,
             )
+
+    @staticmethod
+    def _columnar(connector: Any, capability: str, table: Optional[str]) -> bool:
+        """Interroge une capacité « par colonnes » du connecteur, sans jamais échouer."""
+        probe = getattr(connector, capability, None)
+        if not callable(probe):
+            return False
+        try:
+            return bool(probe(table))
+        except Exception:  # noqa: BLE001
+            return False
 
     def _apply_projection(self, source_connector: Connector, steps: List[Dict[str, Any]]) -> None:
         """Restreint la lecture de la source aux colonnes utiles au job."""

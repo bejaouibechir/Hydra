@@ -152,7 +152,9 @@ transformations:
           total_revenue: {func: sum, col: revenue}
           order_count: {func: count, col: order_id}
 """
+    el_t = 'version: "1.0"\ntransformations:\n  steps: []\n'
     return {
+        "s4": write_job("s4", src_csv, dst("s4_out.csv"), el_t),   # E-L pur
         "s1": write_job("s1", src_csv, dst("s1_out.csv"), s1_t),
         "s2": write_job("s2", src_json, dst("s2_out.csv"), s2_t),
         "s3": write_job("s3", src_csv, dst("s3_out.csv"), s3_t),

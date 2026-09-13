@@ -98,20 +98,35 @@ class CSVConnector(Connector):
         """
         self._projection = {str(c) for c in columns} if columns else None
 
-    def reader_releases_gil(self, table: Optional[str] = None) -> bool:
-        """Vrai quand « csv.read » passe par le module natif : le lecteur Rust
-        relâche le GIL pendant l'analyse du fichier, ce qui rend le
-        préchargement du lot suivant réellement utile. Le lecteur Python, lui,
-        garde le GIL : y ajouter un thread ne ferait que du surcoût."""
+    @staticmethod
+    def _native_active(operation: str) -> bool:
+        """Vrai si `operation` passe effectivement par le module natif."""
         try:
             from hydra_etl._backend import native_status, resolve
 
-            if resolve("csv.read") != "rust":
+            if resolve(operation) != "rust":
                 return False
             ok, _ = native_status()
             return bool(ok)
         except Exception:  # noqa: BLE001
             return False
+
+    def reader_is_columnar(self, table: Optional[str] = None) -> bool:
+        """Le lecteur natif rend des lots Arrow ; le lecteur Python construit
+        les colonnes ligne par ligne et n'y gagne rien."""
+        return self._native_active("csv.read")
+
+    def writer_is_columnar(self, table: Optional[str] = None) -> bool:
+        """L'écrivain natif consomme des colonnes Arrow ; l'écrivain Python
+        écrit dict par dict."""
+        return self._native_active("csv.write")
+
+    def reader_releases_gil(self, table: Optional[str] = None) -> bool:
+        """Vrai quand « csv.read » passe par le module natif : le lecteur Rust
+        relâche le GIL pendant l'analyse du fichier, ce qui rend le
+        préchargement du lot suivant réellement utile. Le lecteur Python, lui,
+        garde le GIL : y ajouter un thread ne ferait que du surcoût."""
+        return self._native_active("csv.read")
 
     def estimate_row_bytes(self, table: Optional[str]) -> Optional[float]:
         """Octets qu'occupe une ligne une fois en DataFrame, estimés sur un

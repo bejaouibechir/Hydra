@@ -77,6 +77,14 @@ class Connector(ABC):
         """
         return None
 
+    def reader_is_columnar(self, table: Optional[str] = None) -> bool:
+        """True si la lecture produit des lots par colonnes, sans dict par ligne."""
+        return False
+
+    def writer_is_columnar(self, table: Optional[str] = None) -> bool:
+        """True si l'écriture consomme des lots par colonnes, sans dict par ligne."""
+        return False
+
     def reader_releases_gil(self, table: Optional[str] = None) -> bool:
         """True si la lecture relâche le GIL (lecteur natif, pilote C...).
 

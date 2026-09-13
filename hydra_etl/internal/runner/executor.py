@@ -699,7 +699,7 @@ class JobExecutor:
                 ext = right.get("extract") if isinstance(right.get("extract"), dict) else {}
                 if ext:
                     config["extract"] = ext
-                if rtype in ("csv", "json"):
+                if rtype in ("csv", "json", "parquet"):
                     config["job_dir"] = str(self.path_base)
                 conn = build_connector(name=f"{op}_right", config=config)
                 r_table = ext.get("table")
@@ -766,7 +766,9 @@ class JobExecutor:
         
         # 2c. Pour les connecteurs fichier, injecter path_base résolu (absolu)
         # path_base == job_dir en mode CLI ; == dossier job d\'origine en mode Studio inline.
-        if ctype in ("csv", "json"):
+        # parquet en fait partie : sans job_dir, son instanciation échoue, ce qui
+        # rendait le format inutilisable comme sortie intermédiaire.
+        if ctype in ("csv", "json", "parquet"):
             config["job_dir"] = str(self.path_base)
         
         # 3. Instancier via le registry

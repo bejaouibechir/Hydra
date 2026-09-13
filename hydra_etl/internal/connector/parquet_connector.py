@@ -1,21 +1,44 @@
 """
 Parquet Connector pour Hydra ETL.
 
-Connecteur pour lire et écrire des fichiers Parquet avec support:
-- Extract: Lecture par batch
-- Load: Ecriture avec modes append/replace
-- Compressions: snappy, gzip, brotli, none
+- Extract : lecture par lots, en DataFrame (extract_frames) ou en dicts.
+- Load    : écriture en flux, modes append / replace.
+- Compressions : snappy, gzip, brotli, none.
+
+Pourquoi Parquet pour les sorties intermédiaires
+------------------------------------------------
+Dans une chaîne de jobs, chaque fichier intermédiaire écrit en CSV est
+réanalysé caractère par caractère au job suivant, et son schéma est perdu
+(tout redevient du texte, à recaster). En Parquet, le fichier est
+colonnes, typé, compressé : le job suivant relit les colonnes dont il a
+besoin, dans le bon type, sans analyse syntaxique.
+
+C'est pourquoi ce connecteur déclare ses lots comme « par colonnes » : la
+lecture rend des DataFrames construits depuis Arrow et l'écriture consomme
+directement les colonnes, sans jamais fabriquer un dict par ligne.
+
+Mémoire
+-------
+L'écriture est faite en flux avec ParquetWriter : les lots sont écrits au
+fur et à mesure, jamais accumulés. En mode append sur un fichier existant,
+le contenu déjà présent est recopié lot par lot (le format Parquet se
+termine par un pied de page, on ne peut pas y ajouter en place), puis le
+fichier est remplacé de façon atomique.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 import pandas as pd
 
+from hydra_etl.internal.connector.frame_batch import FrameBatch
 from hydra_etl.internal.connector.interface import Connector, Batch, ConnectorCapabilities
+
+logger = logging.getLogger(__name__)
 
 # pyarrow importe a la demande - optionnel
 try:
@@ -45,6 +68,20 @@ class ParquetConnector(Connector):
     # Parquet est un format colonne : ne lire que les colonnes utiles evite
     # de decompresser les autres.
     supports_projection = True
+
+    # Lots par colonnes des deux cotes : extract_frames rend des DataFrames,
+    # load_batches accepte des FrameBatch.
+    accepts_frame_batches = True
+
+    def reader_is_columnar(self, table: Optional[str] = None) -> bool:
+        return _PYARROW_AVAILABLE
+
+    def writer_is_columnar(self, table: Optional[str] = None) -> bool:
+        return _PYARROW_AVAILABLE
+
+    def reader_releases_gil(self, table: Optional[str] = None) -> bool:
+        """pyarrow lit et decompresse en C++, GIL relache."""
+        return _PYARROW_AVAILABLE
 
     def __init__(self, name: str, config: Dict[str, Any], job_dir: Optional[str] = None) -> None:
         super().__init__(name, config)
@@ -123,24 +160,64 @@ class ParquetConnector(Connector):
         resolved_path = self._resolve_path(file_path)
         if not os.path.isfile(resolved_path):
             raise ValueError(f"ParquetConnector [{self.name}]: fichier '{resolved_path}' introuvable.")
+        for record_batch in self._iter_record_batches(table, batch_size):
+            batch = record_batch.to_pandas().to_dict(orient="records")
+            if batch:
+                yield batch
+
+    def extract_frames(
+        self,
+        *,
+        table: Optional[str] = None,
+        batch_size: int = 10_000,
+        query: Optional[str] = None,
+        incremental: Optional[Dict[str, Any]] = None,
+    ) -> Iterator[pd.DataFrame]:
+        """Memes lots que extract_batches, rendus directement en DataFrame.
+
+        Chaque lot est egal a pd.DataFrame(lot_de_dicts) du chemin historique :
+        c'est le meme RecordBatch, converti une fois au lieu de passer par un
+        dict par ligne.
+        """
+        for record_batch in self._iter_record_batches(table, batch_size):
+            frame = record_batch.to_pandas()
+            if len(frame):
+                yield frame
+
+    def _iter_record_batches(self, table: Optional[str], batch_size: int):
+        _require_pyarrow()
+        file_path = (
+            table
+            or self.config.get("extract", {}).get("file")
+            or self.config.get("extract", {}).get("table")
+        )
+        if not file_path:
+            raise ValueError(f"ParquetConnector [{self.name}]: fichier source manquant.")
+        resolved_path = self._resolve_path(file_path)
+        if not os.path.isfile(resolved_path):
+            raise ValueError(f"ParquetConnector [{self.name}]: fichier '{resolved_path}' introuvable.")
         try:
             parquet_file = pq.ParquetFile(resolved_path)
-            columns = None
-            if self._projection:
-                present = [c for c in parquet_file.schema_arrow.names if c in self._projection]
-                if present and len(present) < len(parquet_file.schema_arrow.names):
-                    columns = present
+            columns = self._projected_columns(parquet_file)
             for record_batch in parquet_file.iter_batches(batch_size=batch_size, columns=columns):
-                df = record_batch.to_pandas()
-                batch = df.to_dict(orient="records")
-                if batch:
-                    yield batch
+                yield record_batch
         except ImportError:
             raise
         except Exception as e:
             raise ValueError(
                 f"ParquetConnector [{self.name}]: echec lecture Parquet. {type(e).__name__}: {e}"
             ) from e
+
+    def _projected_columns(self, parquet_file) -> Optional[List[str]]:
+        if not self._projection:
+            return None
+        noms = list(parquet_file.schema_arrow.names)
+        present = [c for c in noms if c in self._projection]
+        if present and len(present) < len(noms):
+            return present
+        return None
+
+    # ------------------------------------------------------------------ load
 
     def load_batches(
         self,
@@ -151,6 +228,7 @@ class ParquetConnector(Connector):
         key: Optional[List[str]] = None,
         compression: str = "snappy",
     ) -> None:
+        """Ecrit les lots en flux, sans les accumuler en memoire."""
         _require_pyarrow()
         mode_norm = mode.strip().lower()
         if mode_norm not in {"append", "replace"}:
@@ -158,28 +236,84 @@ class ParquetConnector(Connector):
         comp_norm = compression.strip().lower()
         if comp_norm not in self.VALID_COMPRESSIONS:
             raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+        compression_arg = None if comp_norm == "none" else comp_norm
+
         resolved_path = self._resolve_path(table)
         Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
-        if mode_norm == "replace" and os.path.isfile(resolved_path):
-            os.remove(resolved_path)
-        compression_arg = None if comp_norm == "none" else comp_norm
+
+        tables = [t for t in (self._to_table(b) for b in batches) if t is not None]
+        if not tables:
+            if mode_norm == "replace" and os.path.isfile(resolved_path):
+                os.remove(resolved_path)
+            return
+
+        recopier = mode_norm == "append" and os.path.isfile(resolved_path)
+        if recopier:
+            existant = pq.ParquetFile(resolved_path)
+            if set(existant.schema_arrow.names) != set(tables[0].schema.names):
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+
+        cible = Path(resolved_path)
+        temporaire = cible.with_name(cible.name + ".hydra-tmp")
+        writer = None
         try:
-            all_dfs = [pd.DataFrame(batch) for batch in batches if batch]
-            if not all_dfs:
-                return
-            df_combined = pd.concat(all_dfs, ignore_index=True)
-            if mode_norm == "append" and os.path.isfile(resolved_path):
-                df_existing = pd.read_parquet(resolved_path)
-                if set(df_existing.columns) != set(df_combined.columns):
-                    raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
-                df_combined = pd.concat([df_existing, df_combined], ignore_index=True)
-            df_combined.to_parquet(resolved_path, compression=compression_arg, index=False)
+            if recopier:
+                # Parquet se termine par un pied de page : on ne peut pas y
+                # ajouter en place. On recopie l'existant lot par lot (memoire
+                # bornee), puis on ajoute les nouveaux lots.
+                lecteur = pq.ParquetFile(resolved_path)
+                schema = lecteur.schema_arrow
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+                for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                    writer.write_table(pa.Table.from_batches([rb], schema=schema))
+            else:
+                schema = tables[0].schema
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+
+            for t in tables:
+                if not t.schema.equals(schema):
+                    try:
+                        t = t.cast(schema)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                        ) from None
+                writer.write_table(t)
+            writer.close()
+            writer = None
+            os.replace(temporaire, resolved_path)
         except (ImportError, ValueError):
+            self._nettoyer(writer, temporaire)
             raise
         except Exception as e:
+            self._nettoyer(writer, temporaire)
             raise ValueError(
                 f"ParquetConnector [{self.name}]: echec ecriture Parquet. {type(e).__name__}: {e}"
             ) from e
+
+    @staticmethod
+    def _nettoyer(writer, temporaire: Path) -> None:
+        if writer is not None:
+            try:
+                writer.close()
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            if temporaire.exists():
+                temporaire.unlink()
+        except Exception:  # noqa: BLE001
+            pass
+
+    @staticmethod
+    def _to_table(batch: Any):
+        """Lot -> table Arrow, sans passer par un dict par ligne quand c'est possible."""
+        if batch is None or len(batch) == 0:
+            return None
+        if isinstance(batch, FrameBatch):
+            return pa.Table.from_pandas(batch.frame, preserve_index=False)
+        if isinstance(batch, pd.DataFrame):
+            return pa.Table.from_pandas(batch, preserve_index=False)
+        return pa.Table.from_pandas(pd.DataFrame(batch), preserve_index=False)
 
     def _resolve_path(self, file_path: str) -> str:
         path = Path(file_path)

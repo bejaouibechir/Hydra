@@ -83,6 +83,91 @@ def prefetch_size() -> int:
     return 1
 
 
+def ordered_parallel(factories: "list", *, workers: int = 2, depth: int = 1) -> Iterator[Any]:
+    """Lit plusieurs sources en parallèle, en rendant les éléments **dans
+    l'ordre des sources**.
+
+    `factories` est une liste de fonctions sans argument, chacune rendant un
+    itérable (par exemple : les lots d'un fichier). Jusqu'à `workers` sources
+    sont lues en avance ; chacune est bloquée dès que sa file est pleine, donc
+    la mémoire reste bornée même si un fichier est énorme.
+
+    L'ordre de sortie est celui de `factories`, quelle que soit la vitesse
+    relative des lectures : le résultat ne dépend pas de l'ordonnancement.
+    Une exception est relancée telle quelle, à sa place dans l'ordre.
+    """
+    total = len(factories)
+    if total == 0:
+        return
+    if total == 1 or workers <= 1:
+        for fabrique in factories:
+            yield from fabrique()
+        return
+
+    files: list = [None] * total
+    threads: list = [None] * total
+    erreurs: list = [None] * total
+    stop = threading.Event()
+
+    def demarrer(i: int) -> None:
+        file: "queue.Queue[Any]" = queue.Queue(maxsize=max(1, depth))
+        files[i] = file
+
+        def lire() -> None:
+            try:
+                for item in factories[i]():
+                    if stop.is_set():
+                        break
+                    while not stop.is_set():
+                        try:
+                            file.put(item, timeout=0.2)
+                            break
+                        except queue.Full:
+                            continue
+            except BaseException as exc:  # noqa: BLE001 - retransmise telle quelle
+                erreurs[i] = exc
+            finally:
+                try:
+                    file.put(_END, timeout=5)
+                except queue.Full:
+                    pass
+
+        thread = threading.Thread(target=lire, name=f"hydra-reader-{i}", daemon=True)
+        threads[i] = thread
+        thread.start()
+
+    try:
+        en_vol = min(workers, total)
+        for i in range(en_vol):
+            demarrer(i)
+        suivant = en_vol
+        for i in range(total):
+            file = files[i]
+            while True:
+                item = file.get()
+                if item is _END:
+                    break
+                yield item
+            if erreurs[i] is not None:
+                raise erreurs[i]
+            if suivant < total:
+                demarrer(suivant)
+                suivant += 1
+    finally:
+        stop.set()
+        for file in files:
+            if file is None:
+                continue
+            while True:
+                try:
+                    file.get_nowait()
+                except queue.Empty:
+                    break
+        for thread in threads:
+            if thread is not None:
+                thread.join(timeout=5)
+
+
 def prefetch(source: Iterable[Any], *, enabled: bool | None = None,
              size: int | None = None) -> Iterator[Any]:
     """Itère `source` en la faisant avancer d'un lot dans un thread dédié."""

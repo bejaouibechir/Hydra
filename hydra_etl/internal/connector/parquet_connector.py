@@ -55,6 +55,32 @@ class ParquetConnector(Connector):
             raise ValueError(f"ParquetConnector [{self.name}]: job_dir '{self._job_dir}' inexistant.")
         self._projection: Optional[set] = None
 
+    def estimate_row_bytes(self, table: Optional[str]) -> Optional[float]:
+        """Octets par ligne, lus dans les metadonnees Parquet (taille non
+        compressee du premier groupe de lignes). None si indisponible."""
+        if not _PYARROW_AVAILABLE:
+            return None
+        file_path = (
+            table
+            or self.config.get("extract", {}).get("file")
+            or self.config.get("extract", {}).get("table")
+        )
+        if not file_path:
+            return None
+        try:
+            resolved = self._resolve_path(file_path)
+            if not os.path.isfile(resolved):
+                return None
+            meta = pq.ParquetFile(resolved).metadata
+            if meta.num_row_groups == 0:
+                return None
+            rg = meta.row_group(0)
+            if rg.num_rows == 0:
+                return None
+            return float(rg.total_byte_size) / rg.num_rows
+        except Exception:  # noqa: BLE001
+            return None
+
     def set_projection(self, columns: Optional[List[str]]) -> None:
         """Ne lire que ces colonnes (None = toutes). Souple : une colonne
         absente du fichier est ignoree ici."""

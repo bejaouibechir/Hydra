@@ -98,6 +98,48 @@ class CSVConnector(Connector):
         """
         self._projection = {str(c) for c in columns} if columns else None
 
+    def estimate_row_bytes(self, table: Optional[str]) -> Optional[float]:
+        """Octets qu'occupe une ligne une fois en DataFrame, estimés sur un
+        échantillon du fichier. None si l'estimation n'est pas possible.
+
+        Sert au réglage automatique de batch_size ; la projection éventuelle
+        est prise en compte, puisqu'elle change ce que le lot contient.
+        """
+        if not table:
+            return None
+        try:
+            import pandas as pd
+
+            csv_path = self._resolve_path(table)
+            if not csv_path.is_file():
+                return None
+            with csv_path.open("r", encoding=self._settings.encoding, newline="") as f:
+                reader = csv.reader(
+                    f,
+                    delimiter=self._settings.delimiter,
+                    quotechar=self._settings.quotechar,
+                )
+                header = next(reader, None)
+                if not header:
+                    return None
+                rows: List[List[str]] = []
+                for row in reader:
+                    if row == []:
+                        continue
+                    rows.append(row)
+                    if len(rows) >= 200:
+                        break
+            if not rows:
+                return None
+            regular_header = len(set(header)) == len(header)
+            frame = self._rows_to_frame(rows, list(header), regular_header, pd,
+                                        self._kept_columns(list(header)))
+            if len(frame) == 0:
+                return None
+            return float(frame.memory_usage(deep=True).sum()) / len(frame)
+        except Exception:  # noqa: BLE001 - l'estimation ne doit jamais bloquer
+            return None
+
     def _kept_columns(self, header: List[str]) -> Optional[List[str]]:
         """Colonnes du fichier à garder, ou None s'il faut tout garder."""
         if not self._projection:

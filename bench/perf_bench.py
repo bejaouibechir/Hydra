@@ -91,17 +91,19 @@ def write_job(name: str, sources: str, dests: str, transforms: str) -> Path:
     return d
 
 
-def build_jobs(batch_size: int) -> dict:
+def build_jobs(batch_size) -> dict:
+    """batch_size=None : ne pas declarer batch_size (reglage automatique)."""
     csv_in = (DATA / "sales.csv").as_posix()
     json_in = (DATA / "sales.json").as_posix()
 
+    bs_line = f'      batch_size: {batch_size}\n' if batch_size else ''
     src_csv = (
         'version: "1.0"\nsources:\n  src:\n    type: csv\n    connection: {}\n'
-        f'    extract:\n      table: {csv_in}\n      batch_size: {batch_size}\n'
+        f'    extract:\n      table: {csv_in}\n' + bs_line
     )
     src_json = (
         'version: "1.0"\nsources:\n  src:\n    type: json\n    connection: {}\n'
-        f'    extract:\n      table: {json_in}\n      batch_size: {batch_size}\n'
+        f'    extract:\n      table: {json_in}\n' + bs_line
     )
 
     def dst(fname: str) -> str:
@@ -168,7 +170,8 @@ def run_job(job_dir: Path, profile: bool):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rows", type=int, default=200_000)
-    ap.add_argument("--batch-size", type=int, default=10_000)
+    ap.add_argument("--batch-size", type=int, default=10_000,
+                    help="0 = ne pas declarer batch_size (reglage automatique)")
     ap.add_argument("--repeat", type=int, default=2)
     ap.add_argument("--scenarios", default="s1,s2,s3")
     ap.add_argument("--profile", action="store_true")
@@ -183,7 +186,7 @@ def main() -> int:
     gen_csv(DATA / "sales.csv", args.rows)
     gen_json(DATA / "sales.json", args.rows)
 
-    jobs = build_jobs(args.batch_size)
+    jobs = build_jobs(args.batch_size or None)
     wanted = [s.strip() for s in args.scenarios.split(",") if s.strip()]
 
     import logging

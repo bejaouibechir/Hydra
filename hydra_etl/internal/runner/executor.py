@@ -32,6 +32,7 @@ from hydra_etl.internal.connector.frame_batch import FrameBatch, frame_io_enable
 from hydra_etl.internal.connector.registry import build_connector
 from hydra_etl.internal.engines.frame_copy import copy_on_write
 from hydra_etl.internal.engines.pandas_engine import PandasEngine
+from hydra_etl.internal.runner import batch_size as batch_size_policy
 from hydra_etl.internal.runner.projection import required_columns
 from hydra_etl.internal.runner.profiler import (
     JobProfiler,
@@ -165,7 +166,9 @@ class JobExecutor:
             self._apply_projection(source_connector, steps)
 
             # 4) Extraire les paramètres d'extraction et de chargement
-            extract_table, extract_batch_size, extract_query = self._source_extract_params(src_def)
+            extract_table, extract_batch_size, extract_query = self._source_extract_params(
+                src_def, connector=source_connector
+            )
             load_table, load_mode, load_key = self._dest_load_params(dest_def)
             
             # 4b) Sprint 1: Validation anticipée (fail-fast)
@@ -744,15 +747,30 @@ class JobExecutor:
     # Helpers - Paramètres Extract/Load
     # =========================================================================
 
-    def _source_extract_params(self, src_def: Any) -> Tuple[Optional[str], int, Optional[str]]:
-        """Extrait les paramètres d'extraction depuis la définition source."""
+    def _source_extract_params(
+        self, src_def: Any, connector: Optional[Connector] = None
+    ) -> Tuple[Optional[str], int, Optional[str]]:
+        """Extrait les paramètres d'extraction depuis la définition source.
+
+        batch_size non déclaré dans le YAML : la taille est calculée pour
+        viser ~64 Mo par lot à partir d'un échantillon de la source
+        (voir runner/batch_size.py). Déclaré : la valeur est respectée, avec
+        un avertissement si elle est trop petite pour être efficace.
+        """
         extract = getattr(src_def, "extract", None)
         if extract is None:
             raise ValueError("JobExecutor: source.extract manquant")
 
         table = getattr(extract, "table", None)
         query = getattr(extract, "query", None)
-        batch_size = getattr(extract, "batch_size", 10_000)
+        declared = "batch_size" in (getattr(extract, "model_fields_set", None) or set())
+        if declared:
+            batch_size = getattr(extract, "batch_size", 10_000)
+            batch_size_policy.warn_if_too_small(batch_size, self.job_id)
+        else:
+            batch_size = batch_size_policy.resolve(
+                connector, table if isinstance(table, str) else None, self.job_id
+            )
 
         if not isinstance(batch_size, int) or not (100 <= batch_size <= 100_000):
             raise ValueError(

@@ -76,5 +76,6 @@
   "list.create_hint": "Job erstellen mit: {cmd}",
   "list.summary": "{count} Job(s)  {ok} OK",
   "list.run_hint": "Job ausführen: {cmd}",
-  "help.lang": "Sprache der Oberfläche (en, fr, es, de, pt, zh, ja)"
+  "help.lang": "Sprache der Oberfläche (en, fr, es, de, pt, zh, ja)",
+  "help.run.profile": "Zeigt am Ende des Laufs die Zeit pro Schritt"
 }

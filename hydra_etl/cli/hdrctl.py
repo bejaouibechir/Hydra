@@ -777,12 +777,14 @@ def cli(ctx: click.Context) -> None:
               help=t("help.run.env"))
 @click.option("-P", "--param", "param_overrides", multiple=True, metavar="KEY=VALUE",
               help=t("help.run.param"))
+@click.option("--profile", "profile", is_flag=True, default=False, help=t("help.run.profile"))
 def cmd_run(path: str, verbosity: int, dry_run: bool,
             sources_file: Optional[str], destinations_file: Optional[str],
             pipeline_file: Optional[str], transformations_file: Optional[str],
             on_success: Optional[str], on_failure: Optional[str],
             on_finish: Optional[str],
-            env_name: Optional[str] = None, param_overrides: tuple = ()) -> None:
+            env_name: Optional[str] = None, param_overrides: tuple = (),
+            profile: bool = False) -> None:
     """Exécute un pipeline ETL."""
     print_banner()
     job_dir = Path(path).resolve()
@@ -849,6 +851,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             transformations_file=job_files["transformations"] if job_files["transformations"].exists() else None,
             env=env_name,
             params=param_dict,
+            profile=profile or None,
         )
         result = executor.run()
 
@@ -886,6 +889,12 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             click.echo(f"\n  {c(C.WH, t('run.cause'))}")
             click.echo(f"  {c(C.YL, result.error or t('run.unknown_error'))}")
             click.echo(f"\n  {c(C.DM, t('run.hint_verbose'))}")
+
+        if getattr(result, "profile", None):
+            from hydra_etl.internal.runner.profiler import format_profile
+            click.echo()
+            for _line in format_profile(result.profile).splitlines():
+                click.echo(f"  {c(C.DM, _line)}")
 
     except KeyboardInterrupt:
         status = "FAILURE"

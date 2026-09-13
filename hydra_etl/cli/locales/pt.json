@@ -76,5 +76,6 @@
   "list.create_hint": "Crie um job com: {cmd}",
   "list.summary": "{count} job(s)  {ok} OK",
   "list.run_hint": "Execute um job: {cmd}",
-  "help.lang": "Idioma da interface (en, fr, es, de, pt, zh, ja)"
+  "help.lang": "Idioma da interface (en, fr, es, de, pt, zh, ja)",
+  "help.run.profile": "Mostra o tempo por etapa no fim da execução"
 }

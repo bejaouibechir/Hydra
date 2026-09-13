@@ -76,6 +76,9 @@ class JobResult:
     error: Optional[str] = None
     output_sample: List[Dict[str, Any]] = field(default_factory=list)
     output_columns: List[str] = field(default_factory=list)
+    # Profil d'exécution (temps par étape), rempli seulement si --profile
+    # / HYDRA_PROFILE=1. None sinon.
+    profile: Optional[Dict[str, Any]] = None
     
     def __str__(self) -> str:
         """Représentation lisible du résultat."""
@@ -103,6 +106,7 @@ class JobResult:
             "error": self.error,
             "output_sample": self.output_sample,
             "output_columns": self.output_columns,
+            "profile": self.profile,
         }
 
 

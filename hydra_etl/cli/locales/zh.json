@@ -76,5 +76,6 @@
   "list.create_hint": "使用以下命令创建作业：{cmd}",
   "list.summary": "{count} 个作业  {ok} OK",
   "list.run_hint": "运行作业：{cmd}",
-  "help.lang": "界面语言（en, fr, es, de, pt, zh, ja）"
+  "help.lang": "界面语言（en, fr, es, de, pt, zh, ja）",
+  "help.run.profile": "在运行结束时显示各步骤耗时"
 }

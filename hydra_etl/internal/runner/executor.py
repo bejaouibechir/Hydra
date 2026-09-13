@@ -31,6 +31,11 @@ from hydra_etl.internal.connector.interface import Connector
 from hydra_etl.internal.connector.frame_batch import FrameBatch, frame_io_enabled
 from hydra_etl.internal.connector.registry import build_connector
 from hydra_etl.internal.engines.pandas_engine import PandasEngine
+from hydra_etl.internal.runner.profiler import (
+    JobProfiler,
+    format_profile,
+    profile_enabled,
+)
 from hydra_etl.internal.parser.destination import DestinationParser
 from hydra_etl.internal.parser.source import SourceParser
 from hydra_etl.internal.parser.transform import TransformParser
@@ -61,6 +66,7 @@ class JobExecutor:
         path_base: Optional[Path] = None,
         params: Optional[Dict[str, Any]] = None,
         env: Optional[str] = None,
+        profile: Optional[bool] = None,
     ) -> None:
         """Initialise l'executor."""
         self.job_dir = Path(job_dir).resolve()
@@ -103,10 +109,14 @@ class JobExecutor:
         self._dest_parser = DestinationParser()
         self._transform_parser = TransformParser()
         self._engine = PandasEngine()
+        # Profil d'exécution (--profile / HYDRA_PROFILE=1) : désactivé, il ne
+        # coûte rien ; activé, il chronomètre extract / chaque step / load.
+        self._profiler = JobProfiler(profile_enabled(profile))
 
     def run(self) -> JobResult:
         """Exécute le job ETL."""
         start = time.monotonic()
+        prof = self._profiler
         rows_in = 0
         rows_out = 0
 
@@ -209,12 +219,13 @@ class JobExecutor:
                     )
 
                 # Load avec le bon mode et key si upsert
-                dest_connector.load_batches(
-                    [out_batch],
-                    table=load_table,
-                    mode=effective_mode,
-                    key=load_key if load_mode == "upsert" else None
-                )
+                with prof.span("load"):
+                    dest_connector.load_batches(
+                        [out_batch],
+                        table=load_table,
+                        mode=effective_mode,
+                        key=load_key if load_mode == "upsert" else None
+                    )
 
                 # Après le premier batch, passer en append (sauf si déjà upsert)
                 if not first_batch_written:
@@ -224,16 +235,17 @@ class JobExecutor:
 
             # 7) Streaming batch par batch
             extract = source_connector.extract_frames if frames_in else source_connector.extract_batches
-            for batch in extract(
+            for batch in prof.iterate("extract", extract(
                 table=extract_table,
                 batch_size=extract_batch_size,
                 query=extract_query,
-            ):
+            )):
                 rows_in += len(batch)
                 out_batch = batch
 
                 if global_steps:
-                    df_in = batch if isinstance(batch, pd.DataFrame) else pd.DataFrame(batch)
+                    with prof.span("batch -> DataFrame"):
+                        df_in = batch if isinstance(batch, pd.DataFrame) else pd.DataFrame(batch)
                     if stream_steps:
                         df_in = self._run_steps(df_in, stream_steps, 1, len(steps))
                     global_frames.append(df_in)
@@ -241,17 +253,21 @@ class JobExecutor:
 
                 # Transformations (si définies)
                 if steps:
-                    df_in = batch if isinstance(batch, pd.DataFrame) else pd.DataFrame(batch)
-                    pipeline_result = self._engine.apply_pipeline(df_in, steps)
-                    df_out = pipeline_result.output
-                    out_batch = _out_batch(df_out)
+                    with prof.span("batch -> DataFrame"):
+                        df_in = batch if isinstance(batch, pd.DataFrame) else pd.DataFrame(batch)
+                    # _run_steps == apply_pipeline (mêmes messages d'erreur), mais
+                    # chronométrable étape par étape.
+                    df_out = self._run_steps(df_in, steps, 1, len(steps))
+                    with prof.span("DataFrame -> sortie"):
+                        out_batch = _out_batch(df_out)
 
                 _emit(out_batch)
 
             # 8) Opérations globales : une seule passe sur l'ensemble des lignes
             if global_steps and global_frames:
                 non_empty = [f for f in global_frames if len(f)] or global_frames[:1]
-                df_all = non_empty[0] if len(non_empty) == 1 else pd.concat(non_empty, ignore_index=True)
+                with prof.span("concaténation (opérations globales)"):
+                    df_all = non_empty[0] if len(non_empty) == 1 else pd.concat(non_empty, ignore_index=True)
                 global_frames.clear()
                 logger.info(
                     f"Job '{self.job_id}': global operations on {len(df_all)} rows "
@@ -264,10 +280,19 @@ class JobExecutor:
                 if len(df_all) == 0:
                     _emit(df_all.to_dict(orient="records"))
                 for i in range(0, len(df_all), chunk):
-                    _emit(_out_batch(df_all.iloc[i:i + chunk]))
+                    with prof.span("DataFrame -> sortie"):
+                        out_chunk = _out_batch(df_all.iloc[i:i + chunk])
+                    _emit(out_chunk)
 
             duration = time.monotonic() - start
-            
+
+            profile_data = None
+            if prof.enabled:
+                profile_data = prof.to_dict(
+                    total=duration, rows_in=rows_in, rows_out=rows_out, job_id=self.job_id
+                )
+                logger.info("\n" + format_profile(profile_data))
+
             logger.info(
                 f"Job '{self.job_id}' completed successfully: "
                 f"{rows_in} rows in, {rows_out} rows out, {duration:.2f}s"
@@ -291,19 +316,28 @@ class JobExecutor:
                 error=None,
                 output_sample=safe_sample,
                 output_columns=output_cols,
+                profile=profile_data,
             )
 
         except Exception as exc:
             duration = time.monotonic() - start
             error_msg = f"{exc.__class__.__name__}: {str(exc)}"
             logger.error(f"Job '{self.job_id}' failed: {error_msg}")
-            
+
+            profile_data = None
+            if self._profiler.enabled:
+                profile_data = self._profiler.to_dict(
+                    total=duration, rows_in=rows_in, rows_out=rows_out, job_id=self.job_id
+                )
+                logger.info("\n" + format_profile(profile_data))
+
             return JobResult(
-                success=False, 
-                rows_in=rows_in, 
-                rows_out=rows_out, 
-                duration=duration, 
-                error=error_msg
+                success=False,
+                rows_in=rows_in,
+                rows_out=rows_out,
+                duration=duration,
+                error=error_msg,
+                profile=profile_data,
             )
 
     # =========================================================================
@@ -542,12 +576,26 @@ class JobExecutor:
     ) -> pd.DataFrame:
         """Applique une tranche de steps en gardant la numérotation du pipeline complet
         (même format de message que PandasEngine.apply_pipeline)."""
+        prof = self._profiler
         for idx, step in enumerate(steps, start=start):
             try:
-                df = self._engine.apply_step(df, step).output
+                with prof.span(f"{idx} {self._step_op_name(step)}"):
+                    df = self._engine.apply_step(df, step).output
             except ValueError as e:
                 raise ValueError(f"Erreur à l'étape {idx}/{total}: {e}") from None
         return df
+
+    @staticmethod
+    def _step_op_name(step: Dict[str, Any]) -> str:
+        """Nom de l'opération d'un step, quel que soit le format ({op:...} ou {op: params})."""
+        if not isinstance(step, dict):
+            return "?"
+        if "op" in step:
+            return str(step.get("op") or "?").strip().lower()
+        try:
+            return str(next(iter(step))).strip().lower()
+        except StopIteration:
+            return "?"
 
     def _prepare_join_steps(self, steps: List[Dict[str, Any]], sources_cfg: Any) -> None:
         """Precharge la source de reference (2e flux) de chaque step 'join'.

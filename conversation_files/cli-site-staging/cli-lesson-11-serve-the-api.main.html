@@ -1,0 +1,76 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/cli">Hydra CLI</a><span>›</span><span>Lesson 11</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 11 of 11 · Serve the API</div><h1>Serve Hydra for Studio and the API</h1><p class="lead">Start the local Hydra API on the cumulative workspace, open its generated documentation, and prove readiness with the health endpoint.</p></div>
+<div class="lesson-meta"><span class="mono">hdrctl serve</span><span>about 10 minutes</span><span>workflow run complete</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3><p>Use <code>hdrctl serve</code> with an explicit host, port, and workspace. Confirm Uvicorn startup, request <code>/api/health</code>, and stop the development server cleanly when the verification is complete.</p>
+  <h3>Why this matters</h3><p>Studio and API clients need one backend process that resolves the same workspace as the CLI tutorials. Explicit startup arguments remove ambiguity about network exposure, port selection, and project root, while a health request proves the application—not only the TCP listener—is responding.</p>
+  <div class="callout">
+    <b>Course project and evidence rule</b>
+    <p>
+      Continue in <code>cli-course</code>. The job remains <code>first-job</code>, and workflow lessons
+      add <code>workflow.yaml</code> beside it. The terminal excerpts shown here come from that cumulative
+      project. Treat each verdict as evidence for this exact command, project state, and machine.
+      Preserve the command beside the result when recording a run. Durations and process identifiers
+      can vary without changing a successful state; do not turn them into thresholds. Verify instead
+      the named files, resolved identifiers, row counters, step states, or HTTP status the command is
+      designed to prove. If one of those facts differs, reconcile the preceding lesson before continuing.
+      Before moving on, keep a compact run record with the working directory, the command you typed,
+      the manifests you changed, and the stable facts you confirmed. That record is more useful than
+      a screenshot alone because another reader can reproduce it. Re-open the relevant generated file
+      when the command writes data, and compare its header and content with the declared source,
+      transformation order, destination, or dependency. This habit keeps the cumulative project honest:
+      every new capability is added on top of a state that was observed, explained, and independently
+      checkable rather than merely assumed.
+    </p>
+  </div>
+  <h3>Prerequisites</h3><ul><li>Lesson 10 completed and checked.</li><li>The validated <code>first-job</code> CSV project.</li><li>A terminal opened in the <code>cli-course</code> folder.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Review the server options</h3>
+    <h4>Objective</h4><p>Choose the bind address, port, and workspace from documented flags.</p>
+    <h4>Actions</h4><ol><li>Open the serve help.</li><li>Keep the loopback host for local-only access.</li><li>Use the course folder as the explicit workspace.</li></ol>
+    <pre class="cmd">hdrctl serve --help</pre>
+    <div class="expect"><b>What you should see</b><p>The help lists host, port, reload, and workspace; the default bind is loopback on port 5678.</p><pre class="out">Options:
+  --host TEXT       Adresse d'écoute.  [default: 127.0.0.1]
+  --port INTEGER    Port d'écoute.  [default: 5678]
+  --reload          Hot-reload (dev uniquement).
+  --workspace TEXT  Répertoire racine des projets Studio</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Start the API</h3>
+    <h4>Objective</h4><p>Launch FastAPI against the cumulative course workspace.</p>
+    <h4>Actions</h4><ol><li>Run the server from the Hydra repository environment.</li><li>Bind to <code>127.0.0.1</code> and the observed test port <code>5689</code>.</li><li>Leave this terminal open while the server runs.</li></ol>
+    <pre class="cmd">hdrctl serve --host 127.0.0.1 --port 5689 --workspace C:\Users\DELL\Desktop\Hydra\conversation_files\cli-course</pre>
+    <div class="expect"><b>What you should see</b><p>Hydra prints the API and documentation URLs, then Uvicorn confirms startup.</p><pre class="out">🚀  Hydra API démarrée sur http://127.0.0.1:5689
+📚  Docs disponibles sur http://127.0.0.1:5689/docs
+
+INFO:     Started server process [18364]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5689 (Press CTRL+C to quit)</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Verify application health</h3>
+    <h4>Objective</h4><p>Prove the running FastAPI application answers its health route.</p>
+    <h4>Actions</h4><ol><li>Open a second PowerShell terminal.</li><li>Request the local health endpoint.</li><li>Read both the HTTP status and response body.</li></ol>
+    <pre class="cmd">Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5689/api/health</pre>
+    <div class="expect"><b>What you should see</b><p>The observed request returns HTTP 200 and Hydra's running message.</p><pre class="out">StatusCode : 200
+Content    : {"message":"Hydra ETL API is running"}</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Close the development server</h3>
+    <h4>Objective</h4><p>Stop the foreground process without leaving the port occupied.</p>
+    <h4>Actions</h4><ol><li>Return to the terminal running Uvicorn.</li><li>Press <b>Ctrl+C</b> once.</li><li>Wait for shutdown before closing the terminal.</li></ol>
+    <pre class="cmd">Ctrl+C</pre>
+    <div class="expect"><b>What you should see</b><p>The foreground server exits and the shell prompt returns; a later serve command can reuse the port.</p></div>
+  </div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Bind address</td><td><code>127.0.0.1:5689</code></td></tr><tr><td>Docs URL</td><td><code>http://127.0.0.1:5689/docs</code></td></tr><tr><td>Health status</td><td>HTTP <code>200</code></td></tr><tr><td>Health body</td><td><code>{"message":"Hydra ETL API is running"}</code></td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Uvicorn is not installed</td><td>The optional API dependency is absent</td><td>Install the repository requirements, then run the same serve command</td></tr><tr><td>The port is already in use</td><td>Another process owns port 5689</td><td>Stop that process or choose another explicit port and update the health URL</td></tr><tr><td>Health cannot connect</td><td>The server stopped or the URL differs from the bind arguments</td><td>Keep the first terminal running and copy the printed address exactly</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>You have completed the cumulative CLI track: one job was scaffolded, validated, tested, executed, observed, parameterized, inventoried, orchestrated, and finally served through Hydra's API. Return to the course map or continue with the Studio track over the same workspace.</p>
+  <div class="lesson-nav"><a class="primary" href="/cli">Return to the course map <span aria-hidden="true">→</span></a><a href="/cli">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/dsl/sources-yaml">sources.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/studio">Hydra Studio track</a></li></ul>
+</section>

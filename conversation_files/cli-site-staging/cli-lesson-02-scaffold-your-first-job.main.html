@@ -1,0 +1,130 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/cli">Hydra CLI</a><span>›</span><span>Lesson 2</span></div>
+<div class="lesson-head">
+  <div class="eyebrow"><span></span>Lesson 2 of 11 · Scaffold your first job</div>
+  <h1>Scaffold your first job</h1>
+  <p class="lead">Create the cumulative CSV project from Hydra's built-in template, inspect every generated manifest, and make its numeric filter executable.</p>
+</div>
+<div class="lesson-meta"><span class="mono">hdrctl init</span><span>about 12 minutes</span><span>Hydra installed</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3>
+  <p>Use <code>hdrctl init</code> with the official <code>csv</code> template to create <code>first-job</code>. Then read the generated manifests and add the one explicit type conversion required by the sample data before later lessons validate and run it.</p>
+  <h3>Why this matters</h3>
+  <p>Scaffolding removes spelling and folder-layout errors, but a template is still a starting point. The generated CSV stores <code>value</code> as text; casting it to <code>float</code> before comparing it with zero makes the intended transformation explicit and prevents a runtime type error.</p>
+  <div class="callout"><b>Course project</b><p>Keep working from the <code>cli-course</code> folder. The job is named <code>first-job</code>; every command and terminal excerpt in this lesson was run against that same project.</p></div>
+  <h3>Prerequisites</h3>
+  <ul><li>Lesson 1 completed and its checklist confirmed.</li><li>The repository clone and <b>hdrctl</b> entry point from lesson 1.</li><li>A terminal opened in the parent folder that contains <code>first-job</code>.</li></ul>
+  <h2>2. Steps</h2>
+
+  <div class="step">
+    <h3><i>01</i>Create the CSV job</h3>
+    <h4>Objective</h4>
+    <p>Generate the complete file set from the built-in CSV template.</p>
+    <h4>Actions</h4>
+    <ol><li>From <b>cli-course</b>, run <b>hdrctl init</b> with the job name <code>first-job</code>.</li><li>Select the documented <code>csv</code> template; do not create the files by hand.</li></ol>
+    <pre class="cmd">hdrctl init first-job --template csv</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>Hydra reports the six files it created and gives the next commands.</p>
+      <pre class="out">Initializing:  first-job  [template: csv]
+
+ok  sources.yaml
+ok  destinations.yaml
+ok  pipeline.yaml
+ok  transformations.yaml
+ok  data/input.csv
+ok  README.md
+
+✅ Job 'first-job' created successfully.</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Read the pipeline endpoints</h3>
+    <h4>Objective</h4>
+    <p>Confirm which source and destination IDs the generated pipeline connects.</p>
+    <h4>Actions</h4>
+    <ol><li>Open <code>first-job/pipeline.yaml</code>.</li><li>Match <code>from</code> to <code>src_csv</code> and <code>to</code> to <code>dest_csv</code>.</li></ol>
+    <pre class="cmd">Get-Content first-job\pipeline.yaml</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>The manifest contains only the generated source-to-destination flow.</p>
+      <pre class="out">pipeline:
+  from: src_csv
+  to: dest_csv</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Inspect the sample rows</h3>
+    <h4>Objective</h4>
+    <p>See the exact values the later run will read and filter.</p>
+    <h4>Actions</h4>
+    <ol><li>Open <code>first-job/data/input.csv</code>.</li><li>Notice that the third row has a negative value and should be removed.</li></ol>
+    <pre class="cmd">Get-Content first-job\data\input.csv</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>The sample contains three rows, including one negative value.</p>
+      <pre class="out">id,name,value
+1,Alice,100
+2,Bob,200
+3,Charlie,-5</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Make the numeric type explicit</h3>
+    <h4>Objective</h4>
+    <p>Cast <code>value</code> before the generated filter compares it with zero.</p>
+    <h4>Actions</h4>
+    <ol><li>Open <code>first-job/transformations.yaml</code>.</li><li>Insert a <code>cast</code> step after <code>select</code> and before <code>filter</code>.</li><li>Save the file with the mapping shown below.</li></ol>
+    <pre class="cmd">steps:
+  - select:
+      columns: [id, name, value]
+  - cast:
+      mapping:
+        value: float
+  - filter:
+      expr: "value &gt; 0"</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>The ordered transformation list now contains <code>select</code>, <code>cast</code>, and <code>filter</code>.</p>
+      <pre class="out">steps:
+  - select:
+      columns: [id, name, value]
+  - cast:
+      mapping:
+        value: float
+  - filter:
+      expr: "value &gt; 0"</pre>
+    </div>
+  </div>
+  <div class="callout">
+    <b>Evidence rule</b>
+    <p>
+      Treat the terminal verdict as evidence for this exact command, project state, and machine.
+      Preserve the command beside the result when you record the run. A later execution can report
+      a different duration or process identifier without changing the meaning of a successful state.
+      Do not copy those variable values into an operational threshold. Instead, verify the named
+      files, resolved identifiers, row counters, step states, or HTTP status that the command is
+      designed to prove. If your output differs in one of those facts, stop here and reconcile the
+      project with the preceding lesson before continuing.
+      Before moving on, keep a compact run record with the working directory, the command you typed,
+      the manifests you changed, and the stable facts you confirmed. That record is more useful than
+      a screenshot alone because another reader can reproduce it. Re-open the relevant generated file
+      when the command writes data, and compare its header and content with the declared source,
+      transformation order, destination, or dependency. This habit keeps the cumulative project honest:
+      every new capability is added on top of a state that was observed, explained, and independently
+      checkable rather than merely assumed.
+    </p>
+  </div>
+  <h2>3. Checklist</h2>
+  <table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td><code>first-job</code> folder</td><td>Contains four YAML manifests, README, and <code>data/input.csv</code></td></tr><tr><td><code>pipeline.yaml</code></td><td>References <code>src_csv</code> and <code>dest_csv</code></td></tr><tr><td><code>transformations.yaml</code></td><td>Casts <code>value</code> to <code>float</code> before filtering</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2>
+  <table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>The folder already exists</td><td>A previous scaffold is present</td><td>Choose an empty course folder; use <code>--force</code> only when overwriting is intentional</td></tr><tr><td>A generated file is missing</td><td>The template name or working directory was wrong</td><td>Run <code>hdrctl init --help</code>, then scaffold again with <code>--template csv</code></td></tr><tr><td>The cast follows the filter</td><td>Steps execute in order</td><td>Move <code>cast</code> immediately before <code>filter</code></td></tr></tbody></table>
+  <h2>5. Next lesson</h2>
+  <p>The project now has real input data, resolved endpoint IDs, and a numeric transformation chain. The next lesson asks the strict DSL validator to check those declarations before any connector opens.</p>
+  <div class="lesson-nav"><a class="primary" href="/cli/03-validate-the-manifests">Validate the manifests <span aria-hidden="true">→</span></a><a href="/cli">Back to the course map</a></div>
+  <h4>Close by</h4>
+  <ul class="linklist"><li><a href="/dsl/sources-yaml">sources.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/guide/sources/csv">Guided CSV workshop</a></li><li><a href="/studio">Hydra Studio track</a></li></ul>
+</section>

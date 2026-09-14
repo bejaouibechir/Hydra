@@ -1,9 +1,16 @@
 # Hydra ETL
 
-**A declarative ETL engine with a CLI, a REST API and a visual editor — in one `pip install`.**
+[![PyPI](https://img.shields.io/pypi/v/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
+[![Python](https://img.shields.io/pypi/pyversions/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
+[![License: AGPL v3+](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-beta-orange.svg)](#project-status)
 
-You describe a pipeline in YAML. Hydra runs it, from the terminal or from a
-browser canvas, with the same engine underneath.
+**Your data pipelines are described, not programmed.**
+
+Hydra is a declarative ETL engine: you write what the pipeline *is* in YAML, and
+Hydra decides how to run it. The same manifests run from the terminal, from a
+REST API, or from a browser canvas — one engine underneath, and one
+`pip install` to get all three.
 
 ```bash
 pip install "hydra-etl[server]"
@@ -11,7 +18,18 @@ hdrctl serve
 ```
 
 Open **http://localhost:5678** — that is Hydra Studio. No Node, no build step,
-nothing else to start.
+no database, no broker, nothing else to start.
+
+<!-- TODO: insert Studio screenshot or GIF here (docs/assets/studio.png) -->
+
+---
+
+## Project status
+
+**Beta.** The connectors and steps documented below are implemented and
+covered by tests. The shape of the YAML DSL is settled; any breaking change to
+it will be announced in the release notes before 1.0. Use it on real work,
+pin your version.
 
 ---
 
@@ -27,6 +45,40 @@ nothing else to start.
 
 Connectors: **CSV, JSON, Parquet, MySQL/MariaDB, PostgreSQL, MongoDB, Web API**.
 Transformation engines: **Pandas** and **DuckDB**.
+
+---
+
+## What Hydra is, and what it is not
+
+**Hydra is**
+
+- a **declarative** ETL engine — the pipeline is data, not code, so it can be
+  read, diffed, reviewed and generated;
+- **self-contained** — one Python package, no cluster, no message broker, no
+  metadata database to install;
+- **single-node** — built for files and operational databases, from a laptop to
+  one server, with an optional Rust path when volume grows.
+
+**Hydra is not**
+
+- a *distributed compute engine* — if your data does not fit on one machine,
+  you want Spark;
+- a *platform orchestrator* — Hydra sequences its own jobs, but it does not
+  manage a scheduler fleet, backfills or SLAs the way Airflow, Dagster or
+  Prefect do;
+- a *warehouse transformation framework* — if your data is already in
+  Snowflake or BigQuery and you only transform it there, you want dbt;
+- a *BI or charting tool* — Hydra moves and reshapes data, it does not
+  visualise it.
+
+## Who it is for
+
+- **Data engineers and analysts** who need repeatable file-and-database
+  pipelines without standing up infrastructure for them.
+- **Teams where the pipeline must stay readable** by someone who does not write
+  Python — a YAML manifest reviewed in a pull request, not a script.
+- **Developers embedding ETL in a product**, who want a CLI and a REST API over
+  the same engine.
 
 ---
 

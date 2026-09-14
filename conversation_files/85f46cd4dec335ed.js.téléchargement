@@ -1,0 +1,6 @@
+
+!function(){try{var e="undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof globalThis?globalThis:"undefined"!=typeof self?self:{},n=(new e.Error).stack;n&&(e._sentryDebugIds=e._sentryDebugIds||{},e._sentryDebugIds[n]="0cf6a3a5-e29f-509e-b640-db78f38007ea")}catch(e){}}();
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,246324,e=>{e.v(JSON.parse('{"feedback.area-label":"Your feedback","feedback.report-type-label":"Feedback type","report-dialog.select-report-label":"Select report type","report-dialog.send-fail":"Failed to send error report","report-dialog.sent-report":"Successfully sent error report!","report-dialog.textarea-placeholder":"Please describe any issues or feedback you have for Grok.","report-dialog.title":"Report an issue","report-type.child-safety-label":"Child safety concern","report-type.general-feedback-label":"General feedback","report-type.issue-report-label":"Report issue / bug","report-type.response-feedback-label":"Response feedback","reportDialog.cancel":"Cancel","reportDialog.send":"Send"}'))}]);
+
+//# sourceMappingURL=4c3049d883dbfe4c.js.map
+//# debugId=0cf6a3a5-e29f-509e-b640-db78f38007ea

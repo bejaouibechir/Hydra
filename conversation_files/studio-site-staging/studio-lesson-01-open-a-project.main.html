@@ -1,0 +1,62 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 1</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 1 of 12 · Open a project</div><h1>Open a project and read the overview</h1><p class="lead">Create the cumulative workspace, reopen it from Studio's Overview, and distinguish project identity from activity statistics.</p></div>
+<div class="lesson-meta"><span class="mono">Overview</span><span>about 10 minutes</span><span>API and Studio running</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3><p>Create <code>studio-course</code> from the real <b>New project</b> dialog, return to <b>Overview</b>, and open its project row. Read the project name, disk path, workflow count, and recent-run area without confusing those summaries with validation.</p>
+  <h3>Why this matters</h3><p>Studio persists projects as folders and indexes them through the API. Starting with a known workspace gives every later canvas, YAML file, and run a stable home; the Overview is an inventory, not proof that a job is configured.</p>
+  <div class="callout"><b>Course project</b><p>Keep one cumulative Studio project named <code>studio-course</code>, one manual workflow named <code>guided-workflow</code>, and one job named <code>first-job</code>. Each lesson builds on the state saved by the previous one.</p></div>
+  <h3>Prerequisites</h3><ul><li>Hydra API started with <code>hdrctl serve</code>.</li><li>Studio started from <code>Hydra/studio</code> with <code>npm run dev</code>.</li><li>The preceding lesson completed before continuing.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Open the start page</h3>
+    <h4>Objective</h4><p>Reach the page that lists projects and exposes the supported workspace actions.</p>
+    <h4>Actions</h4><ol><li>Open <b>http://localhost:5173</b>.</li><li>Select <b>Overview</b> in the sidebar if another page is active.</li><li>Find the <b>Get started</b> card.</li></ol>
+    <pre class="cmd">Studio → Overview</pre>
+    <div class="expect"><b>What you should see</b><p>The page identifies Hydra Studio and shows the three start actions implemented by the solution.</p><pre class="out">Hydra Studio
+Get started
+Clone a repository
+Open a project
+Create a project</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Create the cumulative project</h3>
+    <h4>Objective</h4><p>Generate a Studio project with the standard Data, output, jobs, and workflows structure.</p>
+    <h4>Actions</h4><ol><li>Select <b>Create a project</b>.</li><li>Enter <code>studio-course</code> in <b>Project name</b>.</li><li>Optionally choose a parent with <b>Browse</b>, then select <b>Create project</b>.</li></ol>
+    <pre class="cmd">Create a project → Project name: studio-course → Create project</pre>
+    <div class="expect"><b>What you should see</b><p>The modal closes and the project becomes available in the Overview list.</p><pre class="out">New project
+Project name *
+Description
+Parent folder (optional)
+Create project</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Reopen the project</h3>
+    <h4>Objective</h4><p>Use the indexed project row instead of creating a second workspace.</p>
+    <h4>Actions</h4><ol><li>Locate <b>studio-course</b> in the project list.</li><li>Select its row or open action.</li><li>Wait for the project detail route.</li></ol>
+    <pre class="cmd">Overview → studio-course</pre>
+    <div class="expect"><b>What you should see</b><p>The detail page shows an Overview breadcrumb, project name, disk path, and current workflow count.</p><pre class="out">Overview / studio-course
+&lt;project path&gt;
+0 workflow
+New workflow</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Read activity separately</h3>
+    <h4>Objective</h4><p>Recognize which Overview values describe activity rather than project structure.</p>
+    <h4>Actions</h4><ol><li>Return to <b>Overview</b>.</li><li>Find <b>Projects</b>, <b>Active runs</b>, and <b>Success rate</b>.</li><li>Treat their values as current workspace state.</li></ol>
+    <pre class="cmd">studio-course → Overview</pre>
+    <div class="expect"><b>What you should see</b><p>The activity labels are present; their values depend on projects and runs currently indexed by the API.</p><pre class="out">Projects
+Active runs
+Success rate
+Recent runs</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the visible label, selected scene, saved file, and stable state that each gesture proves. Counts tied to your workspace and run durations can change, so do not use them as fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green screen as sufficient evidence. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Project list</td><td>Contains <code>studio-course</code></td></tr><tr><td>Project detail</td><td>Shows its disk path</td></tr><tr><td>Workflow count</td><td>Starts from the current saved workflow inventory</td></tr><tr><td>Overview statistics</td><td>Read as live workspace values, not constants</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Create button stays disabled</td><td>The required name is empty</td><td>Enter a non-blank project name</td></tr><tr><td>Project path is unexpected</td><td>No parent directory was selected</td><td>Use <b>Browse</b> when a specific parent is required</td></tr><tr><td>Opening an arbitrary folder fails</td><td><b>Open a project</b> requires Hydra structure</td><td>Create the project in Studio or open a folder already containing jobs/workflows</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The workspace now exists and is indexed. Before designing anything, the next lesson verifies the top-bar connection indicator and the backend health route that supplies Studio's data.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/02-check-the-api">Check the API <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

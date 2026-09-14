@@ -1,0 +1,54 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 11</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 11 of 12 · Compose jobs</div><h1>Turn your jobs into an ordered workflow</h1><p class="lead">Move from one executable job to orchestration by placing saved jobs on the workflow canvas and drawing one explicit dependency.</p></div>
+<div class="lesson-meta"><span class="mono">Workflow configuration</span><span>about 12 minutes</span><span>run reviewed</span></div>
+<section class="doc">
+  <h2>1. Objective</h2><h3>Goal</h3><p>Create a second job tab named <code>second-job</code>, then switch to <b>Workflow configuration</b>. Drag <code>first-job</code> and <code>second-job</code> from the dynamic Jobs section and connect the first to the second.</p><h3>Why this matters</h3><p>Workflow job nodes are references to independently saved job canvases. The serializer injects readable job paths and turns incoming edges into <code>depends_on</code>; the tested DAG utilities reject cycles and unknown dependencies before saving or running.</p>
+  <div class="callout"><b>Course project</b><p>Continue with <code>studio-course</code>, the manual <code>guided-workflow</code>, and the <code>first-job</code> canvas saved by the preceding lesson. Do not create a parallel replacement project.</p></div>
+  <h3>Prerequisites</h3><ul><li>The top bar shows <b>API online</b>.</li><li>The cumulative workflow is open in the editor.</li><li>The preceding lesson checklist is complete.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Create the second job reference</h3>
+    <h4>Objective</h4><p>Add a second saved job identity without overwriting first-job.</p>
+    <h4>Actions</h4><ol><li>Return to <b>Jobs configuration</b>.</li><li>Select the plus button titled <b>Add a new job</b>.</li><li>Rename the new tab <code>second-job</code>.</li></ol>
+    <pre class="cmd">Jobs configuration → + → second-job</pre>
+    <div class="expect"><b>What you should see</b><p>The job-tab bar contains both cumulative job names.</p><pre class="out">first-job
+second-job</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Open workflow composition</h3>
+    <h4>Objective</h4><p>Switch from connector design to orchestration.</p>
+    <h4>Actions</h4><ol><li>Select <b>Workflow configuration</b>.</li><li>Expand the dynamic <b>Jobs</b> section.</li><li>Confirm it counts the saved jobs rather than registry connector types.</li></ol>
+    <pre class="cmd">Workflow configuration → Jobs</pre>
+    <div class="expect"><b>What you should see</b><p>The palette lists the two saved job entries.</p><pre class="out">Jobs (2)
+first-job
+second-job</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Place and connect jobs</h3>
+    <h4>Objective</h4><p>Declare that second-job waits for first-job.</p>
+    <h4>Actions</h4><ol><li>Drag <b>first-job</b> onto the canvas.</li><li>Drag <b>second-job</b> to its right.</li><li>Connect first-job's output to second-job's input once.</li></ol>
+    <pre class="cmd">first-job → second-job</pre>
+    <div class="expect"><b>What you should see</b><p>The workflow scene contains two job nodes and one directed edge.</p><pre class="out">2 nodes · 1 edges
+Valid</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Read generated dependency YAML</h3>
+    <h4>Objective</h4><p>Verify the visual edge becomes depends_on rather than job-internal pipeline flow.</p>
+    <h4>Actions</h4><ol><li>Select <b>Hydra DSL</b> in workflow scene.</li><li>Find the second workflow step.</li><li>Read its <code>job</code> and <code>depends_on</code> values.</li></ol>
+    <pre class="cmd">Workflow configuration → Hydra DSL</pre>
+    <div class="expect"><b>What you should see</b><p>The serializer emits job steps and derives the second dependency from the edge.</p><pre class="out">- name: second-job
+  type: job
+  job: ../jobs/second-job
+  depends_on:
+    - first-job</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the active scene, visible label, saved file, and stable state that each gesture proves. Workspace counts and run durations can change, so do not turn them into fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This evidence bundle keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green badge or animation as sufficient proof. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause. They also leave a reproducible checkpoint for the next lesson and make later differences easier to attribute to one deliberate canvas change.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Job tabs</td><td>first-job and second-job</td></tr><tr><td>Workflow palette</td><td>Jobs (2)</td></tr><tr><td>Graph</td><td>Two nodes, one edge</td></tr><tr><td>YAML</td><td>second-job depends on first-job</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Jobs section is absent</td><td>Jobs configuration is active</td><td>Switch to Workflow configuration</td></tr><tr><td>A duplicate edge is rejected</td><td>The dependency already exists</td><td>Keep the single existing edge</td></tr><tr><td>A reverse edge creates a cycle</td><td>second-job already depends on first-job</td><td>Do not connect second-job back to first-job</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The workflow now has an explicit order. The final lesson uses the three implemented container types to apply direct retry and on-failure policies to selected job nodes, then verifies those policies in workflow YAML.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/12-handle-failure">Handle failure <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

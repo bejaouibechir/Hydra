@@ -1,0 +1,6 @@
+sources:
+  src_csv:
+    type: csv
+    extract:
+      table: data/input.csv
+      batch_size: 50000

@@ -1,0 +1,57 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 9</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 9 of 12 · Run the job</div><h1>Launch from the canvas and follow each node</h1><p class="lead">Start the completed job from its canvas, watch Studio poll the backend, and connect the final status to the configured nodes and output.</p></div>
+<div class="lesson-meta"><span class="mono">Run Job</span><span>about 10 minutes</span><span>job ready</span></div>
+<section class="doc">
+  <h2>1. Objective</h2><h3>Goal</h3><p>With <code>first-job</code> active, select <b>Run Job</b>. Follow the pending/running/success state that Studio applies to nodes, read the automatically opened <b>LOGS</b> panel, and verify the output file selected in lesson 8.</p><h3>Why this matters</h3><p>Studio starts an inline run by serializing the active canvas and sending it to the API with a working directory. It polls the run until terminal state, then derives log lines and node status from the backend result; the UI is a view of engine execution, not a separate simulator.</p>
+  <div class="callout"><b>Course project</b><p>Continue with <code>studio-course</code>, the manual <code>guided-workflow</code>, and the <code>first-job</code> canvas saved by the preceding lesson. Do not create a parallel replacement project.</p></div>
+  <h3>Prerequisites</h3><ul><li>The top bar shows <b>API online</b>.</li><li>The cumulative workflow is open in the editor.</li><li>The preceding lesson checklist is complete.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Start the job</h3>
+    <h4>Objective</h4><p>Submit the active job canvas through the implemented inline-run API.</p>
+    <h4>Actions</h4><ol><li>Stay in <b>Jobs configuration</b>.</li><li>Confirm <code>first-job</code> is active and <b>Valid</b> is visible.</li><li>Select <b>Run Job</b> or use the documented Space shortcut.</li></ol>
+    <pre class="cmd">first-job → Run Job</pre>
+    <div class="expect"><b>What you should see</b><p>The button enters a pending state and the lower panel opens for the returned run.</p><pre class="out">Run Job
+LOGS
+PENDING
+RUNNING</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Follow node state</h3>
+    <h4>Objective</h4><p>Read execution state on the same nodes that generated the DSL.</p>
+    <h4>Actions</h4><ol><li>Watch the canvas while polling continues.</li><li>Distinguish running from success or failed.</li><li>Wait for a terminal state before editing the graph.</li></ol>
+    <pre class="cmd">Canvas → node run status</pre>
+    <div class="expect"><b>What you should see</b><p>Studio clears running state when the run completes and applies the terminal result.</p><pre class="out">running
+success
+failed</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Read the logs panel</h3>
+    <h4>Objective</h4><p>Use the backend result rather than only the toolbar animation.</p>
+    <h4>Actions</h4><ol><li>Select the <b>LOGS</b> tab if another lower tab is active.</li><li>Read the run identifier, workflow name, status, total duration, and step lines.</li><li>Treat duration as observed, not fixed.</li></ol>
+    <pre class="cmd">Bottom panel → LOGS</pre>
+    <div class="expect"><b>What you should see</b><p>WorkflowEditor constructs log lines from the last run and marks each step success, failed, or skip.</p><pre class="out">Run &lt;run_id&gt; — first-job [SUCCESS]
+Total duration: &lt;observed&gt;s
+— step &lt;step_name&gt; : ✓ success</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Verify the destination</h3>
+    <h4>Objective</h4><p>Connect the successful state to the CSV artifact chosen in the destination dialog.</p>
+    <h4>Actions</h4><ol><li>Open the destination path selected in lesson 8.</li><li>Confirm the zero-price row is absent.</li><li>Compare the remaining rows with the five-row fixture.</li></ol>
+    <pre class="cmd">Open studio-output.csv</pre>
+    <div class="expect"><b>What you should see</b><p>With the declared cast and filter, four fixture rows have a positive price.</p><pre class="out">id,customer_id,price,qty
+1,100,10.0,2
+3,102,7.0,3
+4,103,15.0,1
+5,104,20.0,4</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the active scene, visible label, saved file, and stable state that each gesture proves. Workspace counts and run durations can change, so do not turn them into fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This evidence bundle keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green badge or animation as sufficient proof. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Run control</td><td>Run Job</td></tr><tr><td>Panel</td><td>LOGS opens</td></tr><tr><td>Terminal state</td><td>Success for the completed job</td></tr><tr><td>Output</td><td>Four positive-price rows</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Run Job is disabled</td><td>Graph is empty, invalid, or already submitting</td><td>Complete the design and wait for the current mutation</td></tr><tr><td>Run fails to read input</td><td>The saved File path is unavailable to the backend</td><td>Reopen the source and browse to the repository fixture</td></tr><tr><td>No output artifact appears</td><td>Destination path is blank or inaccessible</td><td>Choose a writable save path and rerun</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The canvas run has a terminal state and a physical output. The next lesson opens Runs, filters history, selects the completed execution, and reads its timing, step summary, and captured logs.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/10-review-a-run">Review the run <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

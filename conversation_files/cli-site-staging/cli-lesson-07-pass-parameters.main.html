@@ -1,0 +1,82 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/cli">Hydra CLI</a><span>›</span><span>Lesson 7</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 7 of 11 · Pass parameters</div><h1>Change one value without touching the YAML</h1><p class="lead">Declare one typed output-file parameter, override it at run time, and prove that the same job writes to the requested scope.</p></div>
+<div class="lesson-meta"><span class="mono">hdrctl run -P</span><span>about 10 minutes</span><span>verbose run complete</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3><p>Add <code>parameters.yaml</code>, replace the destination filename with Hydra's documented <code>{{ param:output_file }}</code> placeholder, and run the job with <code>-P output_file=scoped-output.csv</code>.</p>
+  <h3>Why this matters</h3><p>Copying a job for every date, tenant, or filename creates drift. Parameters keep the pipeline structure immutable while the caller supplies a value at execution time. The CLI override has the strongest job-level precedence, so the manifest stays reusable and reviewable.</p>
+  <div class="callout">
+    <b>Course project and evidence rule</b>
+    <p>
+      Continue in <code>cli-course</code>. The job remains <code>first-job</code>, and workflow lessons
+      add <code>workflow.yaml</code> beside it. The terminal excerpts shown here come from that cumulative
+      project. Treat each verdict as evidence for this exact command, project state, and machine.
+      Preserve the command beside the result when recording a run. Durations and process identifiers
+      can vary without changing a successful state; do not turn them into thresholds. Verify instead
+      the named files, resolved identifiers, row counters, step states, or HTTP status the command is
+      designed to prove. Keep the manifest and generated data beside that record so another operator can
+      reproduce the same check from a clean terminal. This small evidence bundle makes configuration drift
+      visible and keeps the next lesson grounded in a known successful state. If one of those facts differs,
+      reconcile the preceding lesson before continuing.
+      Before moving on, keep a compact run record with the working directory, the command you typed,
+      the manifests you changed, and the stable facts you confirmed. That record is more useful than
+      a screenshot alone because another reader can reproduce it. Re-open the relevant generated file
+      when the command writes data, and compare its header and content with the declared source,
+      transformation order, destination, or dependency. This habit keeps the cumulative project honest:
+      every new capability is added on top of a state that was observed, explained, and independently
+      checkable rather than merely assumed, and easy to audit later.
+    </p>
+  </div>
+  <h3>Prerequisites</h3><ul><li>Lesson 6 completed and checked.</li><li>The validated <code>first-job</code> CSV project.</li><li>A terminal opened in the <code>cli-course</code> folder.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Declare the parameter</h3>
+    <h4>Objective</h4><p>Give <code>output_file</code> a type, default, and description.</p>
+    <h4>Actions</h4><ol><li>Create <code>first-job/parameters.yaml</code>.</li><li>Add the <code>parameters</code> mapping exactly as shown.</li><li>Keep the default equal to the file used in earlier lessons.</li></ol>
+    <pre class="cmd">parameters:
+  output_file:
+    type: string
+    default: output.csv
+    description: Output CSV file name</pre>
+    <div class="expect"><b>What you should see</b><p>The declaration preserves the earlier behavior when no override is passed.</p><pre class="out">parameters:
+  output_file:
+    type: string
+    default: output.csv
+    description: Output CSV file name</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Use the parameter in the destination</h3>
+    <h4>Objective</h4><p>Resolve the destination filename while retaining the job-relative data folder.</p>
+    <h4>Actions</h4><ol><li>Open <code>first-job/destinations.yaml</code>.</li><li>Replace only <code>load.table</code>.</li><li>Use the colon form of Hydra's parameter placeholder.</li></ol>
+    <pre class="cmd">load:
+  table: "data/{{ param:output_file }}"
+  mode: replace</pre>
+    <div class="expect"><b>What you should see</b><p>The destination path combines a stable folder with a runtime-resolved filename.</p><pre class="out">table: "data/{{ param:output_file }}"</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Override the filename</h3>
+    <h4>Objective</h4><p>Run the unchanged pipeline with a one-command output scope.</p>
+    <h4>Actions</h4><ol><li>Pass one <code>KEY=VALUE</code> pair with <code>-P</code>.</li><li>Use a filename without path traversal so output remains under <code>data</code>.</li></ol>
+    <pre class="cmd">hdrctl run first-job -P output_file=scoped-output.csv</pre>
+    <div class="expect"><b>What you should see</b><p>The actual run succeeds with the same observed row counts.</p><pre class="out">✅ Pipeline completed successfully in 3.2s
+Rows read   : 3
+Rows written: 2</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Read the parameterized output</h3>
+    <h4>Objective</h4><p>Prove that the override selected a new destination file.</p>
+    <h4>Actions</h4><ol><li>Open <code>first-job/data/scoped-output.csv</code>.</li><li>Compare the rows with the default output from lesson 5.</li></ol>
+    <pre class="cmd">Get-Content first-job\data\scoped-output.csv</pre>
+    <div class="expect"><b>What you should see</b><p>The requested file exists and contains the two filtered rows.</p><pre class="out">id,name,value
+1,Alice,100.0
+2,Bob,200.0</pre></div>
+  </div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Parameter declaration</td><td><code>output_file</code> is a string with default <code>output.csv</code></td></tr><tr><td>Placeholder grammar</td><td>Uses <code>{{ param:output_file }}</code></td></tr><tr><td>Run result</td><td>Reads 3 and writes 2 rows</td></tr><tr><td>Override evidence</td><td><code>scoped-output.csv</code> contains Alice and Bob</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Parameter is unresolved</td><td>The placeholder spelling differs from the declaration</td><td>Use the same <code>output_file</code> key in both files</td></tr><tr><td>CLI rejects the argument</td><td>The pair has no equals sign</td><td>Pass <code>-P output_file=scoped-output.csv</code></td></tr><tr><td>The default file is written</td><td>The override was omitted or placed after a shell parsing error</td><td>Copy the exact command and keep the value unquoted unless it contains spaces</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The job can now change its output scope without manifest edits. The next lesson inventories the containing project with <code>hdrctl list</code> and reads what that structural scan does—and does not—prove.</p>
+  <div class="lesson-nav"><a class="primary" href="/cli/08-list-the-project">List the project <span aria-hidden="true">→</span></a><a href="/cli">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/dsl/sources-yaml">sources.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/studio">Hydra Studio track</a></li></ul>
+</section>

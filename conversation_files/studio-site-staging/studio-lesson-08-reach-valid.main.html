@@ -1,0 +1,58 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 8</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 8 of 12 · Reach Valid</div><h1>Resolve what the validity badge reports</h1><p class="lead">Finish the job graph, configure each required field, and distinguish the header's DAG validity from node-level readiness.</p></div>
+<div class="lesson-meta"><span class="mono">Valid</span><span>about 15 minutes</span><span>source YAML verified</span></div>
+<section class="doc">
+  <h2>1. Objective</h2><h3>Goal</h3><p>Build <code>CSV source → Cast → Filter → CSV destination</code>. Configure Cast and Filter with fields defined in <code>NodeConfigDialog</code>, choose a destination file, connect the four nodes, and verify both graph validity and node configuration.</p><h3>Why this matters</h3><p>The header's <b>Valid</b> state comes from DAG validation: no duplicated IDs, unknown dependencies, or cycle. Individual node badges use <code>isNodeConfigured</code>. A trustworthy job needs both; a green DAG badge alone does not prove required connector fields are filled.</p>
+  <div class="callout"><b>Course project</b><p>Continue with <code>studio-course</code>, the manual <code>guided-workflow</code>, and the <code>first-job</code> canvas saved by the preceding lesson. Do not create a parallel replacement project.</p></div>
+  <h3>Prerequisites</h3><ul><li>The top bar shows <b>API online</b>.</li><li>The cumulative workflow is open in the editor.</li><li>The preceding lesson checklist is complete.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Add and configure Cast</h3>
+    <h4>Objective</h4><p>Give numeric CSV columns explicit types before comparison.</p>
+    <h4>Actions</h4><ol><li>Drag <b>Cast</b> from Transformations.</li><li>Double-click it.</li><li>Enter <code>{"price":"float","qty":"int"}</code> in <b>Types (JSON)</b>, then save.</li></ol>
+    <pre class="cmd">Transformations → Cast → Types (JSON)</pre>
+    <div class="expect"><b>What you should see</b><p>The Cast node has the required mapping used by the real dialog schema.</p><pre class="out">Cast
+Types (JSON) *
+{"price":"float","qty":"int"}
+Save</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Add and configure Filter</h3>
+    <h4>Objective</h4><p>Remove the fixture row whose price is zero.</p>
+    <h4>Actions</h4><ol><li>Drag <b>Filter</b> after Cast.</li><li>Double-click it.</li><li>Enter <code>price &gt; 0</code> in <b>Expression</b>, then save.</li></ol>
+    <pre class="cmd">Transformations → Filter → Expression: price &gt; 0</pre>
+    <div class="expect"><b>What you should see</b><p>The Filter node has the required non-empty expression.</p><pre class="out">Filter
+Expression *
+price &gt; 0
+Save</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Add the CSV destination</h3>
+    <h4>Objective</h4><p>Choose the physical target the completed job will write.</p>
+    <h4>Actions</h4><ol><li>Drag <b>CSV</b> from Destinations to the right of Filter.</li><li>Double-click the destination node.</li><li>Use <b>Browse</b> to choose a save path ending in <code>studio-output.csv</code>, then save.</li></ol>
+    <pre class="cmd">Destinations → CSV → Browse → studio-output.csv</pre>
+    <div class="expect"><b>What you should see</b><p>Destination CSV requires one File path and accepts a save-file picker.</p><pre class="out">CSV
+File path *
+./output/file.csv
+Browse
+Save</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Connect and verify both layers</h3>
+    <h4>Objective</h4><p>Build one acyclic source-to-destination chain and check every node.</p>
+    <h4>Actions</h4><ol><li>Connect Source to Cast, Cast to Filter, and Filter to Destination.</li><li>Read the toolbar counter and <b>Valid</b> badge.</li><li>Inspect every node for configured state before saving.</li></ol>
+    <pre class="cmd">CSV source → Cast → Filter → CSV destination → Save</pre>
+    <div class="expect"><b>What you should see</b><p>The designed chain has four nodes, three directed edges, no DAG error, and all required fields saved.</p><pre class="out">4 nodes · 3 edges
+Valid
+Saved ✓</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the active scene, visible label, saved file, and stable state that each gesture proves. Workspace counts and run durations can change, so do not turn them into fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This evidence bundle keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green badge or animation as sufficient proof. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause. They also leave a reproducible checkpoint for the next lesson and make later differences easier to attribute to one deliberate canvas change.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Graph</td><td>Source → Cast → Filter → Destination</td></tr><tr><td>Required mappings</td><td>price float and qty int</td></tr><tr><td>Filter</td><td>price > 0</td></tr><tr><td>Readiness</td><td>DAG Valid plus every node configured</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Valid appears while a node is incomplete</td><td>Header validity checks the DAG</td><td>Open each node and satisfy its required fields</td></tr><tr><td>An edge is rejected</td><td>Direction, capacity, duplicate, or cycle rule is violated</td><td>Connect left to right once and keep destination last</td></tr><tr><td>Cast remains incomplete</td><td>Mapping JSON is blank or malformed</td><td>Use the exact JSON object and save</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The visual job is complete and serialized. The next lesson selects Run Job, opens the Logs panel automatically, and follows the status produced by the inline job execution path.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/09-run-the-job">Run the job <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

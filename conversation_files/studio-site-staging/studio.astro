@@ -1,0 +1,14 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ProductLearningShell from '../components/ProductLearningShell.astro';
+import { studioLessons } from '../data/studio-lessons.js';
+import css from '../_mock/learning-hub.css?raw';
+import js from '../_mock/learning-hub.js?raw';
+---
+
+<BaseLayout title="Hydra Studio tutorials" description="A structured learning track for designing, validating and running Hydra jobs visually in Studio.">
+  <style is:global set:html={css}></style>
+  <ProductLearningShell product="Studio" title="Hydra Studio tutorials" lead="Learn the visual path from an empty canvas to generated YAML, a validated design and a run you can inspect node by node." duration="about 90 minutes" lessons={studioLessons} referenceHref="/playground" referenceLabel="Explore a job without installing" />
+  <script is:inline set:html={js}></script>
+</BaseLayout>
+

@@ -1,0 +1,116 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/cli">Hydra CLI</a><span>›</span><span>Lesson 6</span></div>
+<div class="lesson-head">
+  <div class="eyebrow"><span></span>Lesson 6 of 11 · Read the output</div>
+  <h1>Turn up the verbosity when something is unclear</h1>
+  <p class="lead">Replay the successful job at verbosity level two and connect its configuration summary, environment report, and metrics to the same output.</p>
+</div>
+<div class="lesson-meta"><span class="mono">hdrctl run -vv</span><span>about 8 minutes</span><span>successful first run</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3>
+  <p>Run <code>hdrctl run first-job -vv</code> and interpret every additional section. Confirm that verbose mode changes observability only: the job still reads three rows, writes two, and replaces the same destination.</p>
+  <h3>Why this matters</h3>
+  <p>A compact production summary is easy to scan, but it hides the configuration and executor timing needed during investigation. Level two adds resolved flow, transformation count, environment discovery, and engine duration without requiring a new manifest or a separate debug build.</p>
+  <div class="callout"><b>Course project</b><p>Keep working from the <code>cli-course</code> folder. The job is named <code>first-job</code>; every command and terminal excerpt in this lesson was run against that same project.</p></div>
+  <h3>Prerequisites</h3>
+  <ul><li>Lesson 5 completed and its checklist confirmed.</li><li>The repository clone and <b>hdrctl</b> entry point from lesson 1.</li><li>A terminal opened in the parent folder that contains <code>first-job</code>.</li></ul>
+  <h2>2. Steps</h2>
+
+  <div class="step">
+    <h3><i>01</i>Confirm the verbosity levels</h3>
+    <h4>Objective</h4>
+    <p>Select level two deliberately from the documented run options.</p>
+    <h4>Actions</h4>
+    <ol><li>Open the run help.</li><li>Distinguish <code>-v</code>, <code>-vv</code>, and <code>-vvv</code>.</li><li>Choose <code>-vv</code> because this lesson needs metrics.</li></ol>
+    <pre class="cmd">hdrctl run --help</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>The help identifies <code>-vv</code> as verbosity level two with metrics.</p>
+      <pre class="out">-v                          Verbosity level 1
+-vv                         Verbosity level 2 (metrics)
+-vvv                        Verbosity level 3 (full logs)</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Replay with metrics</h3>
+    <h4>Objective</h4>
+    <p>Execute the same manifests while requesting level-two detail.</p>
+    <h4>Actions</h4>
+    <ol><li>Run the job again with <code>-vv</code>.</li><li>Keep the path and every manifest unchanged.</li></ol>
+    <pre class="cmd">hdrctl run first-job -vv</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>The run succeeds with the same row counts, then prints three additional sections.</p>
+      <pre class="out">✅ Pipeline completed successfully in 2.9s
+Rows read   : 3
+Rows written: 2
+
+Execution detail
+from → src_csv  →  to → dest_csv
+3 transformation(s) applied</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Read environment and engine timing</h3>
+    <h4>Objective</h4>
+    <p>Separate environment discovery from executor metrics.</p>
+    <h4>Actions</h4>
+    <ol><li>Find the <b>Environment variables</b> section.</li><li>Read the <b>Metrics</b> line as engine-reported duration, not the rounded wall-clock summary.</li></ol>
+    <pre class="cmd">hdrctl run first-job -vv</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>No job-level <code>.env</code> is found, and the executor reports its observed metrics.</p>
+      <pre class="out">Environment variables
+No .env file found
+
+Metrics
+rows_in=3  rows_out=2  duration=0.019s</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Verify verbosity did not alter data</h3>
+    <h4>Objective</h4>
+    <p>Prove that logging detail leaves destination semantics unchanged.</p>
+    <h4>Actions</h4>
+    <ol><li>Open the output CSV after the verbose run.</li><li>Compare its header and two rows with lesson 5.</li></ol>
+    <pre class="cmd">Get-Content first-job\data\output.csv</pre>
+    <div class="expect">
+      <b>What you should see</b>
+      <p>Replace mode produces the same two-row file; verbosity does not duplicate or mutate rows.</p>
+      <pre class="out">id,name,value
+1,Alice,100.0
+2,Bob,200.0</pre>
+    </div>
+  </div>
+  <div class="callout">
+    <b>Evidence rule</b>
+    <p>
+      Treat the terminal verdict as evidence for this exact command, project state, and machine.
+      Preserve the command beside the result when you record the run. A later execution can report
+      a different duration or process identifier without changing the meaning of a successful state.
+      Do not copy those variable values into an operational threshold. Instead, verify the named
+      files, resolved identifiers, row counters, step states, or HTTP status that the command is
+      designed to prove. If your output differs in one of those facts, stop here and reconcile the
+      project with the preceding lesson before continuing.
+      Before moving on, keep a compact run record with the working directory, the command you typed,
+      the manifests you changed, and the stable facts you confirmed. That record is more useful than
+      a screenshot alone because another reader can reproduce it. Re-open the relevant generated file
+      when the command writes data, and compare its header and content with the declared source,
+      transformation order, destination, or dependency. This habit keeps the cumulative project honest:
+      every new capability is added on top of a state that was observed, explained, and independently
+      checkable rather than merely assumed.
+    </p>
+  </div>
+  <h2>3. Checklist</h2>
+  <table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Flow detail</td><td><code>src_csv → dest_csv</code></td></tr><tr><td>Transformation detail</td><td><code>3 transformation(s) applied</code></td></tr><tr><td>Metrics</td><td>Reports <code>rows_in=3</code> and <code>rows_out=2</code></td></tr><tr><td>Destination</td><td>Still contains exactly the observed two data rows</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2>
+  <table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>No detail sections appear</td><td>The command used no verbosity flag or only <code>-v</code></td><td>Use the exact <code>-vv</code> option</td></tr><tr><td>Durations differ between runs</td><td>Wall-clock and executor timings vary by machine and run</td><td>Treat the observed row counters and successful state as the stable evidence</td></tr><tr><td>Environment output surprises you</td><td>A parent or job <code>.env</code> exists</td><td>Inspect only key names; never copy secret values into documentation</td></tr></tbody></table>
+  <h2>5. Next lesson</h2>
+  <p>Verbose evidence now explains the successful run without changing it. The next lesson introduces a declared output-file parameter and overrides it with the repeatable <code>-P</code> option, leaving the manifest reusable.</p>
+  <div class="lesson-nav"><a class="primary" href="/cli/07-pass-parameters">Pass parameters <span aria-hidden="true">→</span></a><a href="/cli">Back to the course map</a></div>
+  <h4>Close by</h4>
+  <ul class="linklist"><li><a href="/dsl/sources-yaml">sources.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/guide/sources/csv">Guided CSV workshop</a></li><li><a href="/studio">Hydra Studio track</a></li></ul>
+</section>

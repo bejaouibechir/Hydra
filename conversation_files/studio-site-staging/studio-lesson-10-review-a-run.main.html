@@ -1,0 +1,60 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 10</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 10 of 12 · Review a run</div><h1>Find a past execution and its result</h1><p class="lead">Move from the live canvas to durable run history, filter the list, and inspect the execution one step at a time.</p></div>
+<div class="lesson-meta"><span class="mono">Runs</span><span>about 9 minutes</span><span>completed Studio run</span></div>
+<section class="doc">
+  <h2>1. Objective</h2><h3>Goal</h3><p>Open <b>Runs</b> from the sidebar, select the completed <code>first-job</code> execution, and read the detail cards for Started, Finished, Duration, and Steps. Expand the step card to inspect captured logs.</p><h3>Why this matters</h3><p>The canvas shows only the most recent editor state. Runs is the persistent operational view: it lists pending, running, success, and failed executions, supports filtering, and links each run to detail data that remains inspectable after the editor changes.</p>
+  <div class="callout"><b>Course project</b><p>Continue with <code>studio-course</code>, the manual <code>guided-workflow</code>, and the <code>first-job</code> canvas saved by the preceding lesson. Do not create a parallel replacement project.</p></div>
+  <h3>Prerequisites</h3><ul><li>The top bar shows <b>API online</b>.</li><li>The cumulative workflow is open in the editor.</li><li>The preceding lesson checklist is complete.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Open run history</h3>
+    <h4>Objective</h4><p>Leave the editor without losing the saved workflow or job.</p>
+    <h4>Actions</h4><ol><li>Select <b>Runs</b> in the sidebar.</li><li>Wait for the API-backed list.</li><li>Locate the entry whose workflow name matches the job run.</li></ol>
+    <pre class="cmd">Sidebar → Runs</pre>
+    <div class="expect"><b>What you should see</b><p>The page heading and status filters come directly from Runs.tsx.</p><pre class="out">Runs
+All
+Running
+Success
+Failed
+Pending</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Filter completed runs</h3>
+    <h4>Objective</h4><p>Reduce the list to successful executions when reviewing the lesson result.</p>
+    <h4>Actions</h4><ol><li>Select <b>Success</b>.</li><li>Find the <code>first-job</code> row.</li><li>Open the run identifier link.</li></ol>
+    <pre class="cmd">Runs → Success → first-job</pre>
+    <div class="expect"><b>What you should see</b><p>The selected entry opens the detail route for that run ID.</p><pre class="out">first-job
+success
+&lt;run identifier&gt;</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Read the summary cards</h3>
+    <h4>Objective</h4><p>Separate timestamps, duration, and step completion counts.</p>
+    <h4>Actions</h4><ol><li>Read <b>Started</b> and <b>Finished</b>.</li><li>Read <b>Duration</b> as an observed value.</li><li>Read <b>Steps</b> as successful and skipped states over total steps.</li></ol>
+    <pre class="cmd">Run detail → summary</pre>
+    <div class="expect"><b>What you should see</b><p>The detail page renders four named summary cards.</p><pre class="out">Started
+Finished
+Duration
+Steps
+&lt;ok count&gt; ok · &lt;skip count&gt; skip / &lt;total&gt;</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Expand step evidence</h3>
+    <h4>Objective</h4><p>Inspect logs and duration for the exact engine step.</p>
+    <h4>Actions</h4><ol><li>Open the step card.</li><li>Read its status, duration, and log-line count.</li><li>If no lines were captured, use the explicit empty message rather than assuming missing UI.</li></ol>
+    <pre class="cmd">Run detail → step card</pre>
+    <div class="expect"><b>What you should see</b><p>Each step can expose its logs through LogViewer or the implemented no-logs message.</p><pre class="out">&lt;step name&gt;
+&lt;duration&gt;
+&lt;log count&gt; lines
+No logs captured for this step.</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the active scene, visible label, saved file, and stable state that each gesture proves. Workspace counts and run durations can change, so do not turn them into fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This evidence bundle keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green badge or animation as sufficient proof. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Runs page</td><td>Status filters visible</td></tr><tr><td>Selected entry</td><td>Matches first-job</td></tr><tr><td>Summary cards</td><td>Started, Finished, Duration, Steps</td></tr><tr><td>Step detail</td><td>Status and logs inspected</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>The run is still Running</td><td>Polling has not reached a terminal state</td><td>Wait and refresh the API-backed list</td></tr><tr><td>No run is listed</td><td>The job submission did not succeed or another workspace is active</td><td>Return to the editor and confirm the completed run</td></tr><tr><td>Logs are empty</td><td>The engine captured no lines for that step</td><td>Use status, duration, and output artifact as the remaining evidence</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>You can now trace a job beyond the editor. The next lesson adds a second job tab, places both saved jobs on Workflow configuration, and connects them into an ordered dependency graph.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/11-compose-jobs">Compose jobs <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

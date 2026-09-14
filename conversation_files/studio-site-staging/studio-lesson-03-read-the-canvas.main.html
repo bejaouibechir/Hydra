@@ -1,0 +1,57 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 3</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 3 of 12 · Read the canvas</div><h1>Recognize nodes, ports and edges</h1><p class="lead">Create the workflow shell, enter its editor, and learn what Studio's nodes, handles, edges, and scene switcher represent.</p></div>
+<div class="lesson-meta"><span class="mono">Jobs configuration</span><span>about 10 minutes</span><span>API online</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3><p>Create <code>guided-workflow</code> with a manual trigger and open it in the editor. Distinguish <b>Jobs configuration</b>, where one job is source-to-destination, from <b>Workflow configuration</b>, where saved jobs and actions form a DAG.</p>
+  <h3>Why this matters</h3><p>The same screen hosts two related graphs. Mixing their meanings leads to invalid designs: connector nodes belong inside jobs, while Job and Action nodes belong in workflow orchestration. Ports and directed edges become YAML references and dependencies.</p>
+  <div class="callout"><b>Course project</b><p>Keep one cumulative Studio project named <code>studio-course</code>, one manual workflow named <code>guided-workflow</code>, and one job named <code>first-job</code>. Each lesson builds on the state saved by the previous one.</p></div>
+  <h3>Prerequisites</h3><ul><li>Hydra API started with <code>hdrctl serve</code>.</li><li>Studio started from <code>Hydra/studio</code> with <code>npm run dev</code>.</li><li>The preceding lesson completed before continuing.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Create the workflow shell</h3>
+    <h4>Objective</h4><p>Add a manual workflow to the cumulative project without adding steps yet.</p>
+    <h4>Actions</h4><ol><li>Open <b>studio-course</b>.</li><li>Select <b>New workflow</b>.</li><li>Enter <code>guided-workflow</code>, keep <b>Manual</b>, and select <b>Create Workflow</b>.</li></ol>
+    <pre class="cmd">New workflow → guided-workflow → Manual → Create Workflow</pre>
+    <div class="expect"><b>What you should see</b><p>The project detail shows a workflow card with its trigger and draft state.</p><pre class="out">guided-workflow
+Manual
+draft
+never run
+Open in editor</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Open the editor</h3>
+    <h4>Objective</h4><p>Enter the canvas route tied to the saved workflow and project.</p>
+    <h4>Actions</h4><ol><li>Select <b>Open in editor</b>.</li><li>Read the breadcrumb and toolbar.</li><li>Locate the scene switcher beneath the toolbar.</li></ol>
+    <pre class="cmd">guided-workflow → Open in editor</pre>
+    <div class="expect"><b>What you should see</b><p>Both editor scenes are available with the exact labels implemented in WorkflowEditor.</p><pre class="out">Jobs configuration
+Workflow configuration
+Hydra DSL
+Run Workflow
+Save</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Read nodes and edges</h3>
+    <h4>Objective</h4><p>Interpret the toolbar counter as graph structure, not run output.</p>
+    <h4>Actions</h4><ol><li>Locate the monospace counter beside the workflow name.</li><li>Read <b>nodes</b> as graph items and <b>edges</b> as directed connections.</li><li>Do not interpret either count as data rows.</li></ol>
+    <pre class="cmd">Editor toolbar → nodes · edges</pre>
+    <div class="expect"><b>What you should see</b><p>The counter updates from the current React Flow scene.</p><pre class="out">&lt;current count&gt; nodes · &lt;current count&gt; edges</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Read direction and ports</h3>
+    <h4>Objective</h4><p>Understand what a connection will mean before drawing one.</p>
+    <h4>Actions</h4><ol><li>Switch between the two scene tabs.</li><li>Notice that Sources have no input capacity and Destinations have no output capacity.</li><li>Follow every edge from source handle to target handle.</li></ol>
+    <pre class="cmd">Jobs configuration ↔ Workflow configuration</pre>
+    <div class="expect"><b>What you should see</b><p>Job scenes model source → transformations → destination; workflow scenes model dependencies among jobs and actions.</p><pre class="out">Job: source → transformations → destination
+Workflow: jobs/actions → depends_on</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the visible label, selected scene, saved file, and stable state that each gesture proves. Counts tied to your workspace and run durations can change, so do not use them as fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green screen as sufficient evidence. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Workflow card</td><td>Shows <code>guided-workflow</code></td></tr><tr><td>Trigger</td><td>Manual</td></tr><tr><td>Scene tabs</td><td>Both configuration labels present</td></tr><tr><td>Counter</td><td>Nodes and edges refer to the active scene</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>No editor opens</td><td>The workflow card was not created or project query failed</td><td>Confirm API online, then reopen the card</td></tr><tr><td>Connector nodes appear in workflow scene</td><td>The wrong scene meaning is assumed</td><td>Use connector nodes only under <b>Jobs configuration</b></td></tr><tr><td>An edge is refused</td><td>The connection violates port capacity, duplicates, or cycle rules</td><td>Check direction and existing edges before reconnecting</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>You can now read the two graphs without moving them. The next lesson opens the Node Palette and verifies the actual categories and registry counts available in each scene.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/04-use-the-palette">Use the palette <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

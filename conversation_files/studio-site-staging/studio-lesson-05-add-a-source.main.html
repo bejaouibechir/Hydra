@@ -1,0 +1,53 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 5</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 5 of 12 · Add a source</div><h1>Drop your first source on the canvas</h1><p class="lead">Create the cumulative job tab, place the CSV source from the registry, and distinguish placement from configuration.</p></div>
+<div class="lesson-meta"><span class="mono">Sources</span><span>about 10 minutes</span><span>palette understood</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3><p>Use the job-tab plus control to create the first job, rename it <code>first-job</code>, and drag <b>CSV</b> from <b>Sources</b> onto the empty job canvas. Do not claim the source is ready until its required file path is saved.</p>
+  <h3>Why this matters</h3><p>Adding a node only chooses its type and position. The registry marks CSV as a source with no input capacity, while <code>isNodeConfigured</code> requires a non-empty path, table, query, collection, URL, or URI before the source is configured.</p>
+  <div class="callout"><b>Course project</b><p>Keep one cumulative Studio project named <code>studio-course</code>, one manual workflow named <code>guided-workflow</code>, and one job named <code>first-job</code>. Each lesson builds on the state saved by the previous one.</p></div>
+  <h3>Prerequisites</h3><ul><li>Hydra API started with <code>hdrctl serve</code>.</li><li>Studio started from <code>Hydra/studio</code> with <code>npm run dev</code>.</li><li>The preceding lesson completed before continuing.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Create a job tab</h3>
+    <h4>Objective</h4><p>Give the workflow a job canvas distinct from its orchestration scene.</p>
+    <h4>Actions</h4><ol><li>Select <b>Jobs configuration</b>.</li><li>Use the plus button titled <b>Add a new job</b>.</li><li>Double-click the generated tab name and rename it <code>first-job</code>.</li></ol>
+    <pre class="cmd">Jobs configuration → + → first-job</pre>
+    <div class="expect"><b>What you should see</b><p>A job tab is active and its canvas starts with no nodes or edges.</p><pre class="out">first-job
+0 nodes · 0 edges</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Open Sources</h3>
+    <h4>Objective</h4><p>Find the CSV node from the job-scene registry filter.</p>
+    <h4>Actions</h4><ol><li>Expand <b>Sources (7)</b>.</li><li>Locate <b>CSV</b>.</li><li>Read its description before dragging.</li></ol>
+    <pre class="cmd">NODE PALETTE → Sources → CSV</pre>
+    <div class="expect"><b>What you should see</b><p>CSV is registered as a source that reads a CSV file.</p><pre class="out">CSV
+Reads a CSV file</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Place the source</h3>
+    <h4>Objective</h4><p>Create one source node without introducing a second input or destination.</p>
+    <h4>Actions</h4><ol><li>Drag <b>CSV</b> onto the canvas.</li><li>Drop it near the left side of the job flow.</li><li>Release before opening configuration.</li></ol>
+    <pre class="cmd">Drag CSV → job canvas</pre>
+    <div class="expect"><b>What you should see</b><p>The active graph contains one source node and no edge.</p><pre class="out">1 nodes · 0 edges
+CSV</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Read the unconfigured state</h3>
+    <h4>Objective</h4><p>Separate node type selection from the required file-path contract.</p>
+    <h4>Actions</h4><ol><li>Select the CSV node.</li><li>Notice its configuration state.</li><li>Do not run the job yet.</li></ol>
+    <pre class="cmd">Canvas → CSV node</pre>
+    <div class="expect"><b>What you should see</b><p>The validator requires a source identifier; for CSV the configuration dialog exposes one required File path.</p><pre class="out">CSV
+File path *
+./data/file.csv</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the visible label, selected scene, saved file, and stable state that each gesture proves. Counts tied to your workspace and run durations can change, so do not use them as fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green screen as sufficient evidence. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Active job</td><td><code>first-job</code></td></tr><tr><td>Canvas</td><td>One CSV node</td></tr><tr><td>Edges</td><td>None yet</td></tr><tr><td>Required configuration</td><td>File path</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Plus button is absent</td><td>Workflow configuration is active</td><td>Switch to Jobs configuration</td></tr><tr><td>Actions appear in the palette</td><td>The wrong scene is active</td><td>Use the job scene before adding connectors</td></tr><tr><td>CSV cannot accept an incoming edge</td><td>Sources have zero input capacity</td><td>Start the flow at the source's output handle</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The CSV node exists but is not configured. The next lesson opens its real configuration dialog, chooses the repository's existing input fixture, saves the field, and connects that UI value to the generated source manifest.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/06-configure-a-node">Configure the node <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

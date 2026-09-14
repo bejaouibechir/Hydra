@@ -1,0 +1,89 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/cli">Hydra CLI</a><span>›</span><span>Lesson 9</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 9 of 11 · Build a workflow</div><h1>Compose your jobs into a workflow</h1><p class="lead">Wrap the cumulative job in a manual workflow, add a completion action, and validate the manifest and dependency graph before running either step.</p></div>
+<div class="lesson-meta"><span class="mono">hdrctl workflow validate</span><span>about 12 minutes</span><span>project inventoried</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3><p>Create <code>workflow.yaml</code> beside <code>first-job</code>. Declare one job step and one dependent log action, then use <code>hdrctl workflow validate workflow.yaml</code> to prove the model and graph are valid.</p>
+  <h3>Why this matters</h3><p>A job describes one data movement; a workflow describes ordering across jobs and actions. Validating first catches missing fields, duplicate names, unknown dependencies, and cycles without executing the job, making orchestration changes reviewable before they touch data.</p>
+  <div class="callout">
+    <b>Course project and evidence rule</b>
+    <p>
+      Continue in <code>cli-course</code>. The job remains <code>first-job</code>, and workflow lessons
+      add <code>workflow.yaml</code> beside it. The terminal excerpts shown here come from that cumulative
+      project. Treat each verdict as evidence for this exact command, project state, and machine.
+      Preserve the command beside the result when recording a run. Durations and process identifiers
+      can vary without changing a successful state; do not turn them into thresholds. Verify instead
+      the named files, resolved identifiers, row counters, step states, or HTTP status the command is
+      designed to prove. Keep the manifest and generated data beside that record so another operator can
+      reproduce the same check from a clean terminal. This small evidence bundle makes configuration drift
+      visible and keeps the next lesson grounded in a known successful state. If one of those facts differs,
+      reconcile the preceding lesson before continuing.
+      Before moving on, keep a compact run record with the working directory, the command you typed,
+      the manifests you changed, and the stable facts you confirmed. That record is more useful than
+      a screenshot alone because another reader can reproduce it. Re-open the relevant generated file
+      when the command writes data, and compare its header and content with the declared source,
+      transformation order, destination, or dependency. This habit keeps the cumulative project honest:
+      every new capability is added on top of a state that was observed, explained, and independently
+      checkable rather than merely assumed.
+    </p>
+  </div>
+  <h3>Prerequisites</h3><ul><li>Lesson 8 completed and checked.</li><li>The validated <code>first-job</code> CSV project.</li><li>A terminal opened in the <code>cli-course</code> folder.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Declare the workflow identity</h3>
+    <h4>Objective</h4><p>Create the top-level workflow mapping and manual trigger.</p>
+    <h4>Actions</h4><ol><li>Create <code>workflow.yaml</code> in <code>cli-course</code>.</li><li>Set the name to <code>first-job-workflow</code>.</li><li>Keep the trigger manual for this guided run.</li></ol>
+    <pre class="cmd">workflow:
+  name: "first-job-workflow"
+  description: "Run the guided CSV job, then record completion."
+  trigger:
+    type: manual</pre>
+    <div class="expect"><b>What you should see</b><p>The document has the required top-level key, a unique name, and a supported trigger type.</p><pre class="out">workflow:
+  name: "first-job-workflow"
+  trigger:
+    type: manual</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Add the job step</h3>
+    <h4>Objective</h4><p>Reference the existing cumulative job from the workflow directory.</p>
+    <h4>Actions</h4><ol><li>Add <code>run_first_job</code> under <code>steps</code>.</li><li>Set <code>type</code> to <code>job</code> and <code>job</code> to <code>./first-job</code>.</li><li>Leave <code>depends_on</code> empty.</li></ol>
+    <pre class="cmd">steps:
+  - name: "run_first_job"
+    type: job
+    job: "./first-job"
+    depends_on: []
+    on_failure: fail</pre>
+    <div class="expect"><b>What you should see</b><p>The first step points at a configured job and has no upstream dependency.</p><pre class="out">- name: "run_first_job"
+  type: job
+  job: "./first-job"
+  depends_on: []</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Add the completion action</h3>
+    <h4>Objective</h4><p>Create a second step that can run only after the job succeeds.</p>
+    <h4>Actions</h4><ol><li>Add an <code>action</code> step named <code>record_completion</code>.</li><li>Use the implemented <code>log</code> action.</li><li>Depend on <code>run_first_job</code>.</li></ol>
+    <pre class="cmd">- name: "record_completion"
+  type: action
+  action: log
+  params:
+    message: "first-job-workflow completed successfully."
+  depends_on: ["run_first_job"]
+  on_failure: fail</pre>
+    <div class="expect"><b>What you should see</b><p>The dependency forms a simple job-to-action sequence.</p><pre class="out">run_first_job → record_completion</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Validate the workflow graph</h3>
+    <h4>Objective</h4><p>Check the workflow model and dependency ordering without executing it.</p>
+    <h4>Actions</h4><ol><li>Run the workflow validator against the new file.</li><li>Do not use <code>workflow run</code> until this verdict is clean.</li></ol>
+    <pre class="cmd">hdrctl workflow validate workflow.yaml</pre>
+    <div class="expect"><b>What you should see</b><p>The observed validator output is a single successful verdict.</p><pre class="out">✅ Workflow valid — no errors detected.</pre></div>
+  </div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Top-level key</td><td><code>workflow</code></td></tr><tr><td>Job path</td><td><code>./first-job</code></td></tr><tr><td>Dependency</td><td><code>record_completion</code> depends on <code>run_first_job</code></td></tr><tr><td>Validation</td><td><code>Workflow valid — no errors detected.</code></td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>The top-level key is rejected</td><td>The document starts directly with name or steps</td><td>Nest the definition below <code>workflow:</code></td></tr><tr><td>The dependency is unknown</td><td>The referenced name differs by spelling</td><td>Use the exact earlier step name <code>run_first_job</code></td></tr><tr><td>A cycle is reported</td><td>Steps depend on each other in a loop</td><td>Keep the first dependency empty and the second dependent only on the first</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The workflow manifest and DAG are valid, but neither step has executed yet. The next lesson runs the workflow and reads one terminal state for the job, one for the completion action, and the final two-of-two summary.</p>
+  <div class="lesson-nav"><a class="primary" href="/cli/10-run-a-workflow">Run the workflow <span aria-hidden="true">→</span></a><a href="/cli">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/dsl/sources-yaml">sources.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/studio">Hydra Studio track</a></li></ul>
+</section>

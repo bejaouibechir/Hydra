@@ -1,0 +1,28 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ProductLearningShell from '../../components/ProductLearningShell.astro';
+import { cliLessons } from '../../data/cli-lessons.js';
+import css from '../../_mock/learning-hub.css?raw';
+import lessonCss from '../../_mock/cli-lesson.css?raw';
+import js from '../../_mock/learning-hub.js?raw';
+import main from '../../_mock/cli-lesson-04-test-the-connections.main.html?raw';
+---
+
+<BaseLayout title="Lesson 4 — Prove the connection exists" description="Test source, destination and transformation readiness without executing the pipeline.">
+  <style is:global set:html={css}></style>
+  <style is:global set:html={lessonCss}></style>
+  <ProductLearningShell
+    product="CLI"
+    title="Hydra CLI tutorials"
+    lead="Learn the command-line path from an empty folder to a validated job, an observable run and an orchestrated workflow."
+    duration="about 90 minutes"
+    lessons={cliLessons}
+    activeSlug="04-test-the-connections"
+    referenceHref="/guide/sources/csv"
+    referenceLabel="Run the first guided job"
+  >
+    <Fragment set:html={main} />
+  </ProductLearningShell>
+  <script is:inline set:html={js}></script>
+</BaseLayout>
+

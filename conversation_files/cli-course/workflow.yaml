@@ -1,0 +1,19 @@
+workflow:
+  name: "first-job-workflow"
+  description: "Run the guided CSV job, then record completion."
+  trigger:
+    type: manual
+  steps:
+    - name: "run_first_job"
+      type: job
+      job: "./first-job"
+      depends_on: []
+      on_failure: fail
+
+    - name: "record_completion"
+      type: action
+      action: log
+      params:
+        message: "first-job-workflow completed successfully."
+      depends_on: ["run_first_job"]
+      on_failure: fail

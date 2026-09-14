@@ -1,0 +1,56 @@
+<div class="crumbs"><a href="/get-started">Get started</a><span>›</span><a href="/studio">Hydra Studio</a><span>›</span><span>Lesson 4</span></div>
+<div class="lesson-head"><div class="eyebrow"><span></span>Lesson 4 of 12 · Use the palette</div><h1>Find what you need in the node palette</h1><p class="lead">Navigate Studio's node registry by category, understand the fixed counts, and see why the palette changes between job and workflow scenes.</p></div>
+<div class="lesson-meta"><span class="mono">Node palette</span><span>about 8 minutes</span><span>editor open</span></div>
+<section class="doc">
+  <h2>1. Objective</h2>
+  <h3>Goal</h3><p>Expand the <b>NODE PALETTE</b>, inspect category counts derived from <code>nodeRegistry.ts</code>, and compare the categories visible in job and workflow scenes. Learn the collapse control and platform badges before dragging a node.</p>
+  <h3>Why this matters</h3><p>The palette is a filtered view of one central registry. Job scenes intentionally hide actions because a job serializes only sources, transformations, and destinations; workflow scenes show actions, control flow, containers, and dynamically saved jobs.</p>
+  <div class="callout"><b>Course project</b><p>Keep one cumulative Studio project named <code>studio-course</code>, one manual workflow named <code>guided-workflow</code>, and one job named <code>first-job</code>. Each lesson builds on the state saved by the previous one.</p></div>
+  <h3>Prerequisites</h3><ul><li>Hydra API started with <code>hdrctl serve</code>.</li><li>Studio started from <code>Hydra/studio</code> with <code>npm run dev</code>.</li><li>The preceding lesson completed before continuing.</li></ul>
+  <h2>2. Steps</h2>
+  <div class="step">
+    <h3><i>01</i>Expand the palette</h3>
+    <h4>Objective</h4><p>Expose labels and descriptions instead of relying on icons alone.</p>
+    <h4>Actions</h4><ol><li>If the palette is collapsed, select <b>Expand palette</b>.</li><li>Read the <b>NODE PALETTE</b> header.</li><li>Locate <b>Collapse palette</b> for later.</li></ol>
+    <pre class="cmd">Expand palette → NODE PALETTE</pre>
+    <div class="expect"><b>What you should see</b><p>The expanded palette shows category labels, item counts, node names, and descriptions.</p><pre class="out">NODE PALETTE
+Collapse palette</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>02</i>Read job categories</h3>
+    <h4>Objective</h4><p>Verify the registry surface available inside a job.</p>
+    <h4>Actions</h4><ol><li>Select <b>Jobs configuration</b>.</li><li>Read <b>Sources</b>, <b>Transformations</b>, and <b>Destinations</b>.</li><li>Expand each category only as needed.</li></ol>
+    <pre class="cmd">Jobs configuration → Node Palette</pre>
+    <div class="expect"><b>What you should see</b><p>The current registry exposes seven sources, eighteen transformations, and six destinations.</p><pre class="out">Sources (7)
+Transformations (18)
+Destinations (6)</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>03</i>Read workflow categories</h3>
+    <h4>Objective</h4><p>See the orchestration-only items filtered into the workflow scene.</p>
+    <h4>Actions</h4><ol><li>Select <b>Workflow configuration</b>.</li><li>Expand <b>Actions</b> and <b>Control Flow</b>.</li><li>Find the dynamic <b>Jobs</b> section.</li></ol>
+    <pre class="cmd">Workflow configuration → Node Palette</pre>
+    <div class="expect"><b>What you should see</b><p>Workflow mode excludes the generic Job registry item from Actions and lists saved jobs separately.</p><pre class="out">Actions (9)
+Control Flow (2)
+Containers (3)
+Jobs (&lt;saved jobs&gt;)</pre></div>
+  </div>
+
+  <div class="step">
+    <h3><i>04</i>Check platform availability</h3>
+    <h4>Objective</h4><p>Avoid dragging an action that the backend platform cannot execute.</p>
+    <h4>Actions</h4><ol><li>Inspect <b>Bash</b> and <b>PowerShell</b> in Actions.</li><li>Read the <b>Unix</b> or <b>Win</b> badge.</li><li>Treat a dimmed item as unavailable on the reported backend platform.</li></ol>
+    <pre class="cmd">Actions → Bash / PowerShell</pre>
+    <div class="expect"><b>What you should see</b><p>System information controls whether platform-specific actions are draggable.</p><pre class="out">Bash · Unix
+PowerShell · Win
+non disponible sur cette plateforme</pre></div>
+  </div>
+<div class="callout"><b>Evidence rule</b><p>Record the visible label, selected scene, saved file, and stable state that each gesture proves. Counts tied to your workspace and run durations can change, so do not use them as fixed thresholds. When Studio writes YAML, compare the generated key with the field you edited; when it runs work, compare the node state with the Runs detail. This keeps the canvas, the DSL, and the engine tied to the same observable project instead of treating a green screen as sufficient evidence. Before continuing, reopen the saved node or panel and reproduce the observation from a neutral selection. Keep the project path, workflow name, job tab, active scene, and relevant field beside your note so another operator can repeat the same check. If a file is generated, inspect it on disk as well as in Studio. If a run is involved, wait for a terminal state and use the Runs page instead of relying on a transient animation. These habits reveal autosave, workspace, and scene mistakes early, while the project is still small enough to correct without obscuring the cause. They also leave a reproducible checkpoint for the next lesson and make later differences easier to attribute to one deliberate canvas change.</p></div>
+  <h2>3. Checklist</h2><table><thead><tr><th>Verification</th><th>Expected result</th></tr></thead><tbody><tr><td>Job categories</td><td>Sources, Transformations, Destinations</td></tr><tr><td>Registry counts</td><td>7 sources, 18 transformations, 6 destinations</td></tr><tr><td>Workflow categories</td><td>Actions, Control Flow, Containers, Jobs</td></tr><tr><td>Platform actions</td><td>Availability follows backend operating system</td></tr></tbody></table>
+  <h2>4. Troubleshooting</h2><table><thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead><tbody><tr><td>Only icons are visible</td><td>The palette is collapsed</td><td>Select <b>Expand palette</b></td></tr><tr><td>Actions are absent</td><td>The active scene is Jobs configuration</td><td>Switch to Workflow configuration</td></tr><tr><td>A system action cannot be dragged</td><td>It targets another platform</td><td>Use the action matching the backend platform</td></tr></tbody></table>
+  <h2>5. Next lesson</h2><p>The palette is now predictable. The next lesson creates <code>first-job</code>, drags the real CSV source from the seven registered sources, and reads its unconfigured node state.</p>
+  <div class="lesson-nav"><a class="primary" href="/studio/05-add-a-source">Add a source <span aria-hidden="true">→</span></a><a href="/studio">Back to the course map</a></div>
+  <h4>Close by</h4><ul class="linklist"><li><a href="/cli/11-serve-the-api">Serve the Hydra API</a></li><li><a href="/dsl/workflow-yaml">workflow.yaml reference</a></li><li><a href="/dsl/pipeline-yaml">pipeline.yaml reference</a></li><li><a href="/playground">Hydra Playground</a></li></ul>
+</section>

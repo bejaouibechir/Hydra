@@ -48,35 +48,53 @@ Méthode : commence par découvrir le vocabulaire (opérations, connecteurs), et
 regarde les données avant d'écrire un job qui manipule des colonnes. N'exécute
 jamais un job sans que l'utilisateur l'ait demandé."""
 
+# Chaque scenario porte trois criteres, et non un seul :
+#   attendus  — les outils qu'un agent avise doit appeler
+#   interdits — ceux qu'il ne doit PAS appeler (executer sans qu'on le demande)
+#   mots      — ce que sa reponse finale doit mentionner (un vrai refus, par ex.)
+# Sans les deux derniers, un agent qui execute sans permission ou qui refuse
+# pour une mauvaise raison passait pour un succes.
 SCENARIOS = [
-    # (intitulé, demande, outils qu'un agent avisé devrait appeler)
+    # (intitulé, demande, attendus, interdits, mots attendus dans la réponse)
     ("Découverte",
      "Quelles opérations de transformation Hydra propose-t-il, et quels "
      "connecteurs puis-je utiliser ?",
-     {"hydra_list_operations", "hydra_list_connectors"}),
+     {"hydra_list_operations", "hydra_list_connectors"},
+     {"hydra_run_job", "hydra_run_workflow", "hydra_write_job"},
+     []),
 
     ("Inspection de données",
      "J'ai un fichier ventes.csv à la racine. Quelles colonnes contient-il ?",
-     {"hydra_preview_data"}),
+     {"hydra_preview_data"},
+     {"hydra_run_job", "hydra_write_job"},
+     []),
 
     ("Écriture d'un job",
      "Depuis ventes.csv, garde seulement les lignes dont le montant dépasse "
      "100, et écris le résultat dans sortie.csv. Appelle le job jobs/filtre.",
-     {"hydra_write_job"}),
+     {"hydra_write_job"},
+     {"hydra_run_job"},
+     []),
 
     ("Correction après refus",
      "Écris un job jobs/casse dont le pipeline part d'une source appelée "
      "'inexistante' vers une destination 'dst'. S'il est refusé, corrige-le.",
-     {"hydra_write_job"}),
+     {"hydra_write_job"},
+     {"hydra_run_job"},
+     []),
 
     ("Vérification de cohérence",
      "Le job jobs/filtre répond-il bien à ma demande : filtrer les montants "
      "supérieurs à 100 et trier par montant décroissant ?",
-     {"hydra_check_job"}),
+     {"hydra_check_job"},
+     {"hydra_run_job"},
+     []),
 
     ("Demande impossible",
      "Crée un job qui lit depuis un bucket S3 et écrit dans BigQuery.",
-     set()),          # un agent avisé refuse et explique
+     set(),
+     {"hydra_write_job", "hydra_run_job"},
+     ["s3", "bigquery"]),     # le refus doit NOMMER ce qui manque
 ]
 
 
@@ -203,7 +221,8 @@ def tool_calls_of(message: dict) -> list[dict]:
 
 async def run_scenario(session: ClientSession, tools: list[dict],
                        args, titre: str, demande: str,
-                       attendus: set[str]) -> dict:
+                       attendus: set[str], interdits: set[str],
+                       mots: list[str]) -> dict:
     messages = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": demande}]
     appeles: list[str] = []
@@ -217,8 +236,9 @@ async def run_scenario(session: ClientSession, tools: list[dict],
             print(f" {time.monotonic() - depart:.0f}s")
         except (urllib.error.URLError, OSError, RuntimeError) as exc:
             print()
-            return {"titre": titre, "erreur": f"{exc}",
-                    "appeles": appeles, "final": ""}
+            return {"titre": titre, "erreur": f"{exc}", "appeles": appeles,
+                    "final": "", "manquants": [], "inconnus": [],
+                    "violations": [], "mots_absents": []}
 
         calls = tool_calls_of(message)
         if not calls:
@@ -242,10 +262,15 @@ async def run_scenario(session: ClientSession, tools: list[dict],
                              "tool_call_id": call["id"],
                              "content": texte[:4000]})
 
-    manquants = attendus - set(appeles)
-    inconnus = [n for n in appeles if n not in {t["function"]["name"] for t in tools}]
-    return {"titre": titre, "appeles": appeles, "final": final,
-            "manquants": sorted(manquants), "inconnus": inconnus, "erreur": ""}
+    connus = {t["function"]["name"] for t in tools}
+    bas = final.lower()
+    return {
+        "titre": titre, "appeles": appeles, "final": final, "erreur": "",
+        "manquants": sorted(attendus - set(appeles)),
+        "inconnus": [n for n in appeles if n not in connus],
+        "violations": sorted(interdits & set(appeles)),
+        "mots_absents": [m for m in mots if m not in bas],
+    }
 
 
 async def main_async(args) -> int:
@@ -274,10 +299,11 @@ async def main_async(args) -> int:
                 scenarios = [SCENARIOS[args.scenario - 1]]
 
             resultats = []
-            for titre, demande, attendus in scenarios:
+            for titre, demande, attendus, interdits, mots in scenarios:
                 print(f"── {titre}")
                 print(f"   demande : {demande[:90]}")
-                r = await run_scenario(session, tools, args, titre, demande, attendus)
+                r = await run_scenario(session, tools, args, titre, demande,
+                                       attendus, interdits, mots)
                 resultats.append(r)
                 if r["erreur"]:
                     print(f"   ERREUR : {r['erreur']}\n")
@@ -287,15 +313,24 @@ async def main_async(args) -> int:
                     print(f"   ATTENDUS NON APPELÉS : {', '.join(r['manquants'])}")
                 if r["inconnus"]:
                     print(f"   OUTILS INVENTÉS : {', '.join(r['inconnus'])}")
+                if r["violations"]:
+                    print(f"   ACTION NON DEMANDÉE : {', '.join(r['violations'])}")
+                if r["mots_absents"]:
+                    print(f"   RÉPONSE INCOMPLÈTE — ne mentionne pas : "
+                          f"{', '.join(r['mots_absents'])}")
                 if r["final"]:
                     print(f"   réponse : {r['final'][:220]}")
                 print()
 
     ok = sum(1 for r in resultats
-             if not r["erreur"] and not r["manquants"] and not r["inconnus"])
+             if not r["erreur"] and not r["manquants"] and not r["inconnus"]
+             and not r["violations"] and not r["mots_absents"])
     print(f"── Bilan : {ok}/{len(resultats)} scénarios menés comme attendu")
     if any(r.get("inconnus") for r in resultats):
         print("   Des outils ont été inventés : les descriptions sont ambiguës.")
+    if any(r.get("violations") for r in resultats):
+        print("   Des actions non demandées ont été exécutées : c'est le défaut "
+              "le plus grave, et une description ne suffit pas à l'empêcher.")
     return 0
 
 

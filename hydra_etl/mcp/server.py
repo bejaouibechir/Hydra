@@ -31,6 +31,11 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from mcp.types import ToolAnnotations
+except ModuleNotFoundError:                             # pragma: no cover
+    ToolAnnotations = None                              # type: ignore[assignment]
+
+try:
     from mcp.server.mcpserver import MCPServer          # SDK MCP 2.x
 except ModuleNotFoundError:                             # pragma: no cover
     try:
@@ -48,6 +53,33 @@ SCHEMAS = ROOT / "documentations" / "chatbot-hydra-dsl" / "schemas"
 
 JOB_FILES = ("sources.yaml", "transformations.yaml",
              "destinations.yaml", "pipeline.yaml")
+
+
+def _annot(*, readonly: bool = False, destructive: bool = False,
+           title: str = "") -> Any:
+    """
+    Annotations lues par le client MCP.
+
+    Une consigne écrite dans une description ne retient pas un agent : à
+    l'essai, un modèle a exécuté un job sans qu'on le lui demande, alors que la
+    description l'interdisait. Les annotations, elles, sont lues par le client,
+    qui peut demander confirmation avant une action destructive — c'est une
+    barrière de protocole, pas une prière.
+    """
+    if ToolAnnotations is None:                         # pragma: no cover
+        return None
+    return ToolAnnotations(
+        title=title or None,
+        readOnlyHint=readonly,
+        destructiveHint=destructive,
+        idempotentHint=readonly,
+        openWorldHint=False,
+    )
+
+
+LECTURE = dict(readonly=True)
+ECRITURE = dict(destructive=False)
+EXECUTION = dict(destructive=True)
 
 CORPUS = ROOT / "eval" / "corpus" / "corpus.jsonl"
 
@@ -254,7 +286,8 @@ def build_server() -> Any:
             "transformations.yaml : toute opération absente de cette liste "
             "n'existe pas et sera rejetée."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_list_operations() -> str:
         index = _spec("index.json")
         rows = []
@@ -272,7 +305,8 @@ def build_server() -> Any:
             "tous ses paramètres, leurs types, leurs valeurs par défaut. "
             "À appeler quand hydra_list_operations ne suffit pas."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_describe_operation(operation: str) -> str:
         path = SCHEMAS / "operations" / f"{operation}.schema.json"
         if not path.exists():
@@ -290,7 +324,8 @@ def build_server() -> Any:
             "l'exécution : ni S3, ni BigQuery, ni Snowflake ne sont pris en "
             "charge."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_list_connectors() -> str:
         sch = _spec("connectors.schema.json")
         return ", ".join(sch["enum"])
@@ -302,7 +337,8 @@ def build_server() -> Any:
             "silencieusement à l'exécution et le step est compté comme "
             "réussi — vérifie donc le nom avant de l'écrire."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_list_actions() -> str:
         sch = _spec("actions.schema.json")
         return ", ".join(sch["enum"])
@@ -315,7 +351,8 @@ def build_server() -> Any:
             "est un dossier contenant un pipeline.yaml. Renvoie les chemins "
             "relatifs, utilisables tels quels dans les autres outils."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_list_jobs() -> str:
         base = workspace()
         jobs = sorted(p.parent.relative_to(base).as_posix()
@@ -331,7 +368,8 @@ def build_server() -> Any:
             "modifier un job, pour partir de son contenu réel plutôt que de le "
             "réécrire de mémoire."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_read_job(job_path: str) -> str:
         try:
             d = safe_path(job_path)
@@ -355,7 +393,8 @@ def build_server() -> Any:
             "source déclarée et de pipeline.to vers une destination déclarée. "
             "C'est la vérité — si cet outil refuse, le job ne tournera pas."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_validate_job(job_path: str) -> str:
         try:
             d = safe_path(job_path)
@@ -371,7 +410,8 @@ def build_server() -> Any:
             "écrit et les erreurs sont renvoyées : corrige-les et rappelle "
             "l'outil. Écrire n'exécute pas le job."
         )
-    )
+    ,
+        annotations=_annot(**ECRITURE, title="Écriture, après validation"))
     def hydra_write_job(job_path: str,
                         sources_yaml: str,
                         destinations_yaml: str,
@@ -421,7 +461,8 @@ def build_server() -> Any:
             "N'appelle cet outil que si l'utilisateur a explicitement demandé "
             "l'exécution : il écrit des données réelles dans la destination."
         )
-    )
+    ,
+        annotations=_annot(**EXECUTION, title="Exécution — écrit des données réelles"))
     def hydra_run_job(job_path: str) -> str:
         try:
             d = safe_path(job_path)
@@ -438,7 +479,8 @@ def build_server() -> Any:
             "propose la correction. À utiliser quand hydra_validate_job ou "
             "hydra_write_job renvoient un message que tu ne sais pas traduire."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_explain_error(error_message: str) -> str:
         hints = [
             ("cast", "Un CSV ne porte aucun type : place une étape `cast` "
@@ -470,7 +512,8 @@ def build_server() -> Any:
             "déclenchement par cron. À utiliser dès que la demande enchaîne "
             "plusieurs jobs."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_list_workflows() -> str:
         base = workspace()
         found = []
@@ -485,7 +528,8 @@ def build_server() -> Any:
                 found.append(f.relative_to(base).as_posix())
         return "\n".join(sorted(found)) or "Aucun workflow trouvé."
 
-    @server.tool(description="Lit un fichier workflow.yaml existant.")
+    @server.tool(description="Lit un fichier workflow.yaml existant.",
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_read_workflow(workflow_path: str) -> str:
         try:
             f = safe_path(workflow_path)
@@ -503,7 +547,8 @@ def build_server() -> Any:
             "sans dépendance commune s'exécutent en parallèle. Si la "
             "validation échoue, rien n'est écrit."
         )
-    )
+    ,
+        annotations=_annot(**ECRITURE, title="Écriture, après validation"))
     def hydra_write_workflow(workflow_path: str, workflow_yaml: str) -> str:
         import shutil
         import tempfile
@@ -538,7 +583,8 @@ def build_server() -> Any:
             "Exécute un workflow et renvoie le déroulé, step par step. "
             "N'appelle cet outil que si l'utilisateur a demandé l'exécution."
         )
-    )
+    ,
+        annotations=_annot(**EXECUTION, title="Exécution — écrit des données réelles"))
     def hydra_run_workflow(workflow_path: str) -> str:
         try:
             f = safe_path(workflow_path)
@@ -556,7 +602,8 @@ def build_server() -> Any:
             "pour connaître les vrais noms de colonnes au lieu de les "
             "deviner — et APRÈS une exécution, pour vérifier le résultat."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_preview_data(file_path: str, rows: int = 5) -> str:
         try:
             f = safe_path(file_path)
@@ -608,7 +655,8 @@ def build_server() -> Any:
             "incohérente, secret en clair, technologie non prise en charge. "
             "À appeler APRÈS avoir écrit un job, avant de le présenter."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_check_job(user_request: str, job_path: str) -> str:
         from hydra_etl.ai.guards import check
 
@@ -647,7 +695,8 @@ def build_server() -> Any:
             "d'écrire un job inhabituel : un exemple qui tourne vaut mieux "
             "qu'une reconstitution de mémoire."
         )
-    )
+    ,
+        annotations=_annot(**LECTURE, title="Lecture seule"))
     def hydra_find_example(user_request: str, count: int = 2) -> str:
         from hydra_etl.ai.guards import OP_HINTS, _norm
 

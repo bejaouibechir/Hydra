@@ -64,11 +64,35 @@ def safe_path(relative: str) -> Path:
     Résout un chemin **à l'intérieur** de l'espace de travail.
 
     Un agent peut se tromper, ou suivre une consigne malveillante trouvée dans
-    un fichier de données. On refuse donc tout ce qui sort de la racine, `..`
-    compris.
+    un fichier de données. On refuse tout ce qui sort de la racine.
+
+    Trois contrôles, et non un seul, parce qu'aucun ne suffit :
+
+    1. Les séparateurs sont normalisés. Sans cela, une suite de ".." séparés
+       par des antislashs s'évaderait sous
+       Windows tout en passant pour un simple nom de fichier sous Linux — le
+       serveur n'aurait pas le même comportement selon la machine.
+    2. Les chemins absolus et les segments `..` sont refusés explicitement.
+    3. Le résultat résolu doit rester sous la racine — dernier filet, qui
+       attrape aussi les liens symboliques.
     """
     base = workspace()
-    target = (base / relative).resolve()
+    normalized = relative.replace("\\", "/").strip()
+
+    if not normalized or normalized in (".", "./"):
+        return base
+    if normalized.startswith("/") or (len(normalized) > 1 and normalized[1] == ":"):
+        raise ValueError(
+            f"Chemin absolu refusé : {relative!r}. "
+            f"Donne un chemin relatif à {base}"
+        )
+    if any(part == ".." for part in normalized.split("/")):
+        raise ValueError(
+            f"Chemin hors de l'espace de travail : {relative!r}. "
+            f"Racine autorisée : {base}"
+        )
+
+    target = (base / normalized).resolve()
     if base != target and base not in target.parents:
         raise ValueError(
             f"Chemin hors de l'espace de travail : {relative!r}. "

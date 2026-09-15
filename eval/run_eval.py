@@ -94,12 +94,47 @@ def build_response_schema(spec: Spec) -> Dict[str, Any]:
     Schéma de la réponse en mode contraint.
 
     Le modèle ne produit **plus de YAML** : il produit un objet JSON, et c'est
-    nous qui sérialisons en YAML. Deux classes d'erreurs disparaissent d'un
-    coup — la syntaxe YAML inventée (`connection: {` sur plusieurs lignes) et
-    les étapes glissées dans le mauvais fichier, puisque `transformations` est
-    ici un champ de premier niveau, pas une clé de `pipeline`.
+    nous qui sérialisons. Deux classes d'erreurs disparaissent — la syntaxe
+    YAML inventée et les étapes glissées dans le mauvais fichier.
+
+    Trois branches exclusives, et l'ordre compte : le décodage contraint suit
+    l'ordre des propriétés déclarées. Une première version plaçait `refuse` en
+    tête, seul champ obligatoire : le modèle décidait donc de refuser AVANT
+    d'avoir rien produit, et `{"refuse": true}` suffisait à satisfaire le
+    schéma. Il a refusé les 29 cas réalisables. Ici, la branche de refus est
+    la dernière, porte une clé distincte, et les branches productives exigent
+    leurs manifestes — le chemin le moins coûteux est désormais de produire.
     """
     connector = {"type": "string", "enum": spec.connectors}
+    load_mode = {"type": "string", "enum": ["append", "replace", "upsert"]}
+
+    source_def = {
+        "type": "object",
+        "properties": {
+            "type": connector,
+            "connection": {"type": "object"},
+            "extract": {
+                "type": "object",
+                "properties": {"table": {"type": "string"},
+                               "batch_size": {"type": "integer"}},
+                "required": ["table"],
+            },
+        },
+        "required": ["type", "extract"],
+    }
+    dest_def = {
+        "type": "object",
+        "properties": {
+            "type": connector,
+            "connection": {"type": "object"},
+            "load": {
+                "type": "object",
+                "properties": {"table": {"type": "string"}, "mode": load_mode},
+                "required": ["table", "mode"],
+            },
+        },
+        "required": ["type", "load"],
+    }
 
     op_variants = []
     for name, sch in sorted(spec.op_schemas.items()):
@@ -109,49 +144,14 @@ def build_response_schema(spec: Spec) -> Dict[str, Any]:
             "required": [name], "additionalProperties": False,
         })
 
-    return {
+    job_branch = {
         "type": "object",
         "properties": {
-            "refuse": {"type": "boolean"},
-            "reason": {"type": "string"},
-            "sources": {
-                "type": "object",
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                        "type": connector,
-                        "connection": {"type": "object"},
-                        "extract": {
-                            "type": "object",
-                            "properties": {"table": {"type": "string"},
-                                           "batch_size": {"type": "integer"}},
-                            "required": ["table"],
-                        },
-                    },
-                    "required": ["type", "extract"],
-                },
-            },
-            "destinations": {
-                "type": "object",
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                        "type": connector,
-                        "connection": {"type": "object"},
-                        "load": {
-                            "type": "object",
-                            "properties": {
-                                "table": {"type": "string"},
-                                "mode": {"type": "string",
-                                         "enum": ["append", "replace", "upsert"]},
-                            },
-                            "required": ["table", "mode"],
-                        },
-                    },
-                    "required": ["type", "load"],
-                },
-            },
+            "sources": {"type": "object", "additionalProperties": source_def,
+                        "minProperties": 1},
             "transformations": {"type": "array", "items": {"anyOf": op_variants}},
+            "destinations": {"type": "object", "additionalProperties": dest_def,
+                             "minProperties": 1},
             "pipeline": {
                 "type": "object",
                 "properties": {"name": {"type": "string"},
@@ -160,8 +160,72 @@ def build_response_schema(spec: Spec) -> Dict[str, Any]:
                 "required": ["from", "to"],
             },
         },
-        "required": ["refuse"],
+        "required": ["sources", "destinations", "pipeline"],
+        "additionalProperties": False,
     }
+
+    workflow_branch = {
+        "type": "object",
+        "properties": {
+            "workflow": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "trigger": {
+                        "type": "object",
+                        "properties": {
+                            "type": {"type": "string",
+                                     "enum": ["manual", "schedule", "webhook"]},
+                            "cron": {"type": "string"},
+                        },
+                        "required": ["type"],
+                    },
+                    "steps": {
+                        "type": "array", "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "type": {"type": "string", "enum": ["job", "action"]},
+                                "job": {"type": "string"},
+                                "action": {"type": "string", "enum": spec.actions},
+                                "params": {"type": "object"},
+                                "depends_on": {"type": "array",
+                                               "items": {"type": "string"}},
+                                "on_failure": {"type": "string",
+                                               "enum": ["fail", "skip", "continue"]},
+                                "retry": {
+                                    "type": "object",
+                                    "properties": {
+                                        "max": {"type": "integer"},
+                                        "delay": {"type": "number"},
+                                        "backoff": {"type": "string",
+                                                    "enum": ["fixed", "exponential"]},
+                                    },
+                                },
+                            },
+                            "required": ["name", "type"],
+                        },
+                    },
+                },
+                "required": ["name", "steps"],
+            },
+        },
+        "required": ["workflow"],
+        "additionalProperties": False,
+    }
+
+    refusal_branch = {
+        "type": "object",
+        "properties": {
+            "impossible": {"type": "boolean"},
+            "reason": {"type": "string"},
+        },
+        "required": ["impossible", "reason"],
+        "additionalProperties": False,
+    }
+
+    return {"anyOf": [job_branch, workflow_branch, refusal_branch]}
 
 
 def files_from_structured(obj: Dict[str, Any]) -> Dict[str, str]:
@@ -185,17 +249,23 @@ def files_from_structured(obj: Dict[str, Any]) -> Dict[str, str]:
     return files
 
 
-STRUCTURED_CONTRACT = """Tu ne produis PAS de YAML. Tu produis un objet JSON dont
-les champs sont convertis en manifestes par le système :
+STRUCTURED_CONTRACT = """Tu ne produis PAS de YAML. Tu produis un objet JSON que
+le système convertit lui-même en manifestes.
 
-  sources          -> sources.yaml          (objet : identifiant -> définition)
-  transformations  -> transformations.yaml  (tableau d'étapes, une clé par étape)
-  destinations     -> destinations.yaml     (objet : identifiant -> définition)
-  pipeline         -> pipeline.yaml         (objet avec from et to)
+Pour un JOB, produis :
+  {"sources": {...}, "transformations": [...], "destinations": {...},
+   "pipeline": {"from": "<id de source>", "to": "<id de destination>"}}
+  - `sources` et `destinations` : identifiant -> définition
+  - `transformations` : tableau d'étapes, chacune un objet à UNE clé
+  - `pipeline` ne contient JAMAIS d'étapes
 
-`pipeline` ne contient JAMAIS d'étapes : elles vont dans `transformations`.
-Si la demande est irréalisable avec les éléments listés, mets "refuse": true et
-explique dans "reason", sans remplir les autres champs."""
+Pour un WORKFLOW, produis :
+  {"workflow": {"name": "...", "trigger": {...}, "steps": [...]}}
+
+Presque toute demande se traite ainsi. En dernier recours seulement, si elle
+exige un connecteur, une opération ou une action absents des listes ci-dessus,
+ou une exécution distribuée, produis :
+  {"impossible": true, "reason": "<en une phrase>"}"""
 
 
 def build_system_prompt(spec: Spec, examples: List[Dict[str, Any]],
@@ -659,8 +729,9 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
                 obj = json.loads(raw)
             except Exception:
                 obj = {}
-            files = files_from_structured(obj) if not obj.get("refuse") else {}
-            refused, reason = bool(obj.get("refuse")), str(obj.get("reason") or "")
+            refused = bool(obj.get("impossible"))
+            files = {} if refused else files_from_structured(obj)
+            reason = str(obj.get("reason") or "")
         else:
             parsed = extract(raw)
             files, refused, reason = parsed["files"], parsed["refuse"], parsed["reason"]

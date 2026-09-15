@@ -1,0 +1,650 @@
+{
+  "model": "qwen3:1.7b",
+  "mode": "constrained",
+  "examples": 1,
+  "think": false,
+  "results": [
+    {
+      "id": "gen-001",
+      "level": "simple",
+      "prompt": "J'ai un fichier ventes.csv. Copie-le tel quel dans sortie.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande implique de copier un fichier sans utiliser une opération ou connecteur autorisé. La copie de fichier ne peut être réalisée qu'en utilisant l'opération 'copy' ou un connecteur approprié, mais ces éléments ne sont pas listés dans les options disponibles.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande implique de copier un fichier sans utiliser une opération ou connecteur autorisé. La copie de fichier ne peut être réalisée qu'en utilisant l'opération 'copy' ou un connecteur approprié, m",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 27.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-002",
+      "level": "simple",
+      "prompt": "Depuis clients.csv, ne garde que les colonnes id, nom et email, et ecris le resultat dans clients_light.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande implique de créer un nouveau fichier (clients_light.csv) et de le charger dans un autre format (CSV). Cela ne peut pas être réalisé avec les éléments disponibles (aucun connecteur pour charger un fichier CSV, aucun opération pour créer un nouveau fichier).\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande implique de créer un nouveau fichier (clients_light.csv) et de le charger dans un autre format (CSV). Cela ne peut pas être réalisé avec les éléments disponibles (aucun connecteur pour char",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 9.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-003",
+      "level": "simple",
+      "prompt": "Lis produits.json et ecris-le en Parquet dans produits.parquet.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande 'lis produits.json' et 'écrit-le en Parquet dans produits.parquet' est irréalisable avec les éléments disponibles. Hydra ne permet pas de lire des fichiers JSON directement et ne supporte pas l'écriture de fichiers Parquet en mode 'append' ou 'replace' sans un connecteur ou une opération spécifique.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande 'lis produits.json' et 'écrit-le en Parquet dans produits.parquet' est irréalisable avec les éléments disponibles. Hydra ne permet pas de lire des fichiers JSON directement et ne supporte ",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 11.5,
+      "attempts": 1
+    },
+    {
+      "id": "gen-004",
+      "level": "simple",
+      "prompt": "Renomme la colonne 'montant' en 'amount' dans commandes.csv et sauvegarde dans commandes_en.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande 'rename' n'est pas autorisée dans Hydra. Les opérations autorisées incluent : filter, select, sort, trim, unpivot, pivot, cast, clean, deduplicate, fill_null, union, etc. Le renommage de colonnes n'est pas supporté par Hydra.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande 'rename' n'est pas autorisée dans Hydra. Les opérations autorisées incluent : filter, select, sort, trim, unpivot, pivot, cast, clean, deduplicate, fill_null, union, etc. Le renommage de c",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 10.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-005",
+      "level": "simple",
+      "prompt": "Supprime les doublons de contacts.csv et ecris contacts_uniques.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande 'supprimer les doublons de contacts.csv et ecrir contacts_uniques.csv' n'est pas réalisable avec les éléments disponibles. Hydra ne peut pas exécuter des opérations de suppression de doublons directement. Il faut utiliser une opération de filtrage ou de sélection, mais pas une opération de suppression de doublons.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande 'supprimer les doublons de contacts.csv et ecrir contacts_uniques.csv' n'est pas réalisable avec les éléments disponibles. Hydra ne peut pas exécuter des opérations de suppression de doubl",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 12.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-006",
+      "level": "simple",
+      "prompt": "Trie stock.csv par quantite decroissante vers stock_trie.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande 'trie' n'est pas autorisée. Hydra ne peut pas exécuter des opérations de tri directement. Vous devrez utiliser une opération de filtrage ou d'agrégation pour obtenir le résultat similaire.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande 'trie' n'est pas autorisée. Hydra ne peut pas exécuter des opérations de tri directement. Vous devrez utiliser une opération de filtrage ou d'agrégation pour obtenir le résultat similaire.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 9.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-007",
+      "level": "simple",
+      "prompt": "Dans employes.csv, remplace les valeurs manquantes de la colonne salaire par 0, puis ecris employes_propre.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande implique de remplir les valeurs manquantes dans une colonne avec 0, mais l'outil Hydra ne permet pas de remplir des valeurs manquantes dans des données CSV. Cela nécessiterait l'utilisation de l'opération `fill_null` ou `cast` avec un type numérique, qui n'est pas autorisé dans le cadre de cette tâche.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande implique de remplir les valeurs manquantes dans une colonne avec 0, mais l'outil Hydra ne permet pas de remplir des valeurs manquantes dans des données CSV. Cela nécessiterait l'utilisatio",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 12.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-008",
+      "level": "simple",
+      "prompt": "Ajoute les lignes de nouveaux_clients.csv a la fin du fichier existant clients_all.csv, sans l'ecraser.",
+      "raw": "{\"refuse\": true, \"reason\": \"Impossible de réaliser cette demande : l'opération de mise à jour de fichier ne peut pas être effectuée avec les éléments disponibles. Hydra ne peut pas modifier des fichiers externes directement.\"}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Impossible de réaliser cette demande : l'opération de mise à jour de fichier ne peut pas être effectuée avec les éléments disponibles. Hydra ne peut pas modifier des fichiers externes directement.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 7.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-010",
+      "level": "intermediaire",
+      "prompt": "Depuis ventes.csv, garde seulement les lignes dont le montant depasse 100, puis ecris ventes_filtrees.csv. Attention, le CSV ne porte aucun type.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"Le connecteur 'csv' n'est pas autorisé. Le système ne permet pas de filtrer des données CSV directement dans le YAML.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Le connecteur 'csv' n'est pas autorisé. Le système ne permet pas de filtrer des données CSV directement dans le YAML.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 6.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-011",
+      "level": "intermediaire",
+      "prompt": "Calcule le chiffre d'affaires total par pays depuis commandes.csv et ecris ca_par_pays.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande 'calculate' est autorisée, mais il faut spécifier une colonne 'chiffre_affaires' dans le fichier 'commandes.csv' pour effectuer le calcul. Le fichier 'commandes.csv' n'a pas de colonne 'chiffre_affaires' définie.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande 'calculate' est autorisée, mais il faut spécifier une colonne 'chiffre_affaires' dans le fichier 'commandes.csv' pour effectuer le calcul. Le fichier 'commandes.csv' n'a pas de colonne 'ch",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 10.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-012",
+      "level": "intermediaire",
+      "prompt": "Depuis factures.csv, ajoute une colonne prix_unitaire egale au montant divise par la quantite, puis ecris factures_pu.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La création d'une nouvelle colonne dans un fichier CSV est réalisable avec l'opération 'calculate' (requis: column, expr), mais elle nécessite une opération 'script' (requis: outputs, code) pour générer la colonne. Cependant, l'opération 'script' n'est pas autorisée dans le cadre des manifestes Hydra. Il est impossible de créer une colonne dynamique dans un fichier CSV avec les éléments disponibles.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La création d'une nouvelle colonne dans un fichier CSV est réalisable avec l'opération 'calculate' (requis: column, expr), mais elle nécessite une opération 'script' (requis: outputs, code) pour génér",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 16.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-013",
+      "level": "intermediaire",
+      "prompt": "Nettoie la colonne nom de clients.csv en minuscules, supprime les espaces en trop, et ecris clients_normalises.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande ne peut pas être réalisée avec les éléments disponibles. Hydra ne peut pas nettoyer une colonne en minuscules, supprimer des espaces en trop ou écrire un fichier CSV nouveau. Cela nécessite une opération `rename` et une opération `trim` dans les étapes, mais ces opérations ne sont pas autorisées dans le cadre de cette demande.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande ne peut pas être réalisée avec les éléments disponibles. Hydra ne peut pas nettoyer une colonne en minuscules, supprimer des espaces en trop ou écrire un fichier CSV nouveau. Cela nécessit",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 14.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-014",
+      "level": "intermediaire",
+      "prompt": "Depuis logs.csv, garde les colonnes date, niveau et message, filtre sur niveau = ERROR, et ecris erreurs.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande implique de filtrer sur 'niveau = ERROR' et de garder des colonnes spécifiques ('date', 'niveau', 'message') dans un fichier CSV. Cependant, le connecteur 'csv' ne peut pas être utilisé avec des filtres ou des colonnes spécifiques en tant que requête. Le filtre doit être effectué avant la sélection des colonnes.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande implique de filtrer sur 'niveau = ERROR' et de garder des colonnes spécifiques ('date', 'niveau', 'message') dans un fichier CSV. Cependant, le connecteur 'csv' ne peut pas être utilisé ave",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 13.6,
+      "attempts": 1
+    },
+    {
+      "id": "gen-015",
+      "level": "intermediaire",
+      "prompt": "Depuis mesures.csv, convertis temperature en float et horodatage en datetime, puis ecris mesures_typees.parquet.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La conversion de temperature en float et horodatage en datetime nécessite des connecteurs et des opérations non autorisées. Hydra ne permet pas de convertir des données directement en types prédéfinis. Une conversion manuelle ou une opération de type 'script' est nécessaire, mais celle-ci n'est pas autorisée dans le cadre des opérations autorisées.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La conversion de temperature en float et horodatage en datetime nécessite des connecteurs et des opérations non autorisées. Hydra ne permet pas de convertir des données directement en types prédéfinis",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 12.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-016",
+      "level": "intermediaire",
+      "prompt": "Compte le nombre de commandes par statut depuis commandes.csv et classe du plus frequent au moins frequent. Sortie : stats_statut.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La tâche requiert d'effectuer une analyse de données avec des opérations non autorisées. Les opérations autorisées incluent : filter, select, sort, union, unpivot, pivot, cast, rename, script, and others. La tâche implique de compter les commandes par statut et de les classer par fréquence, ce qui nécessite des opérations comme 'count' ou 'group by', qui ne sont pas autorisées dans Hydra.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La tâche requiert d'effectuer une analyse de données avec des opérations non autorisées. Les opérations autorisées incluent : filter, select, sort, union, unpivot, pivot, cast, rename, script, and oth",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 17.1,
+      "attempts": 1
+    },
+    {
+      "id": "gen-020",
+      "level": "compose",
+      "prompt": "J'ai commandes.csv et clients.csv. Associe chaque commande a son client par customer_id, garde toutes les commandes meme sans client, et ecris commandes_enrichies.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La commande 'join' est requise, mais elle n'est pas listée dans les opérations autorisées. Hydras ne peut pas effectuer une jointure entre deux tables sans cette opération.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La commande 'join' est requise, mais elle n'est pas listée dans les opérations autorisées. Hydras ne peut pas effectuer une jointure entre deux tables sans cette opération.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 9.3,
+      "attempts": 1
+    },
+    {
+      "id": "gen-021",
+      "level": "compose",
+      "prompt": "Empile les lignes de ventes_2025.csv et ventes_2026.csv dans un seul fichier ventes_total.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"L'opération 'empiler des fichiers CSV' n'est pas réalisable avec les éléments disponibles. Hydra ne permet pas d'empiler des fichiers CSV directement. Les opérations autorisées incluent uniquement le chargement de fichiers CSV via le connecteur `csv` et non l'empilement de fichiers.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "L'opération 'empiler des fichiers CSV' n'est pas réalisable avec les éléments disponibles. Hydra ne permet pas d'empiler des fichiers CSV directement. Les opérations autorisées incluent uniquement le ",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 12.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-022",
+      "level": "compose",
+      "prompt": "Depuis ventes.csv, produis un tableau croise avec les mois en lignes, les regions en colonnes, et la somme des montants dans les cellules. Sortie : tableau_croise.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La création d'un tableau croisé avec les mois en lignes, les régions en colonnes et la somme des montants est irréalisable avec les éléments disponibles. Hydras ne permet pas de créer des tableaux croisés directement via des opérations de type 'pivot' ou 'aggregate' dans le YAML. Les opérations nécessaires (pivot, aggregate, join) ne sont pas disponibles dans le cadre de ce type de demande.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La création d'un tableau croisé avec les mois en lignes, les régions en colonnes et la somme des montants est irréalisable avec les éléments disponibles. Hydras ne permet pas de créer des tableaux cro",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 14.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-023",
+      "level": "compose",
+      "prompt": "Le fichier budget.csv a une colonne par mois. Transforme-le en format long avec une ligne par couple (poste, mois). Sortie : budget_long.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La transformation demandée est irréalisable avec les éléments disponibles. Hydra ne peut pas créer une nouvelle colonne par mois ou transformer le fichier CSV en format long avec une ligne par couple, car il n'y a pas de connecteur permettant de créer des colonnes dynamiques ou de transformer le format du fichier. Les opérations autorisées ne permettent pas de réaliser cette transformation.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La transformation demandée est irréalisable avec les éléments disponibles. Hydra ne peut pas créer une nouvelle colonne par mois ou transformer le fichier CSV en format long avec une ligne par couple,",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 13.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-024",
+      "level": "compose",
+      "prompt": "Depuis commandes.csv et clients.csv : joins-les sur customer_id, filtre les montants superieurs a 50, agrege le total par pays, trie par total decroissant. Sortie : top_pays.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"Le jointing sur customer_id n'est pas autorisé. Les connecteurs autorisés sont : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api. Le jointing n'est pas dans la liste.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Le jointing sur customer_id n'est pas autorisé. Les connecteurs autorisés sont : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api. Le jointing n'est pas dans la liste.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 9.5,
+      "attempts": 1
+    },
+    {
+      "id": "gen-030",
+      "level": "base_de_donnees",
+      "prompt": "Charge la table clients d'une base PostgreSQL et ecris-la dans clients.csv.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande implique de charger une table de type PostgreSQL et de l'écrire en CSV, mais le type de connecteur PostgreSQL n'est pas autorisé. Les connecteurs autorisés sont : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande implique de charger une table de type PostgreSQL et de l'écrire en CSV, mais le type de connecteur PostgreSQL n'est pas autorisé. Les connecteurs autorisés sont : csv, json, mariadb, mongod",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 10.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-031",
+      "level": "base_de_donnees",
+      "prompt": "Depuis produits.csv, charge les donnees dans la table produits d'une base MySQL, en mettant a jour les lignes existantes sur la cle id.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"Le connecteur 'mysql' n'est pas autorisé. Les opérations 'update' et 'upsert' ne sont pas réalisables avec les éléments listés.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Le connecteur 'mysql' n'est pas autorisé. Les opérations 'update' et 'upsert' ne sont pas réalisables avec les éléments listés.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 7.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-032",
+      "level": "base_de_donnees",
+      "prompt": "Extrais la collection commandes de MongoDB, garde les commandes de 2026, et ecris commandes_2026.parquet.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande exige un connecteur MongoDB qui n'est pas autorisé. Les connecteurs autorisés sont : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande exige un connecteur MongoDB qui n'est pas autorisé. Les connecteurs autorisés sont : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 8.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-033",
+      "level": "base_de_donnees",
+      "prompt": "Appelle une API web qui renvoie des utilisateurs en JSON et stocke le resultat dans une table PostgreSQL, en remplacant le contenu existant.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande exige un connecteur web_api qui n'est pas listé dans les connecteurs autorisés. Les connecteurs autorisés sont : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api. Le connecteur web_api est autorisé, mais la demande exige une action webhook qui n'est pas listée dans les actions de workflow autorisées. Les actions autorisées sont : assign_param, bash, condition, delay, email, log, powershell, python, set_param, ssh, webhook.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande exige un connecteur web_api qui n'est pas listé dans les connecteurs autorisés. Les connecteurs autorisés sont : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api. ",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 17.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-034",
+      "level": "base_de_donnees",
+      "prompt": "Un secret de connexion ne doit jamais apparaitre en clair. Ecris un source PostgreSQL dont le mot de passe vient de l'environnement.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"Le format des secrets dans les manifestes Hydra ne permet pas d'inclure des valeurs provenant de l'environnement. Les secrets doivent être spécifiés de manière explicite dans les manifestes, sans utiliser des expressions dynamiques.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Le format des secrets dans les manifestes Hydra ne permet pas d'inclure des valeurs provenant de l'environnement. Les secrets doivent être spécifiés de manière explicite dans les manifestes, sans util",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 10.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-040",
+      "level": "workflow",
+      "prompt": "Ecris un workflow qui execute le job ./jobs/extract, puis ./jobs/transform une fois l'extraction terminee.",
+      "raw": "{\n  \"refuse\": false,\n  \"reason\": \"Le workflow peut être réalisé avec les éléments disponibles.\",\n  \"sources\": {\n    \"extract\": {\n      \"type\": \"csv\",\n      \"extract\": {\n        \"table\": \"sales\",\n        \"batch_size\": 1000\n      }\n    }\n  },\n  \"transformations\": [\n    {\n      \"filter\": {\n        \"expr\": \"amount > 0\"\n      }\n    },\n    {\n      \"select\": {\n        \"columns\": [\"date\", \"amount\"]\n      }\n    }\n  ],\n  \"pipeline\": {\n    \"from\": \"extract\",\n    \"to\": \"transform\"\n  }\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "Le workflow peut être réalisé avec les éléments disponibles.",
+      "filesProduced": [
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "workflow.yaml manquant",
+        "2 steps attendus, 0",
+        "aucun depends_on"
+      ],
+      "faults": [],
+      "oracle": "ions.yaml                 — present\n  ok  transformations.yaml                 — Pydantic valid\n\n  err destinations.yaml — MISSING\n  err Pipeline coherence: [Errno 2] No such file or directory: 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\hydra_eval_mtygfb7d\\\\destinations.yaml'\n\n  ❌ 0 error(s) detected.\n",
+      "seconds": 19.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-041",
+      "level": "workflow",
+      "prompt": "Workflow quotidien a 8h du matin : execute ./jobs/daily, puis envoie un webhook de notification.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande implique l'exécution d'un job et l'envoi d'un webhook, mais les éléments nécessaires (connecteurs, opérations, actions) ne sont pas listés dans les spécifications Hydra. Il n'est pas possible de réaliser cette tâche avec les outils disponibles.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande implique l'exécution d'un job et l'envoi d'un webhook, mais les éléments nécessaires (connecteurs, opérations, actions) ne sont pas listés dans les spécifications Hydra. Il n'est pas possib",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 10.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-042",
+      "level": "workflow",
+      "prompt": "Workflow ou le job ./jobs/fragile est retente trois fois avec cinq secondes d'attente, et ou l'echec n'interrompt pas la suite.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande implique un connecteur ou une opération non autorisée. Hydra ne supporte pas de répétitions de workflows avec des paramètres ou des conditions personnalisés.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande implique un connecteur ou une opération non autorisée. Hydra ne supporte pas de répétitions de workflows avec des paramètres ou des conditions personnalisés.",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 9.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-043",
+      "level": "workflow",
+      "prompt": "Workflow avec trois jobs : extract, puis transform_a et transform_b qui dependent tous deux d'extract et peuvent tourner en parallele, puis load qui attend les deux.",
+      "raw": "{\n  \"refuse\": true,\n  \"reason\": \"La demande implique des connecteurs ou opérations non autorisés ou des structures non supportées. Les étapes transform_a et transform_b doivent être déclarées dans transformations.yaml, mais l'éditeur visuel Hydra Studio ne permet pas de créer des étapes déclaratives dans le YAML. De plus, les jobs transform_a et transform_b ne peuvent pas être exécutés en parallèle sans un connecteur de coordination (comme un `web_api` ou `mongodb`), qui n'est pas listé.\"\n}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "La demande implique des connecteurs ou opérations non autorisés ou des structures non supportées. Les étapes transform_a et transform_b doivent être déclarées dans transformations.yaml, mais l'éditeur",
+      "filesProduced": [],
+      "misses": [
+        "refus injustifié"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 17.9,
+      "attempts": 1
+    },
+    {
+      "id": "adv-050",
+      "level": "adversarial",
+      "prompt": "Mets les trois jobs dans un conteneur Sequence pour alleger la scene, et serialise-le dans le workflow.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Le système ne peut pas créer un conteneur Sequence dans le workflow. Les conteneurs (Sequence, Error Scope, Retry Scope) sont déclarés dans l'éditeur visuel Hydra Studio et ne peuvent pas être spécifi",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 11.8,
+      "attempts": 1
+    },
+    {
+      "id": "adv-051",
+      "level": "adversarial",
+      "prompt": "Lis un fichier depuis un bucket S3 et ecris-le dans BigQuery.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Le connecteur `s3` n'est pas autorisé. Hydra ne supporte que les connecteurs suivants : csv, json, mariadb, mongodb, mysql, parquet, postgres, postgresql, web_api.",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 8.1,
+      "attempts": 1
+    },
+    {
+      "id": "adv-052",
+      "level": "adversarial",
+      "prompt": "Ajoute une action 'teams' dans le workflow pour notifier l'equipe.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "L'action 'teams' n'est pas autorisée par les éléments listés. Les actions autorisées sont : assign_param, bash, condition, delay, email, log, powershell, python, set_param, ssh, webhook.",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 9.0,
+      "attempts": 1
+    },
+    {
+      "id": "adv-053",
+      "level": "adversarial",
+      "prompt": "Distribue l'execution de ce job sur un cluster de dix machines.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Hydra s'exécute sur une seule machine et ne supporte pas l'exécution distribuée.",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 5.4,
+      "attempts": 1
+    },
+    {
+      "id": "adv-054",
+      "level": "adversarial",
+      "prompt": "Ecris une operation 'lowercase' pour passer la colonne nom en minuscules.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "L'opération 'lowercase' n'est pas autorisée dans Hydra. Les opérations autorisées incluent : filter, select, trim, etc. La mise en minuscules peut être réalisée avec la fonction 'trim' ou 'lower' dans",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 11.6,
+      "attempts": 1
+    }
+  ]
+}

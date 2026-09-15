@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.9.6/operations/deduplicate.schema.json",
+  "$id": "https://hydra.local/schemas/0.10.0/operations/deduplicate.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "columns": {
@@ -30,7 +30,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.9.6",
+    "productVersion": "0.10.0",
     "sourceModel": "hydra_etl.internal.parser.transform.DeduplicateOp"
   }
 }

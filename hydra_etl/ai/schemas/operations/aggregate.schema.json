@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.9.6/operations/aggregate.schema.json",
+  "$id": "https://hydra.local/schemas/0.10.0/operations/aggregate.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Agrégation groupée.\n\nParams YAML:\n    by: [col1, col2]          # colonnes de groupement\n    agg:\n      out_col: {func: sum, col: src_col}\n      out_col2: {func: count, col: src_col2}\n      out_col3: {func: mean, col: src_col3}\n\nFonctions supportées: sum, count, mean, avg, min, max, first, last",
   "properties": {
@@ -29,7 +29,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.9.6",
+    "productVersion": "0.10.0",
     "sourceModel": "hydra_etl.internal.parser.transform.AggregateOp"
   }
 }

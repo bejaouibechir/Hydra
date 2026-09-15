@@ -55,11 +55,15 @@ class Spec:
     def __init__(self) -> None:
         index = json.loads((SCHEMAS / "index.json").read_text(encoding="utf-8"))
         self.operations: Dict[str, List[str]] = {}
+        self.op_schemas: Dict[str, Dict[str, Any]] = {}
         for e in index["schemas"]:
             if e["kind"] != "transformation":
                 continue
             sch = json.loads((SCHEMAS / e["path"]).read_text(encoding="utf-8"))
             self.operations[e["dslName"]] = sch.get("required", [])
+            for junk in ("$schema", "$id", "x-hydra"):
+                sch.pop(junk, None)
+            self.op_schemas[e["dslName"]] = sch
         self.connectors: List[str] = json.loads(
             (SCHEMAS / "connectors.schema.json").read_text(encoding="utf-8"))["enum"]
         self.actions: List[str] = json.loads(
@@ -85,12 +89,124 @@ fichiers :
 {"refuse": true, "reason": "<pourquoi, en une phrase>", "files": {}}"""
 
 
-def build_system_prompt(spec: Spec, examples: List[Dict[str, Any]]) -> str:
+def build_response_schema(spec: Spec) -> Dict[str, Any]:
+    """
+    Schéma de la réponse en mode contraint.
+
+    Le modèle ne produit **plus de YAML** : il produit un objet JSON, et c'est
+    nous qui sérialisons en YAML. Deux classes d'erreurs disparaissent d'un
+    coup — la syntaxe YAML inventée (`connection: {` sur plusieurs lignes) et
+    les étapes glissées dans le mauvais fichier, puisque `transformations` est
+    ici un champ de premier niveau, pas une clé de `pipeline`.
+    """
+    connector = {"type": "string", "enum": spec.connectors}
+
+    op_variants = []
+    for name, sch in sorted(spec.op_schemas.items()):
+        op_variants.append({
+            "type": "object", "title": name,
+            "properties": {name: sch},
+            "required": [name], "additionalProperties": False,
+        })
+
+    return {
+        "type": "object",
+        "properties": {
+            "refuse": {"type": "boolean"},
+            "reason": {"type": "string"},
+            "sources": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                        "type": connector,
+                        "connection": {"type": "object"},
+                        "extract": {
+                            "type": "object",
+                            "properties": {"table": {"type": "string"},
+                                           "batch_size": {"type": "integer"}},
+                            "required": ["table"],
+                        },
+                    },
+                    "required": ["type", "extract"],
+                },
+            },
+            "destinations": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                        "type": connector,
+                        "connection": {"type": "object"},
+                        "load": {
+                            "type": "object",
+                            "properties": {
+                                "table": {"type": "string"},
+                                "mode": {"type": "string",
+                                         "enum": ["append", "replace", "upsert"]},
+                            },
+                            "required": ["table", "mode"],
+                        },
+                    },
+                    "required": ["type", "load"],
+                },
+            },
+            "transformations": {"type": "array", "items": {"anyOf": op_variants}},
+            "pipeline": {
+                "type": "object",
+                "properties": {"name": {"type": "string"},
+                               "from": {"type": "string"},
+                               "to": {"type": "string"}},
+                "required": ["from", "to"],
+            },
+        },
+        "required": ["refuse"],
+    }
+
+
+def files_from_structured(obj: Dict[str, Any]) -> Dict[str, str]:
+    """Sérialise la réponse structurée en manifestes YAML. Le modèle n'écrit
+    jamais de YAML : c'est nous qui le faisons, donc il est toujours valide."""
+    def dump(payload: Dict[str, Any]) -> str:
+        return "version: \"1.0\"\n" + yaml.safe_dump(
+            payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
+
+    files: Dict[str, str] = {}
+    if obj.get("sources"):
+        files["sources.yaml"] = dump({"sources": obj["sources"]})
+    if obj.get("destinations"):
+        files["destinations.yaml"] = dump({"destinations": obj["destinations"]})
+    if obj.get("transformations"):
+        files["transformations.yaml"] = dump({"steps": obj["transformations"]})
+    if obj.get("pipeline"):
+        files["pipeline.yaml"] = dump({"pipeline": obj["pipeline"]})
+    if obj.get("workflow"):
+        files["workflow.yaml"] = dump({"workflow": obj["workflow"]})
+    return files
+
+
+STRUCTURED_CONTRACT = """Tu ne produis PAS de YAML. Tu produis un objet JSON dont
+les champs sont convertis en manifestes par le système :
+
+  sources          -> sources.yaml          (objet : identifiant -> définition)
+  transformations  -> transformations.yaml  (tableau d'étapes, une clé par étape)
+  destinations     -> destinations.yaml     (objet : identifiant -> définition)
+  pipeline         -> pipeline.yaml         (objet avec from et to)
+
+`pipeline` ne contient JAMAIS d'étapes : elles vont dans `transformations`.
+Si la demande est irréalisable avec les éléments listés, mets "refuse": true et
+explique dans "reason", sans remplir les autres champs."""
+
+
+def build_system_prompt(spec: Spec, examples: List[Dict[str, Any]],
+                        structured: bool = False) -> str:
     ops = "\n".join(
         f"  {name}" + (f" (requis: {', '.join(req)})" if req else "")
         for name, req in sorted(spec.operations.items())
     )
     ex_txt = ""
+    if structured:
+        examples = []          # en mode structure, les exemples YAML nuisent
     for ex in examples:
         ex_txt += "\n--- exemple ---\n"
         for fname, content in ex["manifests"].items():
@@ -135,7 +251,7 @@ RÈGLES
 4. Hydra s'exécute sur une seule machine. Pas d'exécution distribuée.
 5. Aucun secret en clair : utilise {{{{ env:NOM }}}}.
 {ex_txt}
-{RESPONSE_CONTRACT}"""
+{STRUCTURED_CONTRACT if structured else RESPONSE_CONTRACT}"""
 
 
 def load_examples(n: int) -> List[Dict[str, Any]]:
@@ -157,7 +273,7 @@ def load_examples(n: int) -> List[Dict[str, Any]]:
 # ===========================================================================
 
 def ollama_chat(url: str, model: str, system: str, user: str,
-                force_json: bool, timeout: int, think: bool,
+                force_json: Any, timeout: int, think: bool,
                 num_predict: int = 1200) -> Tuple[str, float]:
     """
     Appelle Ollama. Le raisonnement est coupé de DEUX façons, parce qu'aucune
@@ -180,7 +296,10 @@ def ollama_chat(url: str, model: str, system: str, user: str,
             },
         }
         if force_json:
-            p["format"] = "json"
+            # Ollama accepte "json" ou un schema JSON complet : le schema
+            # contraint le decodage token par token, le modele ne PEUT pas
+            # produire une structure invalide.
+            p["format"] = force_json
         if with_think_field and not think:
             p["think"] = False
         return p
@@ -347,6 +466,21 @@ def step_names(doc: Any) -> List[str]:
 
 def score_sobriety(files: Dict[str, str], docs: Dict[str, Any], spec: Spec) -> Tuple[float, List[str]]:
     faults: List[str] = []
+
+    # Un manifeste illisible ne doit PAS passer pour sobre : sans analyse
+    # possible, on ne peut affirmer que rien n'a été inventé.
+    for name, content in files.items():
+        if docs.get(name) is None and content.strip():
+            faults.append(f"{name} : YAML syntaxiquement invalide")
+
+    # Les étapes glissées dans pipeline.yaml sont silencieusement ignorées
+    # à l'exécution : donnée fausse, sans message. Faute grave.
+    pipe = docs.get("pipeline.yaml")
+    if isinstance(pipe, dict):
+        t = (pipe.get("pipeline") or {}).get("transformations")
+        if isinstance(t, (dict, list)):
+            faults.append("étapes placées dans pipeline.yaml (ignorées à l'exécution)")
+
     blob = "\n".join(files.values()).lower()
     for key in FORBIDDEN_KEYS:
         if re.search(rf"^\s*{key}\s*:", blob, re.M):
@@ -500,7 +634,8 @@ def score_exactness(case: Dict[str, Any], files: Dict[str, str],
 def run_case(case, spec, system, args) -> Dict[str, Any]:
     user = case["prompt"]
     attempts: List[Dict[str, Any]] = []
-    force_json = args.mode in ("constrained", "repair")
+    structured = args.mode in ("constrained", "repair")
+    force_json = build_response_schema(spec) if structured else False
     max_tries = 3 if args.mode == "repair" else 1
 
     files: Dict[str, str] = {}
@@ -519,8 +654,16 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
             return {"id": case["id"], "level": case["level"], "error": f"Ollama injoignable: {exc}",
                     "validity": 0.0, "exactness": 0.0, "sobriety": 0.0, "seconds": 0.0}
         elapsed += dt
-        parsed = extract(raw)
-        files, refused, reason = parsed["files"], parsed["refuse"], parsed["reason"]
+        if structured:
+            try:
+                obj = json.loads(raw)
+            except Exception:
+                obj = {}
+            files = files_from_structured(obj) if not obj.get("refuse") else {}
+            refused, reason = bool(obj.get("refuse")), str(obj.get("reason") or "")
+        else:
+            parsed = extract(raw)
+            files, refused, reason = parsed["files"], parsed["refuse"], parsed["reason"]
         attempts.append({"raw": raw[:2500], "files": sorted(files)})
 
         if refused or not files:
@@ -529,7 +672,8 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
         if valid or attempt == max_tries - 1:
             break
         user = (f"{case['prompt']}\n\nLa tentative précédente a été rejetée par "
-                f"`hdrctl validate` :\n{oracle_out[-500:]}\nCorrige et renvoie le JSON complet.")
+                f"`hdrctl validate` :\n{oracle_out[-500:]}\n"
+                f"Corrige l'erreur et renvoie l'objet JSON complet.")
 
     docs = parse_files(files)
     must_refuse = case.get("expect", {}).get("mustRefuse", False)
@@ -614,7 +758,8 @@ def main() -> int:
     if args.limit:
         cases = cases[:args.limit]
 
-    system = build_system_prompt(spec, load_examples(args.examples))
+    system = build_system_prompt(spec, load_examples(args.examples),
+                                 structured=args.mode in ("constrained", "repair"))
 
     print(f"Modele {args.model} | mode {args.mode} | {len(cases)} cas | "
           f"{args.examples} exemple(s) few-shot")

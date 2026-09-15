@@ -1,0 +1,817 @@
+{
+  "model": "qwen3:1.7b",
+  "mode": "baseline",
+  "examples": 1,
+  "think": false,
+  "results": [
+    {
+      "id": "gen-001",
+      "level": "simple",
+      "prompt": "J'ai un fichier ventes.csv. Copie-le tel quel dans sortie.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  source_ventes:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/ventes.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  dest_ventes:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/ventes.csv\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_ventes\\n  from: source_ventes\\n  to: dest_ventes\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.857,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "mode attendu 'replace', obtenu ['append']"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 51.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-002",
+      "level": "simple",
+      "prompt": "Depuis clients.csv, ne garde que les colonnes id, nom et email, et ecris le resultat dans clients_light.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"La demande est réalisable avec les éléments listés. Les fichiers sont : sources.yaml, destinations.yaml et pipeline.yaml.\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  clients:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/clients.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  clients_light:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/clients_light.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_clients_light\\n  from: clients\\n  to: clients_light\\n  transformations: \\n    - select:\\n        columns: id, nom, email\"}}",
+      "validity": 1.0,
+      "exactness": 0.75,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "La demande est réalisable avec les éléments listés. Les fichiers sont : sources.yaml, destinations.yaml et pipeline.yaml.",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'select' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 37.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-003",
+      "level": "simple",
+      "prompt": "Lis produits.json et ecris-le en Parquet dans produits.parquet.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  produits:\\n    type: json\\n    connection: {}\\n    extract:\\n      file: ../../data/produits.json\\n      batch_size: 1000\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  produits_parquet:\\n    type: parquet\\n    connection: {}\\n    load:\\n      table: ./output/produits.parquet\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_produits\\n  from: produits\\n  to: produits_parquet\\n  transformations: transformations\"}}",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "rces.produits.extract\n  Value error, extract doit définir 'table', 'query' ou 'collection' [type=value_error, input_value={'file': '../../data/prod...on', 'batch_size': 1000}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/value_error\n\n  ❌ 1 error(s) detected.\n",
+      "seconds": 26.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-004",
+      "level": "simple",
+      "prompt": "Renomme la colonne 'montant' en 'amount' dans commandes.csv et sauvegarde dans commandes_en.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "Renommer des colonnes est une transformation autorisée, et le fichier 'commandes.csv' doit être inclus dans les fichiers.",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 39.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-005",
+      "level": "simple",
+      "prompt": "Supprime les doublons de contacts.csv et ecris contacts_uniques.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  contacts:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/contacts.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  contacts_uniques:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/contacts_uniques.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_contacts\\n  from: contacts\\n  to: contacts_uniques\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.667,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'deduplicate' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 25.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-006",
+      "level": "simple",
+      "prompt": "Trie stock.csv par quantite decroissante vers stock_trie.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "Trier des fichiers est une transformation autorisée, donc il faut inclure transformations.yaml. La demande implique une opération sur les données, donc les fichiers doivent être inclus.",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 38.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-007",
+      "level": "simple",
+      "prompt": "Dans employes.csv, remplace les valeurs manquantes de la colonne salaire par 0, puis ecris employes_propre.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "La demande est réalisable avec les éléments listés. Les étapes nécessaires sont : remplacer les valeurs manquantes de la colonne salaire par 0 (via la fonction fill_null), puis écrire employes_propre.",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "seconds": 58.5,
+      "attempts": 1
+    },
+    {
+      "id": "gen-008",
+      "level": "simple",
+      "prompt": "Ajoute les lignes de nouveaux_clients.csv a la fin du fichier existant clients_all.csv, sans l'ecraser.",
+      "raw": "{\"refuge\": false, \"reason\": \"\", \"files\": {\"clients_all.csv\": \"sources:\\n  client_data:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/clients_all.csv\\n      batch_size: 100\\n\\nnew_clients.csv\": \"sources:\\n  client_data:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/new_clients.csv\\n      batch_size: 100\"}}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "sources.yaml manquant",
+        "destinations.yaml manquant",
+        "pipeline.yaml manquant",
+        "mode attendu 'append', obtenu []",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 25.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-010",
+      "level": "intermediaire",
+      "prompt": "Depuis ventes.csv, garde seulement les lignes dont le montant depasse 100, puis ecris ventes_filtrees.csv. Attention, le CSV ne porte aucun type.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  ventes:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/ventes.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  ventes_filtrees:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/ventes_filtrees.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_ventes_filtrees\\n  from: ventes\\n  to: ventes_filtrees\\n  transformations: \\n    steps:\\n      - filter:\\n          expr: \\\"amount > 100\\\"\"}}",
+      "validity": 1.0,
+      "exactness": 0.571,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'cast' absente",
+        "opération 'filter' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 44.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-011",
+      "level": "intermediaire",
+      "prompt": "Calcule le chiffre d'affaires total par pays depuis commandes.csv et ecris ca_par_pays.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  commandes:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/commandes.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  ca_par_pays:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/ca_par_pays.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_ca_par_pays\\n  from: source_orders\\n  to: dest_ok\\n  transformations: transformations\"}}",
+      "validity": 0.0,
+      "exactness": 0.429,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'cast' absente",
+        "opération 'aggregate' absente",
+        "câblage incorrect : from=source_orders to=dest_ok"
+      ],
+      "faults": [],
+      "oracle": "aml                    — present\n  ok  destinations.yaml                    — Pydantic valid\n  transformations.yaml                 — absent (optional)\n\n  err pipeline.from='source_orders' not found in sources.yaml\n  err pipeline.to='dest_ok' not found in destinations.yaml\n\n  ❌ 0 error(s) detected.\n",
+      "seconds": 34.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-012",
+      "level": "intermediaire",
+      "prompt": "Depuis factures.csv, ajoute une colonne prix_unitaire egale au montant divise par la quantite, puis ecris factures_pu.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  factures:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/factures.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  factures_pu:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/factures_pu.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_pu\\n  from: factures\\n  to: factures_pu\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.571,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'cast' absente",
+        "opération 'calculate' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 38.3,
+      "attempts": 1
+    },
+    {
+      "id": "gen-013",
+      "level": "intermediaire",
+      "prompt": "Nettoie la colonne nom de clients.csv en minuscules, supprime les espaces en trop, et ecris clients_normalises.csv.",
+      "raw": "{\"refuge\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  clients.csv:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/clients.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  clients_normalises:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/clients_normalises.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_clients_normalises\\n  from: clients.csv\\n  to: clients_normalises\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.667,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'clean' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 37.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-014",
+      "level": "intermediaire",
+      "prompt": "Depuis logs.csv, garde les colonnes date, niveau et message, filtre sur niveau = ERROR, et ecris erreurs.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  logs:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/logs.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  erreurs:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/erreurs.csv\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_erreurs\\n  from: logs\\n  to: erreurs\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.571,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'select' absente",
+        "opération 'filter' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 39.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-015",
+      "level": "intermediaire",
+      "prompt": "Depuis mesures.csv, convertis temperature en float et horodatage en datetime, puis ecris mesures_typees.parquet.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  measures:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/measures.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  measures_typees:\\n    type: parquet\\n    connection: {}\\n    load:\\n      table: ./output/measures_typees.parquet\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_measures\\n  from: measures\\n  to: measures_typees\\n  transformations: \\n    - calculate:\\n        column: temperature\\n        expr: float(\\n          temperature\\n        )\\n        output: temperature_float\\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n        \\n   ",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "sources.yaml manquant",
+        "destinations.yaml manquant",
+        "transformations.yaml manquant",
+        "pipeline.yaml manquant",
+        "type de destination attendu ['parquet'], obtenu []",
+        "opération 'cast' absente",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 235.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-016",
+      "level": "intermediaire",
+      "prompt": "Compte le nombre de commandes par statut depuis commandes.csv et classe du plus frequent au moins frequent. Sortie : stats_statut.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"La demande implique une opération de comptage par statut et de classement des plus fréquents, ce qui nécessite une étape de réduction de données et une opération de tri. Cela est réalisable avec les éléments listés.\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  commandes:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/commandes.csv\\n      batch_size: 1000\", \"transformations.yaml\": \"version: '1.0'\\ntransformations:\\n  steps:\\n  - filter:\\n      expr: \\\"status != 'null'\\\"\\n  - aggregate:\\n      by: \\\"status\\\"\\n      agg: \\\"count\\\"\\n  - sort:\\n      by: \\\"count\\\",\\n      ascending: false\\n  - pivot:\\n      index: \\\"status\\\"\\n      column: \\\"class\\\"\\n      values: \\\"count\\\"\\n  - rename:\\n      mapping: {\\n        \\\"count\\\": \\\"nombre_de_commandes\\\",\\n        \\\"status\\\": \\\"statut\\\"\\n      }\\n  - select:\\n      columns: [\\n        \\\"statut\\\",\\n        \\\"nombre_de_commandes\\\"\\n      ]\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  stats_statut:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/stats_statut.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_stats\\n  from: commandes\\n  to: stats_statut\\n  transformations: transformations\"}}",
+      "validity": 0.0,
+      "exactness": 0.714,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "La demande implique une opération de comptage par statut et de classement des plus fréquents, ce qui nécessite une étape de réduction de données et une opération de tri. Cela est réalisable avec les é",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "opération 'aggregate' absente",
+        "opération 'sort' absente"
+      ],
+      "faults": [],
+      "oracle": "stats_statut\n\n  err   → Invalid YAML: while parsing a block mapping\n  in \"<unicode string>\", line 10, column 7:\n          by: \"count\",\n          ^\nexpected <block end>, but found ','\n  in \"<unicode string>\", line 10, column 18:\n          by: \"count\",\n                     ^\n\n  ❌ 1 error(s) detected.\n",
+      "seconds": 60.3,
+      "attempts": 1
+    },
+    {
+      "id": "gen-020",
+      "level": "compose",
+      "prompt": "J'ai commandes.csv et clients.csv. Associe chaque commande a son client par customer_id, garde toutes les commandes meme sans client, et ecris commandes_enrichies.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  source_commands:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/commandes.csv\\n      batch_size: 1000\\n\\n  source_clients:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/clients.csv\\n      batch_size: 1000\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  dest_commands_enrichies:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/commandes_enrichies.csv\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_commands_enrichies\\n  from: source_commands\\n  to: dest_commands_enrichies\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.714,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'join' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 40.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-021",
+      "level": "compose",
+      "prompt": "Empile les lignes de ventes_2025.csv et ventes_2026.csv dans un seul fichier ventes_total.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"Le chargement de fichiers CSV en un seul fichier est réalisé via l'opération 'union' (requis: right) dans Hydra. Les fichiers doivent être empilés en utilisant le connecteur 'csv' et l'opération 'union' dans le pipeline.yaml.\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  ventes_2025:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/ventes_2025.csv\\n      batch_size: 1000\\n  ventes_2026:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/ventes_2026.csv\\n      batch_size: 1000\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  ventes_total:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/ventes_total.csv\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_union\\n  from: ventes_2025\\n  to: ventes_total\\n  transformations: \\n    - union:\\n        right: ventes_2026\"}}",
+      "validity": 1.0,
+      "exactness": 0.714,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "Le chargement de fichiers CSV en un seul fichier est réalisé via l'opération 'union' (requis: right) dans Hydra. Les fichiers doivent être empilés en utilisant le connecteur 'csv' et l'opération 'unio",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'union' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 41.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-022",
+      "level": "compose",
+      "prompt": "Depuis ventes.csv, produis un tableau croise avec les mois en lignes, les regions en colonnes, et la somme des montants dans les cellules. Sortie : tableau_croise.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  ventes:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/ventes.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  tableau_croise:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/tableau_croise.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_tableau_croise\\n  from: sources\\n  to: destinations\\n  transformations: transformations\"}}",
+      "validity": 0.0,
+      "exactness": 0.429,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'cast' absente",
+        "opération 'pivot' absente",
+        "câblage incorrect : from=sources to=destinations"
+      ],
+      "faults": [],
+      "oracle": "yaml                    — present\n  ok  destinations.yaml                    — Pydantic valid\n  transformations.yaml                 — absent (optional)\n\n  err pipeline.from='sources' not found in sources.yaml\n  err pipeline.to='destinations' not found in destinations.yaml\n\n  ❌ 0 error(s) detected.\n",
+      "seconds": 24.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-023",
+      "level": "compose",
+      "prompt": "Le fichier budget.csv a une colonne par mois. Transforme-le en format long avec une ligne par couple (poste, mois). Sortie : budget_long.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  budget:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/budget.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  budget_long:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/budget_long.csv\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_budget_long\\n  from: budget\\n  to: budget_long\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.667,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'unpivot' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 21.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-024",
+      "level": "compose",
+      "prompt": "Depuis commandes.csv et clients.csv : joins-les sur customer_id, filtre les montants superieurs a 50, agrege le total par pays, trie par total decroissant. Sortie : top_pays.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  commandes:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/commandes.csv\\n      batch_size: 100\\n  clients:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/clients.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  top_pays:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/top_pays.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_top_pays\\n  from: commandes\\n  to: top_pays\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.455,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "opération 'cast' absente",
+        "opération 'join' absente",
+        "opération 'filter' absente",
+        "opération 'aggregate' absente",
+        "opération 'sort' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 26.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-030",
+      "level": "base_de_donnees",
+      "prompt": "Charge la table clients d'une base PostgreSQL et ecris-la dans clients.csv.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  clients:\\n    type: postgres\\n    connection: {\\n      host: \\\"localhost\\\"\\n      database: \\\"mydb\\\"\\n      user: \\\"user\\\"\\n      password: \\\"pass\\\"\\n      port: 5432\\n    }\\n    extract:\\n      table: \\\"clients\\\"\\n      batch_size: 1000\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  clients:\\n    type: csv\\n    connection: {\\n      path: \\\"./output/clients.csv\\\"\\n    }\\n    load:\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_clients\\n  from: clients\\n  to: clients\\n  transformations: []\"}}",
+      "validity": 0.0,
+      "exactness": 0.667,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "type de source attendu ['postgres', 'postgresql'], obtenu []",
+        "câblage incorrect : from=clients to=clients"
+      ],
+      "faults": [],
+      "oracle": "ue_error\n  err Pipeline coherence: while parsing a flow mapping\n  in \"<unicode string>\", line 5, column 17:\n        connection: {\n                    ^\nexpected ',' or '}', but got '<scalar>'\n  in \"<unicode string>\", line 7, column 7:\n          database: \"mydb\"\n          ^\n\n  ❌ 2 error(s) detected.\n",
+      "seconds": 32.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-031",
+      "level": "base_de_donnees",
+      "prompt": "Depuis produits.csv, charge les donnees dans la table produits d'une base MySQL, en mettant a jour les lignes existantes sur la cle id.",
+      "raw": "{\"refuse\": false, \"reason\": \"La demande est réalisable avec les éléments listés. Les connecteurs autorisés incluent mysql, les opérations autorisées incluent update (via merge), et les modes de chargement incluent upsert. Les fichiers à ajouter sont : sources.yaml, transformations.yaml, destinations.yaml, pipeline.yaml.\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  produits:\\n    type: mysql\\n    connection: {\\n      host: \\\"localhost\\\"\\n      database: \\\"mydb\\\"\\n      user: \\\"user\\\"\\n      password: \\\"pass\\\"\\n      table: \\\"products\\\"\\n      key: \\\"id\\\"\\n      mode: \\\"upsert\\\"\\n    }\\n    extract:\\n      query: \\\"SELECT * FROM products\\\"\"}, \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  produits:\\n    type: mysql\\n    connection: {\\n      host: \\\"localhost\\\"\\n      database: \\\"mydb\\\"\\n      user: \\\"user\\\"\\n      password: \\\"pass\\\"\\n      table: \\\"products\\\"\\n      key: \\\"id\\\"\\n      mode: \\\"replace\\\"\\n    }\\n    load:\\n      query: \\\"INSERT INTO products (id, name, price) SELECT id, name, price FROM source\\\"\"}, \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_produits\\n  from: produits\\n  to: produits\\n  transformations: transformations\"}",
+      "validity": 0.0,
+      "exactness": 0.143,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "La demande est réalisable avec les éléments listés. Les connecteurs autorisés incluent mysql, les opérations autorisées incluent update (via merge), et les modes de chargement incluent upsert. Les fic",
+      "filesProduced": [
+        "sources.yaml"
+      ],
+      "misses": [
+        "destinations.yaml manquant",
+        "pipeline.yaml manquant",
+        "type de source attendu ['csv'], obtenu []",
+        "type de destination attendu ['mariadb', 'mysql'], obtenu []",
+        "mode attendu 'upsert', obtenu []",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": "but got '<scalar>'\n  in \"<unicode string>\", line 7, column 7:\n          database: \"mydb\"\n          ^\n  err destinations.yaml — MISSING\n  err Pipeline coherence: [Errno 2] No such file or directory: 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\hydra_eval_1bugi02t\\\\pipeline.yaml'\n\n  ❌ 1 error(s) detected.\n",
+      "seconds": 48.6,
+      "attempts": 1
+    },
+    {
+      "id": "gen-032",
+      "level": "base_de_donnees",
+      "prompt": "Extrais la collection commandes de MongoDB, garde les commandes de 2026, et ecris commandes_2026.parquet.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  commande_db:\\n    type: mongodb\\n    connection: {\\n      database: \\\"commandes\\\"\\n      collection: \\\"commandes\\\"\\n    }\\n    extract:\\n      query: {\\n        year: 2026\\n      }\\n    batch_size: 1000\\n\\n\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  commande_2026:\\n    type: parquet\\n    connection: {\\n      path: \\\"./output/commandes_2026.parquet\\\"\\n    }\\n    load:\\n      mode: append\\n      format: parquet\\n      compression: snappy\\n\\n\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_commandes_2026\\n  from: commande_db\\n  to: commande_2026\\n  transformations: []\"}}",
+      "validity": 0.0,
+      "exactness": 0.5,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "transformations.yaml manquant",
+        "type de source attendu ['mongodb'], obtenu []",
+        "opération 'filter' absente",
+        "câblage incorrect : from=commande_db to=commande_2026"
+      ],
+      "faults": [],
+      "oracle": "r\n  err Pipeline coherence: while parsing a flow mapping\n  in \"<unicode string>\", line 5, column 17:\n        connection: {\n                    ^\nexpected ',' or '}', but got '<scalar>'\n  in \"<unicode string>\", line 7, column 7:\n          collection: \"commandes\"\n          ^\n\n  ❌ 2 error(s) detected.\n",
+      "seconds": 33.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-033",
+      "level": "base_de_donnees",
+      "prompt": "Appelle une API web qui renvoie des utilisateurs en JSON et stocke le resultat dans une table PostgreSQL, en remplacant le contenu existant.",
+      "raw": "{\"refuse\": false, \"reason\": \"La demande implique une opération sur les données (appeler une API web et stocker le résultat dans une table PostgreSQL) qui n'est pas autorisée. Les opérations autorisées sont : charger dans une base (via `merge` ou `upsert`), mais pas appeler une API web.\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  web_api:\\n    type: web_api\\n    connection: {}\\n    load:\\n      url: https://api.example.com/users\\n      format: json\\n      headers:\\n        Authorization: {{ env:API_KEY }}\\n      timeout: 10\\n      verify_ssl: false\\n      batch_size: 1000\\n      max_retries: 3\\n      use_proxy: true\\n      parse_json: true\\n      parse_json_path: 'data.users'\\n      parse_json_path_value: '{{ .value }}'\\n      parse_json_path_value_type: 'array'\\n      parse_json_path_value_mapping: {\\n        'id': 'id',\\n        'name': 'name',\\n        'email': 'email'\\n      }\\n      parse_json_path_value_mapping_type: 'object'\\n      parse_json_path_value_mapping_type_mapping: {\\n        'id': 'integer',\\n        'name': 'string',\\n        'email': 'string'\\n      }\\n      parse_json_path_value_mapping_type_mapping_type: 'object'\\n      parse_json_path_value_mapping_type_mapping_type_mapping: {\\n        'id': 'integer',\\n        'name': 'string',\\n        'email': 'string'\\n      }\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type: 'object'\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type_mapping: {\\n        'id': 'integer',\\n        'name': 'string',\\n        'email': 'string'\\n      }\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type_mapping_type: 'object'\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type_mapping_type_mapping: {\\n        'id': 'integer',\\n        'name': 'string',\\n        'email': 'string'\\n      }\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type_mapping_type_mapping_type: 'object'\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type_mapping_type_mapping_type_mapping: {\\n        'id': 'integer',\\n        'name': 'string',\\n        'email': 'string'\\n      }\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type_mapping_type_mapping_type_mapping_type: 'object'\\n      parse_json_path_value_mapping_type_mapping_type_mapping_type_mapping_type_mapping_type_mapping_type_mapping: {\\n        'id': 'integer',\\n        'name': 'string',\\n        'email': 'string'\\n      }\\n      parse_json_path_value_mapping_typ",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "sources.yaml manquant",
+        "destinations.yaml manquant",
+        "pipeline.yaml manquant",
+        "type de source attendu ['web_api'], obtenu []",
+        "type de destination attendu ['postgres'], obtenu []",
+        "mode attendu 'replace', obtenu []",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 201.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-034",
+      "level": "base_de_donnees",
+      "prompt": "Un secret de connexion ne doit jamais apparaitre en clair. Ecris un source PostgreSQL dont le mot de passe vient de l'environnement.",
+      "raw": "{\"refuse\": false, \"reason\": \"Le format requis est un fichier YAML, mais la demande exige une mention d'un secret en clair. Le mot de passe doit être spécifié via {{ env:PASSWORD }}.\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  postgres:\\n    type: postgres\\n    connection:\\n      host: localhost\\n      port: 5432\\n      database: mydb\\n      user: {{ env:USERNAME }}\\n      password: {{ env:PASSWORD }}\\n      sslmode: require\"}}",
+      "validity": 0.0,
+      "exactness": 0.5,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "Le format requis est un fichier YAML, mais la demande exige une mention d'un secret en clair. Le mot de passe doit être spécifié via {{ env:PASSWORD }}.",
+      "filesProduced": [
+        "sources.yaml"
+      ],
+      "misses": [
+        "type de source attendu ['postgres', 'postgresql'], obtenu []",
+        "'${' absent"
+      ],
+      "faults": [],
+      "oracle": "ey\n  in \"<unicode string>\", line 9, column 14:\n          user: {{ env:USERNAME }}\n                 ^\n  err destinations.yaml — MISSING\n  err Pipeline coherence: [Errno 2] No such file or directory: 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\hydra_eval_zrxqkrb6\\\\pipeline.yaml'\n\n  ❌ 1 error(s) detected.\n",
+      "seconds": 18.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-040",
+      "level": "workflow",
+      "prompt": "Ecris un workflow qui execute le job ./jobs/extract, puis ./jobs/transform une fois l'extraction terminee.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"# sources.yaml\\nversion: '1.0'\\nsources:\\n  extract:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ./jobs/extract/data.csv\\n      batch_size: 100\",\\n  \\\"transformations.yaml\\\": \\\"# transformations.yaml\\nversion: '1.0'\\ntransformations:\\n  steps:\\n  - filter:\\n      expr: \\\"status == 'completed'\\\"\\\",\\n  - select:\\n      columns: ['id', 'amount']\\\"},\\n  \\\"pipeline.yaml\\\": \\\"# pipeline.yaml\\nversion: '1.0'\\npipeline:\\n  name: job_extract_transform\\n  from: extract\\n  to: transformations\\n  transformations: transformations\\\"}}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "workflow.yaml manquant",
+        "2 steps attendus, 0",
+        "aucun depends_on"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 25.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-041",
+      "level": "workflow",
+      "prompt": "Workflow quotidien a 8h du matin : execute ./jobs/daily, puis envoie un webhook de notification.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  daily:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/daily.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  daily:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/daily.csv\\n      mode: append\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_daily\\n  from: daily\\n  to: daily\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "workflow.yaml manquant",
+        "2 steps attendus, 0",
+        "trigger incorrect",
+        "cron absent",
+        "action 'webhook' absente"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 21.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-042",
+      "level": "workflow",
+      "prompt": "Workflow ou le job ./jobs/fragile est retente trois fois avec cinq secondes d'attente, et ou l'echec n'interrompt pas la suite.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  fragile:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/fragile.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  dest_fragile:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/fragile.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_fragile\\n  from: sources/fragile\\n  to: dest_fragile\\n  transformations: transformations\"}}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "workflow.yaml manquant",
+        "retry absent"
+      ],
+      "faults": [],
+      "oracle": "            — present\n  ok  destinations.yaml                    — Pydantic valid\n  transformations.yaml                 — absent (optional)\n  ok  pipeline.to                          — resolved: dest_fragile\n\n  err pipeline.from='sources/fragile' not found in sources.yaml\n\n  ❌ 0 error(s) detected.\n",
+      "seconds": 24.1,
+      "attempts": 1
+    },
+    {
+      "id": "gen-043",
+      "level": "workflow",
+      "prompt": "Workflow avec trois jobs : extract, puis transform_a et transform_b qui dependent tous deux d'extract et peuvent tourner en parallele, puis load qui attend les deux.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  extract:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/extract.csv\\n      batch_size: 100\\n\\ntransformations.yaml\": \"version: '1.0'\\ntransformations:\\n  steps:\\n  - filter:\\n      expr: status == 'completed'\\n  - select:\\n      columns: ['id', 'amount']\\n  - calculate:\\n      expr: 'amount * 1.1'\\n  - deduplicate:\\n      by: 'id'\\n  - sort:\\n      by: 'id'\\n  - aggregate:\\n      by: 'id'\\n      agg: 'count'\\n\\npipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_transform_a\\n  from: extract\\n  to: transform_a\\n  transformations: transformations\\n\\npipeline:\\n  name: job_transform_b\\n  from: extract\\n  to: transform_b\\n  transformations: transformations\\n\\ndestinations.yaml\": \"version: '1.0'\\ndestinations:\\n  transform_a:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/transform_a.csv\\n      mode: append\\n  transform_b:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/transform_b.csv\\n      mode: append\"}}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "workflow.yaml manquant",
+        "4 steps attendus, 0",
+        "aucun fan-in"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 45.4,
+      "attempts": 1
+    },
+    {
+      "id": "adv-050",
+      "level": "adversarial",
+      "prompt": "Mets les trois jobs dans un conteneur Sequence pour alleger la scene, et serialise-le dans le workflow.",
+      "raw": "{\"refuse\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  source_orders:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/orders.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  dest_ok:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/ok.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_ok\\n  from: source_orders\\n  to: dest_ok\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "aurait dû refuser"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 23.6,
+      "attempts": 1
+    },
+    {
+      "id": "adv-051",
+      "level": "adversarial",
+      "prompt": "Lis un fichier depuis un bucket S3 et ecris-le dans BigQuery.",
+      "raw": "{\"refuge\": false, \"reason\": \"\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  s3_file:\\n    type: web_api\\n    connection: {\\n      bucket: \\\"your-bucket-name\\\"\\n      key: \\\"path/to/your/file\\\"\\n      access_key: \\\"your-access-key\\\"\\n      secret_key: \\\"your-secret-key\\\"\\n    }\\n    extract:\\n      url: \\\"https://your-bucket-name.s3.amazonaws.com/path/to/your/file\\\"\\n      batch_size: 1000\\n\\npipeline:\\n  name: s3_to_bigquery\\n  from: s3_file\\n  to: bigquery\\n  transformations: []\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  bigquery:\\n    type: bigquery\\n    connection: {\\n      project: \\\"your-project-id\\\"\\n      dataset: \\\"your-dataset\\\"\\n      location: \\\"your-location\\\"\\n      credentials: \\\"your-credentials\\\"\\n    }\\n    load:\\n      table: \\\"your-table\\\"\\n      mode: append\\npipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: s3_to_bigquery\\n  from: s3_file\\n  to: bigquery\\n  transformations: []\"}}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "aurait dû refuser"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 40.5,
+      "attempts": 1
+    },
+    {
+      "id": "adv-052",
+      "level": "adversarial",
+      "prompt": "Ajoute une action 'teams' dans le workflow pour notifier l'equipe.",
+      "raw": "{\"refuse\": false, \"reason\": \"L'action 'teams' n'est pas autorisée dans les modes de workflow permettres (assign_param, bash, condition, delay, email, log, powershell, python, set_param, ssh, webhook).\", \"files\": {\"sources.yaml\": \"\", \"destinations.yaml\": \"\", \"pipeline.yaml\": \"\"}}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "L'action 'teams' n'est pas autorisée dans les modes de workflow permettres (assign_param, bash, condition, delay, email, log, powershell, python, set_param, ssh, webhook).",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "aurait dû refuser"
+      ],
+      "faults": [],
+      "oracle": "  err   → 1 validation error for DestinationsConfig\ndestinations\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err Pipeline coherence: 'NoneType' object has no attribute 'get'\n\n  ❌ 1 error(s) detected.\n",
+      "seconds": 10.8,
+      "attempts": 1
+    },
+    {
+      "id": "adv-053",
+      "level": "adversarial",
+      "prompt": "Distribue l'execution de ce job sur un cluster de dix machines.",
+      "raw": "{\"refuse\": false, \"reason\": \"Exécution distribuée n'est pas autorisée dans Hydra.\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  source_orders:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/orders.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  dest_ok:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/ok.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_ok\\n  from: source_orders\\n  to: dest_ok\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "Exécution distribuée n'est pas autorisée dans Hydra.",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "aurait dû refuser"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 23.2,
+      "attempts": 1
+    },
+    {
+      "id": "adv-054",
+      "level": "adversarial",
+      "prompt": "Ecris une operation 'lowercase' pour passer la colonne nom en minuscules.",
+      "raw": "{\"refuse\": false, \"reason\": \"Operation 'lowercase' is not supported. Supported operations: aggregate, calculate, cast, clean, deduplicate, fill_null, filter, join, merge, pivot, rename, script, select, sort, transpose, trim, union, unpivot, lowercase (added in Hydra 2.1.0).\", \"files\": {\"sources.yaml\": \"version: '1.0'\\nsources:\\n  source_orders:\\n    type: csv\\n    connection: {}\\n    extract:\\n      table: ../../data/orders.csv\\n      batch_size: 100\", \"destinations.yaml\": \"version: '1.0'\\ndestinations:\\n  dest_ok:\\n    type: csv\\n    connection: {}\\n    load:\\n      table: ./output/ok.csv\\n      mode: replace\", \"pipeline.yaml\": \"version: '1.0'\\npipeline:\\n  name: job_ok\\n  from: source_orders\\n  to: dest_ok\\n  transformations: transformations\"}}",
+      "validity": 1.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "Operation 'lowercase' is not supported. Supported operations: aggregate, calculate, cast, clean, deduplicate, fill_null, filter, join, merge, pivot, rename, script, select, sort, transpose, trim, unio",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "aurait dû refuser"
+      ],
+      "faults": [],
+      "oracle": "",
+      "seconds": 29.0,
+      "attempts": 1
+    }
+  ]
+}

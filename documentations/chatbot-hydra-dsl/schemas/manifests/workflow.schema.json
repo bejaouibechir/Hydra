@@ -209,6 +209,6 @@
     "generatedFromPydantic": true,
     "kind": "manifest",
     "productVersion": "0.9.6",
-    "sourceModel": "workflow.models.WorkflowDef"
+    "sourceModel": "hydra_etl.workflow.models.WorkflowDef"
   }
 }

@@ -234,9 +234,165 @@ def build_response_schema(spec: Spec) -> Dict[str, Any]:
     return {"anyOf": [job_branch, workflow_branch, refusal_branch]}
 
 
+def build_portable_schema(spec: Spec) -> Dict[str, Any]:
+    """
+    Variante **portable** du schéma de réponse.
+
+    La version stricte (anyOf de 3 branches, anyOf de 18 opérations, clés
+    dynamiques pour les sources) passe avec la grammaire d'Ollama, qui compile
+    un JSON Schema complet. Les fournisseurs compatibles OpenAI — Gemini, Groq,
+    NVIDIA — implémentent un sous-ensemble : `anyOf` imbriqué et
+    `additionalProperties` typé y sont fragiles.
+
+    On aplatit donc : plus d'alternatives, plus de clés dynamiques. Les sources
+    et destinations deviennent des tableaux d'objets portant leur `id`, et une
+    étape devient {op, params} au lieu de {nom: params}. La validation fine des
+    paramètres est perdue au niveau du schéma — elle est reprise ensuite par
+    `hdrctl validate` et par les garde-fous, qui sont de toute façon plus sûrs.
+    """
+    connector = {"type": "string", "enum": spec.connectors}
+    return {
+        "type": "object",
+        "properties": {
+            "kind": {"type": "string", "enum": ["job", "workflow", "impossible"]},
+            "reason": {"type": "string",
+                       "description": "Rempli uniquement si kind vaut 'impossible'."},
+            "sources": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "type": connector,
+                        "table": {"type": "string"},
+                        "batch_size": {"type": "integer"},
+                    },
+                    "required": ["id", "type", "table"],
+                },
+            },
+            "transformations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "op": {"type": "string", "enum": sorted(spec.operations)},
+                        "params": {"type": "object"},
+                    },
+                    "required": ["op", "params"],
+                },
+            },
+            "destinations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "type": connector,
+                        "table": {"type": "string"},
+                        "mode": {"type": "string",
+                                 "enum": ["append", "replace", "upsert"]},
+                    },
+                    "required": ["id", "type", "table", "mode"],
+                },
+            },
+            "pipeline": {
+                "type": "object",
+                "properties": {"name": {"type": "string"},
+                               "from": {"type": "string"},
+                               "to": {"type": "string"}},
+                "required": ["from", "to"],
+            },
+            "workflow": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "trigger_type": {"type": "string",
+                                     "enum": ["manual", "schedule", "webhook"]},
+                    "cron": {"type": "string"},
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "type": {"type": "string", "enum": ["job", "action"]},
+                                "job": {"type": "string"},
+                                "action": {"type": "string", "enum": spec.actions},
+                                "params": {"type": "object"},
+                                "depends_on": {"type": "array",
+                                               "items": {"type": "string"}},
+                                "on_failure": {"type": "string",
+                                               "enum": ["fail", "skip", "continue"]},
+                                "retry_max": {"type": "integer"},
+                                "retry_delay": {"type": "number"},
+                            },
+                            "required": ["name", "type"],
+                        },
+                    },
+                },
+                "required": ["name", "steps"],
+            },
+        },
+        "required": ["kind"],
+    }
+
+
+def _normalize_structured(obj: Dict[str, Any]) -> Dict[str, Any]:
+    """Ramène la forme portable (tableaux, op/params) à la forme stricte."""
+    out = dict(obj)
+
+    for key in ("sources", "destinations"):
+        val = obj.get(key)
+        if isinstance(val, list):
+            mapped: Dict[str, Any] = {}
+            for i, item in enumerate(val):
+                if not isinstance(item, dict):
+                    continue
+                ident = item.get("id") or f"{key[:-1]}_{i + 1}"
+                entry: Dict[str, Any] = {"type": item.get("type"), "connection": {}}
+                if key == "sources":
+                    extract = {"table": item.get("table")}
+                    if item.get("batch_size"):
+                        extract["batch_size"] = item["batch_size"]
+                    entry["extract"] = extract
+                else:
+                    entry["load"] = {"table": item.get("table"),
+                                     "mode": item.get("mode", "replace")}
+                mapped[ident] = entry
+            out[key] = mapped
+
+    steps = obj.get("transformations")
+    if isinstance(steps, list) and any(isinstance(s, dict) and "op" in s for s in steps):
+        out["transformations"] = [
+            {s["op"]: s.get("params") or {}}
+            for s in steps if isinstance(s, dict) and s.get("op")
+        ]
+
+    wf = obj.get("workflow")
+    if isinstance(wf, dict) and ("trigger_type" in wf or "cron" in wf):
+        new_wf = {k: v for k, v in wf.items()
+                  if k not in ("trigger_type", "cron")}
+        trigger = {"type": wf.get("trigger_type", "manual")}
+        if wf.get("cron"):
+            trigger["cron"] = wf["cron"]
+        new_wf["trigger"] = trigger
+        for st in new_wf.get("steps") or []:
+            if isinstance(st, dict) and (st.get("retry_max") or st.get("retry_delay")):
+                st["retry"] = {"max": st.pop("retry_max", 0),
+                               "delay": st.pop("retry_delay", 0)}
+            if isinstance(st, dict):
+                st.pop("retry_max", None)
+                st.pop("retry_delay", None)
+        out["workflow"] = new_wf
+
+    return out
+
+
 def files_from_structured(obj: Dict[str, Any]) -> Dict[str, str]:
     """Sérialise la réponse structurée en manifestes YAML. Le modèle n'écrit
     jamais de YAML : c'est nous qui le faisons, donc il est toujours valide."""
+    obj = _normalize_structured(obj)
+
     def dump(payload: Dict[str, Any]) -> str:
         return "version: \"1.0\"\n" + yaml.safe_dump(
             payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
@@ -280,14 +436,47 @@ ou une exécution distribuée, produis :
   {"kind": "impossible", "reason": "<en une phrase>"}"""
 
 
+PORTABLE_CONTRACT = """Tu ne produis PAS de YAML. Tu produis un objet JSON que
+le système convertit lui-même en manifestes.
+
+Commence TOUJOURS par "kind" :
+  "job"        un pipeline source -> destination        <- le cas courant
+  "workflow"   un enchaînement de plusieurs jobs, uniquement si la demande
+               parle d'ordonnancement, de dépendances ou de plusieurs jobs
+  "impossible" en dernier recours seulement
+
+Pour un JOB :
+  {"kind": "job",
+   "sources": [{"id": "src_x", "type": "csv", "table": "entree.csv"}],
+   "transformations": [{"op": "cast", "params": {"mapping": {"montant": "float"}}},
+                       {"op": "filter", "params": {"expr": "montant > 100"}}],
+   "destinations": [{"id": "dst_y", "type": "csv", "table": "sortie.csv",
+                     "mode": "replace"}],
+   "pipeline": {"from": "src_x", "to": "dst_y"}}
+
+  - `pipeline.from` reprend un `id` de `sources`, `pipeline.to` un `id` de
+    `destinations`. Les étapes ne vont JAMAIS dans `pipeline`.
+  - `params` contient les paramètres de l'opération, tels que décrits plus haut.
+
+Pour un WORKFLOW :
+  {"kind": "workflow",
+   "workflow": {"name": "...", "trigger_type": "schedule", "cron": "0 8 * * *",
+                "steps": [{"name": "extraire", "type": "job", "job": "./jobs/e",
+                           "depends_on": []}]}}
+
+En dernier recours, si la demande exige un connecteur, une opération ou une
+action absents des listes ci-dessus, ou une exécution distribuée :
+  {"kind": "impossible", "reason": "<en une phrase>"}"""
+
+
 def build_system_prompt(spec: Spec, examples: List[Dict[str, Any]],
-                        structured: bool = False) -> str:
+                        structured: bool = False, portable: bool = False) -> str:
     ops = "\n".join(
         f"  {name}" + (f" (requis: {', '.join(req)})" if req else "")
         for name, req in sorted(spec.operations.items())
     )
     ex_txt = ""
-    if structured:
+    if structured or portable:
         examples = []          # en mode structure, les exemples YAML nuisent
     for ex in examples:
         ex_txt += "\n--- exemple ---\n"
@@ -332,8 +521,7 @@ RÈGLES
    une base — tout cela se fait avec les éléments listés.
 4. Hydra s'exécute sur une seule machine. Pas d'exécution distribuée.
 5. Aucun secret en clair : utilise {{{{ env:NOM }}}}.
-{ex_txt}
-{STRUCTURED_CONTRACT if structured else RESPONSE_CONTRACT}"""
+{ex_txt}\n{PORTABLE_CONTRACT if portable else (STRUCTURED_CONTRACT if structured else RESPONSE_CONTRACT)}"""
 
 
 def load_examples(n: int) -> List[Dict[str, Any]]:
@@ -406,6 +594,45 @@ def ollama_chat(url: str, model: str, system: str, user: str,
         if exc.code != 400:
             raise
         content = call(build(False))
+    return content, time.monotonic() - t0
+
+
+def openai_chat(url: str, model: str, system: str, user: str,
+                schema: Any, timeout: int, api_key: str,
+                num_predict: int = 4096) -> Tuple[str, float]:
+    """
+    Client pour tout point d'entrée **compatible OpenAI** : Gemini via son
+    adaptateur, Groq, NVIDIA, OpenRouter, Mistral. Un seul code pour cinq
+    fournisseurs, et le même schéma contraint que localement.
+    """
+    payload: Dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "system", "content": system},
+                     {"role": "user", "content": user}],
+        "temperature": 0,
+        "max_tokens": num_predict,
+    }
+    if schema:
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {"name": "hydra_job", "schema": schema, "strict": False},
+        }
+
+    req = urllib.request.Request(
+        url.rstrip("/") + "/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json",
+                 "Authorization": f"Bearer {api_key}"},
+    )
+    t0 = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:400]
+        raise RuntimeError(f"HTTP {exc.code} — {detail}") from None
+    choices = body.get("choices") or [{}]
+    content = (choices[0].get("message") or {}).get("content") or ""
     return content, time.monotonic() - t0
 
 
@@ -720,7 +947,13 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
     user = case["prompt"]
     attempts: List[Dict[str, Any]] = []
     structured = args.mode in ("constrained", "repair", "verify")
-    force_json = build_response_schema(spec) if structured else False
+    if not structured:
+        schema = False
+    elif args.provider == "openai":
+        schema = build_portable_schema(spec)   # sous-ensemble supporté partout
+    else:
+        schema = build_response_schema(spec)   # grammaire complète d'Ollama
+    force_json = schema
     max_tries = 3 if args.mode == "repair" else 1
 
     files: Dict[str, str] = {}
@@ -732,11 +965,17 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
 
     for attempt in range(max_tries):
         try:
-            raw, dt = ollama_chat(args.url, args.model, system, user,
-                                  force_json, args.timeout, args.think,
-                                  args.num_predict, args.api_key)
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            return {"id": case["id"], "level": case["level"], "error": f"Ollama injoignable: {exc}",
+            if args.provider == "openai":
+                raw, dt = openai_chat(args.url, args.model, system, user,
+                                      schema, args.timeout, args.api_key,
+                                      args.num_predict)
+            else:
+                raw, dt = ollama_chat(args.url, args.model, system, user,
+                                      force_json, args.timeout, args.think,
+                                      args.num_predict, args.api_key)
+        except (urllib.error.URLError, TimeoutError, OSError, RuntimeError) as exc:
+            return {"id": case["id"], "level": case["level"],
+                    "error": f"fournisseur injoignable: {exc}",
                     "validity": 0.0, "exactness": 0.0, "sobriety": 0.0, "seconds": 0.0}
         elapsed += dt
         if structured:
@@ -856,10 +1095,18 @@ def main() -> int:
     ap.add_argument("--mode", choices=["baseline", "constrained", "repair", "verify"],
                     default="baseline",
                     help="verify = constrained + garde-fous déterministes")
-    ap.add_argument("--url", default="http://localhost:11434",
-                    help="serveur Ollama. Distant : https://api.ollama.com")
-    ap.add_argument("--api-key", default=os.environ.get("OLLAMA_API_KEY", ""),
-                    help="clé pour un serveur distant (défaut : $OLLAMA_API_KEY)")
+    ap.add_argument("--provider", choices=["ollama", "openai"], default="ollama",
+                    help="openai = tout point d'entrée compatible OpenAI "
+                         "(Gemini, Groq, NVIDIA, OpenRouter, Mistral)")
+    ap.add_argument("--url", default="",
+                    help="URL du serveur. Défaut : Ollama local, ou "
+                         "l'adaptateur OpenAI de Gemini si --provider openai")
+    ap.add_argument("--api-key",
+                    default=(os.environ.get("GEMINI_API_KEY")
+                             or os.environ.get("OPENAI_API_KEY")
+                             or os.environ.get("OLLAMA_API_KEY", "")),
+                    help="clé du fournisseur (défaut : $GEMINI_API_KEY, "
+                         "$OPENAI_API_KEY ou $OLLAMA_API_KEY)")
     ap.add_argument("--examples", type=int, default=1, help="exemples few-shot (0 = aucun)")
     ap.add_argument("--limit", type=int, default=0, help="n'exécuter que les N premiers cas")
     ap.add_argument("--level", default="", help="ne jouer qu'un niveau")
@@ -872,6 +1119,13 @@ def main() -> int:
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
+    if not args.url:
+        args.url = ("https://generativelanguage.googleapis.com/v1beta/openai"
+                    if args.provider == "openai" else "http://localhost:11434")
+    if args.provider == "openai" and not args.api_key:
+        print("Aucune clé API. Définissez $GEMINI_API_KEY ou passez --api-key.")
+        return 2
+
     spec = Spec()
     cases = json.loads(CASES.read_text(encoding="utf-8"))["cases"]
     if args.level:
@@ -879,10 +1133,12 @@ def main() -> int:
     if args.limit:
         cases = cases[:args.limit]
 
+    structured_mode = args.mode in ("constrained", "repair", "verify")
     system = build_system_prompt(spec, load_examples(args.examples),
-                                 structured=args.mode in ("constrained", "repair", "verify"))
+                                 structured=structured_mode,
+                                 portable=structured_mode and args.provider == "openai")
 
-    where = "local" if "localhost" in args.url else args.url
+    where = "local" if "localhost" in args.url else args.url.split("//")[-1].split("/")[0]
     print(f"Modele {args.model} | mode {args.mode} | {where} | {len(cases)} cas | "
           f"{args.examples} exemple(s) few-shot")
     results = []
@@ -912,7 +1168,7 @@ def main() -> int:
             break
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    host = "" if "localhost" in args.url else "_cloud"
+    host = "" if "localhost" in args.url else "_" + args.provider
     tag = f"{args.model.replace(':','-').replace('/','-')}_{args.mode}{host}"
     (RESULTS_DIR / f"{tag}.json").write_text(
         json.dumps({"model": args.model, "mode": args.mode, "examples": args.examples,

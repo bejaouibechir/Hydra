@@ -88,6 +88,21 @@ If `hydra-mcp` is not on your `PATH`, call the module instead:
 
 Transport `stdio`, command `hydra-mcp`. That is all it needs.
 
+### Clients that cannot start a local process
+
+Some clients — ChatGPT among them — only talk to servers reachable over HTTP.
+Run one:
+
+```bash
+hydra-mcp --transport streamable-http --port 8787 --workspace /path/to/jobs
+```
+
+The endpoint is `http://127.0.0.1:8787/mcp`.
+
+**There is no authentication.** This mode is for your own machine, or a tunnel
+you control — never a public address. An authenticated, multi-tenant remote
+server is a different piece of work.
+
 ## Tools
 
 | Tool | What it does |

@@ -697,7 +697,53 @@ def build_server() -> Any:
 
 
 def main() -> None:
-    build_server().run(transport="stdio")
+    """
+    Point d'entrée `hydra-mcp`.
+
+    Deux transports, pour deux usages :
+
+    - **stdio** (défaut) — le client démarre le serveur lui-même. C'est le mode
+      des clients de bureau : Claude Desktop, Cursor, VS Code. Rien n'écoute
+      sur le réseau.
+    - **streamable-http** — le serveur écoute, le client s'y connecte. C'est ce
+      qu'exigent les clients qui ne lancent pas de processus local, ChatGPT par
+      exemple.
+
+    Le mode HTTP n'a AUCUNE authentification : il est prévu pour la machine de
+    l'utilisateur ou un tunnel maîtrisé, pas pour une exposition publique. Le
+    serveur MCP distant, authentifié et multi-locataire, relève de l'édition
+    commerciale.
+    """
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        prog="hydra-mcp",
+        description="Serveur MCP de Hydra — expose le moteur à un agent IA.")
+    ap.add_argument("--transport", choices=["stdio", "streamable-http", "sse"],
+                    default="stdio",
+                    help="stdio pour un client de bureau, streamable-http pour "
+                         "un client distant")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="adresse d'écoute en mode HTTP (défaut : locale)")
+    ap.add_argument("--port", type=int, default=8787)
+    ap.add_argument("--workspace", default="",
+                    help="dossier de travail ; équivaut à HYDRA_MCP_WORKSPACE")
+    args = ap.parse_args()
+
+    if args.workspace:
+        os.environ["HYDRA_MCP_WORKSPACE"] = args.workspace
+
+    server = build_server()
+    if args.transport == "stdio":
+        server.run(transport="stdio")
+        return
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(f"Attention : écoute sur {args.host}, sans authentification. "
+              f"N'exposez pas ce port publiquement.", file=sys.stderr)
+    # Le SDK 2.x ne porte plus host/port dans les réglages : ils se passent
+    # au lancement, et sont relayés à l'application ASGI.
+    server.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

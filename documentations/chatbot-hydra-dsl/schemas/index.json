@@ -14,19 +14,37 @@
     "ssh",
     "webhook"
   ],
+  "connectorCount": 9,
+  "connectors": [
+    "csv",
+    "json",
+    "mariadb",
+    "mongodb",
+    "mysql",
+    "parquet",
+    "postgres",
+    "postgresql",
+    "web_api"
+  ],
   "dslVersion": "1.0",
   "generatedBy": "tools/spec_export.py",
   "generatedFrom": "Pydantic model_json_schema(mode='validation') + AST du runner",
   "manifestCount": 5,
   "operationCount": 18,
   "productVersion": "0.9.6",
-  "schemaCount": 24,
+  "schemaCount": 25,
   "schemas": [
     {
       "dslName": "actions",
       "kind": "actions",
       "path": "actions.schema.json",
       "sourceModel": "hydra_etl.workflow.runner.action_handlers"
+    },
+    {
+      "dslName": "connectors",
+      "kind": "connectors",
+      "path": "connectors.schema.json",
+      "sourceModel": "hydra_etl.internal.connector.registry.CONNECTOR_REGISTRY"
     },
     {
       "dslName": "destinations",

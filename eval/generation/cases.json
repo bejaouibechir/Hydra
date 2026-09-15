@@ -1,0 +1,200 @@
+{
+  "datasetVersion": "1.0",
+  "purpose": "Evaluer la GENERATION de manifestes Hydra a partir d'une demande en langage naturel. Distinct du jeu chatbot pedagogique (evaluation/eval-dataset.json), qui evalue l'explication, pas la generation.",
+  "dslVersion": "1.0",
+  "productVersion": "0.9.6",
+  "scoring": {
+    "validite": "hdrctl validate passe sur le job genere",
+    "exactitude": "structure attendue presente : types de connecteurs, operations, cablage from/to",
+    "sobriete": "aucune cle hors schema, aucune operation hors des 18, aucune action hors des 11, aucun conteneur"
+  },
+  "globalForbidden": {
+    "reason": "Les conteneurs (sequence, errorscope, retryscope) sont une notion de Hydra Studio. Ils n'existent PAS dans le DSL et ne doivent jamais apparaitre dans un manifeste.",
+    "keys": ["container", "containers", "sequence", "errorscope", "retryscope", "scope", "group"]
+  },
+  "cases": [
+    {
+      "id": "gen-001", "level": "simple",
+      "prompt": "J'ai un fichier ventes.csv. Copie-le tel quel dans sortie.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "pipeline.yaml"], "sourceTypes": ["csv"], "destType": "csv", "destMode": "replace", "ops": [], "wiring": true}
+    },
+    {
+      "id": "gen-002", "level": "simple",
+      "prompt": "Depuis clients.csv, ne garde que les colonnes id, nom et email, et ecris le resultat dans clients_light.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "sourceTypes": ["csv"], "destType": "csv", "ops": ["select"], "wiring": true}
+    },
+    {
+      "id": "gen-003", "level": "simple",
+      "prompt": "Lis produits.json et ecris-le en Parquet dans produits.parquet.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "pipeline.yaml"], "sourceTypes": ["json"], "destType": "parquet", "ops": [], "wiring": true}
+    },
+    {
+      "id": "gen-004", "level": "simple",
+      "prompt": "Renomme la colonne 'montant' en 'amount' dans commandes.csv et sauvegarde dans commandes_en.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["rename"], "wiring": true}
+    },
+    {
+      "id": "gen-005", "level": "simple",
+      "prompt": "Supprime les doublons de contacts.csv et ecris contacts_uniques.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["deduplicate"], "wiring": true}
+    },
+    {
+      "id": "gen-006", "level": "simple",
+      "prompt": "Trie stock.csv par quantite decroissante vers stock_trie.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["sort"], "wiring": true}
+    },
+    {
+      "id": "gen-007", "level": "simple",
+      "prompt": "Dans employes.csv, remplace les valeurs manquantes de la colonne salaire par 0, puis ecris employes_propre.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["fill_null"], "wiring": true}
+    },
+    {
+      "id": "gen-008", "level": "simple",
+      "prompt": "Ajoute les lignes de nouveaux_clients.csv a la fin du fichier existant clients_all.csv, sans l'ecraser.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "pipeline.yaml"], "destMode": "append", "wiring": true}
+    },
+
+    {
+      "id": "gen-010", "level": "intermediaire",
+      "prompt": "Depuis ventes.csv, garde seulement les lignes dont le montant depasse 100, puis ecris ventes_filtrees.csv. Attention, le CSV ne porte aucun type.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["cast", "filter"], "opsOrdered": true, "wiring": true},
+      "note": "Le cast doit preceder la comparaison numerique. C'est le piege principal du DSL."
+    },
+    {
+      "id": "gen-011", "level": "intermediaire",
+      "prompt": "Calcule le chiffre d'affaires total par pays depuis commandes.csv et ecris ca_par_pays.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["cast", "aggregate"], "opsOrdered": true, "wiring": true}
+    },
+    {
+      "id": "gen-012", "level": "intermediaire",
+      "prompt": "Depuis factures.csv, ajoute une colonne prix_unitaire egale au montant divise par la quantite, puis ecris factures_pu.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["cast", "calculate"], "opsOrdered": true, "wiring": true}
+    },
+    {
+      "id": "gen-013", "level": "intermediaire",
+      "prompt": "Nettoie la colonne nom de clients.csv en minuscules, supprime les espaces en trop, et ecris clients_normalises.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["clean"], "opsAny": ["trim", "clean"], "wiring": true}
+    },
+    {
+      "id": "gen-014", "level": "intermediaire",
+      "prompt": "Depuis logs.csv, garde les colonnes date, niveau et message, filtre sur niveau = ERROR, et ecris erreurs.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["select", "filter"], "opsOrdered": true, "wiring": true}
+    },
+    {
+      "id": "gen-015", "level": "intermediaire",
+      "prompt": "Depuis mesures.csv, convertis temperature en float et horodatage en datetime, puis ecris mesures_typees.parquet.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "destType": "parquet", "ops": ["cast"], "wiring": true}
+    },
+    {
+      "id": "gen-016", "level": "intermediaire",
+      "prompt": "Compte le nombre de commandes par statut depuis commandes.csv et classe du plus frequent au moins frequent. Sortie : stats_statut.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["aggregate", "sort"], "opsOrdered": true, "wiring": true}
+    },
+
+    {
+      "id": "gen-020", "level": "compose",
+      "prompt": "J'ai commandes.csv et clients.csv. Associe chaque commande a son client par customer_id, garde toutes les commandes meme sans client, et ecris commandes_enrichies.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "sourceCount": 2, "ops": ["join"], "wiring": true},
+      "note": "Deux sources declarees ; la seconde est referencee par 'right' dans l'operation join."
+    },
+    {
+      "id": "gen-021", "level": "compose",
+      "prompt": "Empile les lignes de ventes_2025.csv et ventes_2026.csv dans un seul fichier ventes_total.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "sourceCount": 2, "ops": ["union"], "wiring": true}
+    },
+    {
+      "id": "gen-022", "level": "compose",
+      "prompt": "Depuis ventes.csv, produis un tableau croise avec les mois en lignes, les regions en colonnes, et la somme des montants dans les cellules. Sortie : tableau_croise.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["cast", "pivot"], "opsOrdered": true, "wiring": true}
+    },
+    {
+      "id": "gen-023", "level": "compose",
+      "prompt": "Le fichier budget.csv a une colonne par mois. Transforme-le en format long avec une ligne par couple (poste, mois). Sortie : budget_long.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "ops": ["unpivot"], "wiring": true}
+    },
+    {
+      "id": "gen-024", "level": "compose",
+      "prompt": "Depuis commandes.csv et clients.csv : joins-les sur customer_id, filtre les montants superieurs a 50, agrege le total par pays, trie par total decroissant. Sortie : top_pays.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "sourceCount": 2, "ops": ["cast", "join", "filter", "aggregate", "sort"], "opsOrdered": false, "wiring": true}
+    },
+
+    {
+      "id": "gen-030", "level": "base_de_donnees",
+      "prompt": "Charge la table clients d'une base PostgreSQL et ecris-la dans clients.csv.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "pipeline.yaml"], "sourceTypes": ["postgres", "postgresql"], "destType": "csv", "wiring": true}
+    },
+    {
+      "id": "gen-031", "level": "base_de_donnees",
+      "prompt": "Depuis produits.csv, charge les donnees dans la table produits d'une base MySQL, en mettant a jour les lignes existantes sur la cle id.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "pipeline.yaml"], "sourceTypes": ["csv"], "destType": "mysql", "destTypeAlt": ["mariadb"], "destMode": "upsert", "wiring": true}
+    },
+    {
+      "id": "gen-032", "level": "base_de_donnees",
+      "prompt": "Extrais la collection commandes de MongoDB, garde les commandes de 2026, et ecris commandes_2026.parquet.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "transformations.yaml", "pipeline.yaml"], "sourceTypes": ["mongodb"], "destType": "parquet", "ops": ["filter"], "wiring": true}
+    },
+    {
+      "id": "gen-033", "level": "base_de_donnees",
+      "prompt": "Appelle une API web qui renvoie des utilisateurs en JSON et stocke le resultat dans une table PostgreSQL, en remplacant le contenu existant.",
+      "expect": {"files": ["sources.yaml", "destinations.yaml", "pipeline.yaml"], "sourceTypes": ["web_api"], "destType": "postgres", "destMode": "replace", "wiring": true}
+    },
+    {
+      "id": "gen-034", "level": "base_de_donnees",
+      "prompt": "Un secret de connexion ne doit jamais apparaitre en clair. Ecris un source PostgreSQL dont le mot de passe vient de l'environnement.",
+      "expect": {"files": ["sources.yaml"], "sourceTypes": ["postgres", "postgresql"], "mustContain": ["env:", "${"], "wiring": false},
+      "note": "Verifie l'usage de {{ env:NAME }} plutot qu'un mot de passe litteral."
+    },
+
+    {
+      "id": "gen-040", "level": "workflow",
+      "prompt": "Ecris un workflow qui execute le job ./jobs/extract, puis ./jobs/transform une fois l'extraction terminee.",
+      "expect": {"files": ["workflow.yaml"], "workflow": {"stepCount": 2, "hasDependsOn": true, "stepTypes": ["job"]}}
+    },
+    {
+      "id": "gen-041", "level": "workflow",
+      "prompt": "Workflow quotidien a 8h du matin : execute ./jobs/daily, puis envoie un webhook de notification.",
+      "expect": {"files": ["workflow.yaml"], "workflow": {"stepCount": 2, "triggerType": "schedule", "hasCron": true, "actions": ["webhook"]}}
+    },
+    {
+      "id": "gen-042", "level": "workflow",
+      "prompt": "Workflow ou le job ./jobs/fragile est retente trois fois avec cinq secondes d'attente, et ou l'echec n'interrompt pas la suite.",
+      "expect": {"files": ["workflow.yaml"], "workflow": {"hasRetry": true, "onFailure": ["skip", "continue"]}}
+    },
+    {
+      "id": "gen-043", "level": "workflow",
+      "prompt": "Workflow avec trois jobs : extract, puis transform_a et transform_b qui dependent tous deux d'extract et peuvent tourner en parallele, puis load qui attend les deux.",
+      "expect": {"files": ["workflow.yaml"], "workflow": {"stepCount": 4, "hasFanIn": true}}
+    },
+
+    {
+      "id": "adv-050", "level": "adversarial",
+      "prompt": "Mets les trois jobs dans un conteneur Sequence pour alleger la scene, et serialise-le dans le workflow.",
+      "expect": {"mustRefuse": true},
+      "note": "Piege : les conteneurs sont une notion du Studio, absente du DSL. Le modele doit l'expliquer, pas inventer une cle."
+    },
+    {
+      "id": "adv-051", "level": "adversarial",
+      "prompt": "Lis un fichier depuis un bucket S3 et ecris-le dans BigQuery.",
+      "expect": {"mustRefuse": true},
+      "note": "Ni S3 ni BigQuery ne sont des connecteurs Hydra. Le modele doit le dire au lieu d'inventer un type."
+    },
+    {
+      "id": "adv-052", "level": "adversarial",
+      "prompt": "Ajoute une action 'teams' dans le workflow pour notifier l'equipe.",
+      "expect": {"mustRefuse": true},
+      "note": "L'action n'existe pas. Aggravant : a l'execution elle serait ignoree silencieusement et le step compte comme reussi (anomalie A1)."
+    },
+    {
+      "id": "adv-053", "level": "adversarial",
+      "prompt": "Distribue l'execution de ce job sur un cluster de dix machines.",
+      "expect": {"mustRefuse": true},
+      "note": "Hydra est mono-machine par conception. Limite assumee, doit etre enoncee."
+    },
+    {
+      "id": "adv-054", "level": "adversarial",
+      "prompt": "Ecris une operation 'lowercase' pour passer la colonne nom en minuscules.",
+      "expect": {"mustRefuse": true},
+      "note": "L'operation n'existe pas sous ce nom ; c'est 'clean' avec case: lower. Le modele doit rediriger, pas inventer."
+    }
+  ]
+}

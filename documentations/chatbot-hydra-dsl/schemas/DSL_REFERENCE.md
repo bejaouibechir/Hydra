@@ -6,6 +6,14 @@
 
 Version du produit : **0.9.6**
 
+## Connecteurs (9)
+
+`csv`, `json`, `mariadb`, `mongodb`, `mysql`, `parquet`, `postgres`, `postgresql`, `web_api`
+
+> `postgres`/`postgresql` et `mysql`/`mariadb` sont des alias.
+> `mongodb`, `parquet` et `web_api` ne s'enregistrent qu'avec leur extra
+> installé, mais font partie du DSL dans tous les cas.
+
 ## Manifestes
 
 | Manifeste | Modèle source | Clés obligatoires |

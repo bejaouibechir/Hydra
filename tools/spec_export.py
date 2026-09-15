@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT))
 
 DEFAULT_OUT = ROOT / "documentations" / "chatbot-hydra-dsl" / "schemas"
 RUNNER_PY = ROOT / "hydra_etl" / "workflow" / "runner.py"
+REGISTRY_PY = ROOT / "hydra_etl" / "internal" / "connector" / "registry.py"
 
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
@@ -94,6 +95,41 @@ def dsl_version() -> str:
         return "1.0"
 
 
+def discover_connectors() -> list[str]:
+    """
+    Types de connecteurs, extraits par analyse syntaxique de CONNECTOR_REGISTRY.
+
+    L'analyse statique est volontaire : à l'exécution, les connecteurs à
+    dépendances optionnelles (mongodb, parquet, web_api) ne s'enregistrent que
+    si leur extra est installé. La spécification, elle, doit lister TOUS les
+    types du DSL, quelle que soit l'installation locale.
+    """
+    tree = ast.parse(REGISTRY_PY.read_text(encoding="utf-8"))
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        # CONNECTOR_REGISTRY = { "csv": ..., ... }
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names = [t.id for t in targets if isinstance(t, ast.Name)]
+            if "CONNECTOR_REGISTRY" in names and isinstance(node.value, ast.Dict):
+                found.update(
+                    k.value for k in node.value.keys
+                    if isinstance(k, ast.Constant) and isinstance(k.value, str)
+                )
+        # CONNECTOR_REGISTRY["mongodb"] = ...
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if (isinstance(t, ast.Subscript)
+                        and isinstance(t.value, ast.Name)
+                        and t.value.id == "CONNECTOR_REGISTRY"
+                        and isinstance(t.slice, ast.Constant)
+                        and isinstance(t.slice.value, str)):
+                    found.add(t.slice.value)
+    if not found:
+        raise RuntimeError("CONNECTOR_REGISTRY introuvable — corriger spec_export.py.")
+    return sorted(found)
+
+
 def product_version() -> str:
     try:
         import hydra_etl
@@ -148,6 +184,32 @@ def actions_schema(actions: list[str]) -> Dict[str, Any]:
     }
 
 
+def connectors_schema(connectors: list[str]) -> Dict[str, Any]:
+    return {
+        "$schema": JSON_SCHEMA_DIALECT,
+        "title": "Hydra connector types",
+        "description": (
+            "Valeurs admises pour la clé 'type' d'une source ou d'une "
+            "destination. Le modèle Pydantic accepte une chaîne libre : seul le "
+            "registre fait foi, et un type inconnu n'échoue qu'à l'exécution. "
+            "Cette énumération existe pour contraindre la génération en amont."
+        ),
+        "type": "string",
+        "enum": connectors,
+        "x-hydra": {
+            "dslName": "connectors",
+            "dslVersion": dsl_version(),
+            "kind": "connectors",
+            "productVersion": product_version(),
+            "sourceModel": "hydra_etl.internal.connector.registry.CONNECTOR_REGISTRY",
+            "note": (
+                "mongodb, parquet et web_api ne s'enregistrent que si leur "
+                "extra est installé ; ils font partie du DSL dans tous les cas."
+            ),
+        },
+    }
+
+
 def build(out: Path) -> Dict[str, str]:
     """Retourne {chemin relatif: contenu JSON/markdown}."""
     files: Dict[str, str] = {}
@@ -158,6 +220,7 @@ def build(out: Path) -> Dict[str, str]:
     manifests = discover_manifests()
     operations = discover_operations()
     actions = discover_actions()
+    connectors = discover_connectors()
 
     index_entries = []
 
@@ -178,6 +241,11 @@ def build(out: Path) -> Dict[str, str]:
         })
 
     dump("actions.schema.json", actions_schema(actions))
+    dump("connectors.schema.json", connectors_schema(connectors))
+    index_entries.append({
+        "kind": "connectors", "dslName": "connectors", "path": "connectors.schema.json",
+        "sourceModel": "hydra_etl.internal.connector.registry.CONNECTOR_REGISTRY",
+    })
     index_entries.append({
         "kind": "actions", "dslName": "actions", "path": "actions.schema.json",
         "sourceModel": "hydra_etl.workflow.runner.action_handlers",
@@ -193,16 +261,18 @@ def build(out: Path) -> Dict[str, str]:
         "manifestCount": len(manifests),
         "operationCount": len(operations),
         "actionCount": len(actions),
+        "connectorCount": len(connectors),
+        "connectors": connectors,
         "schemaCount": len(index_entries),
         "actions": actions,
         "schemas": sorted(index_entries, key=lambda e: (e["kind"], e["dslName"])),
     })
 
-    files["DSL_REFERENCE.md"] = reference_markdown(manifests, operations, actions)
+    files["DSL_REFERENCE.md"] = reference_markdown(manifests, operations, actions, connectors)
     return files
 
 
-def reference_markdown(manifests, operations, actions) -> str:
+def reference_markdown(manifests, operations, actions, connectors) -> str:
     def required_of(model) -> str:
         req = model.model_json_schema(mode="validation").get("required", [])
         return ", ".join(f"`{r}`" for r in req) if req else "—"
@@ -215,6 +285,14 @@ def reference_markdown(manifests, operations, actions) -> str:
         "> code, puis on régénère.",
         "",
         f"Version du produit : **{product_version()}**",
+        "",
+        f"## Connecteurs ({len(connectors)})",
+        "",
+        ", ".join(f"`{c}`" for c in connectors),
+        "",
+        "> `postgres`/`postgresql` et `mysql`/`mariadb` sont des alias.",
+        "> `mongodb`, `parquet` et `web_api` ne s'enregistrent qu'avec leur extra",
+        "> installé, mais font partie du DSL dans tous les cas.",
         "",
         "## Manifestes",
         "",
@@ -281,6 +359,7 @@ def main() -> int:
     print(f"  manifestes : {len(discover_manifests())}")
     print(f"  operations : {len(discover_operations())}")
     print(f"  actions    : {len(discover_actions())}")
+    print(f"  connecteurs: {len(discover_connectors())}")
     return 0
 
 

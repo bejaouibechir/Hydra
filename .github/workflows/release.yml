@@ -106,4 +106,13 @@ jobs:
         with:
           name: dist
           path: dist/
+      # Deux voies, dans cet ordre :
+      #  - si le secret PYPI_API_TOKEN existe, il est utilisé ;
+      #  - sinon, l'action retombe sur le Trusted Publishing (OIDC), qui exige
+      #    d'avoir déclaré ce dépôt, ce fichier et l'environnement `pypi` sur
+      #    pypi.org/manage/project/hydra-etl/settings/publishing/
+      # Le jeton dépanne quand l'accès au compte PyPI est perdu ; l'éditeur de
+      # confiance reste préférable à terme, car il n'expire pas et ne se vole pas.
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

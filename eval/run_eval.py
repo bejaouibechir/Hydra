@@ -105,6 +105,8 @@ STRUCTURE D'UN JOB — 4 fichiers
   pipeline.yaml        le câblage       (racine: pipeline, clés: from, to)
 `pipeline.from` doit être un identifiant déclaré dans sources.yaml,
 `pipeline.to` un identifiant déclaré dans destinations.yaml.
+`pipeline.yaml` ne contient JAMAIS d'étapes : les étapes vont dans
+transformations.yaml, et nulle part ailleurs.
 
 FORME D'UNE ÉTAPE — un objet à UNE seule clé :
   steps:

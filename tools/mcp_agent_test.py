@@ -209,10 +209,14 @@ async def run_scenario(session: ClientSession, tools: list[dict],
     appeles: list[str] = []
     final = ""
 
-    for _ in range(args.max_steps):
+    for tour in range(args.max_steps):
+        depart = time.monotonic()
+        print(f"      tour {tour + 1} — le modèle réfléchit…", end="", flush=True)
         try:
             message = chat(args, messages, tools)
+            print(f" {time.monotonic() - depart:.0f}s")
         except (urllib.error.URLError, OSError, RuntimeError) as exc:
+            print()
             return {"titre": titre, "erreur": f"{exc}",
                     "appeles": appeles, "final": ""}
 
@@ -226,6 +230,8 @@ async def run_scenario(session: ClientSession, tools: list[dict],
                          "tool_calls": message.get("tool_calls")})
         for call in calls:
             appeles.append(call["name"])
+            params = ", ".join(f"{k}={str(v)[:24]}" for k, v in call["arguments"].items())
+            print(f"      → {call['name']}({params[:80]})")
             try:
                 result = await session.call_tool(call["name"], call["arguments"])
                 texte = "\n".join(c.text for c in result.content
@@ -305,7 +311,8 @@ def main() -> int:
     ap.add_argument("--workspace", default=str(ROOT / "test_scenarios"))
     ap.add_argument("--scenario", type=int, default=0,
                     help="ne jouer qu'un scénario (1 à 6)")
-    ap.add_argument("--max-steps", type=int, default=8)
+    ap.add_argument("--max-steps", type=int, default=8,
+                    help="tours de conversation maximum par scénario")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--dump-tools", action="store_true",
                     help="afficher les schémas envoyés au modèle, puis quitter")

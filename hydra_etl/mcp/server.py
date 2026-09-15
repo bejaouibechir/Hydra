@@ -49,6 +49,8 @@ SCHEMAS = ROOT / "documentations" / "chatbot-hydra-dsl" / "schemas"
 JOB_FILES = ("sources.yaml", "transformations.yaml",
              "destinations.yaml", "pipeline.yaml")
 
+CORPUS = ROOT / "eval" / "corpus" / "corpus.jsonl"
+
 
 # ---------------------------------------------------------------------------
 # Racine de travail : l'agent ne sort pas du dossier autorisé
@@ -166,6 +168,61 @@ def _hdrctl(*args: str) -> tuple[bool, str]:
                 and "devops edition" not in l.lower()
             )
     return ok, output
+
+
+def _outputs_summary(job_dir: Path) -> str:
+    """
+    Décrit ce que le job a produit : fichier, lignes, colonnes.
+
+    Sans cela, l'agent ne dispose que d'un journal d'exécution — de quoi dire
+    « ça a marché », pas de quoi rédiger un rapport ni repérer une incohérence
+    (zéro ligne écrite, par exemple, alors que la source en contenait).
+    """
+    manifest = job_dir / "destinations.yaml"
+    if not manifest.exists():
+        return ""
+    try:
+        doc = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
+        dests = doc.get("destinations") or {}
+    except Exception:
+        return ""
+
+    lignes = []
+    for name, defn in dests.items():
+        if not isinstance(defn, dict):
+            continue
+        load = defn.get("load") or {}
+        table = load.get("table")
+        if not table:
+            continue
+        if defn.get("type") not in ("csv", "json", "parquet"):
+            lignes.append(f"- {name} : {defn.get('type')} → {table}")
+            continue
+        path = (job_dir / str(table)) if not Path(str(table)).is_absolute() else Path(str(table))
+        if not path.exists():
+            lignes.append(f"- {name} : {table} — fichier introuvable après exécution")
+            continue
+        try:
+            import pandas as pd
+            if path.suffix.lower() == ".csv":
+                df = pd.read_csv(path)
+            elif path.suffix.lower() == ".json":
+                df = pd.read_json(path)
+            else:
+                df = pd.read_parquet(path)
+            lignes.append(
+                f"- {name} : {table} — {len(df)} lignes, {len(df.columns)} colonnes "
+                f"({', '.join(map(str, df.columns[:8]))})"
+            )
+            if len(df) == 0:
+                lignes.append("  ATTENTION : zéro ligne écrite. Un filtre est "
+                              "probablement trop strict, ou le `cast` manque.")
+        except Exception as exc:
+            lignes.append(f"- {name} : {table} — lecture impossible ({type(exc).__name__})")
+
+    if not lignes:
+        return ""
+    return "\n\nRésultat produit :\n" + "\n".join(lignes)
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +428,9 @@ def build_server() -> Any:
         except ValueError as exc:
             return f"REFUSÉ — {exc}"
         ok, output = _hdrctl("run", str(d))
-        return ("EXÉCUTION RÉUSSIE\n" if ok else "ÉCHEC\n") + output
+        if not ok:
+            return "ÉCHEC\n" + output
+        return "EXÉCUTION RÉUSSIE\n" + output + _outputs_summary(d)
 
     @server.tool(
         description=(
@@ -401,6 +460,238 @@ def build_server() -> Any:
             found = ["Aucune règle connue ne correspond. Relis le schéma de "
                      "l'élément concerné avec hydra_describe_operation."]
         return "\n".join(f"- {h}" for h in found)
+
+    # -- Workflows -----------------------------------------------------------
+
+    @server.tool(
+        description=(
+            "Liste les workflows du dossier de travail. Un workflow orchestre "
+            "plusieurs jobs : dépendances, exécution parallèle, re-tentatives, "
+            "déclenchement par cron. À utiliser dès que la demande enchaîne "
+            "plusieurs jobs."
+        )
+    )
+    def hydra_list_workflows() -> str:
+        base = workspace()
+        found = []
+        for f in base.rglob("*.yaml"):
+            if f.name in JOB_FILES or "_archive" in f.parts or "_backups" in f.parts:
+                continue
+            try:
+                doc = yaml.safe_load(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(doc, dict) and "workflow" in doc:
+                found.append(f.relative_to(base).as_posix())
+        return "\n".join(sorted(found)) or "Aucun workflow trouvé."
+
+    @server.tool(description="Lit un fichier workflow.yaml existant.")
+    def hydra_read_workflow(workflow_path: str) -> str:
+        try:
+            f = safe_path(workflow_path)
+        except ValueError as exc:
+            return f"REFUSÉ — {exc}"
+        if not f.is_file():
+            return f"Fichier introuvable : {workflow_path}"
+        return f.read_text(encoding="utf-8")
+
+    @server.tool(
+        description=(
+            "Écrit un workflow, APRÈS validation. Un step vaut soit "
+            "type='job' avec le chemin d'un dossier de job, soit "
+            "type='action'. `depends_on` est TOUJOURS une liste : les steps "
+            "sans dépendance commune s'exécutent en parallèle. Si la "
+            "validation échoue, rien n'est écrit."
+        )
+    )
+    def hydra_write_workflow(workflow_path: str, workflow_yaml: str) -> str:
+        import shutil
+        import tempfile
+
+        try:
+            yaml.safe_load(workflow_yaml)
+        except Exception as exc:
+            return f"REFUSÉ — le YAML est invalide : {exc}"
+
+        tmp = Path(tempfile.mkdtemp(prefix="hydra_mcp_wf_"))
+        try:
+            candidate = tmp / "workflow.yaml"
+            candidate.write_text(workflow_yaml, encoding="utf-8")
+            ok, output = _hdrctl("workflow", "validate", str(candidate))
+            if not ok:
+                return ("REFUSÉ — rien n'a été écrit. Le validateur signale :\n"
+                        + output)
+            try:
+                target = safe_path(workflow_path)
+            except ValueError as exc:
+                return f"REFUSÉ — {exc}"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(workflow_yaml, encoding="utf-8")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        return (f"ÉCRIT : {workflow_path}. Le workflow est valide et n'a pas "
+                f"été exécuté.")
+
+    @server.tool(
+        description=(
+            "Exécute un workflow et renvoie le déroulé, step par step. "
+            "N'appelle cet outil que si l'utilisateur a demandé l'exécution."
+        )
+    )
+    def hydra_run_workflow(workflow_path: str) -> str:
+        try:
+            f = safe_path(workflow_path)
+        except ValueError as exc:
+            return f"REFUSÉ — {exc}"
+        ok, output = _hdrctl("workflow", "run", str(f))
+        return ("EXÉCUTION RÉUSSIE\n" if ok else "ÉCHEC\n") + output
+
+    # -- Voir les données ----------------------------------------------------
+
+    @server.tool(
+        description=(
+            "Montre les colonnes et les premières lignes d'un fichier de "
+            "données (CSV, JSON, Parquet). À appeler AVANT d'écrire un job, "
+            "pour connaître les vrais noms de colonnes au lieu de les "
+            "deviner — et APRÈS une exécution, pour vérifier le résultat."
+        )
+    )
+    def hydra_preview_data(file_path: str, rows: int = 5) -> str:
+        try:
+            f = safe_path(file_path)
+        except ValueError as exc:
+            return f"REFUSÉ — {exc}"
+        if not f.is_file():
+            return f"Fichier introuvable : {file_path}"
+        try:
+            import pandas as pd
+        except ModuleNotFoundError:
+            return "pandas est requis pour prévisualiser des données."
+
+        rows = max(1, min(int(rows), 50))
+        suffix = f.suffix.lower()
+        try:
+            if suffix == ".csv":
+                df = pd.read_csv(f, nrows=rows)
+                total = sum(1 for _ in f.open(encoding="utf-8", errors="replace")) - 1
+            elif suffix == ".json":
+                df = pd.read_json(f).head(rows)
+                total = None
+            elif suffix in (".parquet", ".pq"):
+                df = pd.read_parquet(f).head(rows)
+                total = None
+            else:
+                return (f"Format non pris en charge : {suffix}. "
+                        "Formats lisibles : .csv, .json, .parquet")
+        except Exception as exc:
+            return f"Lecture impossible : {type(exc).__name__}: {exc}"
+
+        cols = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns)
+        head = df.to_string(index=False, max_colwidth=30)
+        compte = f"\nLignes au total : {total}" if total is not None else ""
+        return (f"Fichier : {file_path}\nColonnes : {cols}{compte}\n\n"
+                f"{rows} premières lignes :\n{head}\n\n"
+                "Rappel : un CSV ne porte aucun type. Les types ci-dessus sont "
+                "déduits par la lecture, pas garantis — place un `cast` avant "
+                "toute comparaison numérique.")
+
+    # -- Vérifier la cohérence avec la demande -------------------------------
+
+    @server.tool(
+        description=(
+            "Vérifie qu'un job fait bien ce que l'utilisateur a demandé. "
+            "Complète hydra_validate_job : celui-ci dit si le YAML est "
+            "correct, celui-là si le job répond à la demande. Douze règles "
+            "déterministes : opération réclamée mais absente, comparaison "
+            "numérique sans `cast`, mode de chargement contredit, extension "
+            "incohérente, secret en clair, technologie non prise en charge. "
+            "À appeler APRÈS avoir écrit un job, avant de le présenter."
+        )
+    )
+    def hydra_check_job(user_request: str, job_path: str) -> str:
+        from hydra_etl.ai.guards import check
+
+        try:
+            d = safe_path(job_path)
+        except ValueError as exc:
+            return f"REFUSÉ — {exc}"
+        if not d.is_dir():
+            return f"Dossier introuvable : {job_path}"
+
+        files, docs = {}, {}
+        for name in (*JOB_FILES, "workflow.yaml"):
+            f = d / name
+            if not f.exists():
+                continue
+            text = f.read_text(encoding="utf-8")
+            files[name] = text
+            try:
+                docs[name] = yaml.safe_load(text)
+            except Exception:
+                docs[name] = None
+
+        alerts = check(user_request, files, docs)
+        if not alerts:
+            return ("AUCUNE ALERTE — le job paraît conforme à la demande. "
+                    "Présente-le à l'utilisateur.")
+        return ("ALERTES — à examiner avant de présenter le job :\n"
+                + "\n".join(f"- {a}" for a in alerts))
+
+    # -- S'inspirer des jobs existants ---------------------------------------
+
+    @server.tool(
+        description=(
+            "Trouve, parmi les jobs Hydra réels, ceux qui ressemblent le plus "
+            "à la demande, et renvoie leurs manifestes. À appeler AVANT "
+            "d'écrire un job inhabituel : un exemple qui tourne vaut mieux "
+            "qu'une reconstitution de mémoire."
+        )
+    )
+    def hydra_find_example(user_request: str, count: int = 2) -> str:
+        from hydra_etl.ai.guards import OP_HINTS, _norm
+
+        if not CORPUS.exists():
+            return ("Aucun corpus d'exemples. Générez-le avec "
+                    "`python eval/corpus/harvest.py`.")
+
+        besoin = {op for op, hints in OP_HINTS.items()
+                  if any(h in _norm(user_request) for h in hints)}
+
+        entries = []
+        for line in CORPUS.read_text(encoding="utf-8").splitlines():
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            if not e.get("valid") or e.get("expectedInvalid"):
+                continue
+            ops = set(e.get("features", {}).get("ops", []))
+            score = len(besoin & ops) * 10
+
+            # Sans indice d'opération, on retombe sur les mots de la demande :
+            # un modèle qui demande « postgres » doit voir un exemple postgres.
+            if not besoin:
+                blob = json.dumps(e, ensure_ascii=False).lower()
+                score = sum(2 for mot in _norm(user_request).split()
+                            if len(mot) > 4 and mot in blob)
+
+            # Un job vaut mieux qu'un workflow quand rien n'indique le contraire.
+            if e.get("kind") == "job":
+                score += 3
+            score -= abs(len(ops) - len(besoin))
+            entries.append((score, len(json.dumps(e)), e))
+
+        if not entries:
+            return "Aucun exemple exploitable dans le corpus."
+        entries.sort(key=lambda t: (-t[0], t[1]))   # meilleur score, puis plus court
+
+        count = max(1, min(int(count), 3))
+        out = []
+        for _, _, e in entries[:count]:
+            manifests = "\n".join(f"# {n}\n{c}" for n, c in e["manifests"].items())
+            out.append(f"### Exemple : {e['id']}\n{manifests}")
+        return "\n\n".join(out)
 
     return server
 

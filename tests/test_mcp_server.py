@@ -158,3 +158,102 @@ def test_erreur_expliquee_en_clair(call):
     out = call("hydra_explain_error",
                error_message="pipeline.from='x' not found in sources.yaml")
     assert "sources.yaml" in out
+
+
+# --- Workflows --------------------------------------------------------------
+
+WORKFLOW_OK = """version: "1.0"
+workflow:
+  name: quotidien
+  trigger:
+    type: manual
+  steps:
+    - name: extraire
+      type: job
+      job: ./jobs/ventes
+      depends_on: []
+    - name: prevenir
+      type: action
+      action: log
+      params:
+        message: "termine"
+      depends_on: ["extraire"]
+"""
+WORKFLOW_KO = WORKFLOW_OK.replace('action: log', 'action: ""')
+
+
+def test_workflow_valide_ecrit(call):
+    out = call("hydra_write_workflow", workflow_path="wf/quotidien.yaml",
+               workflow_yaml=WORKFLOW_OK)
+    assert out.startswith("ÉCRIT")
+    assert (call.workspace / "wf" / "quotidien.yaml").exists()
+    assert "wf/quotidien.yaml" in call("hydra_list_workflows")
+    assert "quotidien" in call("hydra_read_workflow",
+                               workflow_path="wf/quotidien.yaml")
+
+
+def test_workflow_invalide_refuse_sans_ecrire(call):
+    out = call("hydra_write_workflow", workflow_path="wf/casse.yaml",
+               workflow_yaml=WORKFLOW_KO)
+    assert out.startswith("REFUSÉ")
+    assert not (call.workspace / "wf" / "casse.yaml").exists()
+
+
+def test_workflow_evasion_refusee(call):
+    out = call("hydra_read_workflow", workflow_path="../../secret.yaml")
+    assert out.startswith("REFUSÉ")
+
+
+# --- Voir les données -------------------------------------------------------
+
+def test_preview_montre_colonnes_et_lignes(call):
+    (call.workspace / "ventes.csv").write_text(
+        "id,nom,montant\n1,a,150\n2,b,50\n", encoding="utf-8")
+    out = call("hydra_preview_data", file_path="ventes.csv")
+    assert "montant" in out and "150" in out
+    assert "cast" in out.lower()          # le piege des types est rappele
+
+
+def test_preview_refuse_hors_espace(call):
+    assert call("hydra_preview_data",
+                file_path="../../../etc/passwd").startswith("REFUSÉ")
+
+
+# --- Coherence avec la demande ---------------------------------------------
+
+def test_check_job_signale_une_operation_absente(call):
+    call("hydra_write_job", job_path="jobs/sans_tri", sources_yaml=SOURCES,
+         destinations_yaml=DESTINATIONS, pipeline_yaml=PIPELINE_OK)
+    out = call("hydra_check_job",
+               user_request="trie les ventes par montant decroissant",
+               job_path="jobs/sans_tri")
+    assert out.startswith("ALERTES")
+    assert "sort" in out
+
+
+def test_check_job_signale_un_connecteur_absent(call):
+    call("hydra_write_job", job_path="jobs/en_csv", sources_yaml=SOURCES,
+         destinations_yaml=DESTINATIONS, pipeline_yaml=PIPELINE_OK)
+    out = call("hydra_check_job",
+               user_request="charge le resultat dans postgres",
+               job_path="jobs/en_csv")
+    assert out.startswith("ALERTES")
+    assert "postgres" in out
+
+
+def test_check_job_sans_alerte_quand_conforme(call):
+    call("hydra_write_job", job_path="jobs/simple", sources_yaml=SOURCES,
+         destinations_yaml=DESTINATIONS, pipeline_yaml=PIPELINE_OK)
+    out = call("hydra_check_job",
+               user_request="copie ventes.csv dans sortie.csv",
+               job_path="jobs/simple")
+    assert out.startswith("AUCUNE ALERTE")
+
+
+# --- Exemples ---------------------------------------------------------------
+
+def test_find_example_privilegie_un_job_pertinent(call):
+    out = call("hydra_find_example",
+               user_request="joindre commandes et clients", count=1)
+    assert "### Exemple" in out
+    assert "sources.yaml" in out

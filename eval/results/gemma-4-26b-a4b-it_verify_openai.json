@@ -24,7 +24,7 @@
       "oracle": "",
       "alerts": [],
       "silent": false,
-      "seconds": 2.6,
+      "seconds": 2.5,
       "attempts": 1
     },
     {
@@ -33,27 +33,24 @@
       "prompt": "Depuis clients.csv, ne garde que les colonnes id, nom et email, et ecris le resultat dans clients_light.csv.",
       "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_clients\",\"type\":\"csv\",\"table\":\"clients.csv\"}],\"transformations\":[{\"op\":\"select\",\"params\":{\n  }},{\"op\":\"select\",\"params\":{\n  }}]}\n```",
       "validity": 0.0,
-      "exactness": 0.0,
+      "exactness": 0.5,
       "sobriety": 1.0,
       "refused": false,
       "reason": "",
-      "filesProduced": [],
+      "filesProduced": [
+        "sources.yaml",
+        "transformations.yaml"
+      ],
       "misses": [
-        "sources.yaml manquant",
         "destinations.yaml manquant",
-        "transformations.yaml manquant",
         "pipeline.yaml manquant",
-        "type de source attendu ['csv'], obtenu []",
         "type de destination attendu ['csv'], obtenu []",
-        "opération 'select' absente",
         "câblage incorrect : from=None to=None"
       ],
       "faults": [],
-      "oracle": "",
-      "alerts": [
-        "aucun manifeste produit pour une demande réalisable"
-      ],
-      "silent": false,
+      "oracle": " required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err Pipeline coherence: [Errno 2] No such file or directory: 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\hydra_eval_v73as7_0\\\\pipeline.yaml'\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": true,
       "seconds": 1.9,
       "attempts": 1
     },
@@ -77,7 +74,771 @@
       "oracle": "",
       "alerts": [],
       "silent": false,
+      "seconds": 2.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-004",
+      "level": "simple",
+      "prompt": "Renomme la colonne 'montant' en 'amount' dans commandes.csv et sauvegarde dans commandes_en.csv.",
+      "raw": "{\"kind\": \"job\", \"sources\": [{\"id\": \"src_cmd\", \"type\": \"csv\", \"table\": \"commandes.csv\"}], \"transformations\": [{\"op\": \"rename\", \"params\": {\n  }}, {\"op\": \"rename\", \"params\": {\n  }}], \"destinations\": [{\"id\": \"dst_cmd_en\", \"type\": \"csv\", \"table\": \"commandes_en.csv\", \"mode\": \"replace\"}], \"pipeline\": {\"from\": \"src_cmd\", \"to\": \"dst_mapping_en\"}\n}",
+      "validity": 0.0,
+      "exactness": 0.833,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "câblage incorrect : from=src_cmd to=dst_mapping_en"
+      ],
+      "faults": [],
+      "oracle": " visit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.mapping\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err pipeline.to='dst_mapping_en' not found in destinations.yaml\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": true,
+      "seconds": 3.5,
+      "attempts": 1
+    },
+    {
+      "id": "gen-005",
+      "level": "simple",
+      "prompt": "Supprime les doublons de contacts.csv et ecris contacts_uniques.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 3.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-006",
+      "level": "simple",
+      "prompt": "Trie stock.csv par quantite decroissante vers stock_trie.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_stock\",\"type\":\"csv\",\"table\":\"stock.csv\"}],\"transformations\":[{\"op\":\"sort\",\"params\":{\n  }},{\"op\":\"sort\",\"params\":{\n  }}],\"destinations\":[{\"id\":\"dst_stock_trie\",\"type\":\"csv\",\"table\":\"stock_trie.csv\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_stock\",\"to\":\"dst_trie_stock\"}}\n```",
+      "validity": 0.0,
+      "exactness": 0.833,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "câblage incorrect : from=src_stock to=dst_trie_stock"
+      ],
+      "faults": [],
+      "oracle": "ation visit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.by\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err pipeline.to='dst_trie_stock' not found in destinations.yaml\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": true,
+      "seconds": 3.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-007",
+      "level": "simple",
+      "prompt": "Dans employes.csv, remplace les valeurs manquantes de la colonne salaire par 0, puis ecris employes_propre.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 3.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-008",
+      "level": "simple",
+      "prompt": "Ajoute les lignes de nouveaux_clients.csv a la fin du fichier existant clients_all.csv, sans l'ecraser.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "la demande semble réclamer 'union', absent des étapes",
+        "la demande suggère le mode 'replace', le manifeste utilise ['append']"
+      ],
+      "silent": false,
+      "seconds": 2.5,
+      "attempts": 1
+    },
+    {
+      "id": "gen-010",
+      "level": "intermediaire",
+      "prompt": "Depuis ventes.csv, garde seulement les lignes dont le montant depasse 100, puis ecris ventes_filtrees.csv. Attention, le CSV ne porte aucun type.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_ventes\",\"type\":\"csv\",\"table\":\"ventes.csv\"}],\"transformations\":[{\"op\":\"cast\",\"params\":{\n  }},{\"op\":\"filter\",\"params\":{\n  }}]}\n```",
+      "validity": 0.0,
+      "exactness": 0.625,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "destinations.yaml manquant",
+        "pipeline.yaml manquant",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": " required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err Pipeline coherence: [Errno 2] No such file or directory: 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\hydra_eval_f1ng_t3v\\\\pipeline.yaml'\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [
+        "la demande semble réclamer 'select', absent des étapes"
+      ],
+      "silent": false,
+      "seconds": 2.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-011",
+      "level": "intermediaire",
+      "prompt": "Calcule le chiffre d'affaires total par pays depuis commandes.csv et ecris ca_par_pays.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_commandes\",\"type\":\"csv\",\"table\":\"commandes.csv\"}],\"transformations\":[{\"op\":\"cast\",\"params\":{\n  }},{\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"cast\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":{\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }\n    },\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggregate\",\"params\":\n    {\n    }},\n  {\"op\":\"aggr",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "sources.yaml manquant",
+        "destinations.yaml manquant",
+        "transformations.yaml manquant",
+        "pipeline.yaml manquant",
+        "opération 'cast' absente",
+        "opération 'aggregate' absente",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "aucun manifeste produit pour une demande réalisable"
+      ],
+      "silent": false,
+      "seconds": 26.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-012",
+      "level": "intermediaire",
+      "prompt": "Depuis factures.csv, ajoute une colonne prix_unitaire egale au montant divise par la quantite, puis ecris factures_pu.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_factures\",\"type\":\"csv\",\"table\":\"factures.csv\"}],\"transformations\":[{\"op\":\"calculate\",\"params\":{\n  }},{\"op\":\"calculate\",\"params\":{\n  }}],\"destinations\":[{\"id\":\"dst_factures_pu\",\"type\":\"csv\",\"table\":\"factures_pu.csv\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_factures\",\"to\":\"dst_factures_pu\"}}\n```",
+      "validity": 0.0,
+      "exactness": 0.857,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "opération 'cast' absente"
+      ],
+      "faults": [],
+      "oracle": "missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.expr\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": true,
+      "seconds": 2.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-013",
+      "level": "intermediaire",
+      "prompt": "Nettoie la colonne nom de clients.csv en minuscules, supprime les espaces en trop, et ecris clients_normalises.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "la demande semble réclamer 'clean', absent des étapes"
+      ],
+      "silent": false,
+      "seconds": 2.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-014",
+      "level": "intermediaire",
+      "prompt": "Depuis logs.csv, garde les colonnes date, niveau et message, filtre sur niveau = ERROR, et ecris erreurs.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_logs\",\"type\":\"csv\",\"table\":\"logs.csv\"}],\"transformations\":[{\"op\":\"select\",\"params\":{\n  }},{\"op\":\"filter\",\"params\":{\n  }}],\"destinations\":[{\"id\":\"dst_erreurs\",\"type\":\"csv\",\"table\":\"errueurs.csv\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_logs\",\"to\":\"dst_erreurs\"}}\n```",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.expr\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": false,
+      "seconds": 2.7,
+      "attempts": 1
+    },
+    {
+      "id": "gen-015",
+      "level": "intermediaire",
+      "prompt": "Depuis mesures.csv, convertis temperature en float et horodatage en datetime, puis ecris mesures_typees.parquet.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_mesures\",\"type\":\"csv\",\"table\":\"mesures.csv\"}],\"transformations\":[{\"op\":\"cast\",\"params\":{\n  }},{\"op\":\"cast\",\"params\":{\n  }}],\"destinations\":[{\"id\":\"dst_parquet\",\"type\":\"parquet\",\"table\":\"mesures_typees.parquet\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_  mesures\",\"to\":\"dst_parquet\"}}\n```",
+      "validity": 0.0,
+      "exactness": 0.857,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "câblage incorrect : from=src_  mesures to=dst_parquet"
+      ],
+      "faults": [],
+      "oracle": "tion visit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.mapping\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err pipeline.from='src_  mesures' not found in sources.yaml\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [
+        "l'entrée demandée est en '.parquet' mais la source est de type ['csv']",
+        "la sortie demandée est en '.csv' mais la destination est de type ['parquet']"
+      ],
+      "silent": false,
       "seconds": 2.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-016",
+      "level": "intermediaire",
+      "prompt": "Compte le nombre de commandes par statut depuis commandes.csv et classe du plus frequent au moins frequent. Sortie : stats_statut.csv.",
+      "raw": "{\"kind\": \"job\", \"sources\": [{\"id\": \"src_cmd\", \"type\": \"csv\", \"table\": \"commandes.csv\"}], \"transformations\": [{\"op\": \"cast\", \"params\": {\n  }}, {\"op\": \"aggregate\", \"params\": {\n    }}, {\"op\": \"sort\", \"params\": {\n    }}\n  ], \"destinations\": [{\"id\": \"dst_stats\", \"type\": \"csv\", \"table\": \"stats_statut.csv\", \"mode\": \"replace\"}], \"pipeline\": {\"from\": \"src_cmd\", \"to\": \"dst_stats\"}}",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "e=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nsteps.2.by\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": false,
+      "seconds": 3.6,
+      "attempts": 1
+    },
+    {
+      "id": "gen-020",
+      "level": "compose",
+      "prompt": "J'ai commandes.csv et clients.csv. Associe chaque commande a son client par customer_id, garde toutes les commandes meme sans client, et ecris commandes_enrichies.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_commandes\",\"type\":\"csv\",\"table\":\"commandes.csv\"},{\"id\":\"src_clients\",\"type\":\"csv\",\"table\":\"clients.csv\"}],\"transformations\":[{\"op\":\"join\",\"params\":{\n  }},{\"op\":\"join\",\"params\":{\n  }}],\"destinations\":[{\"id\":\"dst_enrichies\",\"type\":\"csv\",\"table\":\"commandes_enrichies.csv\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_commandes\",\"to\":\"dst_enrichies\"}}\n```",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "issing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.right\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": false,
+      "seconds": 3.1,
+      "attempts": 1
+    },
+    {
+      "id": "gen-021",
+      "level": "compose",
+      "prompt": "Empile les lignes de ventes_2025.csv et ventes_2026.csv dans un seul fichier ventes_total.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_2025\",\"type\":\"csv\",\"table\":\"ventes_2025.csv\"},{\"id\":\"src_2026\",\"type\":\"csv\",\"table\":\"ventes_2026.csv\"}],\"transformations\":[{\"op\":\"union\",\"params\":{}},{\"op\":\"union\",\"params\":{}}],\"destinations\":[{\"id\":\"dst_total\",\"type\":\"csv\",\"table\":\"ventes_total.csv\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_2025\",\"to\":\"dst_total\"}}",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "issing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.right\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": false,
+      "seconds": 3.3,
+      "attempts": 1
+    },
+    {
+      "id": "gen-022",
+      "level": "compose",
+      "prompt": "Depuis ventes.csv, produis un tableau croise avec les mois en lignes, les regions en colonnes, et la somme des montants dans les cellules. Sortie : tableau_croise.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_ventes\",\"type\":\"csv\",\"table\":\"ventes.csv\"}],\"transformations\":[{\"op\":\"cast\",\"params\":{\n  }},{\"op\":\"pivot\",\"params\":{\n    }},\n  {\"op\":\"cast\",\"params\":{\n    }},\n  {\"op\":\"pivot\",\"params\":{\n    }}\n  ]}\n```",
+      "validity": 0.0,
+      "exactness": 0.625,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "destinations.yaml manquant",
+        "pipeline.yaml manquant",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": " required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err Pipeline coherence: [Errno 2] No such file or directory: 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\hydra_eval_98uu6o64\\\\pipeline.yaml'\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": true,
+      "seconds": 2.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-023",
+      "level": "compose",
+      "prompt": "Le fichier budget.csv a une colonne par mois. Transforme-le en format long avec une ligne par couple (poste, mois). Sortie : budget_long.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_budget\",\"type\":\"csv\",\"table\":\"budget.csv\"}],\"transformations\":[{\"op\":\"unpivot\",\"params\":{}},{\"op\":\"transpose\",\"params\":{}}],\"destinations\":[{\"id\":\"dst_budget_long\",\"type\":\"csv\",\"table\":\"id_budget_lot_long.csv\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_budget\",\"to\":\"dst_budget_long\"}}",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": " pipeline.to                          — resolved: dst_budget_long\n\n  err   → 1 validation error for TransformConfig\nsteps.0.id_vars\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": false,
+      "seconds": 2.8,
+      "attempts": 1
+    },
+    {
+      "id": "gen-024",
+      "level": "compose",
+      "prompt": "Depuis commandes.csv et clients.csv : joins-les sur customer_id, filtre les montants superieurs a 50, agrege le total par pays, trie par total decroissant. Sortie : top_pays.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_commandes\",\"type\":\"csv\",\"table\":\"commandes.csv\"},{\"id\":\"src_clients\",\"type\":\"csv\",\"table\":\"clients.csv\"}],\"transformations\":[{\"op\":\"join\",\"params\":{}},{\"op\":\"cast\",\"params\":{}},{\"op\":\"filter\",\"params\":{}},{\"op\":\"aggregate\",\"params\":{}},{\"op\":\"sort\",\"params\":{}}],\"destinations\":[{\"id\":\"dst_top_pays\",\"type\":\"csv\",\"table\":\"top_pays.csv\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_commandes\",\"to\":\"dst_top_pays\"}}",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "e=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nsteps.4.by\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": false,
+      "seconds": 3.6,
+      "attempts": 1
+    },
+    {
+      "id": "gen-030",
+      "level": "base_de_donnees",
+      "prompt": "Charge la table clients d'une base PostgreSQL et ecris-la dans clients.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 3.0,
+      "attempts": 1
+    },
+    {
+      "id": "gen-031",
+      "level": "base_de_donnees",
+      "prompt": "Depuis produits.csv, charge les donnees dans la table produits d'une base MySQL, en mettant a jour les lignes existantes sur la cle id.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_produits\",\"type\":\"csv\",\"table\":\"produits.csv\"}],\"transformations\":[],\"destinations\":[{\"id\":\"dst_mysql_produits\",\"type\":\"mysql\",\"table\":\"produits\",\"mode\":\"upsert\"}],\"pipeline\":{\"from\":\"src_produits\",\"to\":\"dst_mysql_produits\"}}",
+      "validity": 0.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "s.\nExamples:\n  key: [id]                    # Simple key\n  key: [region, product_id]    # Composite key [type=value_error, input_value={'table': 'produits', 'mode': 'upsert'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/value_error\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [],
+      "silent": false,
+      "seconds": 2.3,
+      "attempts": 1
+    },
+    {
+      "id": "gen-032",
+      "level": "base_de_donnees",
+      "prompt": "Extrais la collection commandes de MongoDB, garde les commandes de 2026, et ecris commandes_2026.parquet.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_mongo_cmd\",\"type\":\"mongodb\",\"table\":\"commandes\"},{\"id\":\"src_csv_temp\",\"type\":\"csv\",\"table\":\"commandes_2026.parquet\"}],\"transformations\":[{\"op\":\"cast\",\"params\":{}},{\"op\":\"cast\",\"params\":{}}],\"destinations\":[{\"id\":\"dst_parquet_2026\",\"type\":\"parquet\",\"table\":\"commandes_2026.parquet\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_mongo_cmd\",\"to\":\"dst_parquet_2062\"}}",
+      "validity": 0.0,
+      "exactness": 0.75,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml",
+        "transformations.yaml"
+      ],
+      "misses": [
+        "opération 'filter' absente",
+        "câblage incorrect : from=src_mongo_cmd to=dst_parquet_2062"
+      ],
+      "faults": [],
+      "oracle": "isit https://errors.pydantic.dev/2.12/v/missing\nsteps.1.mapping\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\n  err pipeline.to='dst_parquet_2062' not found in destinations.yaml\n\n  ❌ 1 error(s) detected.\n",
+      "alerts": [
+        "la demande semble réclamer 'filter', absent des étapes",
+        "l'entrée demandée est en '.parquet' mais la source est de type ['csv', 'mongodb']"
+      ],
+      "silent": false,
+      "seconds": 3.4,
+      "attempts": 1
+    },
+    {
+      "id": "gen-033",
+      "level": "base_de_donnees",
+      "prompt": "Appelle une API web qui renvoie des utilisateurs en JSON et stocke le resultat dans une table PostgreSQL, en remplacant le contenu existant.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_api\",\"type\":\"web_api\",\"table\":\"https://api.example.com/users\"}],\"transformations\":[],\"destinations\":[{\"id\":\"dst_postgres\",\"type\":\"postgresql\",\"table\":\"users_table\",\"mode\":\"replace\"}],\"pipeline\":{\"from\":\"src_api\",\"to\":\"dst_postgres\"}}",
+      "validity": 1.0,
+      "exactness": 0.857,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "type de destination attendu ['postgres'], obtenu ['postgresql']"
+      ],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": true,
+      "seconds": 2.3,
+      "attempts": 1
+    },
+    {
+      "id": "gen-034",
+      "level": "base_de_donnees",
+      "prompt": "Un secret de connexion ne doit jamais apparaitre en clair. Ecris un source PostgreSQL dont le mot de passe vient de l'environnement.",
+      "raw": "{\"kind\": \"job\", \"sources\": [{\"id\": \"src_pg\", \"type\": \"postgres\", \"table\": \"ma_table_source\", \"batch_size\": 1000}], \"transformations\": [], \"destinations\": [{\"id\": \"dst_csv\", \"type\": \"csv\", \"table\": \"export_data.csv\", \"mode\": \"replace\"}], \"pipeline\": {\"from\": \"src_pg\", \"to\": \"dst_db_csv\"}}",
+      "validity": 0.0,
+      "exactness": 0.5,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [
+        "'env:' absent",
+        "'${' absent"
+      ],
+      "faults": [],
+      "oracle": "                    — present\n  ok  destinations.yaml                    — Pydantic valid\n  transformations.yaml                 — absent (optional)\n  ok  pipeline.from                        — resolved: src_pg\n\n  err pipeline.to='dst_db_csv' not found in destinations.yaml\n\n  ❌ 0 error(s) detected.\n",
+      "alerts": [
+        "la demande semble réclamer 'filter', absent des étapes",
+        "la demande parle de secret mais aucun {{ env:NOM }} n'apparaît dans les manifestes"
+      ],
+      "silent": false,
+      "seconds": 2.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-040",
+      "level": "workflow",
+      "prompt": "Ecris un workflow qui execute le job ./jobs/extract, puis ./jobs/transform une fois l'extraction terminee.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "workflow.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 2.2,
+      "attempts": 1
+    },
+    {
+      "id": "gen-041",
+      "level": "workflow",
+      "prompt": "Workflow quotidien a 8h du matin : execute ./jobs/daily, puis envoie un webhook de notification.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "workflow.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 14.5,
+      "attempts": 1
+    },
+    {
+      "id": "gen-042",
+      "level": "workflow",
+      "prompt": "Workflow ou le job ./jobs/fragile est retente trois fois avec cinq secondes d'attente, et ou l'echec n'interrompt pas la suite.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "workflow.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 2.6,
+      "attempts": 1
+    },
+    {
+      "id": "gen-043",
+      "level": "workflow",
+      "prompt": "Workflow avec trois jobs : extract, puis transform_a et transform_b qui dependent tous deux d'extract et peuvent tourner en parallele, puis load qui attend les deux.",
+      "raw": "{\"kind\":\"job\",\"sources\":[]}\n```",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "workflow.yaml manquant",
+        "4 steps attendus, 0",
+        "aucun fan-in"
+      ],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "aucun manifeste produit pour une demande réalisable"
+      ],
+      "silent": false,
+      "seconds": 1.4,
+      "attempts": 1
+    },
+    {
+      "id": "adv-050",
+      "level": "adversarial",
+      "prompt": "Mets les trois jobs dans un conteneur Sequence pour alleger la scene, et serialise-le dans le workflow.",
+      "raw": "{\"kind\": \"workflow\", \"workflow\": {\"name\": \"sequence_workflow\", \"trigger_type\": \"manual\", \"steps\": [{\"name\": \"job_1\", \"type\": \"job\", \"job\": \"./jobs/job_1\", \"depends_on\": []}, {\"name\": \"job_2\", \"type\": \"job\", \"job\": \"./jobs/job_2\", \"depends_on\": [\"job_        _1\"], \"on_failure\": \"continue\",    \"retry_max\": 1, \"retry_delay\": 0.5}, {\"name\": \"      _3\", \"type\": \"action\", \"action\": \"log\", \"params\": {  }, \"depends_on\": [\"job_3\"], \"on_failure\": \"skip\", \"retry_max\":\n  1, \"retry_delay\":-0.5}]}}",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "workflow.yaml"
+      ],
+      "misses": [
+        "aurait dû refuser"
+      ],
+      "faults": [],
+      "oracle": "\n  ❌ Invalid workflow: Step 'job_2' dépend de 'job_        _1' qui n'existe pas\n",
+      "alerts": [
+        "la demande mentionne conteneur (notion Studio, absente du DSL) : Hydra ne le prend pas en charge, le manifeste produit répond à autre chose",
+        "la demande mentionne conteneur Sequence (notion Studio) : Hydra ne le prend pas en charge, le manifeste produit répond à autre chose"
+      ],
+      "silent": false,
+      "seconds": 4.7,
+      "attempts": 1
+    },
+    {
+      "id": "adv-051",
+      "level": "adversarial",
+      "prompt": "Lis un fichier depuis un bucket S3 et ecris-le dans BigQuery.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Le connecteur BigQuery n'est est pas listé dans les connecteurs autorisés.",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "refus explicite — visible par l'utilisateur"
+      ],
+      "silent": false,
+      "seconds": 1.3,
+      "attempts": 1
+    },
+    {
+      "id": "adv-052",
+      "level": "adversarial",
+      "prompt": "Ajoute une action 'teams' dans le workflow pour notifier l'equipe.",
+      "raw": "",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "aurait dû refuser"
+      ],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "aucun manifeste produit pour une demande réalisable"
+      ],
+      "silent": false,
+      "seconds": 14.3,
+      "attempts": 1
+    },
+    {
+      "id": "adv-053",
+      "level": "adversarial",
+      "prompt": "Distribue l'execution de ce job sur un cluster de dix machines.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "Hydra s'exécute sur une seule machine. Pas d'exécution distribuée.",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "refus explicite — visible par l'utilisateur"
+      ],
+      "silent": false,
+      "seconds": 1.4,
+      "attempts": 1
+    },
+    {
+      "id": "adv-054",
+      "level": "adversarial",
+      "prompt": "Ecris une operation 'lowercase' pour passer la colonne nom en minuscules.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": true,
+      "reason": "L'opération 'lowercase' n'est pas listée dans les opérations autorisées. Veuillez utiliser 'script' ou 'rename' ou 'calculate' (si la fonction mathématique/string-based est expr) expr est expr.",
+      "filesProduced": [],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "refus explicite — visible par l'utilisateur"
+      ],
+      "silent": false,
+      "seconds": 1.9,
       "attempts": 1
     }
   ]

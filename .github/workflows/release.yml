@@ -1,0 +1,109 @@
+# Publie hydra-etl sur PyPI.
+#
+# Distinct de native-wheels.yml, qui publie hydra-native sous son propre tag.
+# Ici, un tag `vX.Y.Z` déclenche toute la chaîne : Studio, vérifications,
+# construction, publication.
+#
+# Aucun jeton n'est stocké : la publication passe par le Trusted Publishing de
+# PyPI, comme pour hydra-native. Il faut donc déclarer une fois, sur
+# pypi.org/manage/project/hydra-etl/settings/publishing/, ce dépôt, ce fichier
+# de workflow et l'environnement `pypi`.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+
+      # Le tag fait foi, mais il doit correspondre au code. Sans ce garde-fou,
+      # on publie un jour une 0.10.0 qui se déclare 0.9.6, et personne ne
+      # comprend pourquoi.
+      - name: Le tag correspond-il à __version__ ?
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          CODE=$(python -c "import re,pathlib; \
+            print(re.search(r'__version__ = \"([^\"]+)\"', \
+            pathlib.Path('hydra_etl/__init__.py').read_text()).group(1))")
+          echo "tag=$TAG  code=$CODE"
+          test "$TAG" = "$CODE" || {
+            echo "::error::Le tag $TAG ne correspond pas à __version__ = $CODE"
+            exit 1
+          }
+
+      - name: Dépendances
+        run: |
+          python -m pip install --upgrade pip build
+          pip install -e ".[mcp]"
+          pip install pytest jsonschema
+
+      # La spécification est générée depuis le code et embarquée dans le
+      # paquet. Si elle a dérivé, la documentation et le serveur MCP
+      # mentiraient sur ce que le moteur accepte réellement.
+      - name: La spécification du DSL est-elle à jour ?
+        run: python tools/spec_export.py --check
+
+      - name: Tests du serveur MCP
+        run: python -m pytest tests/test_mcp_server.py -q
+
+      - name: Studio
+        run: python scripts/build_studio.py --ci
+
+      - name: Construction
+        run: python -m build
+
+      # Le Studio et la spécification sont générés, pas versionnés : s'ils
+      # manquaient du wheel, l'installation serait cassée sans que rien ne
+      # l'annonce. C'est déjà arrivé une fois.
+      - name: Le wheel contient-il tout ?
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          echo "$WHEEL"
+          python - "$WHEEL" <<'PY'
+          import sys, zipfile
+          noms = zipfile.ZipFile(sys.argv[1]).namelist()
+          for prefixe, quoi in (("hydra_etl/ai/schemas/", "la spécification du DSL"),
+                                ("hydra_etl/studio_dist/", "le Studio")):
+              n = sum(1 for x in noms if x.startswith(prefixe))
+              print(f"{quoi} : {n} fichiers")
+              if not n:
+                  sys.exit(f"{quoi} est absente du wheel")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi          # y déclarer le trusted publisher de hydra-etl
+    permissions:
+      id-token: write          # Trusted Publishing : aucun jeton dans le dépôt
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

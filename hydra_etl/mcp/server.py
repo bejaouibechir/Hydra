@@ -125,13 +125,22 @@ def _hdrctl(*args: str) -> tuple[bool, str]:
     ok = proc.returncode == 0
     output = _clean(proc.stdout + proc.stderr)
     if not ok:
-        # En cas d'echec, on ne garde que ce qui a echoue. Les vingt lignes
-        # « ok » qui precedent n'aident pas le modele a corriger ; la ligne
-        # « err » est la seule qui compte.
-        errors = [l for l in output.splitlines()
-                  if not l.strip().lower().startswith("ok ")]
-        if errors:
-            output = "\n".join(errors)
+        # En cas d'echec, on ne rend que les lignes d'erreur. Le bandeau, les
+        # vingt lignes « ok » et le compteur (qui annonce « 0 error(s) » tout
+        # en signalant une erreur — anomalie A8 du produit) n'aident pas le
+        # modele a se corriger : ils le desorientent.
+        errs = [l.strip()[4:].strip() if l.strip().startswith("err ") else l.strip()
+                for l in output.splitlines() if l.strip().startswith("err ")]
+        if errs:
+            output = "\n".join(f"- {e}" for e in errs)
+        else:
+            output = "\n".join(
+                l for l in output.splitlines()
+                if not l.strip().lower().startswith("ok ")
+                and "dsl validation" not in l.lower()
+                and "error(s) detected" not in l.lower()
+                and "devops edition" not in l.lower()
+            )
     return ok, output
 
 

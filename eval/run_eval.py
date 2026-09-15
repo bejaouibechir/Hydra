@@ -38,6 +38,9 @@ sys.path.insert(0, str(ROOT))
 
 import yaml  # noqa: E402
 
+sys.path.insert(0, str(ROOT / "eval"))
+import guards  # noqa: E402
+
 SCHEMAS = ROOT / "documentations" / "chatbot-hydra-dsl" / "schemas"
 CASES = ROOT / "eval" / "generation" / "cases.json"
 CORPUS = ROOT / "eval" / "corpus" / "corpus.jsonl"
@@ -712,7 +715,7 @@ def score_exactness(case: Dict[str, Any], files: Dict[str, str],
 def run_case(case, spec, system, args) -> Dict[str, Any]:
     user = case["prompt"]
     attempts: List[Dict[str, Any]] = []
-    structured = args.mode in ("constrained", "repair")
+    structured = args.mode in ("constrained", "repair", "verify")
     force_json = build_response_schema(spec) if structured else False
     max_tries = 3 if args.mode == "repair" else 1
 
@@ -762,6 +765,19 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
     if must_refuse and refused:
         sobriety = 1.0
 
+    alerts: List[str] = []
+    if args.mode == "verify":
+        if refused:
+            alerts = ["refus explicite — visible par l'utilisateur"]
+        else:
+            try:
+                alerts = guards.check(case["prompt"], files, docs)
+            except Exception as exc:                      # un garde-fou ne doit jamais
+                alerts = [f"garde-fou en erreur : {exc}"]  # faire tomber l'évaluation
+
+    # Une erreur SILENCIEUSE est le seul défaut inacceptable : le résultat est
+    # faux et rien ne l'a signalé à l'utilisateur.
+    silent = (exactness < 1.0) and not alerts
     failed = not (validity and exactness == 1.0 and sobriety)
     return {
         "id": case["id"], "level": case["level"], "prompt": case["prompt"],
@@ -770,6 +786,7 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
         "refused": refused, "reason": reason[:200],
         "filesProduced": sorted(files), "misses": misses, "faults": faults,
         "oracle": oracle_out[-300:] if not valid else "",
+        "alerts": alerts, "silent": silent,
         "seconds": round(elapsed, 1), "attempts": len(attempts),
     }
 
@@ -792,6 +809,13 @@ def report(results: List[Dict[str, Any]], args) -> str:
         "| Niveau | Cas | Validité | Exactitude | Sobriété | s/cas |",
         "|---|---:|---:|---:|---:|---:|",
     ]
+    if args.mode == "verify":
+        silent_n = sum(1 for r in results if r.get("silent"))
+        flagged = sum(1 for r in results if r.get("alerts"))
+        lines.insert(4, f"- **Taux d'erreur silencieuse : "
+                        f"{silent_n / len(results):.0%}** ({silent_n}/{len(results)}) "
+                        f"— cas faux qu'aucun garde-fou n'a signalés")
+        lines.insert(5, f"- Cas assortis d'au moins une alerte : {flagged}")
     for level in sorted(levels):
         rows = levels[level]
         lines.append(
@@ -802,6 +826,15 @@ def report(results: List[Dict[str, Any]], args) -> str:
         f"| **total** | **{len(results)}** | **{avg(results,'validity'):.0%}** | "
         f"**{avg(results,'exactness'):.0%}** | **{avg(results,'sobriety'):.0%}** | "
         f"**{avg(results,'seconds'):.1f}** |")
+
+    silents = [r for r in results if r.get("silent")]
+    if args.mode == "verify":
+        lines += ["", "## Erreurs silencieuses", ""]
+        if silents:
+            for r in silents:
+                lines.append(f"- `{r['id']}` — {'; '.join(r.get('misses') or [])[:160]}")
+        else:
+            lines.append("Aucune. Tout écart a été signalé à l'utilisateur.")
 
     fails = [r for r in results if r["validity"] < 1 or r["exactness"] < 1 or r["sobriety"] < 1]
     if fails:
@@ -816,7 +849,9 @@ def report(results: List[Dict[str, Any]], args) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Harnais d'évaluation de la génération Hydra.")
     ap.add_argument("--model", required=True, help="ex. qwen3:1.7b")
-    ap.add_argument("--mode", choices=["baseline", "constrained", "repair"], default="baseline")
+    ap.add_argument("--mode", choices=["baseline", "constrained", "repair", "verify"],
+                    default="baseline",
+                    help="verify = constrained + garde-fous déterministes")
     ap.add_argument("--url", default="http://localhost:11434")
     ap.add_argument("--examples", type=int, default=1, help="exemples few-shot (0 = aucun)")
     ap.add_argument("--limit", type=int, default=0, help="n'exécuter que les N premiers cas")
@@ -838,7 +873,7 @@ def main() -> int:
         cases = cases[:args.limit]
 
     system = build_system_prompt(spec, load_examples(args.examples),
-                                 structured=args.mode in ("constrained", "repair"))
+                                 structured=args.mode in ("constrained", "repair", "verify"))
 
     print(f"Modele {args.model} | mode {args.mode} | {len(cases)} cas | "
           f"{args.examples} exemple(s) few-shot")
@@ -846,7 +881,12 @@ def main() -> int:
     for i, case in enumerate(cases, 1):
         r = run_case(case, spec, system, args)
         results.append(r)
-        flag = "ok " if (r["validity"] and r["exactness"] == 1 and r["sobriety"]) else "KO "
+        if r["validity"] and r["exactness"] == 1 and r["sobriety"]:
+            flag = "ok "
+        elif r.get("silent"):
+            flag = "!! "          # faux ET silencieux : le seul cas inacceptable
+        else:
+            flag = "KO "
         print(f"  [{i:>2}/{len(cases)}] {flag} {r['id']:<9} "
               f"V{r['validity']:.0f} E{r['exactness']:.2f} S{r['sobriety']:.0f} "
               f"{r['seconds']:>5.1f}s")
@@ -855,6 +895,8 @@ def main() -> int:
                 print(f"          - {m}")
             if r.get("error"):
                 print(f"          ! {r['error']}")
+            for a in r.get("alerts", []):
+                print(f"          ⚑ {a}")
             if r.get("oracle"):
                 print(f"          oracle: {r['oracle'].strip()[-200:]}")
         if r.get("error", "").startswith("Ollama injoignable"):

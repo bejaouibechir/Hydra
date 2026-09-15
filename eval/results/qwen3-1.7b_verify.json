@@ -1,0 +1,17 @@
+{
+  "model": "qwen3:1.7b",
+  "mode": "verify",
+  "examples": 1,
+  "think": false,
+  "results": [
+    {
+      "id": "gen-001",
+      "level": "simple",
+      "error": "Ollama injoignable: <urlopen error [Errno 111] Connection refused>",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 0.0,
+      "seconds": 0.0
+    }
+  ]
+}

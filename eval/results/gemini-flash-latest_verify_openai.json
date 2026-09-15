@@ -1,5 +1,5 @@
 {
-  "model": "gemma-4-31b-it",
+  "model": "gemini-flash-latest",
   "mode": "verify",
   "examples": 1,
   "think": false,
@@ -24,7 +24,7 @@
       "oracle": "",
       "alerts": [],
       "silent": false,
-      "seconds": 23.2,
+      "seconds": 5.6,
       "attempts": 1
     },
     {
@@ -39,25 +39,11 @@
     {
       "id": "gen-003",
       "level": "simple",
-      "prompt": "Lis produits.json et ecris-le en Parquet dans produits.parquet.",
-      "raw": "",
-      "validity": 1.0,
-      "exactness": 1.0,
-      "sobriety": 1.0,
-      "refused": false,
-      "reason": "",
-      "filesProduced": [
-        "destinations.yaml",
-        "pipeline.yaml",
-        "sources.yaml"
-      ],
-      "misses": [],
-      "faults": [],
-      "oracle": "",
-      "alerts": [],
-      "silent": false,
-      "seconds": 26.2,
-      "attempts": 1
+      "error": "fournisseur injoignable: HTTP 503 — [{\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n]",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 0.0,
+      "seconds": 0.0
     }
   ]
 }

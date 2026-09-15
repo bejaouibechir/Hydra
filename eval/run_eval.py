@@ -628,26 +628,49 @@ def openai_chat(url: str, model: str, system: str, user: str,
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
+    # 429 (quota momentane) et 500/502/503 (surcharge) sont transitoires :
+    # on patiente au lieu d'abandonner. Un incident du fournisseur ne doit pas
+    # etre compte comme une faute du modele.
+    TRANSIENT = (429, 500, 502, 503, 504)
+    BACKOFF = (3, 8, 20, 40)
+
     t0 = time.monotonic()
-    try:
-        body = send(payload)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")[:400]
+    last: Any = None
+    for attempt, wait in enumerate((0,) + BACKOFF):
+        if wait:
+            time.sleep(wait)
+        try:
+            body = send(payload)
+            last = None
+            break
+        except urllib.error.HTTPError as exc:
+            code = exc.code
+            detail = exc.read().decode("utf-8", "replace")[:300]
+            last = (code, detail)
+            if code in TRANSIENT:
+                continue
+            break
+    if last is not None:
+        exc_code, detail = last
+        class _E(Exception):
+            pass
+        exc = _E()
+        exc.code = exc_code  # type: ignore[attr-defined]
         # Tous les modèles servis derrière une API compatible OpenAI
         # n'acceptent pas `response_format`. Plutôt que d'abandonner, on
         # réessaie sans contrainte : le schéma est de toute façon décrit dans
         # le prompt, et l'oracle plus les garde-fous restent en place.
-        if schema and exc.code in (400, 422, 500, 501):
+        if schema and exc_code in (400, 422, 500, 501):
             payload.pop("response_format", None)
             try:
                 body = send(payload)
             except urllib.error.HTTPError as exc2:
-                detail2 = exc2.read().decode("utf-8", "replace")[:300]
+                detail2 = exc2.read().decode("utf-8", "replace")[:250]
                 raise RuntimeError(
-                    f"HTTP {exc.code} avec schema, puis HTTP {exc2.code} sans — {detail2}"
+                    f"HTTP {exc_code} avec schema, puis HTTP {exc2.code} sans — {detail2}"
                 ) from None
         else:
-            raise RuntimeError(f"HTTP {exc.code} — {detail}") from None
+            raise RuntimeError(f"HTTP {exc_code} — {detail}") from None
     choices = body.get("choices") or [{}]
     content = (choices[0].get("message") or {}).get("content") or ""
     return content, time.monotonic() - t0
@@ -1080,13 +1103,19 @@ def report(results: List[Dict[str, Any]], args) -> str:
     for r in results:
         levels.setdefault(r["level"], []).append(r)
 
+    scored = [r for r in results if not r.get("error")]
+    skipped = [r for r in results if r.get("error")]
+
     def avg(rows, key):
+        rows = [r for r in rows if not r.get("error")]
         return sum(r.get(key, 0.0) for r in rows) / len(rows) if rows else 0.0
 
     lines = [
         f"# Évaluation — {args.model} — mode `{args.mode}`",
         "",
-        f"- Cas joués : **{len(results)}**",
+        f"- Cas mesurés : **{len(scored)}** sur {len(results)}"
+        + (f" — **{len(skipped)} non mesurés** (erreur du fournisseur, exclus des moyennes)"
+           if skipped else ""),
         f"- Temps total : **{sum(r.get('seconds', 0) for r in results):.0f} s**",
         f"- Few-shot : {args.examples} exemple(s) · thinking : {'on' if args.think else 'off'}",
         "",
@@ -1094,24 +1123,27 @@ def report(results: List[Dict[str, Any]], args) -> str:
         "|---|---:|---:|---:|---:|---:|",
     ]
     if args.mode == "verify":
-        silent_n = sum(1 for r in results if r.get("silent"))
-        flagged = sum(1 for r in results if r.get("alerts"))
+        silent_n = sum(1 for r in scored if r.get("silent"))
+        flagged = sum(1 for r in scored if r.get("alerts"))
+        base = max(len(scored), 1)
         lines.insert(4, f"- **Taux d'erreur silencieuse : "
-                        f"{silent_n / len(results):.0%}** ({silent_n}/{len(results)}) "
+                        f"{silent_n / base:.0%}** ({silent_n}/{len(scored)}) "
                         f"— cas faux qu'aucun garde-fou n'a signalés")
         lines.insert(5, f"- Cas assortis d'au moins une alerte : {flagged}")
     for level in sorted(levels):
-        rows = levels[level]
+        rows = [r for r in levels[level] if not r.get("error")]
+        if not rows:
+            continue
         lines.append(
             f"| {level} | {len(rows)} | {avg(rows,'validity'):.0%} | "
             f"{avg(rows,'exactness'):.0%} | {avg(rows,'sobriety'):.0%} | "
             f"{avg(rows,'seconds'):.1f} |")
     lines.append(
-        f"| **total** | **{len(results)}** | **{avg(results,'validity'):.0%}** | "
+        f"| **total** | **{len(scored)}** | **{avg(results,'validity'):.0%}** | "
         f"**{avg(results,'exactness'):.0%}** | **{avg(results,'sobriety'):.0%}** | "
         f"**{avg(results,'seconds'):.1f}** |")
 
-    silents = [r for r in results if r.get("silent")]
+    silents = [r for r in scored if r.get("silent")]
     if args.mode == "verify":
         lines += ["", "## Erreurs silencieuses", ""]
         if silents:
@@ -1120,7 +1152,12 @@ def report(results: List[Dict[str, Any]], args) -> str:
         else:
             lines.append("Aucune. Tout écart a été signalé à l'utilisateur.")
 
-    fails = [r for r in results if r["validity"] < 1 or r["exactness"] < 1 or r["sobriety"] < 1]
+    fails = [r for r in scored
+             if r["validity"] < 1 or r["exactness"] < 1 or r["sobriety"] < 1]
+    if skipped:
+        lines += ["", f"## Non mesurés ({len(skipped)})", ""]
+        for r in skipped:
+            lines.append(f"- `{r['id']}` — {r.get('error','')[:140]}")
     if fails:
         lines += ["", f"## Échecs ({len(fails)})", ""]
         for r in fails:
@@ -1186,7 +1223,9 @@ def main() -> int:
     for i, case in enumerate(cases, 1):
         r = run_case(case, spec, system, args)
         results.append(r)
-        if r["validity"] and r["exactness"] == 1 and r["sobriety"]:
+        if r.get("error"):
+            flag = "-- "          # non mesure : incident du fournisseur
+        elif r["validity"] and r["exactness"] == 1 and r["sobriety"]:
             flag = "ok "
         elif r.get("silent"):
             flag = "!! "          # faux ET silencieux : le seul cas inacceptable
@@ -1204,8 +1243,9 @@ def main() -> int:
                 print(f"          ⚑ {a}")
             if r.get("oracle"):
                 print(f"          oracle: {r['oracle'].strip()[-200:]}")
-        if r.get("error", "").startswith("Ollama injoignable"):
-            print("\nArrêt : Ollama ne répond pas. Vérifiez `ollama serve`.")
+        errs = sum(1 for x in results if x.get("error"))
+        if errs >= 5 and errs == len(results):
+            print("\nArrêt : le fournisseur ne répond à aucune requête.")
             break
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

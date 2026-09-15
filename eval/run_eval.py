@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -355,7 +356,7 @@ def load_examples(n: int) -> List[Dict[str, Any]]:
 
 def ollama_chat(url: str, model: str, system: str, user: str,
                 force_json: Any, timeout: int, think: bool,
-                num_predict: int = 1200) -> Tuple[str, float]:
+                num_predict: int = 1200, api_key: str = "") -> Tuple[str, float]:
     """
     Appelle Ollama. Le raisonnement est coupé de DEUX façons, parce qu'aucune
     n'est portable seule : le champ natif `think: false` (Ollama récent) et le
@@ -386,10 +387,13 @@ def ollama_chat(url: str, model: str, system: str, user: str,
         return p
 
     def call(payload: Dict[str, Any]) -> str:
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         req = urllib.request.Request(
             url.rstrip("/") + "/api/chat",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = json.loads(resp.read().decode("utf-8"))
@@ -730,7 +734,7 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
         try:
             raw, dt = ollama_chat(args.url, args.model, system, user,
                                   force_json, args.timeout, args.think,
-                                  args.num_predict)
+                                  args.num_predict, args.api_key)
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             return {"id": case["id"], "level": case["level"], "error": f"Ollama injoignable: {exc}",
                     "validity": 0.0, "exactness": 0.0, "sobriety": 0.0, "seconds": 0.0}
@@ -852,7 +856,10 @@ def main() -> int:
     ap.add_argument("--mode", choices=["baseline", "constrained", "repair", "verify"],
                     default="baseline",
                     help="verify = constrained + garde-fous déterministes")
-    ap.add_argument("--url", default="http://localhost:11434")
+    ap.add_argument("--url", default="http://localhost:11434",
+                    help="serveur Ollama. Distant : https://api.ollama.com")
+    ap.add_argument("--api-key", default=os.environ.get("OLLAMA_API_KEY", ""),
+                    help="clé pour un serveur distant (défaut : $OLLAMA_API_KEY)")
     ap.add_argument("--examples", type=int, default=1, help="exemples few-shot (0 = aucun)")
     ap.add_argument("--limit", type=int, default=0, help="n'exécuter que les N premiers cas")
     ap.add_argument("--level", default="", help="ne jouer qu'un niveau")
@@ -875,7 +882,8 @@ def main() -> int:
     system = build_system_prompt(spec, load_examples(args.examples),
                                  structured=args.mode in ("constrained", "repair", "verify"))
 
-    print(f"Modele {args.model} | mode {args.mode} | {len(cases)} cas | "
+    where = "local" if "localhost" in args.url else args.url
+    print(f"Modele {args.model} | mode {args.mode} | {where} | {len(cases)} cas | "
           f"{args.examples} exemple(s) few-shot")
     results = []
     for i, case in enumerate(cases, 1):
@@ -904,7 +912,8 @@ def main() -> int:
             break
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    tag = f"{args.model.replace(':','-')}_{args.mode}"
+    host = "" if "localhost" in args.url else "_cloud"
+    tag = f"{args.model.replace(':','-').replace('/','-')}_{args.mode}{host}"
     (RESULTS_DIR / f"{tag}.json").write_text(
         json.dumps({"model": args.model, "mode": args.mode, "examples": args.examples,
                     "think": args.think, "results": results}, ensure_ascii=False, indent=2),

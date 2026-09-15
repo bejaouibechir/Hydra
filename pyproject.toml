@@ -58,6 +58,9 @@ mysql = ["mysql-connector-python>=8.3"]
 postgres = ["psycopg2-binary>=2.9"]
 mongodb = ["pymongo>=4.6"]
 http = ["requests>=2.31"]
+# Serveur MCP local : expose Hydra a l'assistant IA de l'utilisateur.
+# Le SDK est sous licence MIT et n'appelle aucun service distant.
+mcp = ["mcp>=2.0"]
 # Tout ce qu'un utilisateur peut vouloir, en une commande.
 all = [
     "hydra-etl[server]",
@@ -68,6 +71,7 @@ all = [
     "hydra-etl[postgres]",
     "hydra-etl[mongodb]",
     "hydra-etl[http]",
+    "hydra-etl[mcp]",
 ]
 dev = [
     "pytest>=8.0",
@@ -83,6 +87,7 @@ Documentation = "https://hydraetl.com"
 [project.scripts]
 hydra = "hydra_etl.cli.hdrctl:main"
 hdrctl = "hydra_etl.cli.hdrctl:main"
+hydra-mcp = "hydra_etl.mcp.server:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "hydra_etl.__version__" }

@@ -1,0 +1,84 @@
+{
+  "model": "gemma-4-26b-a4b-it",
+  "mode": "verify",
+  "examples": 1,
+  "think": false,
+  "results": [
+    {
+      "id": "gen-001",
+      "level": "simple",
+      "prompt": "J'ai un fichier ventes.csv. Copie-le tel quel dans sortie.csv.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 2.6,
+      "attempts": 1
+    },
+    {
+      "id": "gen-002",
+      "level": "simple",
+      "prompt": "Depuis clients.csv, ne garde que les colonnes id, nom et email, et ecris le resultat dans clients_light.csv.",
+      "raw": "{\"kind\":\"job\",\"sources\":[{\"id\":\"src_clients\",\"type\":\"csv\",\"table\":\"clients.csv\"}],\"transformations\":[{\"op\":\"select\",\"params\":{\n  }},{\"op\":\"select\",\"params\":{\n  }}]}\n```",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [],
+      "misses": [
+        "sources.yaml manquant",
+        "destinations.yaml manquant",
+        "transformations.yaml manquant",
+        "pipeline.yaml manquant",
+        "type de source attendu ['csv'], obtenu []",
+        "type de destination attendu ['csv'], obtenu []",
+        "opération 'select' absente",
+        "câblage incorrect : from=None to=None"
+      ],
+      "faults": [],
+      "oracle": "",
+      "alerts": [
+        "aucun manifeste produit pour une demande réalisable"
+      ],
+      "silent": false,
+      "seconds": 1.9,
+      "attempts": 1
+    },
+    {
+      "id": "gen-003",
+      "level": "simple",
+      "prompt": "Lis produits.json et ecris-le en Parquet dans produits.parquet.",
+      "raw": "",
+      "validity": 1.0,
+      "exactness": 1.0,
+      "sobriety": 1.0,
+      "refused": false,
+      "reason": "",
+      "filesProduced": [
+        "destinations.yaml",
+        "pipeline.yaml",
+        "sources.yaml"
+      ],
+      "misses": [],
+      "faults": [],
+      "oracle": "",
+      "alerts": [],
+      "silent": false,
+      "seconds": 2.8,
+      "attempts": 1
+    }
+  ]
+}

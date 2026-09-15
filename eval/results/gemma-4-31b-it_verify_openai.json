@@ -1,0 +1,35 @@
+{
+  "model": "gemma-4-31b-it",
+  "mode": "verify",
+  "examples": 1,
+  "think": false,
+  "results": [
+    {
+      "id": "gen-001",
+      "level": "simple",
+      "error": "fournisseur injoignable: HTTP 500 — [{\n  \"error\": {\n    \"code\": 500,\n    \"message\": \"Internal error encountered.\",\n    \"status\": \"INTERNAL\"\n  }\n}\n]",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 0.0,
+      "seconds": 0.0
+    },
+    {
+      "id": "gen-002",
+      "level": "simple",
+      "error": "fournisseur injoignable: HTTP 500 — [{\n  \"error\": {\n    \"code\": 500,\n    \"message\": \"Internal error encountered.\",\n    \"status\": \"INTERNAL\"\n  }\n}\n]",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 0.0,
+      "seconds": 0.0
+    },
+    {
+      "id": "gen-003",
+      "level": "simple",
+      "error": "fournisseur injoignable: HTTP 500 — [{\n  \"error\": {\n    \"code\": 500,\n    \"message\": \"Internal error encountered.\",\n    \"status\": \"INTERNAL\"\n  }\n}\n]",
+      "validity": 0.0,
+      "exactness": 0.0,
+      "sobriety": 0.0,
+      "seconds": 0.0
+    }
+  ]
+}

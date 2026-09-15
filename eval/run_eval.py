@@ -618,19 +618,36 @@ def openai_chat(url: str, model: str, system: str, user: str,
             "json_schema": {"name": "hydra_job", "schema": schema, "strict": False},
         }
 
-    req = urllib.request.Request(
-        url.rstrip("/") + "/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json",
-                 "Authorization": f"Bearer {api_key}"},
-    )
+    def send(p: Dict[str, Any]) -> Dict[str, Any]:
+        req = urllib.request.Request(
+            url.rstrip("/") + "/chat/completions",
+            data=json.dumps(p).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {api_key}"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
     t0 = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
+        body = send(payload)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:400]
-        raise RuntimeError(f"HTTP {exc.code} — {detail}") from None
+        # Tous les modèles servis derrière une API compatible OpenAI
+        # n'acceptent pas `response_format`. Plutôt que d'abandonner, on
+        # réessaie sans contrainte : le schéma est de toute façon décrit dans
+        # le prompt, et l'oracle plus les garde-fous restent en place.
+        if schema and exc.code in (400, 422, 500, 501):
+            payload.pop("response_format", None)
+            try:
+                body = send(payload)
+            except urllib.error.HTTPError as exc2:
+                detail2 = exc2.read().decode("utf-8", "replace")[:300]
+                raise RuntimeError(
+                    f"HTTP {exc.code} avec schema, puis HTTP {exc2.code} sans — {detail2}"
+                ) from None
+        else:
+            raise RuntimeError(f"HTTP {exc.code} — {detail}") from None
     choices = body.get("choices") or [{}]
     content = (choices[0].get("message") or {}).get("content") or ""
     return content, time.monotonic() - t0
@@ -642,6 +659,33 @@ def openai_chat(url: str, model: str, system: str, user: str,
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S)
 _FENCE_RE = re.compile(r"```(?:yaml|yml)?\s*(?:#\s*(?P<name>[\w.]+\.yaml)\s*)?\n(?P<body>.*?)```", re.S)
+
+
+_FENCE_ONLY = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
+
+
+def parse_structured(raw: str) -> Dict[str, Any]:
+    """
+    Lit la réponse structurée sans exiger qu'elle soit parfaite.
+
+    Certains fournisseurs enrobent le JSON dans une clôture markdown, ou
+    ajoutent une phrase avant. `json.loads` échoue alors sur l'ensemble alors
+    que l'objet, lui, est exploitable. On nettoie, puis on cherche le plus
+    grand objet équilibré.
+    """
+    text = _THINK_RE.sub("", raw).strip()
+    m = _FENCE_ONLY.search(text)
+    if m:
+        text = m.group(1).strip()
+    for candidate in sorted(_json_candidates(text), key=len, reverse=True):
+        try:
+            obj = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(obj, dict) and (obj.get("kind") or obj.get("sources")
+                                      or obj.get("workflow") or obj.get("impossible")):
+            return obj
+    return {}
 
 
 def extract(raw: str) -> Dict[str, Any]:
@@ -979,10 +1023,7 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
                     "validity": 0.0, "exactness": 0.0, "sobriety": 0.0, "seconds": 0.0}
         elapsed += dt
         if structured:
-            try:
-                obj = json.loads(raw)
-            except Exception:
-                obj = {}
+            obj = parse_structured(raw)
             refused = obj.get("kind") == "impossible" or bool(obj.get("impossible"))
             files = {} if refused else files_from_structured(obj)
             reason = str(obj.get("reason") or "")

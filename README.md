@@ -253,6 +253,27 @@ slower. If the package is not installed, Hydra warns once and runs in Python.
 
 ---
 
+## Your AI assistant, connected
+
+Hydra ships an MCP server. Point Claude Desktop, Cursor, VS Code — or any MCP
+client — at it, and ask for a pipeline in plain language.
+
+```bash
+pip install "hydra-etl[mcp]"
+hydra-mcp
+```
+
+Your assistant writes the manifests; **Hydra validates them before anything is
+written**, and nothing runs until you ask. A rejected job leaves no trace, and
+the assistant is handed the exact error so it can correct itself.
+
+The server holds no model and makes no network call: the tools are Hydra's, the
+intelligence is whichever assistant you already use.
+
+See [docs/MCP.md](docs/MCP.md) for the client configuration snippets.
+
+---
+
 ## Serving
 
 ```bash

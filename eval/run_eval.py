@@ -71,8 +71,14 @@ class Spec:
 # ===========================================================================
 
 RESPONSE_CONTRACT = """Réponds UNIQUEMENT par un objet JSON, sans texte autour :
-{"refuse": false, "reason": "", "files": {"sources.yaml": "<yaml>", "destinations.yaml": "<yaml>", "pipeline.yaml": "<yaml>", "transformations.yaml": "<yaml>"}}
-Si la demande est impossible avec Hydra, réponds :
+{"refuse": false, "reason": "", "files": {"sources.yaml": "<yaml>", "destinations.yaml": "<yaml>", "pipeline.yaml": "<yaml>"}}
+Ajoute "transformations.yaml" dans "files" seulement si la demande implique une
+transformation. Un job sans transformation est parfaitement normal.
+
+N'utilise "refuse": true QUE si la demande exige quelque chose qui n'existe pas
+dans les listes ci-dessus (connecteur, opération, action) ou une exécution
+distribuée. Toute demande réalisable avec les éléments listés DOIT produire des
+fichiers :
 {"refuse": true, "reason": "<pourquoi, en une phrase>", "files": {}}"""
 
 
@@ -118,7 +124,9 @@ RÈGLES
 2. Les conteneurs (Sequence, Error Scope, Retry Scope) appartiennent à
    l'éditeur visuel Hydra Studio. Ils N'EXISTENT PAS dans le YAML.
 3. N'invente jamais un connecteur, une opération ou une action. Si la demande
-   en exige un qui n'est pas listé, refuse et explique.
+   en exige un qui n'est pas listé, refuse et explique. Mais ne refuse JAMAIS
+   une demande réalisable : copier un fichier, filtrer, agréger, charger dans
+   une base — tout cela se fait avec les éléments listés.
 4. Hydra s'exécute sur une seule machine. Pas d'exécution distribuée.
 5. Aucun secret en clair : utilise {{{{ env:NOM }}}}.
 {ex_txt}
@@ -144,28 +152,52 @@ def load_examples(n: int) -> List[Dict[str, Any]]:
 # ===========================================================================
 
 def ollama_chat(url: str, model: str, system: str, user: str,
-                force_json: bool, timeout: int, think: bool) -> Tuple[str, float]:
-    payload: Dict[str, Any] = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user if think else user + " /nothink"},
-        ],
-        "stream": False,
-        "options": {"temperature": 0},
-    }
-    if force_json:
-        payload["format"] = "json"
+                force_json: bool, timeout: int, think: bool,
+                num_predict: int = 1200) -> Tuple[str, float]:
+    """
+    Appelle Ollama. Le raisonnement est coupé de DEUX façons, parce qu'aucune
+    n'est portable seule : le champ natif `think: false` (Ollama récent) et le
+    marqueur `/nothink` dans le message (convention Qwen3). Un serveur qui ne
+    connaît pas `think` renvoie 400 : on réessaie alors sans lui.
+    """
+    def build(with_think_field: bool) -> Dict[str, Any]:
+        p: Dict[str, Any] = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user if think else user + " /nothink"},
+            ],
+            "stream": False,
+            "options": {
+                "temperature": 0,
+                "num_predict": num_predict,   # borne la generation : evite les reponses qui n'en finissent pas
+                "num_ctx": 8192,
+            },
+        }
+        if force_json:
+            p["format"] = "json"
+        if with_think_field and not think:
+            p["think"] = False
+        return p
 
-    req = urllib.request.Request(
-        url.rstrip("/") + "/api/chat",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-    )
+    def call(payload: Dict[str, Any]) -> str:
+        req = urllib.request.Request(
+            url.rstrip("/") + "/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        return body.get("message", {}).get("content", "")
+
     t0 = time.monotonic()
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = json.loads(resp.read().decode("utf-8"))
-    return body.get("message", {}).get("content", ""), time.monotonic() - t0
+    try:
+        content = call(build(True))
+    except urllib.error.HTTPError as exc:
+        if exc.code != 400:
+            raise
+        content = call(build(False))
+    return content, time.monotonic() - t0
 
 
 # ===========================================================================
@@ -460,14 +492,15 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
     for attempt in range(max_tries):
         try:
             raw, dt = ollama_chat(args.url, args.model, system, user,
-                                  force_json, args.timeout, args.think)
+                                  force_json, args.timeout, args.think,
+                                  args.num_predict)
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             return {"id": case["id"], "level": case["level"], "error": f"Ollama injoignable: {exc}",
                     "validity": 0.0, "exactness": 0.0, "sobriety": 0.0, "seconds": 0.0}
         elapsed += dt
         parsed = extract(raw)
         files, refused, reason = parsed["files"], parsed["refuse"], parsed["reason"]
-        attempts.append({"raw": raw[:1500] if args.keep_raw else "", "files": sorted(files)})
+        attempts.append({"raw": raw[:2500], "files": sorted(files)})
 
         if refused or not files:
             break
@@ -485,8 +518,10 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
     if must_refuse and refused:
         sobriety = 1.0
 
+    failed = not (validity and exactness == 1.0 and sobriety)
     return {
         "id": case["id"], "level": case["level"], "prompt": case["prompt"],
+        "raw": attempts[-1]["raw"] if (args.keep_raw or failed) and attempts else "",
         "validity": validity, "exactness": round(exactness, 3), "sobriety": sobriety,
         "refused": refused, "reason": reason[:200],
         "filesProduced": sorted(files), "misses": misses, "faults": faults,
@@ -544,7 +579,10 @@ def main() -> int:
     ap.add_argument("--level", default="", help="ne jouer qu'un niveau")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--think", action="store_true", help="laisser le mode raisonnement (défaut: /nothink)")
-    ap.add_argument("--keep-raw", action="store_true", help="conserver les réponses brutes")
+    ap.add_argument("--keep-raw", action="store_true",
+                    help="conserver toutes les réponses brutes (les échecs le sont toujours)")
+    ap.add_argument("--num-predict", type=int, default=1200,
+                    help="plafond de jetons générés par réponse")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -572,6 +610,8 @@ def main() -> int:
                 print(f"          - {m}")
             if r.get("error"):
                 print(f"          ! {r['error']}")
+            if r.get("oracle"):
+                print(f"          oracle: {r['oracle'].strip()[-200:]}")
         if r.get("error", "").startswith("Ollama injoignable"):
             print("\nArrêt : Ollama ne répond pas. Vérifiez `ollama serve`.")
             break

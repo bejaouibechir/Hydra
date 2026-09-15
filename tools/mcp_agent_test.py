@@ -296,6 +296,17 @@ def main() -> int:
     if not args.url:
         args.url = ("https://generativelanguage.googleapis.com/v1beta/openai"
                     if args.provider == "openai" else "http://localhost:11434")
+
+    # Echouer tout de suite, plutot que six fois la meme erreur d'authentification.
+    if args.provider == "openai" and not args.api_key:
+        print("Aucune clé API.\n"
+              "  PowerShell : $env:GEMINI_API_KEY = \"votre_cle\"\n"
+              "  bash       : export GEMINI_API_KEY=votre_cle\n"
+              "  ou passez  : --api-key votre_cle\n"
+              "Les variables $env: ne survivent pas à la fermeture du terminal.",
+              file=sys.stderr)
+        return 2
+
     return asyncio.run(main_async(args))
 
 

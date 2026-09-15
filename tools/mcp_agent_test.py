@@ -24,6 +24,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -81,17 +82,34 @@ SCENARIOS = [
 
 # ---------------------------------------------------------------------------
 
+# 429 (quota momentane) et 500/502/503 (surcharge du fournisseur) sont
+# transitoires : on patiente. Un pic de charge chez Google n'est pas un echec
+# du serveur MCP, et ne doit pas en avoir l'air.
+_TRANSIENT = (429, 500, 502, 503, 504)
+_BACKOFF = (3, 8, 20, 40)
+
+
 def _post(url: str, payload: dict, headers: dict, timeout: int) -> dict:
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
-                                 headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        # Sans le corps de la reponse, un 400 ne dit rien. Or c'est presque
-        # toujours le schema d'un outil que le fournisseur refuse.
-        detail = exc.read().decode("utf-8", "replace")[:600]
-        raise RuntimeError(f"HTTP {exc.code} — {detail}") from None
+    last = None
+    for wait in (0, *_BACKOFF):
+        if wait:
+            print(f"      (fournisseur occupé — nouvelle tentative dans {wait}s)")
+            time.sleep(wait)
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
+                                     headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            # Sans le corps de la reponse, un 400 ne dit rien. Or c'est presque
+            # toujours le schema d'un outil que le fournisseur refuse.
+            detail = exc.read().decode("utf-8", "replace")[:400]
+            last = (exc.code, detail)
+            if exc.code in _TRANSIENT:
+                continue
+            break
+    code, detail = last                                  # type: ignore[misc]
+    raise RuntimeError(f"HTTP {code} — {detail}")
 
 
 # Les fournisseurs compatibles OpenAI n'acceptent qu'un sous-ensemble de JSON

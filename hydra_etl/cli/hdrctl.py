@@ -66,6 +66,28 @@ def c(color: str, text: str) -> str:
 # Ne jamais reintroduire un litteral ici.
 from hydra_etl import __version__ as VERSION
 
+
+def _harden_stdio() -> None:
+    """
+    Empêche `hdrctl` de planter quand sa sortie n'est pas en UTF-8.
+
+    Sous Windows, une sortie redirigée (fichier, pipe, CI, sous-processus)
+    hérite de cp1252 : le premier emoji imprimé lève alors UnicodeEncodeError
+    et la commande échoue — alors que le travail demandé, lui, s'est bien
+    passé. On remplace les caractères non encodables au lieu d'échouer.
+
+    Le bandeau et les filets ont déjà leur propre repli ASCII ; ceci couvre
+    tous les autres glyphes (✅ ❌ ⚠ 🔍 ✓ ✗) d'un seul geste.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+_harden_stdio()
+
 _HYDRA_ART = """
                                           @
                                              @@@@@-

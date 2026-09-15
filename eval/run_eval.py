@@ -72,8 +72,11 @@ class Spec:
 
 RESPONSE_CONTRACT = """Réponds UNIQUEMENT par un objet JSON, sans texte autour :
 {"refuse": false, "reason": "", "files": {"sources.yaml": "<yaml>", "destinations.yaml": "<yaml>", "pipeline.yaml": "<yaml>"}}
-Ajoute "transformations.yaml" dans "files" seulement si la demande implique une
-transformation. Un job sans transformation est parfaitement normal.
+Ajoute "transformations.yaml" dans "files" dès que la demande implique une
+opération sur les données. Sélectionner des colonnes, filtrer, renommer,
+convertir un type, calculer, nettoyer, dédoublonner, trier, agréger, joindre :
+ce sont toutes des transformations. Ne l'omets que pour une copie pure, d'une
+source vers une destination, sans aucune modification.
 
 N'utilise "refuse": true QUE si la demande exige quelque chose qui n'existe pas
 dans les listes ci-dessus (connecteur, opération, action) ou une exécution
@@ -274,6 +277,20 @@ def _guess_name(body: str) -> Optional[str]:
 # Oracle : hdrctl validate
 # ===========================================================================
 
+def _oracle_env() -> Dict[str, str]:
+    """
+    Sous Windows, la console d'un sous-processus est en cp1252 : `hdrctl` y
+    plante avec UnicodeEncodeError dès qu'il imprime un emoji. On force donc
+    l'UTF-8 dans le processus fils — sans quoi TOUTE validation échoue, quel
+    que soit le YAML produit.
+    """
+    import os
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env
+
+
 def run_oracle(files: Dict[str, str]) -> Tuple[bool, str]:
     tmp = Path(tempfile.mkdtemp(prefix="hydra_eval_"))
     try:
@@ -286,7 +303,9 @@ def run_oracle(files: Dict[str, str]) -> Tuple[bool, str]:
         else:
             cmd = [sys.executable, "-m", "hydra_etl.cli.hdrctl", "validate", str(tmp)]
 
-        proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True,
+                              encoding="utf-8", errors="replace",
+                              env=_oracle_env(), timeout=120)
         out = (proc.stdout + proc.stderr)
         return proc.returncode == 0, out[-600:]
     except Exception as exc:

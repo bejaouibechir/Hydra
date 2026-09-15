@@ -147,6 +147,7 @@ def build_response_schema(spec: Spec) -> Dict[str, Any]:
     job_branch = {
         "type": "object",
         "properties": {
+            "kind": {"type": "string", "enum": ["job"]},
             "sources": {"type": "object", "additionalProperties": source_def,
                         "minProperties": 1},
             "transformations": {"type": "array", "items": {"anyOf": op_variants}},
@@ -160,13 +161,14 @@ def build_response_schema(spec: Spec) -> Dict[str, Any]:
                 "required": ["from", "to"],
             },
         },
-        "required": ["sources", "destinations", "pipeline"],
+        "required": ["kind", "sources", "destinations", "pipeline"],
         "additionalProperties": False,
     }
 
     workflow_branch = {
         "type": "object",
         "properties": {
+            "kind": {"type": "string", "enum": ["workflow"]},
             "workflow": {
                 "type": "object",
                 "properties": {
@@ -211,17 +213,17 @@ def build_response_schema(spec: Spec) -> Dict[str, Any]:
                 "required": ["name", "steps"],
             },
         },
-        "required": ["workflow"],
+        "required": ["kind", "workflow"],
         "additionalProperties": False,
     }
 
     refusal_branch = {
         "type": "object",
         "properties": {
-            "impossible": {"type": "boolean"},
+            "kind": {"type": "string", "enum": ["impossible"]},
             "reason": {"type": "string"},
         },
-        "required": ["impossible", "reason"],
+        "required": ["kind", "reason"],
         "additionalProperties": False,
     }
 
@@ -252,20 +254,26 @@ def files_from_structured(obj: Dict[str, Any]) -> Dict[str, str]:
 STRUCTURED_CONTRACT = """Tu ne produis PAS de YAML. Tu produis un objet JSON que
 le système convertit lui-même en manifestes.
 
-Pour un JOB, produis :
-  {"sources": {...}, "transformations": [...], "destinations": {...},
+Commence TOUJOURS par le champ "kind", qui vaut :
+  "job"        un pipeline source -> destination        <- le cas courant
+  "workflow"   un enchaînement de plusieurs jobs, uniquement si la demande
+               parle d'ordonnancement, de dépendances ou de plusieurs jobs
+  "impossible" en dernier recours seulement
+
+Pour un JOB ("kind": "job"), produis :
+  {"kind": "job", "sources": {...}, "transformations": [...], "destinations": {...},
    "pipeline": {"from": "<id de source>", "to": "<id de destination>"}}
   - `sources` et `destinations` : identifiant -> définition
   - `transformations` : tableau d'étapes, chacune un objet à UNE clé
   - `pipeline` ne contient JAMAIS d'étapes
 
 Pour un WORKFLOW, produis :
-  {"workflow": {"name": "...", "trigger": {...}, "steps": [...]}}
+  {"kind": "workflow", "workflow": {"name": "...", "trigger": {...}, "steps": [...]}}
 
 Presque toute demande se traite ainsi. En dernier recours seulement, si elle
 exige un connecteur, une opération ou une action absents des listes ci-dessus,
 ou une exécution distribuée, produis :
-  {"impossible": true, "reason": "<en une phrase>"}"""
+  {"kind": "impossible", "reason": "<en une phrase>"}"""
 
 
 def build_system_prompt(spec: Spec, examples: List[Dict[str, Any]],
@@ -729,7 +737,7 @@ def run_case(case, spec, system, args) -> Dict[str, Any]:
                 obj = json.loads(raw)
             except Exception:
                 obj = {}
-            refused = bool(obj.get("impossible"))
+            refused = obj.get("kind") == "impossible" or bool(obj.get("impossible"))
             files = {} if refused else files_from_structured(obj)
             reason = str(obj.get("reason") or "")
         else:

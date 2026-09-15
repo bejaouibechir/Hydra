@@ -1,0 +1,24 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/filter.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "expr": {
+      "minLength": 1,
+      "title": "Expr",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expr"
+  ],
+  "title": "FilterOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "filter",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.FilterOp"
+  }
+}

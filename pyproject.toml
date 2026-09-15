@@ -102,7 +102,7 @@ exclude = ["*._backups*", "*.backup*", "*__pycache__*", "tests*", "examples*"]
 "hydra_etl.cli" = ["locales/*.json"]
 # studio_dist/ est produit par `python scripts/build_studio.py` avant la
 # construction du wheel. C'est ce qui dispense l'utilisateur de Node.
-"hydra_etl" = ["py.typed", "studio_dist/**/*"]
+"hydra_etl" = ["py.typed", "studio_dist/**/*", "ai/schemas/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

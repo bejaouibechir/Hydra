@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Valeurs admises pour la clé 'type' d'une source ou d'une destination. Le modèle Pydantic accepte une chaîne libre : seul le registre fait foi, et un type inconnu n'échoue qu'à l'exécution. Cette énumération existe pour contraindre la génération en amont.",
+  "enum": [
+    "csv",
+    "json",
+    "mariadb",
+    "mongodb",
+    "mysql",
+    "parquet",
+    "postgres",
+    "postgresql",
+    "web_api"
+  ],
+  "title": "Hydra connector types",
+  "type": "string",
+  "x-hydra": {
+    "dslName": "connectors",
+    "dslVersion": "1.0",
+    "kind": "connectors",
+    "note": "mongodb, parquet et web_api ne s'enregistrent que si leur extra est installé ; ils font partie du DSL dans tous les cas.",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.connector.registry.CONNECTOR_REGISTRY"
+  }
+}

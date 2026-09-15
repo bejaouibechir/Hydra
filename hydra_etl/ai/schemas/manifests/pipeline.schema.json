@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "PipelineDefinition": {
+      "additionalProperties": false,
+      "description": "Relie une source déclarée à une destination déclarée.",
+      "properties": {
+        "from": {
+          "description": "Identifiant déclaré dans sources.yaml.",
+          "title": "From",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nom du pipeline. Facultatif.",
+          "title": "Name"
+        },
+        "to": {
+          "description": "Identifiant déclaré dans destinations.yaml.",
+          "title": "To",
+          "type": "string"
+        },
+        "transformations": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Référence au manifeste de transformations. Facultatif : en son absence, transformations.yaml est utilisé s'il existe.",
+          "title": "Transformations"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "PipelineDefinition",
+      "type": "object"
+    }
+  },
+  "$id": "https://hydra.local/schemas/0.9.6/manifests/pipeline.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Contenu complet de `pipeline.yaml`.",
+  "properties": {
+    "pipeline": {
+      "$ref": "#/$defs/PipelineDefinition"
+    },
+    "version": {
+      "default": "1.0",
+      "description": "Version du manifeste.",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "pipeline"
+  ],
+  "title": "PipelineConfig",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "pipeline",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "manifest",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.pipeline.PipelineConfig"
+  }
+}

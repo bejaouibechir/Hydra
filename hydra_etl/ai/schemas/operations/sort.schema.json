@@ -1,0 +1,31 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/sort.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "ascending": {
+      "default": true,
+      "title": "Ascending"
+    },
+    "by": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "By",
+      "type": "array"
+    }
+  },
+  "required": [
+    "by"
+  ],
+  "title": "SortOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "sort",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.SortOp"
+  }
+}

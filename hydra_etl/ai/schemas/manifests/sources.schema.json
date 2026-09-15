@@ -1,0 +1,242 @@
+{
+  "$defs": {
+    "ExtractConfig": {
+      "description": "Décrit comment extraire depuis une source.\n\nMVP :\n- soit table\n- soit query\n- soit collection (MongoDB)",
+      "properties": {
+        "batch_size": {
+          "default": 10000,
+          "minimum": 1,
+          "title": "Batch Size",
+          "type": "integer"
+        },
+        "collection": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Collection"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filter"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "query": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Query"
+        },
+        "table": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table"
+        }
+      },
+      "title": "ExtractConfig",
+      "type": "object"
+    },
+    "SchemaConfig": {
+      "description": "Configuration du schéma pour sources atypiques.",
+      "properties": {
+        "drift_policy": {
+          "default": "warn",
+          "title": "Drift Policy",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/SchemaFieldConfig"
+          },
+          "title": "Fields",
+          "type": "array"
+        },
+        "mode": {
+          "default": "auto",
+          "title": "Mode",
+          "type": "string"
+        },
+        "sample_size": {
+          "default": 100,
+          "minimum": 1,
+          "title": "Sample Size",
+          "type": "integer"
+        },
+        "validation_policy": {
+          "default": "best_effort",
+          "title": "Validation Policy",
+          "type": "string"
+        }
+      },
+      "title": "SchemaConfig",
+      "type": "object"
+    },
+    "SchemaFieldConfig": {
+      "description": "Configuration d'un champ dans le schéma source.",
+      "properties": {
+        "array_handling": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Array Handling"
+        },
+        "default": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "SchemaFieldConfig",
+      "type": "object"
+    },
+    "SourceDefinition": {
+      "description": "Définition d'une source.\n\nExemples de type :\n- mysql\n- mariadb\n- mongodb\n- csv\n- json",
+      "properties": {
+        "connection": {
+          "additionalProperties": true,
+          "title": "Connection",
+          "type": "object"
+        },
+        "extract": {
+          "$ref": "#/$defs/ExtractConfig"
+        },
+        "schema": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SchemaConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "extract"
+      ],
+      "title": "SourceDefinition",
+      "type": "object"
+    }
+  },
+  "$id": "https://hydra.local/schemas/0.9.6/manifests/sources.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Racine du fichier sources.yaml.",
+  "properties": {
+    "sources": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SourceDefinition"
+      },
+      "title": "Sources",
+      "type": "object"
+    }
+  },
+  "title": "SourcesConfig",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "sources",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "manifest",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.source.SourcesConfig"
+  }
+}

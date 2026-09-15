@@ -1,0 +1,1306 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/manifests/transformations.surface.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "required": [
+        "steps"
+      ]
+    },
+    {
+      "required": [
+        "transformations"
+      ]
+    }
+  ],
+  "properties": {
+    "steps": {
+      "description": "Liste ordonnée d'étapes, chacune étant un objet à UNE seule clé : le nom de l'opération.",
+      "items": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "aggregate": {
+                "description": "Agrégation groupée.\n\nParams YAML:\n    by: [col1, col2]          # colonnes de groupement\n    agg:\n      out_col: {func: sum, col: src_col}\n      out_col2: {func: count, col: src_col2}\n      out_col3: {func: mean, col: src_col3}\n\nFonctions supportées: sum, count, mean, avg, min, max, first, last",
+                "properties": {
+                  "agg": {
+                    "additionalProperties": true,
+                    "minProperties": 1,
+                    "title": "Agg",
+                    "type": "object"
+                  },
+                  "by": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "title": "By",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "by",
+                  "agg"
+                ],
+                "title": "AggregateOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "aggregate"
+            ],
+            "title": "aggregate",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "calculate": {
+                "properties": {
+                  "column": {
+                    "minLength": 1,
+                    "title": "Column",
+                    "type": "string"
+                  },
+                  "expr": {
+                    "minLength": 1,
+                    "title": "Expr",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "column",
+                  "expr"
+                ],
+                "title": "CalculateOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "calculate"
+            ],
+            "title": "calculate",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "cast": {
+                "properties": {
+                  "mapping": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "minProperties": 1,
+                    "title": "Mapping",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mapping"
+                ],
+                "title": "CastOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "cast"
+            ],
+            "title": "cast",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "clean": {
+                "description": "Nettoie les colonnes texte : espaces (trim + multiples) + casse.",
+                "properties": {
+                  "case": {
+                    "default": "none",
+                    "title": "Case",
+                    "type": "string"
+                  },
+                  "columns": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Columns"
+                  }
+                },
+                "title": "CleanOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "clean"
+            ],
+            "title": "clean",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "deduplicate": {
+                "properties": {
+                  "columns": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Columns"
+                  },
+                  "keep": {
+                    "default": "first",
+                    "title": "Keep",
+                    "type": "string"
+                  }
+                },
+                "title": "DeduplicateOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "deduplicate"
+            ],
+            "title": "deduplicate",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "fill_null": {
+                "properties": {
+                  "columns": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Columns"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Value"
+                  }
+                },
+                "title": "FillNullOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "fill_null"
+            ],
+            "title": "fill_null",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "filter": {
+                "properties": {
+                  "expr": {
+                    "minLength": 1,
+                    "title": "Expr",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expr"
+                ],
+                "title": "FilterOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "filter"
+            ],
+            "title": "filter",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "join": {
+                "description": "Jointure avec une source de reference (2e flux).\n\nParams YAML:\n    join:\n      right:                    # source de reference (comme une source)\n        type: mysql\n        connection: {...}\n        extract: {table: departments}\n      key: email                # cle commune (str ou liste de str)\n      how: left                 # inner | left | right | outer",
+                "properties": {
+                  "how": {
+                    "default": "inner",
+                    "title": "How",
+                    "type": "string"
+                  },
+                  "key": {
+                    "default": null,
+                    "title": "Key"
+                  },
+                  "left_key": {
+                    "default": null,
+                    "title": "Left Key"
+                  },
+                  "right": {
+                    "title": "Right"
+                  },
+                  "right_key": {
+                    "default": null,
+                    "title": "Right Key"
+                  }
+                },
+                "required": [
+                  "right"
+                ],
+                "title": "JoinOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "join"
+            ],
+            "title": "join",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "merge": {
+                "description": "Merge type SQL Server (upsert cible <- source, sur une cle).",
+                "properties": {
+                  "delete_unmatched": {
+                    "default": false,
+                    "title": "Delete Unmatched",
+                    "type": "boolean"
+                  },
+                  "key": {
+                    "title": "Key"
+                  },
+                  "right": {
+                    "title": "Right"
+                  }
+                },
+                "required": [
+                  "right",
+                  "key"
+                ],
+                "title": "MergeOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "merge"
+            ],
+            "title": "merge",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "pivot": {
+                "description": "Long -> large (pandas pivot_table).",
+                "properties": {
+                  "aggfunc": {
+                    "default": "first",
+                    "title": "Aggfunc",
+                    "type": "string"
+                  },
+                  "column": {
+                    "title": "Column",
+                    "type": "string"
+                  },
+                  "index": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "title": "Index",
+                    "type": "array"
+                  },
+                  "values": {
+                    "title": "Values",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "index",
+                  "column",
+                  "values"
+                ],
+                "title": "PivotOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "pivot"
+            ],
+            "title": "pivot",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "rename": {
+                "properties": {
+                  "mapping": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "minProperties": 1,
+                    "title": "Mapping",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "mapping"
+                ],
+                "title": "RenameOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "rename"
+            ],
+            "title": "rename",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "script": {
+                "description": "Transformation Python personnalisee (facon SSIS Script Component).\n\nL'utilisateur declare un contrat colonnes input -> colonnes output et\nfournit un extrait de code Python execute dans un environnement restreint.\n\nParams YAML:\n    script:\n      inputs: [price, quantity]      # colonnes lues (contrat)\n      outputs:                       # colonnes produites (+ type)\n        total: float\n        label: str\n      mode: vectorized               # vectorized | row\n      code: |\n        total = price * quantity\n        label = \"big\" if total.iloc[0] > 100 else \"small\"\n\nModes:\n- vectorized : chaque colonne input est exposee comme pandas.Series ;\n               le code doit affecter chaque colonne output (Series/scalaire).\n- row        : le code s'execute ligne par ligne (facon SSIS\n               ProcessInputRow) ; chaque colonne input est un scalaire.\n\nTypes outputs autorises: int, float, str, bool, date, datetime, any.",
+                "properties": {
+                  "code": {
+                    "minLength": 1,
+                    "title": "Code",
+                    "type": "string"
+                  },
+                  "inputs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "title": "Inputs",
+                    "type": "array"
+                  },
+                  "mode": {
+                    "default": "vectorized",
+                    "enum": [
+                      "vectorized",
+                      "row"
+                    ],
+                    "title": "Mode",
+                    "type": "string"
+                  },
+                  "outputs": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "minProperties": 1,
+                    "title": "Outputs",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "outputs",
+                  "code"
+                ],
+                "title": "ScriptOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "script"
+            ],
+            "title": "script",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "select": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "title": "Columns",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "columns"
+                ],
+                "title": "SelectOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "select"
+            ],
+            "title": "select",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "sort": {
+                "properties": {
+                  "ascending": {
+                    "default": true,
+                    "title": "Ascending"
+                  },
+                  "by": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "title": "By",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "by"
+                ],
+                "title": "SortOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "sort"
+            ],
+            "title": "sort",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "transpose": {
+                "description": "Transpose lignes <-> colonnes (pandas .T).",
+                "properties": {
+                  "header_name": {
+                    "default": "column",
+                    "title": "Header Name",
+                    "type": "string"
+                  },
+                  "index_col": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Index Col"
+                  }
+                },
+                "title": "TransposeOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "transpose"
+            ],
+            "title": "transpose",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "trim": {
+                "properties": {
+                  "columns": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Columns"
+                  }
+                },
+                "title": "TrimOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "trim"
+            ],
+            "title": "trim",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "union": {
+                "description": "Union / Union All : empile une 2e source (memes colonnes).",
+                "properties": {
+                  "distinct": {
+                    "default": false,
+                    "title": "Distinct",
+                    "type": "boolean"
+                  },
+                  "right": {
+                    "title": "Right"
+                  }
+                },
+                "required": [
+                  "right"
+                ],
+                "title": "UnionOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "union"
+            ],
+            "title": "union",
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "unpivot": {
+                "description": "Large -> long (pandas melt).",
+                "properties": {
+                  "id_vars": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "title": "Id Vars",
+                    "type": "array"
+                  },
+                  "value_name": {
+                    "default": "value",
+                    "title": "Value Name",
+                    "type": "string"
+                  },
+                  "value_vars": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Value Vars"
+                  },
+                  "var_name": {
+                    "default": "variable",
+                    "title": "Var Name",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id_vars"
+                ],
+                "title": "UnpivotOp",
+                "type": "object"
+              }
+            },
+            "required": [
+              "unpivot"
+            ],
+            "title": "unpivot",
+            "type": "object"
+          }
+        ]
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "transformations": {
+      "description": "Forme imbriquée, équivalente à 'steps' à la racine.",
+      "properties": {
+        "steps": {
+          "description": "Liste ordonnée d'étapes, chacune étant un objet à UNE seule clé : le nom de l'opération.",
+          "items": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "aggregate": {
+                    "description": "Agrégation groupée.\n\nParams YAML:\n    by: [col1, col2]          # colonnes de groupement\n    agg:\n      out_col: {func: sum, col: src_col}\n      out_col2: {func: count, col: src_col2}\n      out_col3: {func: mean, col: src_col3}\n\nFonctions supportées: sum, count, mean, avg, min, max, first, last",
+                    "properties": {
+                      "agg": {
+                        "additionalProperties": true,
+                        "minProperties": 1,
+                        "title": "Agg",
+                        "type": "object"
+                      },
+                      "by": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "title": "By",
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "by",
+                      "agg"
+                    ],
+                    "title": "AggregateOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "aggregate"
+                ],
+                "title": "aggregate",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "calculate": {
+                    "properties": {
+                      "column": {
+                        "minLength": 1,
+                        "title": "Column",
+                        "type": "string"
+                      },
+                      "expr": {
+                        "minLength": 1,
+                        "title": "Expr",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "column",
+                      "expr"
+                    ],
+                    "title": "CalculateOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "calculate"
+                ],
+                "title": "calculate",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "cast": {
+                    "properties": {
+                      "mapping": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "minProperties": 1,
+                        "title": "Mapping",
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "mapping"
+                    ],
+                    "title": "CastOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "cast"
+                ],
+                "title": "cast",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "clean": {
+                    "description": "Nettoie les colonnes texte : espaces (trim + multiples) + casse.",
+                    "properties": {
+                      "case": {
+                        "default": "none",
+                        "title": "Case",
+                        "type": "string"
+                      },
+                      "columns": {
+                        "anyOf": [
+                          {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "Columns"
+                      }
+                    },
+                    "title": "CleanOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "clean"
+                ],
+                "title": "clean",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "deduplicate": {
+                    "properties": {
+                      "columns": {
+                        "anyOf": [
+                          {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "Columns"
+                      },
+                      "keep": {
+                        "default": "first",
+                        "title": "Keep",
+                        "type": "string"
+                      }
+                    },
+                    "title": "DeduplicateOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "deduplicate"
+                ],
+                "title": "deduplicate",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "fill_null": {
+                    "properties": {
+                      "columns": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": true,
+                            "type": "object"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "Columns"
+                      },
+                      "value": {
+                        "anyOf": [
+                          {},
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "Value"
+                      }
+                    },
+                    "title": "FillNullOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "fill_null"
+                ],
+                "title": "fill_null",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "filter": {
+                    "properties": {
+                      "expr": {
+                        "minLength": 1,
+                        "title": "Expr",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "expr"
+                    ],
+                    "title": "FilterOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "filter"
+                ],
+                "title": "filter",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "join": {
+                    "description": "Jointure avec une source de reference (2e flux).\n\nParams YAML:\n    join:\n      right:                    # source de reference (comme une source)\n        type: mysql\n        connection: {...}\n        extract: {table: departments}\n      key: email                # cle commune (str ou liste de str)\n      how: left                 # inner | left | right | outer",
+                    "properties": {
+                      "how": {
+                        "default": "inner",
+                        "title": "How",
+                        "type": "string"
+                      },
+                      "key": {
+                        "default": null,
+                        "title": "Key"
+                      },
+                      "left_key": {
+                        "default": null,
+                        "title": "Left Key"
+                      },
+                      "right": {
+                        "title": "Right"
+                      },
+                      "right_key": {
+                        "default": null,
+                        "title": "Right Key"
+                      }
+                    },
+                    "required": [
+                      "right"
+                    ],
+                    "title": "JoinOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "join"
+                ],
+                "title": "join",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "merge": {
+                    "description": "Merge type SQL Server (upsert cible <- source, sur une cle).",
+                    "properties": {
+                      "delete_unmatched": {
+                        "default": false,
+                        "title": "Delete Unmatched",
+                        "type": "boolean"
+                      },
+                      "key": {
+                        "title": "Key"
+                      },
+                      "right": {
+                        "title": "Right"
+                      }
+                    },
+                    "required": [
+                      "right",
+                      "key"
+                    ],
+                    "title": "MergeOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "merge"
+                ],
+                "title": "merge",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "pivot": {
+                    "description": "Long -> large (pandas pivot_table).",
+                    "properties": {
+                      "aggfunc": {
+                        "default": "first",
+                        "title": "Aggfunc",
+                        "type": "string"
+                      },
+                      "column": {
+                        "title": "Column",
+                        "type": "string"
+                      },
+                      "index": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "title": "Index",
+                        "type": "array"
+                      },
+                      "values": {
+                        "title": "Values",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "column",
+                      "values"
+                    ],
+                    "title": "PivotOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "pivot"
+                ],
+                "title": "pivot",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "rename": {
+                    "properties": {
+                      "mapping": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "minProperties": 1,
+                        "title": "Mapping",
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "mapping"
+                    ],
+                    "title": "RenameOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "rename"
+                ],
+                "title": "rename",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "script": {
+                    "description": "Transformation Python personnalisee (facon SSIS Script Component).\n\nL'utilisateur declare un contrat colonnes input -> colonnes output et\nfournit un extrait de code Python execute dans un environnement restreint.\n\nParams YAML:\n    script:\n      inputs: [price, quantity]      # colonnes lues (contrat)\n      outputs:                       # colonnes produites (+ type)\n        total: float\n        label: str\n      mode: vectorized               # vectorized | row\n      code: |\n        total = price * quantity\n        label = \"big\" if total.iloc[0] > 100 else \"small\"\n\nModes:\n- vectorized : chaque colonne input est exposee comme pandas.Series ;\n               le code doit affecter chaque colonne output (Series/scalaire).\n- row        : le code s'execute ligne par ligne (facon SSIS\n               ProcessInputRow) ; chaque colonne input est un scalaire.\n\nTypes outputs autorises: int, float, str, bool, date, datetime, any.",
+                    "properties": {
+                      "code": {
+                        "minLength": 1,
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "inputs": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "title": "Inputs",
+                        "type": "array"
+                      },
+                      "mode": {
+                        "default": "vectorized",
+                        "enum": [
+                          "vectorized",
+                          "row"
+                        ],
+                        "title": "Mode",
+                        "type": "string"
+                      },
+                      "outputs": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "minProperties": 1,
+                        "title": "Outputs",
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "outputs",
+                      "code"
+                    ],
+                    "title": "ScriptOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "script"
+                ],
+                "title": "script",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "select": {
+                    "properties": {
+                      "columns": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "title": "Columns",
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "columns"
+                    ],
+                    "title": "SelectOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "select"
+                ],
+                "title": "select",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "sort": {
+                    "properties": {
+                      "ascending": {
+                        "default": true,
+                        "title": "Ascending"
+                      },
+                      "by": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "title": "By",
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "by"
+                    ],
+                    "title": "SortOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "sort"
+                ],
+                "title": "sort",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "transpose": {
+                    "description": "Transpose lignes <-> colonnes (pandas .T).",
+                    "properties": {
+                      "header_name": {
+                        "default": "column",
+                        "title": "Header Name",
+                        "type": "string"
+                      },
+                      "index_col": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "Index Col"
+                      }
+                    },
+                    "title": "TransposeOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "transpose"
+                ],
+                "title": "transpose",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "trim": {
+                    "properties": {
+                      "columns": {
+                        "anyOf": [
+                          {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "Columns"
+                      }
+                    },
+                    "title": "TrimOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "trim"
+                ],
+                "title": "trim",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "union": {
+                    "description": "Union / Union All : empile une 2e source (memes colonnes).",
+                    "properties": {
+                      "distinct": {
+                        "default": false,
+                        "title": "Distinct",
+                        "type": "boolean"
+                      },
+                      "right": {
+                        "title": "Right"
+                      }
+                    },
+                    "required": [
+                      "right"
+                    ],
+                    "title": "UnionOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "union"
+                ],
+                "title": "union",
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "unpivot": {
+                    "description": "Large -> long (pandas melt).",
+                    "properties": {
+                      "id_vars": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "title": "Id Vars",
+                        "type": "array"
+                      },
+                      "value_name": {
+                        "default": "value",
+                        "title": "Value Name",
+                        "type": "string"
+                      },
+                      "value_vars": {
+                        "anyOf": [
+                          {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "default": null,
+                        "title": "Value Vars"
+                      },
+                      "var_name": {
+                        "default": "variable",
+                        "title": "Var Name",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id_vars"
+                    ],
+                    "title": "UnpivotOp",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "unpivot"
+                ],
+                "title": "unpivot",
+                "type": "object"
+              }
+            ]
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "steps"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "title": "Hydra manifest — transformations (forme écrite)",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "transformations.surface",
+    "dslVersion": "1.0",
+    "kind": "manifest-surface",
+    "note": "Forme utilisateur (une clé = un nom d'opération). Le schéma transformations.schema.json décrit la forme interne op/params, produite par TransformParser. Utiliser CELUI-CI pour contraindre une génération.",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform._OP_MODEL_MAP"
+  }
+}

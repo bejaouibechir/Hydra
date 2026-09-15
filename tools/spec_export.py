@@ -31,6 +31,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 DEFAULT_OUT = ROOT / "documentations" / "chatbot-hydra-dsl" / "schemas"
+# Copie embarquée dans le paquet : sans elle, la spécification n'existe que
+# dans le dépôt, et tout ce qui la lit échoue une fois `pip install` fait.
+PACKAGE_OUT = ROOT / "hydra_etl" / "ai" / "schemas"
 RUNNER_PY = ROOT / "hydra_etl" / "workflow" / "runner.py"
 REGISTRY_PY = ROOT / "hydra_etl" / "internal" / "connector" / "registry.py"
 
@@ -418,10 +421,12 @@ def main() -> int:
 
     if args.check:
         drift = []
-        for rel, content in files.items():
-            p = args.out / rel
-            if not p.exists() or p.read_text(encoding="utf-8") != content:
-                drift.append(rel)
+        verifies = [args.out] + ([PACKAGE_OUT] if args.out == DEFAULT_OUT else [])
+        for out_dir in verifies:
+            for rel, content in files.items():
+                p = out_dir / rel
+                if not p.exists() or p.read_text(encoding="utf-8") != content:
+                    drift.append(f"{out_dir.name}/{rel}")
         if drift:
             print("SPEC DESYNCHRONISEE — regenerer avec: python tools/spec_export.py")
             for d in sorted(drift):
@@ -430,12 +435,17 @@ def main() -> int:
         print(f"Spec a jour ({len(files)} fichiers).")
         return 0
 
-    for rel, content in files.items():
-        p = args.out / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
+    destinations = [args.out]
+    if args.out == DEFAULT_OUT:
+        destinations.append(PACKAGE_OUT)
 
-    print(f"Spec generee dans {args.out}")
+    for out_dir in destinations:
+        for rel, content in files.items():
+            p = out_dir / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+
+    print("Spec generee dans " + " et ".join(str(d) for d in destinations))
     print(f"  manifestes : {len(discover_manifests())}")
     print(f"  operations : {len(discover_operations())}")
     print(f"  actions    : {len(discover_actions())}")

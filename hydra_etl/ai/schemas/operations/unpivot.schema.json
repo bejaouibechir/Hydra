@@ -1,0 +1,53 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/unpivot.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Large -> long (pandas melt).",
+  "properties": {
+    "id_vars": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Id Vars",
+      "type": "array"
+    },
+    "value_name": {
+      "default": "value",
+      "title": "Value Name",
+      "type": "string"
+    },
+    "value_vars": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value Vars"
+    },
+    "var_name": {
+      "default": "variable",
+      "title": "Var Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id_vars"
+  ],
+  "title": "UnpivotOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "unpivot",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.UnpivotOp"
+  }
+}

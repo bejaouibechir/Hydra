@@ -49,7 +49,13 @@ except ModuleNotFoundError:                             # pragma: no cover
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-SCHEMAS = ROOT / "documentations" / "chatbot-hydra-dsl" / "schemas"
+
+# La spécification est embarquée dans le paquet ; la copie du dépôt sert de
+# repli quand on travaille depuis les sources. Sans la première, tout ce qui
+# lit la spécification échoue une fois `pip install` fait.
+_PACKAGE_SCHEMAS = Path(__file__).resolve().parent.parent / "ai" / "schemas"
+_REPO_SCHEMAS = ROOT / "documentations" / "chatbot-hydra-dsl" / "schemas"
+SCHEMAS = _PACKAGE_SCHEMAS if (_PACKAGE_SCHEMAS / "index.json").exists() else _REPO_SCHEMAS
 
 JOB_FILES = ("sources.yaml", "transformations.yaml",
              "destinations.yaml", "pipeline.yaml")

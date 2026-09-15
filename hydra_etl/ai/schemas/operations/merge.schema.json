@@ -1,0 +1,32 @@
+{
+  "$id": "https://hydra.local/schemas/0.9.6/operations/merge.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Merge type SQL Server (upsert cible <- source, sur une cle).",
+  "properties": {
+    "delete_unmatched": {
+      "default": false,
+      "title": "Delete Unmatched",
+      "type": "boolean"
+    },
+    "key": {
+      "title": "Key"
+    },
+    "right": {
+      "title": "Right"
+    }
+  },
+  "required": [
+    "right",
+    "key"
+  ],
+  "title": "MergeOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "merge",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.internal.parser.transform.MergeOp"
+  }
+}

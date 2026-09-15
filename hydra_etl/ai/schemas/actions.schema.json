@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Actions acceptées par un step de type 'action'. Toute valeur hors de cette liste est ignorée à l'exécution : une faute de frappe ne provoque PAS d'erreur.",
+  "enum": [
+    "assign_param",
+    "bash",
+    "condition",
+    "delay",
+    "email",
+    "log",
+    "powershell",
+    "python",
+    "set_param",
+    "ssh",
+    "webhook"
+  ],
+  "title": "Hydra workflow actions",
+  "type": "string",
+  "x-hydra": {
+    "dslName": "actions",
+    "dslVersion": "1.0",
+    "kind": "actions",
+    "productVersion": "0.9.6",
+    "sourceModel": "hydra_etl.workflow.runner.action_handlers"
+  }
+}

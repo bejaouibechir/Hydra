@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "actionCount": 11,
+  "actions": [
+    "assign_param",
+    "bash",
+    "condition",
+    "delay",
+    "email",
+    "log",
+    "powershell",
+    "python",
+    "set_param",
+    "ssh",
+    "webhook"
+  ],
+  "connectorCount": 9,
+  "connectors": [
+    "csv",
+    "json",
+    "mariadb",
+    "mongodb",
+    "mysql",
+    "parquet",
+    "postgres",
+    "postgresql",
+    "web_api"
+  ],
+  "dslVersion": "1.0",
+  "generatedBy": "tools/spec_export.py",
+  "generatedFrom": "Pydantic model_json_schema(mode='validation') + AST du runner",
+  "manifestCount": 5,
+  "operationCount": 18,
+  "productVersion": "0.9.6",
+  "schemaCount": 26,
+  "schemas": [
+    {
+      "dslName": "actions",
+      "kind": "actions",
+      "path": "actions.schema.json",
+      "sourceModel": "hydra_etl.workflow.runner.action_handlers"
+    },
+    {
+      "dslName": "connectors",
+      "kind": "connectors",
+      "path": "connectors.schema.json",
+      "sourceModel": "hydra_etl.internal.connector.registry.CONNECTOR_REGISTRY"
+    },
+    {
+      "dslName": "destinations",
+      "kind": "manifest",
+      "path": "manifests/destinations.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.destination.DestinationsConfig"
+    },
+    {
+      "dslName": "pipeline",
+      "kind": "manifest",
+      "path": "manifests/pipeline.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.pipeline.PipelineConfig"
+    },
+    {
+      "dslName": "sources",
+      "kind": "manifest",
+      "path": "manifests/sources.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.source.SourcesConfig"
+    },
+    {
+      "dslName": "transformations",
+      "kind": "manifest",
+      "path": "manifests/transformations.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.TransformConfig"
+    },
+    {
+      "dslName": "workflow",
+      "kind": "manifest",
+      "path": "manifests/workflow.schema.json",
+      "sourceModel": "hydra_etl.workflow.models.WorkflowDef"
+    },
+    {
+      "dslName": "transformations.surface",
+      "kind": "manifest-surface",
+      "path": "manifests/transformations.surface.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform._OP_MODEL_MAP"
+    },
+    {
+      "dslName": "aggregate",
+      "kind": "transformation",
+      "path": "operations/aggregate.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.AggregateOp"
+    },
+    {
+      "dslName": "calculate",
+      "kind": "transformation",
+      "path": "operations/calculate.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.CalculateOp"
+    },
+    {
+      "dslName": "cast",
+      "kind": "transformation",
+      "path": "operations/cast.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.CastOp"
+    },
+    {
+      "dslName": "clean",
+      "kind": "transformation",
+      "path": "operations/clean.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.CleanOp"
+    },
+    {
+      "dslName": "deduplicate",
+      "kind": "transformation",
+      "path": "operations/deduplicate.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.DeduplicateOp"
+    },
+    {
+      "dslName": "fill_null",
+      "kind": "transformation",
+      "path": "operations/fill_null.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.FillNullOp"
+    },
+    {
+      "dslName": "filter",
+      "kind": "transformation",
+      "path": "operations/filter.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.FilterOp"
+    },
+    {
+      "dslName": "join",
+      "kind": "transformation",
+      "path": "operations/join.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.JoinOp"
+    },
+    {
+      "dslName": "merge",
+      "kind": "transformation",
+      "path": "operations/merge.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.MergeOp"
+    },
+    {
+      "dslName": "pivot",
+      "kind": "transformation",
+      "path": "operations/pivot.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.PivotOp"
+    },
+    {
+      "dslName": "rename",
+      "kind": "transformation",
+      "path": "operations/rename.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.RenameOp"
+    },
+    {
+      "dslName": "script",
+      "kind": "transformation",
+      "path": "operations/script.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.ScriptOp"
+    },
+    {
+      "dslName": "select",
+      "kind": "transformation",
+      "path": "operations/select.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.SelectOp"
+    },
+    {
+      "dslName": "sort",
+      "kind": "transformation",
+      "path": "operations/sort.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.SortOp"
+    },
+    {
+      "dslName": "transpose",
+      "kind": "transformation",
+      "path": "operations/transpose.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.TransposeOp"
+    },
+    {
+      "dslName": "trim",
+      "kind": "transformation",
+      "path": "operations/trim.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.TrimOp"
+    },
+    {
+      "dslName": "union",
+      "kind": "transformation",
+      "path": "operations/union.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.UnionOp"
+    },
+    {
+      "dslName": "unpivot",
+      "kind": "transformation",
+      "path": "operations/unpivot.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.UnpivotOp"
+    }
+  ],
+  "unmodelledManifests": []
+}

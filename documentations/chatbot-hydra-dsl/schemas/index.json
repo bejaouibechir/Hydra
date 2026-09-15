@@ -32,7 +32,7 @@
   "manifestCount": 5,
   "operationCount": 18,
   "productVersion": "0.9.6",
-  "schemaCount": 25,
+  "schemaCount": 26,
   "schemas": [
     {
       "dslName": "actions",
@@ -75,6 +75,12 @@
       "kind": "manifest",
       "path": "manifests/workflow.schema.json",
       "sourceModel": "hydra_etl.workflow.models.WorkflowDef"
+    },
+    {
+      "dslName": "transformations.surface",
+      "kind": "manifest-surface",
+      "path": "manifests/transformations.surface.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform._OP_MODEL_MAP"
     },
     {
       "dslName": "aggregate",

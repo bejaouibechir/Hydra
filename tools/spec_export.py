@@ -210,6 +210,72 @@ def connectors_schema(connectors: list[str]) -> Dict[str, Any]:
     }
 
 
+def transformations_surface_schema(operations: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Schéma de la forme **écrite par l'utilisateur** pour transformations.yaml.
+
+    Le modèle `TransformConfig` décrit la forme *interne* (`op` / `params`),
+    obtenue après conversion par `TransformParser`. Ce que l'on écrit dans le
+    fichier est différent :
+
+        steps:
+          - filter:
+              expr: "amount > 0"
+
+    C'est cette forme-là qu'il faut imposer à un générateur : contraindre sur
+    le schéma interne produirait du YAML que personne n'écrit.
+    """
+    variants = []
+    for name, model in sorted(operations.items()):
+        op_schema = model.model_json_schema(mode="validation")
+        op_schema.pop("$schema", None)
+        variants.append({
+            "type": "object",
+            "additionalProperties": False,
+            "required": [name],
+            "properties": {name: op_schema},
+            "title": name,
+        })
+
+    steps = {
+        "type": "array",
+        "minItems": 1,
+        "items": {"oneOf": variants},
+        "description": "Liste ordonnée d'étapes, chacune étant un objet à UNE seule clé : le nom de l'opération.",
+    }
+
+    return {
+        "$schema": JSON_SCHEMA_DIALECT,
+        "$id": f"https://hydra.local/schemas/{product_version()}/manifests/transformations.surface.schema.json",
+        "title": "Hydra manifest — transformations (forme écrite)",
+        "type": "object",
+        "properties": {
+            "version": {"type": "string"},
+            "steps": steps,
+            "transformations": {
+                "type": "object",
+                "properties": {"steps": steps},
+                "required": ["steps"],
+                "description": "Forme imbriquée, équivalente à 'steps' à la racine.",
+            },
+        },
+        "anyOf": [{"required": ["steps"]}, {"required": ["transformations"]}],
+        "x-hydra": {
+            "dslName": "transformations.surface",
+            "dslVersion": dsl_version(),
+            "kind": "manifest-surface",
+            "productVersion": product_version(),
+            "sourceModel": "hydra_etl.internal.parser.transform._OP_MODEL_MAP",
+            "note": (
+                "Forme utilisateur (une clé = un nom d'opération). Le schéma "
+                "transformations.schema.json décrit la forme interne op/params, "
+                "produite par TransformParser. Utiliser CELUI-CI pour contraindre "
+                "une génération."
+            ),
+        },
+    }
+
+
 def build(out: Path) -> Dict[str, str]:
     """Retourne {chemin relatif: contenu JSON/markdown}."""
     files: Dict[str, str] = {}
@@ -239,6 +305,14 @@ def build(out: Path) -> Dict[str, str]:
             "kind": "transformation", "dslName": name, "path": rel,
             "sourceModel": f"{model.__module__}.{model.__name__}",
         })
+
+    dump("manifests/transformations.surface.schema.json",
+         transformations_surface_schema(operations))
+    index_entries.append({
+        "kind": "manifest-surface", "dslName": "transformations.surface",
+        "path": "manifests/transformations.surface.schema.json",
+        "sourceModel": "hydra_etl.internal.parser.transform._OP_MODEL_MAP",
+    })
 
     dump("actions.schema.json", actions_schema(actions))
     dump("connectors.schema.json", connectors_schema(connectors))
@@ -295,6 +369,12 @@ def reference_markdown(manifests, operations, actions, connectors) -> str:
         "> installé, mais font partie du DSL dans tous les cas.",
         "",
         "## Manifestes",
+        "",
+        "> `transformations.yaml` a **deux schémas** : `transformations.schema.json`",
+        "> décrit la forme interne (`op`/`params`) produite par `TransformParser`,",
+        "> et `transformations.surface.schema.json` la forme réellement écrite",
+        "> (`- filter: {expr: ...}`). Pour contraindre une génération, utiliser la",
+        "> forme écrite.",
         "",
         "| Manifeste | Modèle source | Clés obligatoires |",
         "|---|---|---|",

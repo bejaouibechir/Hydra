@@ -16,6 +16,12 @@ Version du produit : **0.9.6**
 
 ## Manifestes
 
+> `transformations.yaml` a **deux schémas** : `transformations.schema.json`
+> décrit la forme interne (`op`/`params`) produite par `TransformParser`,
+> et `transformations.surface.schema.json` la forme réellement écrite
+> (`- filter: {expr: ...}`). Pour contraindre une génération, utiliser la
+> forme écrite.
+
 | Manifeste | Modèle source | Clés obligatoires |
 |---|---|---|
 | `destinations.yaml` | `hydra_etl.internal.parser.destination.DestinationsConfig` | `destinations` |

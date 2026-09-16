@@ -1,3 +1,77 @@
+### MCP server: talk to Hydra in plain language.
+
+Your assistant writes the pipelines; Hydra validates them.
+
+![MCP server: talk to Hydra in plain language](assets/1/mcp-server-natural-language-pipelines.svg)
+
+### The combination of declarative, visual, and nothing to deploy.
+
+Taken separately, none of the three is unique. Together, they are: Airbyte's interface requires a deployment, Talend is dead, Apache Hop and Pentaho require a JVM, and NiFi is heavy. You are alone on this combination.
+
+![The combination of declarative, visual, and nothing to deploy](assets/2/triplet-declaratif-visuel-zero-deploiement%20.svg)
+
+### Validation before execution is your only truly isolated advantage.
+
+dbt catches reference errors at compile time, but no file-and-database pipeline tool can answer deterministically, “Will this run?” before touching any data. It can be demonstrated with a single command, and nobody can copy it without rebuilding their architecture.
+
+![Validation before execution is your only truly isolated advantage](assets/3/validation-avant-execution%20.svg)
+
+### A CLI built for CI/CD — hdrctl creates, validates, tests, and runs from a terminal or an integration pipeline.
+
+Manifests are versioned and reviewed like code.
+
+![A CLI built for CI/CD — hdrctl creates, validates, tests, and runs from a terminal or an integration pipeline](assets/4/hdrctl-cli-built-for-ci-cd.svg)
+
+### Hydra includes its own scheduler.
+
+DAG workflows provide dependencies, automatic parallel execution of independent branches, delayed retries, cron triggers, conditional guards, and eleven actions including webhook, email, Bash, PowerShell, SSH, and Python.
+
+Chain multiple jobs with dependencies, parallel execution of independent branches, retries, cron triggers, and conditional guards.
+
+![Hydra includes its own scheduler](assets/5/dag-workflows-built-in-scheduler.svg)
+
+### One job, multiple environments.
+
+{{ param: }}, {{ env: }}, ${SECRET:}: the manifest does not change between development, staging, and production — only the parameters change. It is the natural extension of the DevOps argument.
+
+![One job, multiple environments](assets/6/one-job-multiple-environments.svg)
+
+### Hydra exposes a REST API.
+
+FastAPI provides interactive documentation at /docs. Hydra can be controlled from your CI pipeline, your application, or any tool — it is not merely used, it integrates.
+
+Modular installation.
+
+Install only what you use: the engine alone, with the server, with PostgreSQL, or everything.
+
+![Hydra exposes a REST API](assets/7/7.rest-api-modular-installation.svg)
+
+### Two execution engines, selected per operation.
+
+pandas or DuckDB, case by case. The power of analytical SQL without a data warehouse.
+
+In addition: a Rust engine for large files.
+
+Optional native acceleration: CSV reading four times faster on one million rows, byte-for-byte identical results, and automatic fallback to Python whenever the guarantee cannot be maintained.
+
+But here you have something almost nobody else possesses: parity proof. 26,000 CSV files tested with zero differences; one million floats compared against CPython repr(). Anyone can say, “We use Rust.” Almost nobody proves that the result is identical.
+
+![Two execution engines, selected per operation](assets/8/5.multiple-engines-proven-parity.svg)
+
+### A visual Studio is included.
+
+Build the pipeline with the mouse and get YAML out.
+
+![A visual Studio is included](assets/9/hydra-studio-to-yaml.svg)
+
+### VS Code extension — manifest completion and validation directly inside the editor, without installing Hydra.
+
+Discover the DSL before even trying the product.
+
+![VS Code extension — manifest completion and validation directly inside the editor, without installing Hydra](assets/10/vscode-extension-discover-dsl.svg)
+
+---
+
 # Hydra ETL
 
 [![PyPI](https://img.shields.io/pypi/v/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
@@ -35,12 +109,12 @@ pin your version.
 
 ## What you get
 
-| | |
-|---|---|
-| **Engine** | Declarative jobs: one source, N transformations, one destination |
-| **CLI** | `hdrctl` — scaffold, validate, run, inspect. English and Spanish |
-| **API** | FastAPI, with interactive docs at `/docs` |
-| **Studio** | Visual editor for jobs and workflows, served by the same process |
+|               |                                                                          |
+| ------------- | ------------------------------------------------------------------------ |
+| **Engine**    | Declarative jobs: one source, N transformations, one destination         |
+| **CLI**       | `hdrctl` — scaffold, validate, run, inspect. English and Spanish         |
+| **API**       | FastAPI, with interactive docs at `/docs`                                |
+| **Studio**    | Visual editor for jobs and workflows, served by the same process         |
 | **Workflows** | Multi-job DAG with dependencies, actions, retries and runtime parameters |
 
 Connectors: **CSV, JSON, Parquet, MySQL/MariaDB, PostgreSQL, MongoDB, Web API**.

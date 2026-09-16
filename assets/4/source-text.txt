@@ -1,0 +1,3 @@
+A CLI built for CI/CD — hdrctl creates, validates, tests, and runs from a terminal or an integration pipeline.
+
+Manifests are versioned and reviewed like code.

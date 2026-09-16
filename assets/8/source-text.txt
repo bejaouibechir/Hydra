@@ -1,0 +1,9 @@
+Two execution engines, selected per operation.
+
+pandas or DuckDB, case by case. The power of analytical SQL without a data warehouse.
+
+In addition: a Rust engine for large files.
+
+Optional native acceleration: CSV reading four times faster on one million rows, byte-for-byte identical results, and automatic fallback to Python whenever the guarantee cannot be maintained.
+
+But here you have something almost nobody else possesses: parity proof. 26,000 CSV files tested with zero differences; one million floats compared against CPython repr(). Anyone can say, “We use Rust.” Almost nobody proves that the result is identical.

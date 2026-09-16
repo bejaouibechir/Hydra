@@ -42,12 +42,12 @@ Out of the box, Hydra connects to the following sources and destinations
 
 | **CSV**             | <img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/connectors/csv.png" alt="" width="50" data-align="inline"> |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **JSON**            | <img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/connectors/json.png" alt="" width="50">                    |
-| **Parquet**         | <img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/connectors/parquet.png" alt="" width="50">                 |
-| **MySQL / MariaDB** | <img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/connectors/mysql.png" alt="" width="53">                   |
-| **PostgreSQL**      | <img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/connectors/postgresql.png" alt="" width="53">              |
-| **MongoDB**         | <img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/connectors/mongo.png" alt="" width="53">                   |
-| **Web API**         | <img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/connectors/api.png" alt="" width="53">                     |
+| **JSON**            | <img title="" src="assets/connectors/json.png" alt="" width="50">                    |
+| **Parquet**         | <img title="" src="assets/connectors/parquet.png" alt="" width="50">                 |
+| **MySQL / MariaDB** | <img title="" src="assets/connectors/mysql.png" alt="" width="53">                   |
+| **PostgreSQL**      | <img title="" src="assets/connectors/postgresql.png" alt="" width="53">              |
+| **MongoDB**         | <img title="" src="assets/connectors/mongo.png" alt="" width="53">                   |
+| **Web API**         | <img title="" src="assets/connectors/api.png" alt="" width="53">                     |
 
 Transformation engines: **Pandas** and **DuckDB**. 
 
@@ -332,7 +332,7 @@ The server writes projects into the directory you launch it from.
 There is also a VS Code extension providing completion and validation for the
 manifests, without installing Hydra.
 
-![](C:\Users\DELL\Desktop\Hydra\assets\hydravs.png)
+![](assets\hydravs.png)
 
 ---
 

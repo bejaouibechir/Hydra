@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">One job, multiple environments</title>
+  <desc id="desc">A single unchanged manifest moves from development to staging and production. Parameters, environment values and secrets change without duplicating the job.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#edf8fc"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#34d399"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="9" stdDeviation="12" flood-color="#0f5270" flood-opacity=".13"/>
+    </filter>
+    <filter id="greenGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#10b981" flood-opacity=".22"/>
+    </filter>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#0e7490" stroke-opacity=".055"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0l10 5-10 5z" fill="#22b8cf"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" rx="32" fill="url(#bg)"/>
+  <rect width="1600" height="900" rx="32" fill="url(#grid)"/>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <text x="800" y="78" text-anchor="middle" fill="#0f2940" font-size="54" font-weight="800" letter-spacing=".5">ONE JOB. MULTIPLE ENVIRONMENTS.</text>
+    <text x="800" y="120" text-anchor="middle" fill="#557286" font-size="20">The manifest never changes. Only its inputs do.</text>
+
+    <!-- Immutable manifest -->
+    <g transform="translate(515 158)" filter="url(#shadow)">
+      <rect width="570" height="342" rx="32" fill="#ffffff" stroke="#22b8cf" stroke-width="4"/>
+      <path d="M0 66h570" stroke="#b7dce6" stroke-width="2"/>
+      <circle cx="34" cy="33" r="8" fill="#fb7185"/><circle cx="60" cy="33" r="8" fill="#fbbf24"/><circle cx="86" cy="33" r="8" fill="#34d399"/>
+      <text x="285" y="41" text-anchor="middle" fill="#17364d" font-size="18" font-weight="800">pipeline.yaml</text>
+      <g transform="translate(43 91)" font-family="Consolas,monospace" font-size="20">
+        <text x="0" y="24" fill="#17364d">pipeline:</text>
+        <text x="25" y="63" fill="#557286">batch_size:</text>
+        <text x="175" y="63" fill="#0891b2">&quot;{{ param:BATCH_SIZE }}&quot;</text>
+        <text x="25" y="102" fill="#557286">endpoint:</text>
+        <text x="175" y="102" fill="#3b82f6">&quot;{{ env:API_URL }}&quot;</text>
+        <text x="25" y="141" fill="#557286">token:</text>
+        <text x="175" y="141" fill="#b76d00">&quot;${SECRET:API_TOKEN}&quot;</text>
+      </g>
+      <g transform="translate(43 257)">
+        <rect width="484" height="58" rx="18" fill="#eafafd"/>
+        <circle cx="34" cy="29" r="18" fill="#ffffff" stroke="#22b8cf" stroke-width="2"/>
+        <path d="M25 29l7 7 14-17" fill="none" stroke="#0891b2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="67" y="25" fill="#16445b" font-size="17" font-weight="900">ONE VERSIONED MANIFEST</text>
+        <text x="67" y="45" fill="#557286" font-size="13">review once · promote everywhere</text>
+      </g>
+    </g>
+
+    <!-- Split to environments -->
+    <path d="M800 518v51M270 569h1060M270 569v55M800 569v55M1330 569v55" fill="none" stroke="#22b8cf" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M270 606v18" fill="none" stroke="#22b8cf" stroke-width="5" marker-end="url(#arrow)"/>
+    <path d="M800 606v18" fill="none" stroke="#22b8cf" stroke-width="5" marker-end="url(#arrow)"/>
+    <path d="M1330 606v18" fill="none" stroke="#22b8cf" stroke-width="5" marker-end="url(#arrow)"/>
+
+    <!-- Environment cards -->
+    <g filter="url(#shadow)">
+      <g transform="translate(85 638)">
+        <rect width="370" height="162" rx="24" fill="#ffffff" stroke="#89c9dc" stroke-width="3"/>
+        <circle cx="42" cy="39" r="19" fill="#dff8fd" stroke="#22b8cf" stroke-width="2"/>
+        <path d="M31 39h22M42 28v22" stroke="#0891b2" stroke-width="3" stroke-linecap="round"/>
+        <text x="74" y="46" fill="#17364d" font-size="23" font-weight="900">DEVELOPMENT</text>
+        <g transform="translate(26 76)" font-size="14">
+          <rect width="318" height="73" rx="14" fill="#f0f9fc"/>
+          <text x="17" y="20" fill="#16829c" font-weight="800">PARAM</text><text x="85" y="20" fill="#557286">batch = 1,000</text>
+          <text x="17" y="42" fill="#3b82f6" font-weight="800">ENV</text><text x="85" y="42" fill="#557286">api.dev.local</text>
+          <text x="17" y="64" fill="#b76d00" font-weight="800">SECRET</text><text x="85" y="64" fill="#557286">vault reference</text>
+          <circle cx="282" cy="36" r="13" fill="#fff3d9"/>
+          <path d="M278 36a5 5 0 1 1 7 4v7h-7v-7a5 5 0 0 1 0-4z" fill="none" stroke="#b76d00" stroke-width="2"/>
+        </g>
+      </g>
+
+      <g transform="translate(615 638)">
+        <rect width="370" height="162" rx="24" fill="#ffffff" stroke="#7daee8" stroke-width="3"/>
+        <circle cx="42" cy="39" r="19" fill="#e8f1ff" stroke="#3b82f6" stroke-width="2"/>
+        <path d="M31 39h22M36 33l6 6-6 6M47 33l6 6-6 6" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="74" y="46" fill="#17364d" font-size="23" font-weight="900">STAGING</text>
+        <g transform="translate(26 76)" font-size="14">
+          <rect width="318" height="73" rx="14" fill="#f1f6ff"/>
+          <text x="17" y="20" fill="#16829c" font-weight="800">PARAM</text><text x="85" y="20" fill="#557286">batch = 10,000</text>
+          <text x="17" y="42" fill="#3b82f6" font-weight="800">ENV</text><text x="85" y="42" fill="#557286">api.staging</text>
+          <text x="17" y="64" fill="#b76d00" font-weight="800">SECRET</text><text x="85" y="64" fill="#557286">vault reference</text>
+          <circle cx="282" cy="36" r="13" fill="#fff3d9"/>
+          <path d="M278 36a5 5 0 1 1 7 4v7h-7v-7a5 5 0 0 1 0-4z" fill="none" stroke="#b76d00" stroke-width="2"/>
+        </g>
+      </g>
+
+      <g transform="translate(1145 638)" filter="url(#greenGlow)">
+        <rect width="370" height="162" rx="24" fill="#effcf7" stroke="#34d399" stroke-width="3"/>
+        <circle cx="42" cy="39" r="19" fill="#d9faef" stroke="#34d399" stroke-width="2"/>
+        <path d="M31 39l8 8 16-20" fill="none" stroke="#059669" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="74" y="46" fill="#075e4d" font-size="23" font-weight="900">PRODUCTION</text>
+        <g transform="translate(26 76)" font-size="14">
+          <rect width="318" height="73" rx="14" fill="#ffffff"/>
+          <text x="17" y="20" fill="#16829c" font-weight="800">PARAM</text><text x="85" y="20" fill="#397666">batch = 100,000</text>
+          <text x="17" y="42" fill="#3b82f6" font-weight="800">ENV</text><text x="85" y="42" fill="#397666">api.production</text>
+          <text x="17" y="64" fill="#b76d00" font-weight="800">SECRET</text><text x="85" y="64" fill="#397666">vault reference</text>
+          <circle cx="282" cy="36" r="13" fill="#fff3d9"/>
+          <path d="M278 36a5 5 0 1 1 7 4v7h-7v-7a5 5 0 0 1 0-4z" fill="none" stroke="#b76d00" stroke-width="2"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- DevOps promotion line -->
+    <g transform="translate(285 827)">
+      <path d="M0 0h1030" stroke="#9fc9d8" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="0" cy="0" r="10" fill="#22b8cf"/><circle cx="515" cy="0" r="10" fill="#3b82f6"/><circle cx="1030" cy="0" r="10" fill="#34d399"/>
+    </g>
+    <g transform="translate(526 840)">
+      <rect width="548" height="36" rx="18" fill="url(#green)"/>
+      <text x="274" y="24" text-anchor="middle" fill="#043b31" font-size="16" font-weight="900">PROMOTE CONFIGURATION · NEVER COPY THE JOB</text>
+    </g>
+  </g>
+</svg>

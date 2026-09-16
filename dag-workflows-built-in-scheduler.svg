@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">DAG workflows, scheduler included</title>
+  <desc id="desc">Hydra chains multiple jobs into a DAG with dependencies, automatic parallel execution, delayed retries, cron scheduling, conditional guards and eleven workflow actions.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#edf8fc"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#34d399"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="9" stdDeviation="12" flood-color="#0f5270" flood-opacity=".13"/>
+    </filter>
+    <filter id="greenGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#10b981" flood-opacity=".22"/>
+    </filter>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#0e7490" stroke-opacity=".065"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0l10 5-10 5z" fill="#22b8cf"/>
+    </marker>
+    <marker id="orangeArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0l10 5-10 5z" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" rx="32" fill="url(#bg)"/>
+  <rect width="1600" height="900" rx="32" fill="url(#grid)"/>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <text x="800" y="78" text-anchor="middle" fill="#0f2940" font-size="54" font-weight="800" letter-spacing=".5">DAG WORKFLOWS. SCHEDULER INCLUDED.</text>
+    <text x="800" y="120" text-anchor="middle" fill="#557286" font-size="20">Chain jobs, parallelize independent branches and automate what happens next.</text>
+
+    <!-- DAG canvas -->
+    <g transform="translate(56 174)" filter="url(#shadow)">
+      <rect width="1082" height="560" rx="32" fill="#fbfdfe" stroke="#22b8cf" stroke-width="4"/>
+      <rect width="1082" height="560" rx="32" fill="url(#grid)"/>
+      <text x="31" y="43" fill="#506f83" font-size="14" font-weight="900" letter-spacing="2">BUILT-IN WORKFLOW ORCHESTRATOR</text>
+      <rect x="865" y="20" width="185" height="36" rx="18" fill="#d9faef"/>
+      <circle cx="889" cy="38" r="10" fill="#34d399"/>
+      <path d="M884 38l4 4 7-9" fill="none" stroke="#075e4d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="965" y="43" text-anchor="middle" fill="#087a5e" font-size="13" font-weight="900">SCHEDULER ACTIVE</text>
+
+      <!-- Edges -->
+      <g fill="none" stroke="#22b8cf" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M194 283h90" marker-end="url(#arrow)"/>
+        <path d="M454 283h56v-116h66" marker-end="url(#arrow)"/>
+        <path d="M454 283h56v116h66" marker-end="url(#arrow)"/>
+        <path d="M746 167h34v116h32" marker-end="url(#arrow)"/>
+        <path d="M746 399h34V283h32" marker-end="url(#arrow)"/>
+        <path d="M892 283h28" marker-end="url(#arrow)"/>
+      </g>
+
+      <!-- Cron trigger -->
+      <g transform="translate(29 216)" filter="url(#shadow)">
+        <rect width="165" height="134" rx="23" fill="#ffffff" stroke="#89c9dc" stroke-width="3"/>
+        <circle cx="40" cy="41" r="22" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+        <circle cx="40" cy="41" r="13" fill="none" stroke="#0891b2" stroke-width="3"/>
+        <path d="M40 41l7-7M40 41v-9" stroke="#0891b2" stroke-width="3" stroke-linecap="round"/>
+        <text x="75" y="37" fill="#17364d" font-size="17" font-weight="900">CRON</text>
+        <text x="75" y="58" fill="#647f90" font-size="12">scheduled trigger</text>
+        <rect x="22" y="83" width="121" height="31" rx="14" fill="#eef9fc"/>
+        <text x="82" y="104" text-anchor="middle" fill="#16829c" font-family="Consolas,monospace" font-size="14" font-weight="800">0 8 * * *</text>
+      </g>
+
+      <!-- Root job -->
+      <g transform="translate(284 216)" filter="url(#shadow)">
+        <rect width="170" height="134" rx="23" fill="#ffffff" stroke="#22b8cf" stroke-width="3"/>
+        <circle cx="39" cy="41" r="21" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+        <path d="M28 41h22M39 30v22" stroke="#0891b2" stroke-width="3" stroke-linecap="round"/>
+        <text x="73" y="37" fill="#17364d" font-size="17" font-weight="900">INGEST</text>
+        <text x="73" y="58" fill="#647f90" font-size="12">job dependency root</text>
+        <path d="M20 83h130" stroke="#d5e7ed" stroke-width="2"/>
+        <text x="20" y="108" fill="#39788f" font-size="13">load raw data</text>
+      </g>
+
+      <!-- Parallel jobs -->
+      <g transform="translate(576 100)" filter="url(#shadow)">
+        <rect width="170" height="134" rx="23" fill="#ffffff" stroke="#3b82f6" stroke-width="3"/>
+        <circle cx="39" cy="41" r="21" fill="#e8f1ff" stroke="#3b82f6" stroke-width="2"/>
+        <path d="M29 35h20M29 42h15M29 49h18" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+        <text x="73" y="37" fill="#17364d" font-size="17" font-weight="900">CLEAN</text>
+        <text x="73" y="58" fill="#647f90" font-size="12">job branch A</text>
+        <path d="M20 83h130" stroke="#d5e7ed" stroke-width="2"/>
+        <text x="20" y="108" fill="#39788f" font-size="13">normalize orders</text>
+      </g>
+
+      <g transform="translate(576 332)" filter="url(#shadow)">
+        <rect width="170" height="134" rx="23" fill="#ffffff" stroke="#3b82f6" stroke-width="3"/>
+        <circle cx="39" cy="41" r="21" fill="#e8f1ff" stroke="#3b82f6" stroke-width="2"/>
+        <path d="M29 41h20M34 34l-7 7 7 7M44 34l7 7-7 7" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="73" y="37" fill="#17364d" font-size="17" font-weight="900">ENRICH</text>
+        <text x="73" y="58" fill="#647f90" font-size="12">job branch B</text>
+        <path d="M20 83h130" stroke="#d5e7ed" stroke-width="2"/>
+        <text x="20" y="108" fill="#39788f" font-size="13">join customers</text>
+      </g>
+
+      <!-- Parallel label -->
+      <g transform="translate(530 252)">
+        <rect width="232" height="62" rx="26" fill="#e8f1ff"/>
+        <path d="M38 18v26M38 31h18M38 31H20" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
+        <text x="69" y="28" fill="#1d4ed8" font-size="15" font-weight="900">PARALLEL BY DEFAULT</text>
+        <text x="69" y="47" fill="#5b79a8" font-size="12">independent branches run together</text>
+      </g>
+
+      <!-- Retry loop -->
+      <path d="M661 93c0-52 103-52 103 10v34" fill="none" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" marker-end="url(#orangeArrow)"/>
+      <g transform="translate(656 64)">
+        <rect width="112" height="28" rx="14" fill="#fff3d9"/>
+        <text x="56" y="19" text-anchor="middle" fill="#9a5c00" font-size="12" font-weight="900">RETRY IN 30s</text>
+      </g>
+
+      <!-- Conditional guard -->
+      <g transform="translate(812 223)" filter="url(#shadow)">
+        <path d="M40 0l40 60-40 60L0 60z" fill="#fffaf2" stroke="#f59e0b" stroke-width="3"/>
+        <text x="40" y="54" text-anchor="middle" fill="#9a5c00" font-size="13" font-weight="900">IF</text>
+        <text x="40" y="74" text-anchor="middle" fill="#9a5c00" font-size="11">rows &gt; 0</text>
+      </g>
+
+      <!-- Final job -->
+      <g transform="translate(920 216)" filter="url(#greenGlow)">
+        <rect width="146" height="134" rx="23" fill="#effcf7" stroke="#34d399" stroke-width="3"/>
+        <circle cx="38" cy="41" r="21" fill="#d9faef" stroke="#34d399" stroke-width="2"/>
+        <path d="M28 41l7 7 15-19" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="72" y="37" fill="#075e4d" font-size="17" font-weight="900">PUBLISH</text>
+        <text x="72" y="58" fill="#397666" font-size="12">final job</text>
+        <path d="M18 83h110" stroke="#b9e6d7" stroke-width="2"/>
+        <text x="18" y="108" fill="#397666" font-size="13">warehouse</text>
+      </g>
+
+      <!-- Capability badges -->
+      <g transform="translate(58 494)">
+        <g fill="#ffffff" stroke="#b7d5e0" stroke-width="2">
+          <rect width="180" height="43" rx="21"/>
+          <rect x="198" width="180" height="43" rx="21"/>
+          <rect x="396" width="180" height="43" rx="21"/>
+          <rect x="594" width="180" height="43" rx="21"/>
+          <rect x="792" width="180" height="43" rx="21"/>
+        </g>
+        <g fill="#17364d" font-size="13" font-weight="800" text-anchor="middle">
+          <text x="90" y="27">DEPENDENCIES</text>
+          <text x="288" y="27">PARALLEL BRANCHES</text>
+          <text x="486" y="27">DELAYED RETRIES</text>
+          <text x="684" y="27">CRON TRIGGERS</text>
+          <text x="882" y="27">CONDITIONAL GUARDS</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Actions panel -->
+    <g transform="translate(1180 174)">
+      <text x="180" y="30" text-anchor="middle" fill="#506f83" font-size="17" font-weight="800" letter-spacing="2">11 BUILT-IN ACTIONS</text>
+      <g transform="translate(0 64)" filter="url(#shadow)">
+        <rect width="360" height="496" rx="30" fill="#ffffff" stroke="#91c8d9" stroke-width="3"/>
+        <g transform="translate(24 28)">
+          <g fill="#eef9fc" stroke="#b7dbe6" stroke-width="2">
+            <rect width="145" height="55" rx="15"/><rect x="167" width="145" height="55" rx="15"/>
+            <rect y="70" width="145" height="55" rx="15"/><rect x="167" y="70" width="145" height="55" rx="15"/>
+            <rect y="140" width="145" height="55" rx="15"/><rect x="167" y="140" width="145" height="55" rx="15"/>
+            <rect y="210" width="145" height="55" rx="15"/><rect x="167" y="210" width="145" height="55" rx="15"/>
+            <rect y="280" width="145" height="55" rx="15"/><rect x="167" y="280" width="145" height="55" rx="15"/>
+            <rect x="83" y="350" width="145" height="55" rx="15"/>
+          </g>
+          <g fill="#0891b2" font-size="14" font-weight="800" text-anchor="middle">
+            <text x="72" y="34">webhook</text><text x="239" y="34">email</text>
+            <text x="72" y="104">bash</text><text x="239" y="104">powershell</text>
+            <text x="72" y="174">ssh</text><text x="239" y="174">python</text>
+            <text x="72" y="244">log</text><text x="239" y="244">delay</text>
+            <text x="72" y="314">condition</text><text x="239" y="314">set_param</text>
+            <text x="155" y="384">assign_param</text>
+          </g>
+        </g>
+        <g transform="translate(38 448)" filter="url(#greenGlow)">
+          <rect width="284" height="65" rx="25" fill="url(#green)"/>
+          <circle cx="37" cy="32" r="20" fill="#effff9"/>
+          <path d="M28 32l6 6 13-16" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="72" y="28" fill="#043b31" font-size="17" font-weight="900">ACTION READY</text>
+          <text x="72" y="48" fill="#075e4d" font-size="13" font-weight="700">inside the same workflow</text>
+        </g>
+      </g>
+    </g>
+
+    <text x="800" y="802" text-anchor="middle" fill="#17364d" font-size="20" font-weight="900">One workflow coordinates every job, branch, retry and action.</text>
+    <text x="800" y="838" text-anchor="middle" fill="#557286" font-size="16">No external orchestrator required.</text>
+  </g>
+</svg>

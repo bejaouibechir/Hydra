@@ -1,0 +1,9 @@
+Deux moteurs d'exécution, choisis par opération.
+
+pandas ou DuckDB, au cas par cas. La puissance du SQL analytique sans entrepôt de données.
+
+En plus : moteur Rust pour les gros fichiers.
+
+Accélération native optionnelle : lecture CSV quatre fois plus rapide sur un million de lignes, résultat identique octet pour octet, repli automatique sur Python quand la garantie ne tient pas.
+
+Mais vous avez, à cet endroit, quelque chose que presque personne ne possède : la preuve de parité. 26 000 fichiers CSV testés, zéro écart ; un million de flottants comparés à repr() de CPython. Tout le monde peut dire « nous utilisons Rust ». Presque personne ne prouve que le résultat est identique.

@@ -1,0 +1,3 @@
+One job, multiple environments.
+
+{{ param: }}, {{ env: }}, ${SECRET:}: the manifest does not change between development, staging, and production — only the parameters change. It is the natural extension of the DevOps argument.

@@ -1,0 +1,3 @@
+Un même job, plusieurs environnements.
+
+{{ param: }}, {{ env: }}, ${SECRET:} : le manifeste ne change pas entre développement, recette et production — seuls les paramètres changent. C'est le prolongement naturel de votre argument DevOps.

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 120 120"
+     preserveAspectRatio="xMidYMid meet"
+     role="img"
+     aria-labelledby="ico01-title ico01-desc">
+  <title id="ico01-title">Zéro infrastructure</title>
+  <desc id="ico01-desc">Une installation locale suffit pour faire tourner un pipeline Hydra sur un portable, sans serveur à déployer.</desc>
+
+  <!-- Infrastructure extérieure volontairement effacée -->
+  <g opacity=".62"
+     fill="none"
+     stroke="var(--text-soft, #5a6a66)"
+     stroke-width="2"
+     stroke-linecap="round"
+     stroke-linejoin="round">
+    <rect x="82" y="18" width="26" height="44" rx="8"
+          fill="var(--surface, transparent)"/>
+    <path d="M88 28h14M88 40h14M88 52h14"/>
+    <path d="M79 15l32 50" stroke-width="3"/>
+  </g>
+
+  <!-- Le portable est le produit : tout s'exécute ici -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="34" width="72" height="52" rx="8"
+          fill="var(--panel, #ffffff)"
+          stroke="var(--text, #0e1a17)"
+          stroke-width="2.5"/>
+    <path d="M8 92h80l-6 9H14l-6-9Z"
+          fill="var(--accent-soft, #d7efeb)"
+          stroke="var(--text, #0e1a17)"
+          stroke-width="2.5"/>
+
+    <!-- Commande unique -->
+    <path d="M22 49l5 4-5 4M32 57h18"
+          fill="none"
+          stroke="var(--accent, #0f766e)"
+          stroke-width="2.5"/>
+
+    <!-- Pipeline actif dans le même processus -->
+    <path d="M25 72h18m8 0h18"
+          fill="none"
+          stroke="var(--accent, #0f766e)"
+          stroke-width="2.5"/>
+    <circle cx="21" cy="72" r="4"
+            fill="var(--accent-soft, #d7efeb)"
+            stroke="var(--accent, #0f766e)"
+            stroke-width="2.5"/>
+    <circle cx="47" cy="72" r="4"
+            fill="var(--accent-soft, #d7efeb)"
+            stroke="var(--accent, #0f766e)"
+            stroke-width="2.5"/>
+    <circle cx="73" cy="72" r="4"
+            fill="var(--accent, #0f766e)"
+            stroke="var(--accent, #0f766e)"
+            stroke-width="2.5"/>
+  </g>
+</svg>

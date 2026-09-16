@@ -1,0 +1,3 @@
+Un Studio visuel inclus.
+
+Le pipeline se construit à la souris et ressort en YAML.

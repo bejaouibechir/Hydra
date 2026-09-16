@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Une CLI conçue pour la CI/CD</title>
+  <desc id="desc">hdrctl crée, valide, teste et exécute les pipelines depuis un terminal ou une chaîne CI/CD. Les manifestes versionnés restent lisibles comme du code.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#edf8fc"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#34d399"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="9" stdDeviation="12" flood-color="#0f5270" flood-opacity=".13"/>
+    </filter>
+    <filter id="greenGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#10b981" flood-opacity=".22"/>
+    </filter>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#0e7490" stroke-opacity=".055"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0l10 5-10 5z" fill="#22b8cf"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" rx="32" fill="url(#bg)"/>
+  <rect width="1600" height="900" rx="32" fill="url(#grid)"/>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <text x="800" y="80" text-anchor="middle" fill="#0f2940" font-size="54" font-weight="800" letter-spacing=".5">UNE CLI CONÇUE POUR LA CI/CD</text>
+    <text x="800" y="122" text-anchor="middle" fill="#557286" font-size="20">Les mêmes commandes fonctionnent en local et dans la chaîne de livraison.</text>
+
+    <!-- Versioned manifest -->
+    <g transform="translate(78 190)" filter="url(#shadow)">
+      <rect width="330" height="420" rx="30" fill="#ffffff" stroke="#91c8d9" stroke-width="3"/>
+      <text x="165" y="50" text-anchor="middle" fill="#17364d" font-size="22" font-weight="900">MANIFESTE VERSIONNÉ</text>
+      <g transform="translate(54 78)">
+        <path d="M0 0h150l42 42v205H0z" fill="#eefafd" stroke="#22b8cf" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M150 0v42h42" fill="none" stroke="#22b8cf" stroke-width="3"/>
+        <text x="25" y="73" fill="#0891b2" font-family="Consolas,monospace" font-size="16" font-weight="700">pipeline:</text>
+        <text x="42" y="102" fill="#557286" font-family="Consolas,monospace" font-size="15">source: api</text>
+        <text x="42" y="131" fill="#557286" font-family="Consolas,monospace" font-size="15">transform: clean</text>
+        <text x="42" y="160" fill="#557286" font-family="Consolas,monospace" font-size="15">target: warehouse</text>
+        <path d="M25 190h132M25 212h92" stroke="#9ec5d3" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <g transform="translate(63 349)">
+        <circle cx="13" cy="13" r="10" fill="#34d399"/>
+        <circle cx="91" cy="13" r="10" fill="#22b8cf"/>
+        <circle cx="169" cy="13" r="10" fill="#3b82f6"/>
+        <path d="M23 13h58M101 13h58" stroke="#6aaec2" stroke-width="3"/>
+        <path d="M13 23v19" stroke="#6aaec2" stroke-width="3"/>
+      </g>
+      <text x="165" y="398" text-anchor="middle" fill="#58758a" font-size="16">lisible et révisable comme du code</text>
+    </g>
+
+    <path d="M426 400h92" fill="none" stroke="#22b8cf" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+    <!-- CLI terminal -->
+    <g transform="translate(540 177)" filter="url(#shadow)">
+      <rect width="520" height="446" rx="32" fill="#ffffff" stroke="#22b8cf" stroke-width="4"/>
+      <path d="M0 64h520" stroke="#b7dce6" stroke-width="2"/>
+      <circle cx="32" cy="32" r="8" fill="#fb7185"/>
+      <circle cx="58" cy="32" r="8" fill="#fbbf24"/>
+      <circle cx="84" cy="32" r="8" fill="#34d399"/>
+      <text x="260" y="40" text-anchor="middle" fill="#557286" font-size="16" font-weight="700">terminal</text>
+      <g transform="translate(42 98)" font-family="Consolas,monospace">
+        <text x="0" y="28" fill="#0891b2" font-size="22" font-weight="800">$ hdrctl</text>
+        <text x="117" y="28" fill="#17364d" font-size="22">create pipeline.yaml</text>
+        <circle cx="423" cy="21" r="13" fill="#34d399"/>
+        <path d="M417 21l4 4 8-10" fill="none" stroke="#075e4d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <text x="0" y="92" fill="#0891b2" font-size="22" font-weight="800">$ hdrctl</text>
+        <text x="117" y="92" fill="#17364d" font-size="22">validate pipeline.yaml</text>
+        <circle cx="423" cy="85" r="13" fill="#34d399"/>
+        <path d="M417 85l4 4 8-10" fill="none" stroke="#075e4d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <text x="0" y="156" fill="#0891b2" font-size="22" font-weight="800">$ hdrctl</text>
+        <text x="117" y="156" fill="#17364d" font-size="22">test pipeline.yaml</text>
+        <circle cx="423" cy="149" r="13" fill="#34d399"/>
+        <path d="M417 149l4 4 8-10" fill="none" stroke="#075e4d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <text x="0" y="220" fill="#0891b2" font-size="22" font-weight="800">$ hdrctl</text>
+        <text x="117" y="220" fill="#17364d" font-size="22">run pipeline.yaml</text>
+        <circle cx="423" cy="213" r="13" fill="#34d399"/>
+        <path d="M417 213l4 4 8-10" fill="none" stroke="#075e4d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <g transform="translate(42 349)">
+        <rect width="436" height="61" rx="18" fill="url(#green)" filter="url(#greenGlow)"/>
+        <circle cx="34" cy="30" r="18" fill="#effff9"/>
+        <path d="M25 30l6 6 13-16" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="69" y="27" fill="#043b31" font-size="18" font-weight="900">UNE CLI · QUATRE ÉTAPES CONTRÔLÉES</text>
+        <text x="69" y="47" fill="#075e4d" font-size="13" font-weight="700">create → validate → test → run</text>
+      </g>
+    </g>
+
+    <path d="M1080 400h92" fill="none" stroke="#22b8cf" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+    <!-- CI/CD pipeline -->
+    <g transform="translate(1192 190)" filter="url(#shadow)">
+      <rect width="330" height="420" rx="30" fill="#ffffff" stroke="#91c8d9" stroke-width="3"/>
+      <text x="165" y="50" text-anchor="middle" fill="#17364d" font-size="22" font-weight="900">CHAÎNE CI/CD</text>
+      <g transform="translate(49 83)">
+        <g fill="#eefafd" stroke="#89c9dc" stroke-width="2.5">
+          <rect width="232" height="54" rx="15"/>
+          <rect y="72" width="232" height="54" rx="15"/>
+          <rect y="144" width="232" height="54" rx="15"/>
+          <rect y="216" width="232" height="54" rx="15"/>
+        </g>
+        <g fill="#34d399">
+          <circle cx="27" cy="27" r="12"/><circle cx="27" cy="99" r="12"/><circle cx="27" cy="171" r="12"/><circle cx="27" cy="243" r="12"/>
+        </g>
+        <g fill="none" stroke="#075e4d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 27l4 4 8-10"/><path d="M21 99l4 4 8-10"/><path d="M21 171l4 4 8-10"/><path d="M21 243l4 4 8-10"/>
+        </g>
+        <g fill="#274f65" font-size="17" font-weight="800">
+          <text x="52" y="33">Récupération</text>
+          <text x="52" y="105">Validation</text>
+          <text x="52" y="177">Test</text>
+          <text x="52" y="249">Exécution</text>
+        </g>
+        <g stroke="#22b8cf" stroke-width="3">
+          <path d="M116 54v18M116 126v18M116 198v18"/>
+        </g>
+      </g>
+      <rect x="75" y="369" width="180" height="30" rx="15" fill="#ecfdf5"/>
+      <text x="165" y="389" text-anchor="middle" fill="#087a5e" font-size="14" font-weight="800">PRÊTE À AUTOMATISER</text>
+    </g>
+
+    <!-- Bottom benefits -->
+    <text x="800" y="690" text-anchor="middle" fill="#506f83" font-size="16" font-weight="800" letter-spacing="2">LE PIPELINE SE COMPORTE COMME DU CODE</text>
+    <g transform="translate(174 724)">
+      <g>
+        <rect width="365" height="102" rx="20" fill="#ffffff" stroke="#b7d5e0" stroke-width="2"/>
+        <circle cx="44" cy="51" r="23" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+        <path d="M35 51l7 7 13-16" fill="none" stroke="#0891b2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="82" y="43" fill="#17364d" font-size="19" font-weight="800">Versionné</text>
+        <text x="82" y="70" fill="#647f90" font-size="15">différences, revue et historique</text>
+      </g>
+      <g transform="translate(443)">
+        <rect width="365" height="102" rx="20" fill="#ffffff" stroke="#b7d5e0" stroke-width="2"/>
+        <circle cx="44" cy="51" r="23" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+        <path d="M31 44h26M31 52h19M31 60h23" stroke="#0891b2" stroke-width="3.5" stroke-linecap="round"/>
+        <text x="82" y="43" fill="#17364d" font-size="19" font-weight="800">Lisible par tous</text>
+        <text x="82" y="70" fill="#647f90" font-size="15">manifestes clairs, aucun état caché</text>
+      </g>
+      <g transform="translate(886)">
+        <rect width="365" height="102" rx="20" fill="#effcf7" stroke="#34d399" stroke-width="2.5"/>
+        <circle cx="44" cy="51" r="23" fill="#d9faef" stroke="#34d399" stroke-width="2"/>
+        <path d="M32 51l8 8 17-21" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="82" y="43" fill="#075e4d" font-size="19" font-weight="900">Natif CI/CD</text>
+        <text x="82" y="70" fill="#397666" font-size="15">les mêmes commandes partout</text>
+      </g>
+    </g>
+
+    <text x="800" y="870" text-anchor="middle" fill="#557286" font-size="16">Du terminal du développeur à la livraison automatisée, sans changer de méthode.</text>
+  </g>
+</svg>

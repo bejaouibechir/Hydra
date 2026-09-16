@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Un Studio visuel inclus</title>
+  <desc id="desc">Construisez un pipeline à la souris dans Hydra Studio et exportez le résultat sous forme de YAML lisible.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#edf8fc"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#34d399"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="9" stdDeviation="12" flood-color="#0f5270" flood-opacity=".13"/>
+    </filter>
+    <filter id="greenGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#10b981" flood-opacity=".22"/>
+    </filter>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#0e7490" stroke-opacity=".065"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0l10 5-10 5z" fill="#22b8cf"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" rx="32" fill="url(#bg)"/>
+  <rect width="1600" height="900" rx="32" fill="url(#grid)"/>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <text x="800" y="78" text-anchor="middle" fill="#0f2940" font-size="54" font-weight="800" letter-spacing=".5">UN STUDIO VISUEL INCLUS</text>
+    <text x="800" y="120" text-anchor="middle" fill="#557286" font-size="20">Construisez à la souris. Récupérez un YAML propre.</text>
+
+    <!-- Studio window -->
+    <g transform="translate(60 170)" filter="url(#shadow)">
+      <rect width="1480" height="590" rx="32" fill="#ffffff" stroke="#22b8cf" stroke-width="4"/>
+      <path d="M0 64h1480" stroke="#b7dce6" stroke-width="2"/>
+      <circle cx="32" cy="32" r="8" fill="#fb7185"/><circle cx="58" cy="32" r="8" fill="#fbbf24"/><circle cx="84" cy="32" r="8" fill="#34d399"/>
+      <text x="740" y="41" text-anchor="middle" fill="#17364d" font-size="18" font-weight="900">Hydra Studio</text>
+      <rect x="1348" y="17" width="100" height="31" rx="15" fill="#d9faef"/>
+      <text x="1398" y="38" text-anchor="middle" fill="#087a5e" font-size="13" font-weight="900">INCLUS</text>
+
+      <!-- Component palette -->
+      <g transform="translate(0 64)">
+        <rect width="232" height="526" fill="#f3f9fb"/>
+        <path d="M232 0v526" stroke="#cfe3ea" stroke-width="2"/>
+        <text x="25" y="39" fill="#506f83" font-size="13" font-weight="900" letter-spacing="2">COMPOSANTS</text>
+        <g transform="translate(20 62)">
+          <g fill="#ffffff" stroke="#a7ccd9" stroke-width="2">
+            <rect width="192" height="70" rx="15"/>
+            <rect y="86" width="192" height="70" rx="15"/>
+            <rect y="172" width="192" height="70" rx="15"/>
+          </g>
+          <circle cx="35" cy="35" r="19" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+          <path d="M25 35h20M35 25v20" stroke="#0891b2" stroke-width="3" stroke-linecap="round"/>
+          <text x="66" y="31" fill="#17364d" font-size="16" font-weight="800">Source</text>
+          <text x="66" y="51" fill="#647f90" font-size="12">fichier, API, base</text>
+
+          <circle cx="35" cy="121" r="19" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+          <path d="M25 121h20M30 114l-7 7 7 7M40 114l7 7-7 7" fill="none" stroke="#0891b2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="66" y="117" fill="#17364d" font-size="16" font-weight="800">Transformation</text>
+          <text x="66" y="137" fill="#647f90" font-size="12">filtrer, convertir, joindre</text>
+
+          <circle cx="35" cy="207" r="19" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+          <path d="M24 201h22v13H24zM27 197h16" fill="none" stroke="#0891b2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="66" y="203" fill="#17364d" font-size="16" font-weight="800">Destination</text>
+          <text x="66" y="223" fill="#647f90" font-size="12">fichier ou base</text>
+        </g>
+        <g transform="translate(20 346)">
+          <rect width="192" height="120" rx="17" fill="#eef9fc"/>
+          <text x="18" y="29" fill="#16829c" font-size="13" font-weight="900">GLISSEZ SUR LE CANEVAS</text>
+          <path d="M24 53h144M24 76h118M24 99h132" stroke="#93c3d2" stroke-width="4" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <!-- Visual canvas -->
+      <g transform="translate(232 64)">
+        <rect width="790" height="526" fill="#fbfdfe"/>
+        <rect width="790" height="526" fill="url(#grid)"/>
+        <text x="27" y="39" fill="#506f83" font-size="13" font-weight="900" letter-spacing="2">PIPELINE VISUEL</text>
+
+        <!-- Connections -->
+        <path d="M248 241h102M528 241h90" fill="none" stroke="#22b8cf" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+        <!-- Nodes -->
+        <g transform="translate(58 171)" filter="url(#shadow)">
+          <rect width="190" height="140" rx="22" fill="#ffffff" stroke="#22b8cf" stroke-width="3"/>
+          <circle cx="42" cy="42" r="22" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+          <path d="M31 42h22M42 31v22" stroke="#0891b2" stroke-width="3" stroke-linecap="round"/>
+          <text x="76" y="38" fill="#17364d" font-size="18" font-weight="900">COMMANDES</text>
+          <text x="76" y="61" fill="#647f90" font-size="13">source CSV</text>
+          <path d="M24 87h142" stroke="#d5e7ed" stroke-width="2"/>
+          <text x="24" y="114" fill="#39788f" font-size="13">commandes.csv</text>
+          <circle cx="190" cy="70" r="8" fill="#22b8cf"/>
+        </g>
+
+        <g transform="translate(350 171)" filter="url(#shadow)">
+          <rect width="178" height="140" rx="22" fill="#ffffff" stroke="#3b82f6" stroke-width="3"/>
+          <circle cx="42" cy="42" r="22" fill="#e8f1ff" stroke="#3b82f6" stroke-width="2"/>
+          <path d="M31 42h22M36 35l-7 7 7 7M48 35l7 7-7 7" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="76" y="38" fill="#17364d" font-size="18" font-weight="900">NETTOYER</text>
+          <text x="76" y="61" fill="#647f90" font-size="13">transformation</text>
+          <path d="M24 87h130" stroke="#d5e7ed" stroke-width="2"/>
+          <text x="24" y="114" fill="#39788f" font-size="13">supprimer lignes nulles</text>
+          <circle cx="0" cy="70" r="8" fill="#3b82f6"/><circle cx="178" cy="70" r="8" fill="#3b82f6"/>
+        </g>
+
+        <g transform="translate(618 171)" filter="url(#greenGlow)">
+          <rect width="150" height="140" rx="22" fill="#effcf7" stroke="#34d399" stroke-width="3"/>
+          <circle cx="42" cy="42" r="22" fill="#d9faef" stroke="#34d399" stroke-width="2"/>
+          <path d="M31 36h22v13H31zM34 32h16" fill="none" stroke="#059669" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="72" y="38" fill="#075e4d" font-size="16" font-weight="900">CHARGER</text>
+          <text x="76" y="61" fill="#397666" font-size="13">PostgreSQL</text>
+          <path d="M20 87h110" stroke="#b9e6d7" stroke-width="2"/>
+          <text x="20" y="114" fill="#397666" font-size="13">commandes_net</text>
+          <circle cx="0" cy="70" r="8" fill="#34d399"/>
+        </g>
+
+        <!-- Mouse cursor -->
+        <g transform="translate(465 322)">
+          <path d="M0 0l9 47 11-14 13 21 10-6-13-21 17-4z" fill="#ffffff" stroke="#0f2940" stroke-width="3" stroke-linejoin="round"/>
+          <circle cx="8" cy="4" r="30" fill="none" stroke="#22b8cf" stroke-width="3" stroke-dasharray="5 6"/>
+        </g>
+
+        <g transform="translate(171 425)">
+          <rect width="448" height="58" rx="18" fill="#eafafd"/>
+          <text x="224" y="26" text-anchor="middle" fill="#16445b" font-size="17" font-weight="900">POINTEZ · CLIQUEZ · RELIEZ</text>
+          <text x="224" y="46" text-anchor="middle" fill="#557286" font-size="13">le graphe reste facile à comprendre</text>
+        </g>
+      </g>
+
+      <!-- YAML panel -->
+      <g transform="translate(1022 64)">
+        <rect width="458" height="526" fill="#f7fbfd"/>
+        <path d="M0 0v526" stroke="#cfe3ea" stroke-width="2"/>
+        <text x="28" y="39" fill="#506f83" font-size="13" font-weight="900" letter-spacing="2">YAML GÉNÉRÉ</text>
+        <rect x="270" y="18" width="158" height="31" rx="15" fill="#d9faef"/>
+        <circle cx="289" cy="33" r="8" fill="#34d399"/>
+        <path d="M285 33l3 3 6-7" fill="none" stroke="#075e4d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="353" y="38" text-anchor="middle" fill="#087a5e" font-size="12" font-weight="900">SYNCHRONISÉ</text>
+        <g transform="translate(28 75)" font-family="Consolas,monospace" font-size="16">
+          <text x="0" y="24" fill="#17364d">pipeline:</text>
+          <text x="23" y="58" fill="#3b82f6">source:</text><text x="122" y="58" fill="#557286">commandes</text>
+          <text x="23" y="92" fill="#3b82f6">transformations:</text>
+          <text x="47" y="126" fill="#557286">- type:</text><text x="146" y="126" fill="#0891b2">drop_nulls</text>
+          <text x="23" y="160" fill="#3b82f6">destination:</text><text x="151" y="160" fill="#557286">postgres</text>
+          <text x="47" y="194" fill="#557286">table:</text><text x="131" y="194" fill="#b76d00">commandes_net</text>
+        </g>
+        <g transform="translate(28 307)">
+          <rect width="402" height="86" rx="18" fill="#ffffff" stroke="#a7ccd9" stroke-width="2"/>
+          <circle cx="40" cy="43" r="21" fill="#e8fafd" stroke="#22b8cf" stroke-width="2"/>
+          <path d="M30 43h20M34 36l-7 7 7 7M46 36l7 7-7 7" fill="none" stroke="#0891b2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="77" y="37" fill="#17364d" font-size="17" font-weight="900">SORTIE PORTABLE</text>
+          <text x="77" y="61" fill="#647f90" font-size="14">relisez, versionnez et exécutez partout</text>
+        </g>
+        <g transform="translate(57 431)" filter="url(#greenGlow)">
+          <rect width="344" height="62" rx="24" fill="url(#green)"/>
+          <circle cx="38" cy="31" r="19" fill="#effff9"/>
+          <path d="M29 31l6 6 13-16" fill="none" stroke="#059669" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="72" y="27" fill="#043b31" font-size="17" font-weight="900">VISUEL → YAML</text>
+          <text x="72" y="47" fill="#075e4d" font-size="13" font-weight="700">aucun format propriétaire</text>
+        </g>
+      </g>
+    </g>
+
+    <text x="800" y="819" text-anchor="middle" fill="#17364d" font-size="20" font-weight="900">L’éditeur visuel simplifie la création du même manifeste portable.</text>
+    <text x="800" y="852" text-anchor="middle" fill="#557286" font-size="16">Construisez visuellement. Gardez le YAML.</text>
+  </g>
+</svg>

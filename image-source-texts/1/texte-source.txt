@@ -1,0 +1,3 @@
+Serveur MCP : parlez à Hydra en langage humain.
+
+Votre assistant écrit les pipelines, Hydra les valide.

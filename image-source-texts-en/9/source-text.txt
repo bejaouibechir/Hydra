@@ -1,0 +1,3 @@
+A visual Studio is included.
+
+Build the pipeline with the mouse and get YAML out.

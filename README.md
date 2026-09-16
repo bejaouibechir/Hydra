@@ -17,8 +17,12 @@ hdrctl serve
 
 Guides, DSL reference and a browser playground: **[hydraetl.com](https://hydraetl.com)**
 
+## HYDRA Studio  "Your Kitchen"
+
 Open **[http://localhost:5678](http://localhost:5678)** — that is Hydra Studio. No Node, no build step,
 no database, no broker, nothing else to start.
+
+<img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/hydrastudio.png" alt="" width="657">
 
 ---
 
@@ -291,16 +295,6 @@ overrides:
   csv.read: rust      # currently the only accelerated operation
 ```
 
-What it changes, on a 1-million-row job: reading a CSV is about four times
-faster, which makes a filter-and-sort job about 1.5x faster end to end and an
-aggregation about 2x. Output files are byte-for-byte identical.
-
-The Python implementation stays in charge whenever the native one cannot
-guarantee the same result — a file that is not UTF-8, a byte order mark, a
-quoted field left open at the end of the file — and says so with a warning.
-Small files (under 64 KB) always use Python, where the native path would be
-slower. If the package is not installed, Hydra warns once and runs in Python.
-
 ---
 
 ## Your AI assistant, connected
@@ -314,11 +308,7 @@ hydra-mcp
 ```
 
 Your assistant writes the manifests; **Hydra validates them before anything is
-written**, and nothing runs until you ask. A rejected job leaves no trace, and
-the assistant is handed the exact error so it can correct itself.
-
-The server holds no model and makes no network call: the tools are Hydra's, the
-intelligence is whichever assistant you already use.
+written**, and nothing runs until you ask. 
 
 See [docs/MCP.md](docs/MCP.md) for the client configuration snippets.
 
@@ -341,6 +331,8 @@ The server writes projects into the directory you launch it from.
 
 There is also a VS Code extension providing completion and validation for the
 manifests, without installing Hydra.
+
+![](C:\Users\DELL\Desktop\Hydra\assets\hydravs.png)
 
 ---
 

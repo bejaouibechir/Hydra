@@ -22,7 +22,7 @@ Guides, DSL reference and a browser playground: **[hydraetl.com](https://hydraet
 Open **[http://localhost:5678](http://localhost:5678)** — that is Hydra Studio. No Node, no build step,
 no database, no broker, nothing else to start.
 
-<img title="" src="file:///C:/Users/DELL/Desktop/Hydra/assets/hydrastudio.png" alt="" width="657">
+<img title="" src="assets/hydrastudio.png" alt="" width="657">
 
 ---
 

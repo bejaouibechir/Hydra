@@ -808,6 +808,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             env_name: Optional[str] = None, param_overrides: tuple = (),
             profile: bool = False) -> None:
     """Exécute un pipeline ETL."""
+    verbosity = verbosity or 0  # click < 8.2 passes None when no -v flag is given
     print_banner()
     job_dir = Path(path).resolve()
 

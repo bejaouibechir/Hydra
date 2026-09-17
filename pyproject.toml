@@ -75,6 +75,8 @@ all = [
 ]
 dev = [
     "pytest>=8.0",
+    "httpx>=0.24",
+    "requests-mock>=1.11",
     "build>=1.2",
     "twine>=5.0",
     "black>=24.0",

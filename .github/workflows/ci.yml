@@ -46,7 +46,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,server,duckdb,parquet,http,mcp]" requests-mock
+          python -m pip install -e ".[dev,server,duckdb,parquet,http,mcp]"
       - name: Smoke test
         run: hdrctl --version
       - name: Tests

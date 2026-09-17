@@ -43,7 +43,8 @@ CSV_CASES = {
 
 def _write(tmp: Path, name: str, content: str) -> Path:
     p = tmp / f"{name}.csv"
-    p.write_text(content, encoding="utf-8", newline="")
+    with open(p, "w", encoding="utf-8", newline="") as fh:
+        fh.write(content)
     return p
 
 

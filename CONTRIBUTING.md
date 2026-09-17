@@ -16,7 +16,7 @@ Open an [issue](https://github.com/bejaouibechir/Hydra/issues) with:
 git clone https://github.com/bejaouibechir/Hydra.git
 cd Hydra
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[dev,all]" requests-mock pre-commit
+pip install -e ".[dev,all]" pre-commit
 pre-commit install
 pytest
 ```

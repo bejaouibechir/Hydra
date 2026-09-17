@@ -20,7 +20,7 @@
     "dslName": "actions",
     "dslVersion": "1.0",
     "kind": "actions",
-    "productVersion": "0.10.0",
+    "productVersion": "0.10.1",
     "sourceModel": "hydra_etl.workflow.runner.action_handlers"
   }
 }

@@ -161,7 +161,7 @@
       "type": "object"
     }
   },
-  "$id": "https://hydra.local/schemas/0.10.0/manifests/workflow.schema.json",
+  "$id": "https://hydra.local/schemas/0.10.1/manifests/workflow.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Définition complète d'un workflow — issu de workflow.yaml.",
   "properties": {
@@ -208,7 +208,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "manifest",
-    "productVersion": "0.10.0",
+    "productVersion": "0.10.1",
     "sourceModel": "hydra_etl.workflow.models.WorkflowDef"
   }
 }

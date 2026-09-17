@@ -4,7 +4,25 @@ All notable changes to Hydra ETL are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/).
 
-## [0.10.0] — 2026-09-15
+
+
+## [0.10.1] — 2026-09-17
+
+### Fixed
+
+- `hdrctl run` no longer ends with "Critical error: TypeError" on Python 3.9
+  (click 8.1 passed `None` as verbosity when no `-v` flag was given).
+- The `mcp` extra now installs only on Python 3.10+, so
+  `pip install "hydra-etl[all]"` works again on Python 3.9.
+
+### Changed
+
+- `httpx` and `requests-mock` are declared in the `dev` extra.
+- CI now runs on Linux, Windows and macOS, Python 3.9 to 3.13.
+
+
+
+## [0.10.1] — 2026-09-15
 
 ### Added
 

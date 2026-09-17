@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.10.0/operations/fill_null.schema.json",
+  "$id": "https://hydra.local/schemas/0.10.1/operations/fill_null.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "columns": {
@@ -33,7 +33,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.10.0",
+    "productVersion": "0.10.1",
     "sourceModel": "hydra_etl.internal.parser.transform.FillNullOp"
   }
 }

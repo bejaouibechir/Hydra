@@ -1,4 +1,0 @@
-[console_scripts]
-hdrctl = hydra_etl.cli.hdrctl:main
-hydra = hydra_etl.cli.hdrctl:main
-hydra-mcp = hydra_etl.mcp.server:main

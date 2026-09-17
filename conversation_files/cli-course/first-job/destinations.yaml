@@ -1,6 +1,0 @@
-destinations:
-  dest_csv:
-    type: csv
-    load:
-      table: "data/{{ param:output_file }}"
-      mode: replace

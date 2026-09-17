@@ -1,5 +1,0 @@
-parameters:
-  output_file:
-    type: string
-    default: output.csv
-    description: Output CSV file name

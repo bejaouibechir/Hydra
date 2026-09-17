@@ -1,8 +1,0 @@
-steps:
-  - select:
-      columns: [id, name, value]
-  - cast:
-      mapping:
-        value: float
-  - filter:
-      expr: "value > 0"

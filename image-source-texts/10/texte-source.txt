@@ -1,3 +1,0 @@
-Extension VS Code — Complétion et validation des manifestes directement dans l'éditeur, sans installer Hydra.
-
-On découvre le DSL avant même d'essayer le produit.

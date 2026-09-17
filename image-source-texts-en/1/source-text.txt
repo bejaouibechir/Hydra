@@ -1,3 +1,0 @@
-MCP server: talk to Hydra in plain language.
-
-Your assistant writes the pipelines; Hydra validates them.

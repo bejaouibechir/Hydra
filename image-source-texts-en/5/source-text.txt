@@ -1,5 +1,0 @@
-Hydra includes its own scheduler.
-
-DAG workflows provide dependencies, automatic parallel execution of independent branches, delayed retries, cron triggers, conditional guards, and eleven actions including webhook, email, Bash, PowerShell, SSH, and Python.
-
-Chain multiple jobs with dependencies, parallel execution of independent branches, retries, cron triggers, and conditional guards.

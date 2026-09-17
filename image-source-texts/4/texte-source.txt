@@ -1,3 +1,0 @@
-Une CLI faite pour la CI/CD — hdrctl crée, valide, teste et exécute depuis un terminal ou une chaîne d'intégration.
-
-Les manifestes se versionnent et se relisent comme du code.

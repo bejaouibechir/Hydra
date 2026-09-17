@@ -83,6 +83,9 @@ dev = [
 [project.urls]
 Homepage = "https://hydraetl.com"
 Documentation = "https://hydraetl.com"
+Repository = "https://github.com/bejaouibechir/Hydra"
+Issues = "https://github.com/bejaouibechir/Hydra/issues"
+Changelog = "https://github.com/bejaouibechir/Hydra/blob/main/CHANGELOG.md"
 
 [project.scripts]
 hydra = "hydra_etl.cli.hdrctl:main"

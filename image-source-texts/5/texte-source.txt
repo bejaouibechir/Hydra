@@ -1,5 +1,0 @@
-Hydra embarque son propre ordonnanceur.
-
-Workflows en DAG : dépendances, exécution parallèle automatique des branches indépendantes, re-tentatives avec délai, déclenchement cron, gardes conditionnelles, et onze actions (webhook, email, bash, PowerShell, SSH, Python…).
-
-Enchaînez plusieurs jobs : dépendances, exécution parallèle des branches indépendantes, re-tentatives, déclenchement cron, gardes conditionnelles.

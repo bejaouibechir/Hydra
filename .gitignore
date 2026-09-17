@@ -122,3 +122,15 @@ conversation_files/
 Claude outputs/
 reponses.md
 documentations.md
+
+# ===============================
+# Internal notes & site sources (kept locally, not published)
+# ===============================
+docs/*
+!docs/MCP.md
+documentations/*
+!documentations/chatbot-hydra-dsl/
+image-source-texts/
+image-source-texts-en/
+hydra-site-template/
+*.vsix

@@ -1,3 +1,0 @@
-VS Code extension — manifest completion and validation directly inside the editor, without installing Hydra.
-
-Discover the DSL before even trying the product.

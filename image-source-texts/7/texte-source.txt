@@ -1,7 +1,0 @@
-Hydra expose une API REST.
-
-FastAPI, documentation interactive sur /docs. Hydra devient pilotable depuis votre CI, votre application, ou n'importe quel outil — il ne s'utilise pas seulement, il s'intègre.
-
-Installation à la carte.
-
-Vous n'installez que ce que vous utilisez : le moteur seul, ou avec le serveur, ou avec PostgreSQL, ou tout.

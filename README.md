@@ -2,6 +2,7 @@
 
 **Your data pipelines are described, not programmed.**
 
+[![CI](https://github.com/bejaouibechir/Hydra/actions/workflows/ci.yml/badge.svg)](https://github.com/bejaouibechir/Hydra/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
 [![Python](https://img.shields.io/pypi/pyversions/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
@@ -287,7 +288,8 @@ Python automatically whenever that guarantee cannot be kept. Benchmarks: [`bench
 ## VS Code extension
 
 Completion and validation for Hydra manifests inside the editor, without installing Hydra.
-Install the latest `.vsix` from [`VS Code Extension/`](VS%20Code%20Extension/).
+Download the `.vsix` from the [latest release](https://github.com/bejaouibechir/Hydra/releases/latest),
+or build it yourself from [`vscode-extension/`](vscode-extension/) (`python build_vsix.py`, no Node required).
 
 <img src="assets/hydravs.png" alt="Hydra VS Code extension" width="720">
 

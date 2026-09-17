@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Core suite that passes without external databases or services.
+  TEST_SET: >-
+    tests/test_backend_switch.py
+    tests/test_csv_rust_backend.py
+    tests/test_frame_io_parity.py
+    tests/test_csv_connector.py
+    tests/test_executor.py
+    tests/test_workflow.py
+    tests/test_source_parser.py
+    tests/test_cli_hdrctl.py
+    tests/test_parameters.py
+    tests/test_mcp_server.py
+    tests/test_api_studio.py
+
+jobs:
+  tests:
+    name: tests (${{ matrix.os }}, python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.9" }
+          - { os: ubuntu-latest, python: "3.11" }
+          - { os: ubuntu-latest, python: "3.13" }
+          - { os: windows-latest, python: "3.12" }
+          - { os: macos-latest, python: "3.12" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,server,duckdb,parquet,http,mcp]" requests-mock
+      - name: Smoke test
+        run: hdrctl --version
+      - name: Tests
+        shell: bash
+        run: python -m pytest -q ${{ env.TEST_SET }}

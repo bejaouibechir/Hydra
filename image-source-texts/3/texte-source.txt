@@ -1,3 +1,0 @@
-La validation avant exécution est votre seul atout véritablement isolé.
-
-dbt attrape les erreurs de référence à la compilation, mais aucun outil de pipelines fichiers-et-bases ne répond de façon déterministe à « est-ce que ça tournera ? » avant de toucher une donnée. C'est démontrable en une commande, et personne ne peut le copier sans refaire son architecture.

@@ -1,3 +1,0 @@
-The combination of declarative, visual, and nothing to deploy.
-
-Taken separately, none of the three is unique. Together, they are: Airbyte's interface requires a deployment, Talend is dead, Apache Hop and Pentaho require a JVM, and NiFi is heavy. You are alone on this combination.

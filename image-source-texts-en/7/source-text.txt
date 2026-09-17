@@ -1,7 +1,0 @@
-Hydra exposes a REST API.
-
-FastAPI provides interactive documentation at /docs. Hydra can be controlled from your CI pipeline, your application, or any tool — it is not merely used, it integrates.
-
-Modular installation.
-
-Install only what you use: the engine alone, with the server, with PostgreSQL, or everything.

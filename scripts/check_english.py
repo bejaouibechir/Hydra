@@ -11,7 +11,7 @@ Ce qui est ignoré : CLAUDE.md, documentations/, scripts de contrôle interne,
 commentaires de code Python et TypeScript non exposés.
 
 Usage :
-    python scripts/check_english.py "VS Code Extension"
+    python scripts/check_english.py "vscode-extension"
     python scripts/check_english.py cli/locales/en.json studio/src
     python scripts/check_english.py            # cibles par defaut
 
@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-DEFAULT_TARGETS = ["VS Code Extension", "cli/locales/en.json"]
+DEFAULT_TARGETS = ["vscode-extension", "cli/locales/en.json"]
 
 INSPECTED_SUFFIXES = {".json", ".md", ".yaml", ".yml", ".xml", ".vsixmanifest", ".txt"}
 

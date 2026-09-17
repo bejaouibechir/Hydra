@@ -1,6 +1,6 @@
 # Contributing to Hydra ETL
 
-Thanks for your interest in Hydra! Bug reports, ideas, documentation fixes and pull requests are all welcome.
+Thanks for your interest in Hydra! Please read our [Code of Conduct](CODE_OF_CONDUCT.md). Bug reports, ideas, documentation fixes and pull requests are all welcome.
 
 ## Reporting a bug or asking for a feature
 
@@ -16,7 +16,7 @@ Open an [issue](https://github.com/bejaouibechir/Hydra/issues) with:
 git clone https://github.com/bejaouibechir/Hydra.git
 cd Hydra
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[dev,all]"
+pip install -e ".[dev,all]" requests-mock pre-commit
 pre-commit install
 pytest
 ```

@@ -60,7 +60,7 @@ mongodb = ["pymongo>=4.6"]
 http = ["requests>=2.31"]
 # Serveur MCP local : expose Hydra a l'assistant IA de l'utilisateur.
 # Le SDK est sous licence MIT et n'appelle aucun service distant.
-mcp = ["mcp>=2.0"]
+mcp = ["mcp>=2.0; python_version >= '3.10'"]
 # Tout ce qu'un utilisateur peut vouloir, en une commande.
 all = [
     "hydra-etl[server]",

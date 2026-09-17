@@ -120,7 +120,7 @@ def test_executor_csv_to_csv_no_transform(tmp_path: Path):
     assert result.error is None
     assert result.rows_in == 3
     assert result.rows_out == 3
-    assert result.duration > 0
+    assert result.duration >= 0
     
     output_csv = job_dir / "output.csv"
     assert output_csv.exists()

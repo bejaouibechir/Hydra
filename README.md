@@ -257,7 +257,7 @@ hydra-mcp
 ```
 
 Your assistant writes the manifests; **Hydra validates them before anything is written**, and nothing runs
-until you ask. See [docs/MCP.md](docs/MCP.md) for client configuration.
+until you ask. Requires Python 3.10+. See [docs/MCP.md](docs/MCP.md) for client configuration.
 
 ---
 

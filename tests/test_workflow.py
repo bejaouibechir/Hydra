@@ -321,12 +321,12 @@ class TestRunnerExecution:
               steps:
                 - name: job_a
                   type: job
-                  job: "{job_a}"
+                  job: '{job_a}'
                   depends_on: []
                   on_failure: fail
                 - name: job_b
                   type: job
-                  job: "{job_b}"
+                  job: '{job_b}'
                   depends_on: [job_a]
                   on_failure: fail
         """)
@@ -368,7 +368,7 @@ class TestRunnerExecution:
                   on_failure: fail
                 - name: downstream
                   type: job
-                  job: "{good_job}"
+                  job: '{good_job}'
                   depends_on: [bad_step]
                   on_failure: fail
         """.format(good_job=good_job))
@@ -466,12 +466,12 @@ class TestRunnerExecution:
               steps:
                 - name: branch_a
                   type: job
-                  job: "{job_a}"
+                  job: '{job_a}'
                   depends_on: []
                   on_failure: fail
                 - name: branch_b
                   type: job
-                  job: "{job_b}"
+                  job: '{job_b}'
                   depends_on: []
                   on_failure: fail
         """)

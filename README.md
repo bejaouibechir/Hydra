@@ -10,6 +10,9 @@
 
 **[Website](https://hydraetl.com)** · **[Docs & playground](https://hydraetl.com)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
 
+See [what `hdrctl validate` checks and what it cannot](docs/VALIDATION.md) before
+relying on validation as a guarantee that a pipeline will run successfully.
+
 Hydra is an open-source declarative ETL engine. You write what a pipeline *is* in YAML;
 Hydra validates it before touching any data, then runs it. The same manifests run from
 the terminal, a REST API, or a visual editor in your browser, with one `pip install` and nothing else to deploy.

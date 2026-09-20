@@ -78,5 +78,8 @@
   "list.run_hint": "Job ausführen: {cmd}",
   "help.lang": "Sprache der Oberfläche (en, fr, es, de, pt, zh, ja)",
   "help.run.profile": "Zeigt am Ende des Laufs die Zeit pro Schritt",
-  "workflow.run.output_truncated": "… {count} weitere Zeile(n) — siehe Run-Logs"
+  "workflow.run.output_truncated": "… {count} weitere Zeile(n) — siehe Run-Logs",
+  "validate.ops_none": "keine",
+  "validate.expr_invalid": "Schritt {step} ({op}): ungültiger Ausdruck '{expr}' — {error}",
+  "validate.expr_unchecked": "Syntax nicht geprüft (pandas-Parser nicht verfügbar)"
 }

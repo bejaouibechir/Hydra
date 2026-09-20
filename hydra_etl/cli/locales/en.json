@@ -142,5 +142,8 @@
   "backend.invalid_value": "Ignoring invalid backend value '{value}' ({origin}): expected 'python' or 'rust'.",
   "backend.config_unreadable": "Cannot read backend configuration '{path}': {error}. Using defaults.",
   "help.run.profile": "Show a per-step timing profile at the end of the run",
-  "workflow.run.output_truncated": "… {count} more line(s) — see the run logs"
+  "workflow.run.output_truncated": "… {count} more line(s) — see the run logs",
+  "validate.ops_none": "none",
+  "validate.expr_invalid": "Step {step} ({op}): invalid expression '{expr}' — {error}",
+  "validate.expr_unchecked": "syntax not checked (pandas parser unavailable)"
 }

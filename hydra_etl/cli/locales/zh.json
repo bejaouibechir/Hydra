@@ -78,5 +78,8 @@
   "list.run_hint": "运行作业：{cmd}",
   "help.lang": "界面语言（en, fr, es, de, pt, zh, ja）",
   "help.run.profile": "在运行结束时显示各步骤耗时",
-  "workflow.run.output_truncated": "… 另有 {count} 行 — 参见运行日志"
+  "workflow.run.output_truncated": "… 另有 {count} 行 — 参见运行日志",
+  "validate.ops_none": "无",
+  "validate.expr_invalid": "步骤 {step} ({op}): 无效表达式 '{expr}' — {error}",
+  "validate.expr_unchecked": "未检查语法 (pandas 解析器不可用)"
 }

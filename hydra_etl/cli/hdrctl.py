@@ -1266,6 +1266,38 @@ def cmd_test(path: str, only_src: bool, only_dst: bool, only_trf: bool,
 # Commande : validate
 # ─────────────────────────────────────────────────────────────────────────────
 
+
+_EXPR_UNCHECKED = object()
+
+
+def _check_expr_syntax(expr: str):
+    """Vérifie la syntaxe d'une expression filter/calculate sans l'évaluer.
+
+    Utilise le pré-analyseur de pandas (backticks, `&`, `|`, `and`/`or`…),
+    c'est-à-dire la même grammaire que `DataFrame.query` / `DataFrame.eval`
+    au moment de l'exécution. Retourne None si la syntaxe est correcte,
+    un message d'erreur sinon, ou _EXPR_UNCHECKED si l'analyseur pandas
+    n'est pas disponible (on ne bloque jamais sur un doute).
+    """
+    import ast
+    import tokenize
+    try:
+        from pandas.core.computation.expr import PandasExprVisitor
+        from pandas.core.computation.scope import Scope
+        preparse = PandasExprVisitor(Scope(level=0), "python", "pandas").preparser
+    except Exception:
+        return _EXPR_UNCHECKED
+    try:
+        ast.parse(preparse(expr), mode="eval")
+    except SyntaxError as e:
+        return e.msg
+    except tokenize.TokenError:
+        return "unbalanced brackets or quotes"
+    except Exception as e:  # autre erreur du tokeniseur pandas
+        return str(e) or type(e).__name__
+    return None
+
+
 @cli.command("validate", help=t("help.validate.docstring"))
 @_lang_option
 @click.argument("path", default=".", type=click.Path())
@@ -1354,31 +1386,43 @@ def cmd_validate(path: str, strict: bool,
         err_line(t("validate.coherence_error", error=e))
         all_ok = False
 
-    # Mode strict — vérifications supplémentaires
+    # Mode strict — vérifications supplémentaires.
+    # Les étapes sont lues via TransformParser (source de vérité du DSL) :
+    # il accepte `steps:` à la racine comme `transformations: steps:`.
     if strict and job_files["transformations"].exists():
         section(t("validate.strict_section"))
         try:
             import yaml
+            from hydra_etl.internal.parser.transform import TransformParser
             data  = yaml.safe_load(_read_yaml(job_files["transformations"]))
-            steps = (data or {}).get("steps", [])
-            ops   = [next(iter(s)) for s in steps if isinstance(s, dict)]
-            ok(f"{c(C.WH, t('validate.ops_recognized')):<36} — {', '.join(ops) if ops else 'aucune'}")
-
-            # Vérifier expressions calculate/filter (parse only, no eval)
-            for step in steps:
-                if not isinstance(step, dict):
-                    continue
-                op   = next(iter(step))
-                pms  = step[op]
-                if op == "filter" and isinstance(pms, dict):
-                    expr = pms.get("expr", "")
-                    ok(f"{c(C.WH, f'filter.expr'):<36} — '{expr[:40]}'")
-                if op == "calculate" and isinstance(pms, dict):
-                    col  = pms.get("column", "?")
-                    expr = pms.get("expr", "")
-                    ok(f"{c(C.WH, f'calculate.{col}'):<36} — '{expr[:40]}'")
+            steps = TransformParser().parse(data or {}).steps
         except Exception as e:
+            # Déjà signalé par la validation Pydantic ci-dessus.
             err_line(t("validate.strict_error", error=e))
+            all_ok = False
+            steps = []
+
+        ops = [s.op for s in steps]
+        ok(f"{c(C.WH, t('validate.ops_recognized')):<36} — "
+           f"{', '.join(ops) if ops else t('validate.ops_none')}")
+
+        # Syntaxe des expressions filter/calculate (analyse seule, aucune évaluation).
+        for idx, step in enumerate(steps, start=1):
+            if step.op not in ("filter", "calculate"):
+                continue
+            pms  = step.params or {}
+            expr = pms.get("expr", "")
+            label = "filter.expr" if step.op == "filter" else f"calculate.{pms.get('column', '?')}"
+            problem = _check_expr_syntax(expr)
+            if problem is None:
+                ok(f"{c(C.WH, label):<36} — '{expr[:40]}'")
+            elif problem is _EXPR_UNCHECKED:
+                info(f"{c(C.WH, label):<36} — {t('validate.expr_unchecked')}")
+            else:
+                msg = t("validate.expr_invalid", step=idx, op=step.op, expr=expr, error=problem)
+                err_line(msg)
+                all_errs.append(f"transformations.yaml: {msg}")
+                all_ok = False
 
     click.echo()
     if all_ok:

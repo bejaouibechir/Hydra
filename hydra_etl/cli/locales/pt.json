@@ -78,5 +78,8 @@
   "list.run_hint": "Execute um job: {cmd}",
   "help.lang": "Idioma da interface (en, fr, es, de, pt, zh, ja)",
   "help.run.profile": "Mostra o tempo por etapa no fim da execução",
-  "workflow.run.output_truncated": "… mais {count} linha(s) — ver os registos da execução"
+  "workflow.run.output_truncated": "… mais {count} linha(s) — ver os registos da execução",
+  "validate.ops_none": "nenhuma",
+  "validate.expr_invalid": "Etapa {step} ({op}): expressão inválida '{expr}' — {error}",
+  "validate.expr_unchecked": "sintaxe não verificada (analisador do pandas indisponível)"
 }

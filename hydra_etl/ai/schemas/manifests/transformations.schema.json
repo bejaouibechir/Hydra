@@ -50,7 +50,7 @@
       "type": "object"
     }
   },
-  "$id": "https://hydra.local/schemas/0.10.1/manifests/transformations.schema.json",
+  "$id": "https://hydra.local/schemas/0.10.2/manifests/transformations.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "steps": {
@@ -72,7 +72,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "manifest",
-    "productVersion": "0.10.1",
+    "productVersion": "0.10.2",
     "sourceModel": "hydra_etl.internal.parser.transform.TransformConfig"
   }
 }

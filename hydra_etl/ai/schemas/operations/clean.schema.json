@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.10.1/operations/clean.schema.json",
+  "$id": "https://hydra.local/schemas/0.10.2/operations/clean.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Nettoie les colonnes texte : espaces (trim + multiples) + casse.",
   "properties": {
@@ -31,7 +31,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.10.1",
+    "productVersion": "0.10.2",
     "sourceModel": "hydra_etl.internal.parser.transform.CleanOp"
   }
 }

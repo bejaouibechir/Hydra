@@ -19,7 +19,7 @@
     "dslVersion": "1.0",
     "kind": "connectors",
     "note": "mongodb, parquet et web_api ne s'enregistrent que si leur extra est installé ; ils font partie du DSL dans tous les cas.",
-    "productVersion": "0.10.1",
+    "productVersion": "0.10.2",
     "sourceModel": "hydra_etl.internal.connector.registry.CONNECTOR_REGISTRY"
   }
 }

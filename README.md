@@ -15,6 +15,7 @@ Hydra validates it before touching any data, then runs it. The same manifests ru
 the terminal, a REST API, or a visual editor in your browser, with one `pip install` and nothing else to deploy.
 
 <!-- TODO: replace with a short GIF: build a job in Studio → hdrctl validate → hdrctl run -->
+
 <img src="assets/hydrastudio.png" alt="Hydra Studio: visual editor for jobs and workflows" width="720">
 
 ---
@@ -61,12 +62,12 @@ No Node, no build step, no database, no message broker. Python 3.9+ on Linux, ma
 
 ### How it compares
 
-|                          | Hydra                     | Airflow                        | dbt                        | Airbyte                  | NiFi / Apache Hop |
-| ------------------------ | ------------------------- | ------------------------------ | -------------------------- | ------------------------ | ----------------- |
-| Pipelines defined in     | YAML                      | Python                         | SQL + YAML                 | UI / config              | UI flows          |
-| Scope                    | Extract, transform, load  | Orchestration                  | Transform in the warehouse | Extract & load           | Extract, transform, load |
-| Visual editor            | Included                  | Monitoring UI                  | Not in dbt Core            | Included                 | Included          |
-| To get started           | `pip install`             | Scheduler, webserver, metadata DB | A data warehouse        | Docker / Kubernetes      | JVM               |
+|                      | Hydra                    | Airflow                           | dbt                        | Airbyte             | NiFi / Apache Hop        |
+| -------------------- | ------------------------ | --------------------------------- | -------------------------- | ------------------- | ------------------------ |
+| Pipelines defined in | YAML                     | Python                            | SQL + YAML                 | UI / config         | UI flows                 |
+| Scope                | Extract, transform, load | Orchestration                     | Transform in the warehouse | Extract & load      | Extract, transform, load |
+| Visual editor        | Included                 | Monitoring UI                     | Not in dbt Core            | Included            | Included                 |
+| To get started       | `pip install`            | Scheduler, webserver, metadata DB | A data warehouse           | Docker / Kubernetes | JVM                      |
 
 Hydra is not a replacement for all of these. It targets file-and-database pipelines that should stay
 readable and run without extra infrastructure.
@@ -87,7 +88,7 @@ readable and run without extra infrastructure.
 **Connectors** (sources and destinations):
 
 | <img src="assets/connectors/csv.png" alt="" width="40"><br>CSV | <img src="assets/connectors/json.png" alt="" width="40"><br>JSON | <img src="assets/connectors/parquet.png" alt="" width="40"><br>Parquet | <img src="assets/connectors/mysql.png" alt="" width="40"><br>MySQL / MariaDB | <img src="assets/connectors/postgresql.png" alt="" width="40"><br>PostgreSQL | <img src="assets/connectors/mongo.png" alt="" width="40"><br>MongoDB | <img src="assets/connectors/api.png" alt="" width="40"><br>Web API |
-| :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+|:--------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:------------------------------------------------------------------:|
 
 **Transformation engines:** pandas and DuckDB.
 

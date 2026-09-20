@@ -310,12 +310,29 @@ If Hydra is useful to you, a ⭐ on GitHub helps others find it.
 
 ---
 
-## License
+License
 
-Hydra ETL is released under the **GNU Affero General Public License v3 or later**. See [LICENSE](LICENSE).
+Hydra ETL is open source under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**.
 
-You may use, modify and redistribute it freely, including commercially. If you modify Hydra and let others
-use it, even only over a network, you must make your modified source available under the same terms.
+## You can, for free
 
-**Commercial license:** for use without that obligation, contact the author via
-[hydraetl.com](https://hydraetl.com) or by opening an issue.
+- Use Hydra ETL for any purpose, including inside a company and for commercial work.
+- Run your own pipelines with it, internally or for clients.
+- Modify it and redistribute it.
+
+Using Hydra ETL to move **your** data does not make your data, your YAML pipelines or your other applications subject to the AGPL.
+
+## The one obligation
+
+If you **modify Hydra ETL itself** and make it available to others — including over a network, for example as a hosted service — you must publish your modified source code under the same license.
+
+## Commercial license
+
+If that obligation does not fit your case — typically, you embed a modified Hydra ETL in a proprietary product or offer it as a service without publishing your changes — a commercial license is available.
+
+**Contact:** admin@hydraetl.com — reply within 2 business days.
+
+## Support and services
+
+- Support with response time commitments
+- Help migrating existing scripts or tools to Hydra ETL

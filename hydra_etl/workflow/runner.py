@@ -811,7 +811,8 @@ class WorkflowRunner:
             cwd=work_dir, timeout=timeout,
             env=run_env,
         )
-        for line in (result.stdout + result.stderr).splitlines():
+        out_lines = (result.stdout + result.stderr).splitlines()
+        for line in out_lines:
             step_log.info(f"  {line}")
 
         if result.returncode != 0:
@@ -822,6 +823,7 @@ class WorkflowRunner:
         return StepResult(
             step_name=step.name, success=True,
             duration=time.monotonic() - start,
+            output=out_lines,
         )
 
     def _action_python(
@@ -869,7 +871,8 @@ class WorkflowRunner:
             args, capture_output=True, text=True,
             cwd=work_dir, timeout=timeout, env=run_env,
         )
-        for line in (result.stdout + result.stderr).splitlines():
+        out_lines = (result.stdout + result.stderr).splitlines()
+        for line in out_lines:
             step_log.info(f"  {line}")
 
         if result.returncode != 0:
@@ -881,6 +884,7 @@ class WorkflowRunner:
         return StepResult(
             step_name=step.name, success=True,
             duration=time.monotonic() - start,
+            output=out_lines,
         )
 
     def _action_ssh(

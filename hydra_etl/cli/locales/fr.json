@@ -109,5 +109,6 @@
   "help.test.docstring": "\b\nExemples :\n  hydra test .\n  hydra test jobs/daily_revenue\n  hydra test . --only-sources\n  hydra test . --only-transform\n  hydra test . -s sources_alt.yaml -d conf/destinations_prod.yaml",
   "help.validate.docstring": "\b\nExemples :\n  hydra validate .\n  hydra validate jobs/daily_revenue --strict\n  hydra validate . -s sources_alt.yaml -p conf/pipeline_prod.yaml",
   "help.list.docstring": "\b\nExemples :\n  hydra list\n  hydra list jobs/",
-  "help.run.profile": "Affiche le temps passé par étape à la fin du job"
+  "help.run.profile": "Affiche le temps passé par étape à la fin du job",
+  "workflow.run.output_truncated": "… {count} ligne(s) de plus — voir les journaux du run"
 }

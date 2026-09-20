@@ -106,5 +106,6 @@
   "backend.rust_fallback": "El lector CSV de Rust devolvió '{path}' a Python: {reason}.",
   "backend.invalid_value": "Se ignora el valor de backend no válido '{value}' ({origin}): se esperaba 'python' o 'rust'.",
   "backend.config_unreadable": "No se puede leer la configuración de backend '{path}': {error}. Se usan los valores por defecto.",
-  "help.run.profile": "Muestra el tiempo por etapa al final de la ejecución"
+  "help.run.profile": "Muestra el tiempo por etapa al final de la ejecución",
+  "workflow.run.output_truncated": "… {count} línea(s) más — consulte los registros de la ejecución"
 }

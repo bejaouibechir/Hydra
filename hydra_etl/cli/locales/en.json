@@ -141,5 +141,6 @@
   "backend.rust_fallback": "Rust CSV reader handed '{path}' over to Python: {reason}.",
   "backend.invalid_value": "Ignoring invalid backend value '{value}' ({origin}): expected 'python' or 'rust'.",
   "backend.config_unreadable": "Cannot read backend configuration '{path}': {error}. Using defaults.",
-  "help.run.profile": "Show a per-step timing profile at the end of the run"
+  "help.run.profile": "Show a per-step timing profile at the end of the run",
+  "workflow.run.output_truncated": "… {count} more line(s) — see the run logs"
 }

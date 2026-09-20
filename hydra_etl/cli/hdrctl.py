@@ -1459,6 +1459,25 @@ def cmd_workflow() -> None:
     pass
 
 
+
+# Nombre de lignes de sortie d'action affichees sous un step ; au-dela, un
+# compteur renvoie vers les logs complets. Evite qu'un script bavard noie le
+# resume du workflow.
+_STEP_OUTPUT_MAX_LINES = 20
+
+
+def _echo_step_output(step_result) -> None:
+    """Affiche sous le step ce qu'une action script (python/bash/powershell)
+    a ecrit sur stdout/stderr. Sans effet pour les autres types de steps."""
+    lines = [ln for ln in getattr(step_result, "output", []) or [] if ln.strip()]
+    if not lines:
+        return
+    for line in lines[:_STEP_OUTPUT_MAX_LINES]:
+        click.echo(f"     {c(C.DM, '│')} {line}")
+    extra = len(lines) - _STEP_OUTPUT_MAX_LINES
+    if extra > 0:
+        click.echo(f"     {c(C.DM, '│')} {c(C.DM, t('workflow.run.output_truncated', count=extra))}")
+
 @cmd_workflow.command("run", help=t("help.workflow.run.docstring"))
 @_lang_option
 @click.argument("path", default="./workflow.yaml", metavar="PATH")
@@ -1484,10 +1503,12 @@ def cmd_workflow_run(path: str) -> None:
     for sr in result.steps:
         if sr.success:
             click.echo(f"  {c(C.GR, '✓')}  {t('workflow.run.step_ok', name=sr.step_name, duration=f'{sr.duration:.1f}')}")
+            _echo_step_output(sr)
         elif sr.error and "skipped" in str(sr.error).lower():
             click.echo(f"  {c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=sr.step_name)}")
         else:
             click.echo(f"  {c(C.RD, '✗')}  {t('workflow.run.step_fail', name=sr.step_name, error=sr.error)}")
+            _echo_step_output(sr)
 
     click.echo()
     if result.success:

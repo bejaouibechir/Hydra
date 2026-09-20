@@ -100,6 +100,7 @@ class StepResult:
     error: Optional[str] = None
     job_result: Optional[Any] = None   # JobResult si type=job
     logs: List[str] = field(default_factory=list)   # lignes de log capturées
+    output: List[str] = field(default_factory=list)  # stdout/stderr d'une action script
     skipped: bool = False
 
     def __str__(self) -> str:

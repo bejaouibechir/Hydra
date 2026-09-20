@@ -77,5 +77,6 @@
   "list.summary": "{count} ジョブ  {ok} OK",
   "list.run_hint": "ジョブを実行：{cmd}",
   "help.lang": "インターフェース言語（en, fr, es, de, pt, zh, ja）",
-  "help.run.profile": "実行終了時にステップごとの所要時間を表示する"
+  "help.run.profile": "実行終了時にステップごとの所要時間を表示する",
+  "workflow.run.output_truncated": "… 他 {count} 行 — 実行ログを参照"
 }

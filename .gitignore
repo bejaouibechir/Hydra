@@ -128,6 +128,7 @@ documentations.md
 # ===============================
 docs/*
 !docs/MCP.md
+!docs/VALIDATION.md
 documentations/*
 !documentations/chatbot-hydra-dsl/
 image-source-texts/

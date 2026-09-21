@@ -7,6 +7,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#project-status)
+[![Glama quality score](https://glama.ai/mcp/servers/bejaouibechir/Hydra/badges/score.svg)](https://glama.ai/mcp/servers/bejaouibechir/Hydra)
 
 **[Website](https://hydraetl.com)** · **[Docs & playground](https://hydraetl.com)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
 
@@ -259,6 +260,11 @@ hydra-mcp
 
 Your assistant writes the manifests; **Hydra validates them before anything is written**, and nothing runs
 until you ask. Requires Python 3.10+. See [docs/MCP.md](docs/MCP.md) for client configuration.
+
+Graded by [Glama](https://glama.ai/mcp/servers/bejaouibechir/Hydra), which builds the server in a
+sandbox, runs security checks and scores the tool definitions:
+
+[![hydra-etl MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/bejaouibechir/Hydra/badges/card.svg)](https://glama.ai/mcp/servers/bejaouibechir/Hydra)
 
 ---
 

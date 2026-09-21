@@ -23,12 +23,15 @@ Lancement :
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+from hydra_etl import __version__
 
 try:
     from mcp.types import ToolAnnotations
@@ -266,34 +269,42 @@ def _outputs_summary(job_dir: Path) -> str:
 # ---------------------------------------------------------------------------
 
 def build_server() -> Any:
-    server = MCPServer(
-        name="hydra",
-        instructions=(
-            "Hydra est un moteur ETL déclaratif. Un job est un dossier "
-            "contenant quatre manifestes YAML : sources.yaml, "
-            "transformations.yaml (facultatif), destinations.yaml et "
-            "pipeline.yaml.\n\n"
-            "Méthode recommandée : appelle d'abord hydra_list_operations et "
-            "hydra_list_connectors pour connaître le vocabulaire exact, puis "
-            "écris le job avec hydra_write_job — il valide avant d'écrire et "
-            "te rend les erreurs si quelque chose ne va pas. N'exécute jamais "
-            "un job sans que l'utilisateur l'ait demandé.\n\n"
-            "N'invente jamais un connecteur, une opération ou une action : "
-            "s'ils ne figurent pas dans les listes, ils n'existent pas."
+    kwargs: dict[str, Any] = {
+        "name": "hydra-etl",
+        "instructions": (
+            "Hydra ETL is a declarative ETL engine. A job is a folder holding "
+            "four YAML manifests: sources.yaml, transformations.yaml "
+            "(optional), destinations.yaml and pipeline.yaml.\n\n"
+            "Recommended method: call hydra_list_operations and "
+            "hydra_list_connectors first to learn the exact vocabulary, then "
+            "write the job with hydra_write_job — it validates before writing "
+            "and hands back the errors if anything is wrong. Never run a job "
+            "unless the user asked for it.\n\n"
+            "Never invent a connector, an operation or an action: if it is "
+            "not in the lists, it does not exist."
         ),
-    )
+    }
+    # Champs portés par serverInfo dans le SDK 2.x. Le repli 1.x ne les
+    # connaît pas et les refuserait : on ne les passe que s'ils existent.
+    _accepted = inspect.signature(MCPServer.__init__).parameters
+    for _key, _value in (("title", "Hydra ETL"),
+                         ("version", __version__),
+                         ("website_url", "https://hydraetl.com")):
+        if _key in _accepted:
+            kwargs[_key] = _value
+    server = MCPServer(**kwargs)
 
     # -- Découverte du DSL ---------------------------------------------------
 
     @server.tool(
         description=(
-            "Liste les 18 opérations de transformation de Hydra avec leurs "
-            "paramètres obligatoires. À appeler AVANT d'écrire un "
-            "transformations.yaml : toute opération absente de cette liste "
-            "n'existe pas et sera rejetée."
+            "List the 18 transformation operations of Hydra ETL with their "
+            "required parameters. Call this BEFORE writing a "
+            "transformations.yaml: any operation missing from this list does "
+            "not exist and will be rejected."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_list_operations() -> str:
         index = _spec("index.json")
         rows = []
@@ -307,12 +318,12 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Donne le schéma JSON complet d'une opération de transformation : "
-            "tous ses paramètres, leurs types, leurs valeurs par défaut. "
-            "À appeler quand hydra_list_operations ne suffit pas."
+            "Return the full JSON schema of one transformation operation: "
+            "every parameter, its type and its default value. Call this when "
+            "hydra_list_operations is not enough."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_describe_operation(operation: str) -> str:
         path = SCHEMAS / "operations" / f"{operation}.schema.json"
         if not path.exists():
@@ -325,26 +336,25 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Liste les types de connecteurs acceptés par la clé 'type' d'une "
-            "source ou d'une destination. Tout autre type échouera à "
-            "l'exécution : ni S3, ni BigQuery, ni Snowflake ne sont pris en "
-            "charge."
+            "List the connector types accepted by the 'type' key of a source "
+            "or a destination. Any other type fails at run time: S3, BigQuery "
+            "and Snowflake are not supported."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_list_connectors() -> str:
         sch = _spec("connectors.schema.json")
         return ", ".join(sch["enum"])
 
     @server.tool(
         description=(
-            "Liste les actions utilisables dans un step de workflow de type "
-            "'action'. Attention : une action inconnue est ignorée "
-            "silencieusement à l'exécution et le step est compté comme "
-            "réussi — vérifie donc le nom avant de l'écrire."
+            "List the actions usable in a workflow step of type 'action'. "
+            "Careful: an unknown action is silently ignored at run time and "
+            "the step is still counted as successful, so check the name "
+            "before writing it."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_list_actions() -> str:
         sch = _spec("actions.schema.json")
         return ", ".join(sch["enum"])
@@ -353,12 +363,12 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Liste les jobs Hydra présents dans l'espace de travail. Un job "
-            "est un dossier contenant un pipeline.yaml. Renvoie les chemins "
-            "relatifs, utilisables tels quels dans les autres outils."
+            "List the Hydra ETL jobs present in the workspace. A job is a "
+            "folder holding a pipeline.yaml. Returns relative paths, usable "
+            "as they are in the other tools."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_list_jobs() -> str:
         base = workspace()
         jobs = sorted(p.parent.relative_to(base).as_posix()
@@ -370,12 +380,12 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Lit les manifestes d'un job existant. À appeler avant de "
-            "modifier un job, pour partir de son contenu réel plutôt que de le "
-            "réécrire de mémoire."
+            "Read the manifests of an existing job. Call this before "
+            "modifying a job, so you start from its real content instead of "
+            "rewriting it from memory."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_read_job(job_path: str) -> str:
         try:
             d = safe_path(job_path)
@@ -394,13 +404,14 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Valide un job avec le validateur officiel de Hydra : structure "
-            "des quatre manifestes, et résolution de pipeline.from vers une "
-            "source déclarée et de pipeline.to vers une destination déclarée. "
-            "C'est la vérité — si cet outil refuse, le job ne tournera pas."
+            "Validate a job with the official Hydra ETL validator: the "
+            "structure of the four manifests, and the resolution of "
+            "pipeline.from to a declared source and of pipeline.to to a "
+            "declared destination. This is the ground truth — if this tool "
+            "refuses, the job will not run."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_validate_job(job_path: str) -> str:
         try:
             d = safe_path(job_path)
@@ -411,13 +422,13 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Écrit les manifestes d'un job, APRÈS validation. Chaque manifeste "
-            "est passé en texte YAML. Si la validation échoue, rien n'est "
-            "écrit et les erreurs sont renvoyées : corrige-les et rappelle "
-            "l'outil. Écrire n'exécute pas le job."
+            "Write the manifests of a job, AFTER validation. Each manifest "
+            "is passed as YAML text. If validation fails, nothing is written "
+            "and the errors are returned: fix them and call the tool again. "
+            "Writing does not run the job."
         )
     ,
-        annotations=_annot(**ECRITURE, title="Écriture, après validation"))
+        annotations=_annot(**ECRITURE, title="Writes files, after validation"))
     def hydra_write_job(job_path: str,
                         sources_yaml: str,
                         destinations_yaml: str,
@@ -463,12 +474,12 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Exécute un job Hydra et renvoie le journal d'exécution. "
-            "N'appelle cet outil que si l'utilisateur a explicitement demandé "
-            "l'exécution : il écrit des données réelles dans la destination."
+            "Run a Hydra ETL job and return the execution log. Only call "
+            "this tool if the user explicitly asked for the run: it writes "
+            "real data to the destination."
         )
     ,
-        annotations=_annot(**EXECUTION, title="Exécution — écrit des données réelles"))
+        annotations=_annot(**EXECUTION, title="Runs the pipeline — writes real data"))
     def hydra_run_job(job_path: str) -> str:
         try:
             d = safe_path(job_path)
@@ -481,12 +492,12 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Explique une erreur de validation Hydra en langage clair et "
-            "propose la correction. À utiliser quand hydra_validate_job ou "
-            "hydra_write_job renvoient un message que tu ne sais pas traduire."
+            "Explain a Hydra ETL validation error in plain language and "
+            "propose the fix. Use this when hydra_validate_job or "
+            "hydra_write_job returns a message you cannot interpret."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_explain_error(error_message: str) -> str:
         hints = [
             ("cast", "Un CSV ne porte aucun type : place une étape `cast` "
@@ -513,13 +524,12 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Liste les workflows du dossier de travail. Un workflow orchestre "
-            "plusieurs jobs : dépendances, exécution parallèle, re-tentatives, "
-            "déclenchement par cron. À utiliser dès que la demande enchaîne "
-            "plusieurs jobs."
+            "List the workflows in the workspace. A workflow orchestrates "
+            "several jobs: dependencies, parallel execution, retries, cron "
+            "triggering. Use this as soon as the request chains several jobs."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_list_workflows() -> str:
         base = workspace()
         found = []
@@ -534,8 +544,14 @@ def build_server() -> Any:
                 found.append(f.relative_to(base).as_posix())
         return "\n".join(sorted(found)) or "Aucun workflow trouvé."
 
-    @server.tool(description="Lit un fichier workflow.yaml existant.",
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+    @server.tool(
+        description=(
+            "Read an existing workflow.yaml file and return its raw YAML. "
+            "Call this before modifying a workflow, so you start from its "
+            "real content instead of rewriting it from memory."
+        )
+    ,
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_read_workflow(workflow_path: str) -> str:
         try:
             f = safe_path(workflow_path)
@@ -547,14 +563,14 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Écrit un workflow, APRÈS validation. Un step vaut soit "
-            "type='job' avec le chemin d'un dossier de job, soit "
-            "type='action'. `depends_on` est TOUJOURS une liste : les steps "
-            "sans dépendance commune s'exécutent en parallèle. Si la "
-            "validation échoue, rien n'est écrit."
+            "Write a workflow, AFTER validation. A step is either "
+            "type='job' with the path of a job folder, or type='action'. "
+            "`depends_on` is ALWAYS a list: steps with no dependency in "
+            "common run in parallel. If validation fails, nothing is "
+            "written."
         )
     ,
-        annotations=_annot(**ECRITURE, title="Écriture, après validation"))
+        annotations=_annot(**ECRITURE, title="Writes files, after validation"))
     def hydra_write_workflow(workflow_path: str, workflow_yaml: str) -> str:
         import shutil
         import tempfile
@@ -586,11 +602,12 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Exécute un workflow et renvoie le déroulé, step par step. "
-            "N'appelle cet outil que si l'utilisateur a demandé l'exécution."
+            "Run a workflow and return the trace, step by step. Only call "
+            "this tool if the user asked for the run: the jobs it contains "
+            "write real data to their destinations."
         )
     ,
-        annotations=_annot(**EXECUTION, title="Exécution — écrit des données réelles"))
+        annotations=_annot(**EXECUTION, title="Runs the pipeline — writes real data"))
     def hydra_run_workflow(workflow_path: str) -> str:
         try:
             f = safe_path(workflow_path)
@@ -603,13 +620,13 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Montre les colonnes et les premières lignes d'un fichier de "
-            "données (CSV, JSON, Parquet). À appeler AVANT d'écrire un job, "
-            "pour connaître les vrais noms de colonnes au lieu de les "
-            "deviner — et APRÈS une exécution, pour vérifier le résultat."
+            "Show the columns and the first rows of a data file (CSV, JSON, "
+            "Parquet). Call this BEFORE writing a job, to learn the real "
+            "column names instead of guessing them — and AFTER a run, to "
+            "check the result."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_preview_data(file_path: str, rows: int = 5) -> str:
         try:
             f = safe_path(file_path)
@@ -653,16 +670,17 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Vérifie qu'un job fait bien ce que l'utilisateur a demandé. "
-            "Complète hydra_validate_job : celui-ci dit si le YAML est "
-            "correct, celui-là si le job répond à la demande. Douze règles "
-            "déterministes : opération réclamée mais absente, comparaison "
-            "numérique sans `cast`, mode de chargement contredit, extension "
-            "incohérente, secret en clair, technologie non prise en charge. "
-            "À appeler APRÈS avoir écrit un job, avant de le présenter."
+            "Check that a job does what the user actually asked for. This "
+            "completes hydra_validate_job: that one says whether the YAML is "
+            "correct, this one whether the job answers the request. Twelve "
+            "deterministic rules: operation requested but missing, numeric "
+            "comparison without a `cast`, load mode contradicted, "
+            "inconsistent file extension, plaintext secret, unsupported "
+            "technology. Call this AFTER writing a job, before presenting "
+            "it."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_check_job(user_request: str, job_path: str) -> str:
         from hydra_etl.ai.guards import check
 
@@ -696,13 +714,13 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "Trouve, parmi les jobs Hydra réels, ceux qui ressemblent le plus "
-            "à la demande, et renvoie leurs manifestes. À appeler AVANT "
-            "d'écrire un job inhabituel : un exemple qui tourne vaut mieux "
-            "qu'une reconstitution de mémoire."
+            "Find, among real Hydra ETL jobs, the ones closest to the "
+            "request, and return their manifests. Call this BEFORE writing "
+            "an unusual job: an example that runs beats a reconstruction "
+            "from memory."
         )
     ,
-        annotations=_annot(**LECTURE, title="Lecture seule"))
+        annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_find_example(user_request: str, count: int = 2) -> str:
         from hydra_etl.ai.guards import OP_HINTS, _norm
 
@@ -773,16 +791,16 @@ def main() -> None:
 
     ap = argparse.ArgumentParser(
         prog="hydra-mcp",
-        description="Serveur MCP de Hydra — expose le moteur à un agent IA.")
+        description="Hydra ETL MCP server — exposes the engine to an AI agent.")
     ap.add_argument("--transport", choices=["stdio", "streamable-http", "sse"],
                     default="stdio",
-                    help="stdio pour un client de bureau, streamable-http pour "
-                         "un client distant")
+                    help="stdio for a desktop client, streamable-http for a "
+                         "remote client")
     ap.add_argument("--host", default="127.0.0.1",
-                    help="adresse d'écoute en mode HTTP (défaut : locale)")
+                    help="listen address in HTTP mode (default: local only)")
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--workspace", default="",
-                    help="dossier de travail ; équivaut à HYDRA_MCP_WORKSPACE")
+                    help="working directory; same as HYDRA_MCP_WORKSPACE")
     args = ap.parse_args()
 
     if args.workspace:
@@ -794,8 +812,8 @@ def main() -> None:
         return
 
     if args.host not in ("127.0.0.1", "localhost", "::1"):
-        print(f"Attention : écoute sur {args.host}, sans authentification. "
-              f"N'exposez pas ce port publiquement.", file=sys.stderr)
+        print(f"Warning: listening on {args.host} with no authentication. "
+              f"Do not expose this port publicly.", file=sys.stderr)
     # Le SDK 2.x ne porte plus host/port dans les réglages : ils se passent
     # au lancement, et sont relayés à l'application ASGI.
     server.run(transport=args.transport, host=args.host, port=args.port)

@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.10.2/operations/sort.schema.json",
+  "$id": "https://hydra.local/schemas/0.10.3/operations/sort.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "ascending": {
@@ -25,7 +25,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.10.2",
+    "productVersion": "0.10.3",
     "sourceModel": "hydra_etl.internal.parser.transform.SortOp"
   }
 }

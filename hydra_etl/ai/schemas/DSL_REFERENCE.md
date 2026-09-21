@@ -4,7 +4,7 @@
 > moteur. Ne pas modifier à la main : toute correction se fait dans le
 > code, puis on régénère.
 
-Version du produit : **0.10.2**
+Version du produit : **0.10.3**
 
 ## Connecteurs (9)
 

@@ -32,7 +32,7 @@ format, the one written at the top of every YAML file. It only changes on a
 breaking format change, and never follows the product version.
 """
 
-__version__ = "0.10.2"
+__version__ = "0.10.3"
 __license__ = "AGPL-3.0-or-later"
 DSL_VERSION = "1.0"
 

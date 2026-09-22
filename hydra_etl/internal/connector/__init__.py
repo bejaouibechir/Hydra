@@ -9,6 +9,7 @@ from .csv_connector import CSVConnector
 from .json_connector import JSONConnector
 from .mysql_mariadb_connector import MySQLMariaDBConnector
 from .postgresql_connector import PostgreSQLConnector
+from .sqlserver_connector import SQLServerConnector
 
 # WebAPIConnector — optionnel (depend de jsonpath_ng)
 try:
@@ -33,5 +34,6 @@ __all__ = [
     "MySQLMariaDBConnector",
     "ParquetConnector",
     "PostgreSQLConnector",
+    "SQLServerConnector",
     "WebAPIConnector",
 ]

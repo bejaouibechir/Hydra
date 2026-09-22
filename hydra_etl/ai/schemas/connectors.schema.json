@@ -6,10 +6,12 @@
     "json",
     "mariadb",
     "mongodb",
+    "mssql",
     "mysql",
     "parquet",
     "postgres",
     "postgresql",
+    "sqlserver",
     "web_api"
   ],
   "title": "Hydra connector types",

@@ -22,6 +22,7 @@ def _build_catalogue() -> List[NodeInfo]:
         ("json",       "JSON",             "Lire/écrire des fichiers JSON"),
         ("mysql",      "MySQL / MariaDB",  "Connecteur MySQL et MariaDB"),
         ("postgresql", "PostgreSQL",       "Connecteur PostgreSQL"),
+        ("sqlserver",  "SQL Server",       "Connecteur Microsoft SQL Server"),
         ("mongodb",    "MongoDB",          "Connecteur MongoDB"),
         ("web_api",    "Web API",          "Appels HTTP GET/POST (REST)"),
     ]

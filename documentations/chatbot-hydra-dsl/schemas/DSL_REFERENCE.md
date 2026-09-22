@@ -6,9 +6,9 @@
 
 Version du produit : **0.10.3**
 
-## Connecteurs (9)
+## Connecteurs (11)
 
-`csv`, `json`, `mariadb`, `mongodb`, `mysql`, `parquet`, `postgres`, `postgresql`, `web_api`
+`csv`, `json`, `mariadb`, `mongodb`, `mssql`, `mysql`, `parquet`, `postgres`, `postgresql`, `sqlserver`, `web_api`
 
 > `postgres`/`postgresql` et `mysql`/`mariadb` sont des alias.
 > `mongodb`, `parquet` et `web_api` ne s'enregistrent qu'avec leur extra

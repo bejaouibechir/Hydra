@@ -14,16 +14,18 @@
     "ssh",
     "webhook"
   ],
-  "connectorCount": 9,
+  "connectorCount": 11,
   "connectors": [
     "csv",
     "json",
     "mariadb",
     "mongodb",
+    "mssql",
     "mysql",
     "parquet",
     "postgres",
     "postgresql",
+    "sqlserver",
     "web_api"
   ],
   "dslVersion": "1.0",

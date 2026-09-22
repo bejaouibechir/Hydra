@@ -157,6 +157,7 @@ def check(prompt: str, files: Dict[str, str], docs: Dict[str, Any]) -> List[str]
     named_connectors = {
         "parquet": "parquet", "postgres": "postgres", "postgresql": "postgres",
         "mysql": "mysql", "mariadb": "mariadb", "mongo": "mongodb",
+        "sql server": "sqlserver", "sqlserver": "sqlserver", "mssql": "sqlserver",
         "mongodb": "mongodb", "csv": "csv", "json": "json",
         "api web": "web_api", "api": "web_api",
     }
@@ -164,6 +165,7 @@ def check(prompt: str, files: Dict[str, str], docs: Dict[str, Any]) -> List[str]
             if isinstance(v, dict) and v.get("type")}
     if used:
         aliases = {"postgres": {"postgres", "postgresql"},
+                   "sqlserver": {"sqlserver", "mssql"},
                    "mysql": {"mysql", "mariadb"},
                    "mariadb": {"mysql", "mariadb"}}
         for mot, attendu in named_connectors.items():

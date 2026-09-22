@@ -56,6 +56,9 @@ duckdb = ["duckdb>=0.10"]
 parquet = ["pyarrow>=14.0"]
 mysql = ["mysql-connector-python>=8.3"]
 postgres = ["psycopg2-binary>=2.9"]
+# SQL Server. pymssql embarque FreeTDS dans ses roues : pas de pilote ODBC
+# systeme a installer, contrairement a pyodbc.
+mssql = ["pymssql>=2.3"]
 mongodb = ["pymongo>=4.6"]
 http = ["requests>=2.31"]
 # Serveur MCP local : expose Hydra a l'assistant IA de l'utilisateur.
@@ -69,6 +72,7 @@ all = [
     "hydra-etl[parquet]",
     "hydra-etl[mysql]",
     "hydra-etl[postgres]",
+    "hydra-etl[mssql]",
     "hydra-etl[mongodb]",
     "hydra-etl[http]",
     "hydra-etl[mcp]",

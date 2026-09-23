@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.10.3/operations/merge.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.0/operations/merge.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Merge type SQL Server (upsert cible <- source, sur une cle).",
   "properties": {
@@ -26,7 +26,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.10.3",
+    "productVersion": "0.11.0",
     "sourceModel": "hydra_etl.internal.parser.transform.MergeOp"
   }
 }

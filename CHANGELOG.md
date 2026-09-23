@@ -6,6 +6,41 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 
 
+## [0.11.0] — 2026-09-22
+
+### Added
+
+- Microsoft SQL Server connector, aliases `sqlserver` and `mssql`. Extract with
+  a table or a query, load in `append`, `replace` or `upsert` mode, with
+  auto-creation of the target table. Install it with
+  `pip install "hydra-etl[mssql]"`.
+
+  The driver is `pymssql`, which ships FreeTDS inside its wheels, rather than
+  `pyodbc`, which needs the `msodbcsql` system driver installed separately.
+  One command, nothing to deploy.
+
+  Upsert runs `UPDATE` then `INSERT ... WHERE NOT EXISTS` inside a
+  transaction. `MERGE` is deliberately not used: its concurrency problems are
+  documented and many SQL Server teams ban it outright.
+
+  Auto-created tables use `NVARCHAR` rather than `VARCHAR` and `DATETIME2`
+  rather than `DATETIME`, so accented text and timestamps behave identically
+  whatever the server's collation.
+
+  Tested end to end against two live servers: SQL Server 2022 on Windows with
+  a named instance on a static TCP port, and
+  `mcr.microsoft.com/mssql/server:2022-latest` in Docker on Linux. Same major
+  version on both, so the operating system was the only variable. 74 unit
+  tests need no server; 11 end-to-end tests are skipped unless
+  `HYDRA_E2E_MSSQL` is set.
+
+### Known limitation
+
+- A named instance given without a port cannot be resolved. FreeTDS does not
+  query SQL Browser on UDP 1434 the way the Microsoft drivers do, so
+  `MACHINE\INSTANCE` alone reaches port 1433 and fails. Supply the instance's
+  TCP port; the error message says so and gives the query that finds it.
+
 ## [0.10.3] — 2026-09-21
 
 ### Changed

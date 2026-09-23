@@ -217,7 +217,7 @@
       "type": "object"
     }
   },
-  "$id": "https://hydra.local/schemas/0.10.3/manifests/sources.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.0/manifests/sources.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Racine du fichier sources.yaml.",
   "properties": {
@@ -236,7 +236,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "manifest",
-    "productVersion": "0.10.3",
+    "productVersion": "0.11.0",
     "sourceModel": "hydra_etl.internal.parser.source.SourcesConfig"
   }
 }

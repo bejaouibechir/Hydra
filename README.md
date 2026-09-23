@@ -228,10 +228,11 @@ The base install is the engine and the CLI. Everything else is opt-in.
 pip install hydra-etl                  # engine + CLI
 pip install "hydra-etl[server]"        # + API + Studio
 pip install "hydra-etl[postgres]"      # + PostgreSQL driver
+pip install "hydra-etl[mssql]"         # + Microsoft SQL Server driver
 pip install "hydra-etl[all]"           # everything
 ```
 
-Available extras: `server`, `native`, `duckdb`, `parquet`, `mysql`, `postgres`, `mongodb`, `http`, `mcp`, `all`.
+Available extras: `server`, `native`, `duckdb`, `parquet`, `mysql`, `postgres`, `mssql`, `mongodb`, `http`, `mcp`, `all`.
 
 ---
 

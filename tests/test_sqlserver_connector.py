@@ -22,6 +22,7 @@ import datetime
 
 import pytest
 
+from hydra_etl.internal.connector import sqlserver_connector as ssc
 from hydra_etl.internal.connector.sqlserver_connector import SQLServerConnector
 
 
@@ -88,21 +89,31 @@ def test_custom_port_is_honoured():
     assert _make(host="10.0.0.5", port=14330)._resolve_server() == ("10.0.0.5", 14330)
 
 
-def test_backslash_host_is_a_named_instance():
-    # Sous Windows, MACHINE\SQLEXPRESS est résolu par le service SQL Browser :
-    # le port TCP n'est ni connu ni utile, il ne doit pas être transmis.
+@pytest.fixture
+def browser_muet(monkeypatch):
+    """SQL Browser arrete, ou UDP 1434 filtre : la requete ne rend rien.
+
+    Sans ce leurre, chaque test d'instance nommee enverrait un vrai datagramme
+    vers un hote inexistant et attendrait le delai complet.
+    """
+    monkeypatch.setattr(ssc, "_query_sql_browser", lambda *a, **k: None)
+
+
+def test_backslash_host_is_a_named_instance(browser_muet):
+    # SQL Browser muet : on transmet MACHINE\SQLEXPRESS tel quel et le message
+    # d'aide prend le relais si la connexion echoue.
     server, port = _make(host="MACHINE\\SQLEXPRESS")._resolve_server()
     assert server == "MACHINE\\SQLEXPRESS"
     assert port is None
 
 
-def test_instance_key_builds_a_named_instance():
+def test_instance_key_builds_a_named_instance(browser_muet):
     server, port = _make(host="MACHINE", instance="SQLEXPRESS")._resolve_server()
     assert server == "MACHINE\\SQLEXPRESS"
     assert port is None
 
 
-def test_named_instance_dsn_omits_the_port():
+def test_named_instance_dsn_omits_the_port(browser_muet):
     assert "1433" not in _make(host="MACHINE", instance="SQLEXPRESS")._build_connection_string()
 
 
@@ -580,3 +591,145 @@ def test_connection_is_closed_on_failure(traced):
         c.load_batches([[{"id": 1}]], table="t", mode="upsert", key=["absent"])
     assert "rollback" in _verbs(log)
     assert "conn.close" in _verbs(log)
+
+
+# ---------------------------------------------------------------------------
+# SQL Browser (SSRP) : la resolution d'une instance nommee en numero de port
+# ---------------------------------------------------------------------------
+#
+# FreeTDS, embarque dans pymssql, ne fait pas cette resolution. Hydra la fait
+# elle-meme pour que 'host: MACHINE\SQLEXPRESS' suffise, sans pilote systeme
+# a installer. Ces tests couvrent le decodage de la reponse et le branchement
+# dans _resolve_server, sans jamais toucher au reseau.
+
+
+def _ssrp(payload: str) -> bytes:
+    """Fabrique une reponse SSRP bien formee autour d'un corps donne."""
+    body = payload.encode("ascii")
+    return b"\x05" + len(body).to_bytes(2, "little") + body
+
+
+def test_browser_response_yields_the_port():
+    data = _ssrp(
+        "ServerName;MACHINE;InstanceName;SQLEXPRESS;IsClustered;No;"
+        "Version;16.0.1000.6;tcp;14330;;"
+    )
+    assert ssc._parse_sql_browser_response(data, "SQLEXPRESS") == 14330
+
+
+def test_browser_response_is_case_insensitive_on_the_instance():
+    data = _ssrp("ServerName;M;InstanceName;SqlExpress;tcp;14330;;")
+    assert ssc._parse_sql_browser_response(data, "SQLEXPRESS") == 14330
+
+
+def test_browser_response_picks_the_right_instance_among_several():
+    """Un serveur peut heberger plusieurs instances et les decrire toutes.
+
+    Rendre le port d'une autre instance connecterait silencieusement l'utilisateur
+    a la mauvaise base : c'est le pire resultat possible, pire qu'un echec.
+    """
+    data = _ssrp(
+        "ServerName;M;InstanceName;AUTRE;tcp;1500;;"
+        "ServerName;M;InstanceName;SERVER2024;tcp;14330;;"
+    )
+    assert ssc._parse_sql_browser_response(data, "SERVER2024") == 14330
+    assert ssc._parse_sql_browser_response(data, "AUTRE") == 1500
+
+
+def test_browser_response_reads_past_two_blocks():
+    """Le decoupage doit tenir au-dela du second bloc.
+
+    Une premiere version lisait les champs d'un seul tenant : le ';;' qui
+    separe les blocs y ajoutait un champ vide, decalant les paires d'un cran
+    des la deuxieme instance.
+    """
+    data = _ssrp("InstanceName;A;tcp;1;;InstanceName;B;tcp;2;;InstanceName;C;tcp;3;;")
+    assert ssc._parse_sql_browser_response(data, "C") == 3
+
+
+def test_browser_response_without_the_wanted_instance_yields_nothing():
+    data = _ssrp("ServerName;M;InstanceName;AUTRE;tcp;1500;;")
+    assert ssc._parse_sql_browser_response(data, "SQLEXPRESS") is None
+
+
+def test_browser_response_with_a_named_pipe_only_yields_nothing():
+    # Une instance qui n'ecoute pas en TCP n'a pas de port a donner.
+    data = _ssrp("ServerName;M;InstanceName;SQLEXPRESS;np;\\\\M\\pipe\\sql;;")
+    assert ssc._parse_sql_browser_response(data, "SQLEXPRESS") is None
+
+
+def test_browser_rejects_a_wrong_opcode():
+    body = b"ServerName;M;InstanceName;SQLEXPRESS;tcp;14330;;"
+    assert ssc._parse_sql_browser_response(b"\x01" + body, "SQLEXPRESS") is None
+
+
+def test_browser_rejects_a_truncated_datagram():
+    assert ssc._parse_sql_browser_response(b"\x05", "SQLEXPRESS") is None
+    assert ssc._parse_sql_browser_response(b"", "SQLEXPRESS") is None
+
+
+def test_browser_rejects_an_impossible_port():
+    assert ssc._parse_sql_browser_response(
+        _ssrp("InstanceName;I;tcp;99999;;"), "I"
+    ) is None
+    assert ssc._parse_sql_browser_response(
+        _ssrp("InstanceName;I;tcp;pas_un_nombre;;"), "I"
+    ) is None
+
+
+def test_resolve_uses_the_port_sql_browser_gives(monkeypatch):
+    """Le cas nominal : l'utilisateur n'ecrit qu'un nom d'instance."""
+    monkeypatch.setattr(ssc, "_query_sql_browser", lambda h, i, t: 14330)
+    server, port = _make(host="MACHINE\\SERVER2024")._resolve_server()
+    assert server == "MACHINE"  # le nom d'instance ne part pas au pilote
+    assert port == 14330
+
+
+def test_resolve_falls_back_when_sql_browser_is_silent(monkeypatch):
+    monkeypatch.setattr(ssc, "_query_sql_browser", lambda h, i, t: None)
+    server, port = _make(host="MACHINE\\SERVER2024")._resolve_server()
+    assert server == "MACHINE\\SERVER2024"
+    assert port is None
+
+
+def test_an_explicit_port_asks_sql_browser_nothing(monkeypatch):
+    """Un port donne est un ordre : aucune raison d'aller sonder le reseau."""
+    def _interdit(*a, **k):
+        raise AssertionError("SQL Browser interroge alors que le port est connu")
+
+    monkeypatch.setattr(ssc, "_query_sql_browser", _interdit)
+    assert _make(host="MACHINE\\SERVER2024", port=14330)._resolve_server() == (
+        "MACHINE",
+        14330,
+    )
+
+
+def test_a_plain_host_asks_sql_browser_nothing(monkeypatch):
+    def _interdit(*a, **k):
+        raise AssertionError("SQL Browser interroge sans instance nommee")
+
+    monkeypatch.setattr(ssc, "_query_sql_browser", _interdit)
+    assert _make(host="127.0.0.1")._resolve_server() == ("127.0.0.1", 1433)
+
+
+def test_sql_browser_is_asked_only_once(monkeypatch):
+    """_build_connection_string appelle aussi _resolve_server : une requete
+    reseau par message d'erreur serait absurde."""
+    appels = []
+    monkeypatch.setattr(
+        ssc, "_query_sql_browser", lambda h, i, t: (appels.append((h, i)), 14330)[1]
+    )
+    c = _make(host="MACHINE\\SERVER2024")
+    c._resolve_server()
+    c._resolve_server()
+    c._build_connection_string()
+    assert appels == [("MACHINE", "SERVER2024")]
+
+
+def test_browser_timeout_is_configurable(monkeypatch):
+    vus = []
+    monkeypatch.setattr(
+        ssc, "_query_sql_browser", lambda h, i, t: (vus.append(t), None)[1]
+    )
+    _make(host="M\\I", browser_timeout=0.25)._resolve_server()
+    assert vus == [0.25]

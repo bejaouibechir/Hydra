@@ -39,6 +39,7 @@ verbeux, prévisible, et c'est ce qu'un DBA attend de voir.
 from __future__ import annotations
 
 import re
+import socket
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from hydra_etl.internal.connector.base_db_connector import BaseDBConnector
@@ -50,6 +51,81 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _DEFAULT_SCHEMA = "dbo"
 _DEFAULT_PORT = 1433
+_SQL_BROWSER_PORT = 1434
+_SQL_BROWSER_TIMEOUT = 2.0
+
+
+def _parse_sql_browser_response(data: bytes, instance: str) -> Optional[int]:
+    """Extrait le port TCP d'une reponse SSRP, ou None si elle ne le donne pas.
+
+    Le corps decrit une instance par bloc, chaque bloc etant une suite de
+    champs ``cle;valeur`` et se terminant par un double point-virgule ::
+
+        ServerName;MACHINE;InstanceName;SQLEXPRESS;IsClustered;No;
+        Version;16.0.1000.6;tcp;14330;;
+
+    Un serveur peut en heberger plusieurs et les decrire toutes dans le meme
+    datagramme. D'ou le decoupage en blocs avant le decoupage en champs : lire
+    les champs d'un seul tenant desaligne les paires des le second bloc, et on
+    rendrait alors le port d'une autre instance. Connecter silencieusement
+    l'utilisateur a la mauvaise base serait pire que de ne rien rendre.
+    """
+    if len(data) < 3 or data[0] != 0x05:
+        return None
+
+    wanted = instance.lower()
+    for block in data[3:].decode("ascii", errors="replace").split(";;"):
+        fields = block.split(";")
+        if len(fields) < 2:
+            continue
+        entries = {
+            fields[i].lower(): fields[i + 1] for i in range(0, len(fields) - 1, 2)
+        }
+        if entries.get("instancename", "").lower() != wanted:
+            continue
+        raw = entries.get("tcp")
+        if raw is None:
+            return None  # instance trouvee, mais elle n'ecoute pas en TCP
+        try:
+            port = int(raw)
+        except ValueError:
+            return None
+        return port if 0 < port < 65536 else None
+    return None
+
+
+def _query_sql_browser(
+    host: str, instance: str, timeout: float = _SQL_BROWSER_TIMEOUT
+) -> Optional[int]:
+    """Demande au service SQL Browser le port TCP d'une instance nommee.
+
+    Protocole SSRP (MS-SQLR) : un datagramme UDP vers le port 1434, dont le
+    premier octet 0x04 signifie « decris-moi cette instance ». C'est ce que
+    font les pilotes Microsoft et que FreeTDS ne fait pas ; l'implementer ici
+    permet de garder pymssql, donc aucun pilote systeme a installer, sans
+    imposer a l'utilisateur de trouver le port lui-meme.
+
+    Rend None sans lever d'exception si le service ne repond pas : le port
+    1434 est souvent ferme par un pare-feu, et SQL Browser peut etre arrete.
+    L'appelant retombe alors sur le message d'aide.
+    """
+    try:
+        request = b"\x04" + instance.encode("ascii")
+    except UnicodeEncodeError:
+        return None
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.settimeout(timeout)
+        sock.sendto(request, (host, _SQL_BROWSER_PORT))
+        data, _ = sock.recvfrom(4096)
+    except (OSError, socket.timeout):
+        return None
+    finally:
+        sock.close()
+
+    return _parse_sql_browser_response(data, instance)
+
 
 
 class SQLServerConnector(BaseDBConnector):
@@ -103,30 +179,46 @@ class SQLServerConnector(BaseDBConnector):
     def _resolve_server(self) -> Tuple[str, Optional[int]]:
         """Rend (serveur, port) tel qu'il sera passé à pymssql.
 
-        **FreeTDS ne résout pas les instances nommées.** Sa documentation est
-        explicite : il utilise le port 1433 par défaut et ignore toute
-        résolution par le service SQL Browser. Une instance nommée écoute sur
-        un port dynamique, donc la connexion échoue avec « TDS server is
-        unavailable or does not exist », en ne citant que le nom de machine.
+        FreeTDS, embarqué dans pymssql, ne traduit pas un nom d'instance en
+        numéro de port : il vise 1433 et ignore le service SQL Browser. Or une
+        instance nommée écoute sur un port dynamique, et c'est la configuration
+        par défaut de SQL Express — donc du public visé.
 
-        Conséquence, et elle compte pour le public SQL Express, dont l'instance
-        est nommée par construction :
+        Hydra interroge donc SQL Browser lui-même, en UDP sur le port 1434,
+        comme le font les pilotes Microsoft. Trois cas, dans cet ordre :
 
-        - **port explicite** -> on l'utilise, et on ignore l'instance. C'est le
-          seul chemin fiable, et il fonctionne aussi pour une instance nommée.
-        - **instance sans port** -> on tente quand même ``HOTE\\INSTANCE``, au
-          cas où le FreeTDS local sache le faire, et `_connect` explique quoi
-          faire si ça échoue.
+        - **port explicite** -> on l'utilise tel quel, sans rien demander à
+          personne. C'est le chemin le plus rapide et le plus sûr.
+        - **instance nommée sans port** -> requête SQL Browser. S'il répond, on
+          connecte sur le port obtenu et l'utilisateur n'a rien eu à chercher.
+        - **SQL Browser muet** (arrêté, ou UDP 1434 filtré) -> on tente quand
+          même ``HOTE\\INSTANCE`` et `_connect` explique quoi faire.
+
+        Le résultat est mémorisé : la construction du DSN appelle aussi cette
+        méthode, et une requête réseau par message d'erreur serait absurde.
         """
+        cached = getattr(self, "_resolved_server", None)
+        if cached is not None:
+            return cached
+
         cfg = self._conn_cfg
         host, instance = self._split_instance()
         explicit_port = cfg.get("port")
 
         if instance is None:
-            return host, int(explicit_port or _DEFAULT_PORT)
-        if explicit_port:
-            return host, int(explicit_port)
-        return f"{host}\\{instance}", None
+            result = (host, int(explicit_port or _DEFAULT_PORT))
+        elif explicit_port:
+            result = (host, int(explicit_port))
+        else:
+            timeout = float(cfg.get("browser_timeout", _SQL_BROWSER_TIMEOUT))
+            discovered = _query_sql_browser(host, instance, timeout)
+            if discovered is not None:
+                result = (host, discovered)
+            else:
+                result = (f"{host}\\{instance}", None)
+
+        self._resolved_server = result
+        return result
 
     def _connect(self):
         try:
@@ -198,9 +290,13 @@ class SQLServerConnector(BaseDBConnector):
         host, _ = self._split_instance()
         return (
             f"\n"
-            f"  Instance nommée '{instance}' : le pilote pymssql/FreeTDS ne sait pas\n"
-            f"  traduire un nom d'instance en numéro de port — il n'interroge pas le\n"
-            f"  service SQL Browser. Indiquez le port TCP de l'instance :\n"
+            f"  Instance nommée '{instance}' : Hydra a interrogé le service SQL\n"
+            f"  Browser en UDP sur {host}:{_SQL_BROWSER_PORT} et n'a pas obtenu de\n"
+            f"  réponse. Le service est peut-être arrêté, ou le port 1434 filtré par\n"
+            f"  un pare-feu. Deux issues, au choix :\n"
+            f"\n"
+            f"  1. Démarrer 'SQL Server Browser' dans SQL Server Configuration Manager.\n"
+            f"  2. Indiquer directement le port TCP de l'instance :\n"
             f"\n"
             f"      connection:\n"
             f"        host: {host}\n"

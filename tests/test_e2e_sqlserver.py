@@ -24,7 +24,8 @@ Lancer :
 Variables reconnues (valeurs par defaut entre parentheses) :
     HYDRA_E2E_MSSQL      active la suite       (absent = ignoree)
     MSSQL_HOST           (127.0.0.1)
-    MSSQL_PORT           (1433)
+    MSSQL_PORT           (1433 ; laisser vide avec un MSSQL_HOST
+                          MACHINE\\INSTANCE pour eprouver SQL Browser)
     MSSQL_USER           (sa)
     MSSQL_PASSWORD       (Hydra!Passw0rd)
     MSSQL_DATABASE       (hydra_e2e)
@@ -70,15 +71,25 @@ from hydra_etl.internal.connector.sqlserver_connector import SQLServerConnector
 
 
 def _connector(name: str = "e2e") -> SQLServerConnector:
+    # MSSQL_PORT absent : la cle 'port' n'est pas transmise du tout, et c'est
+    # volontaire. Avec un MSSQL_HOST de la forme MACHINE\\INSTANCE, cela met a
+    # l'epreuve la resolution par SQL Browser sur un vrai serveur, ce qu'aucun
+    # test unitaire ne peut faire.
+    connection = {
+        "host": os.environ.get("MSSQL_HOST", "127.0.0.1"),
+        "user": os.environ.get("MSSQL_USER", "sa"),
+        "password": os.environ.get("MSSQL_PASSWORD", "Hydra!Passw0rd"),
+        "database": os.environ.get("MSSQL_DATABASE", "hydra_e2e"),
+    }
+    port = os.environ.get("MSSQL_PORT")
+    if port:
+        connection["port"] = int(port)
+    elif "\\" not in connection["host"]:
+        connection["port"] = 1433
+
     return SQLServerConnector(name=name, config={
         "type": "sqlserver",
-        "connection": {
-            "host": os.environ.get("MSSQL_HOST", "127.0.0.1"),
-            "port": int(os.environ.get("MSSQL_PORT", "1433")),
-            "user": os.environ.get("MSSQL_USER", "sa"),
-            "password": os.environ.get("MSSQL_PASSWORD", "Hydra!Passw0rd"),
-            "database": os.environ.get("MSSQL_DATABASE", "hydra_e2e"),
-        },
+        "connection": connection,
     })
 
 

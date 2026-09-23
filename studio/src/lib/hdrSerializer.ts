@@ -86,6 +86,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   source_parquet:  'parquet',
   source_mysql:    'mysql',
   source_postgres: 'postgresql',
+  source_sqlserver:'sqlserver',
   source_mongodb:  'mongodb',
   source_api:      'web_api',
   dest_csv:        'csv',
@@ -93,6 +94,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   dest_parquet:    'parquet',
   dest_mysql:      'mysql',
   dest_postgres:   'postgresql',
+  dest_sqlserver:  'sqlserver',
   dest_mongodb:    'mongodb',
 }
 
@@ -100,6 +102,7 @@ const CONNECTOR_TO_SOURCE_NODE: Record<string, string> = {
   csv: 'source_csv', json: 'source_json', parquet: 'source_parquet',
   mysql: 'source_mysql', mariadb: 'source_mysql',
   postgresql: 'source_postgres', postgres: 'source_postgres',
+  sqlserver: 'source_sqlserver', mssql: 'source_sqlserver',
   mongodb: 'source_mongodb', web_api: 'source_api',
 }
 
@@ -107,6 +110,7 @@ const CONNECTOR_TO_DEST_NODE: Record<string, string> = {
   csv: 'dest_csv', json: 'dest_json', parquet: 'dest_parquet',
   mysql: 'dest_mysql', mariadb: 'dest_mysql',
   postgresql: 'dest_postgres', postgres: 'dest_postgres',
+  sqlserver: 'dest_sqlserver', mssql: 'dest_sqlserver',
   mongodb: 'dest_mongodb',
 }
 
@@ -193,6 +197,14 @@ export function flowToHdr(
       user:     cfg.user     ?? '',
       password: cfg.password ?? '',
     } : {}
+    if (connType === 'sqlserver') {
+      // Le port n'est pas force a 1433 : laisse vide avec une instance nommee,
+      // Hydra interroge SQL Browser et trouve le port dynamique lui-meme.
+      // Ecrire 1433 d'office rendrait cette resolution impossible.
+      if (cfg.port === undefined || cfg.port === null || cfg.port === '') delete connection.port
+      if (cfg.instance) connection.instance = cfg.instance
+      if (cfg.schema)   connection.schema   = cfg.schema
+    }
     if (connType === 'mongodb') {
       Object.assign(connection, { uri: cfg.uri ?? 'mongodb://localhost:27017', database: cfg.database ?? '' })
       delete connection.host; delete connection.port; delete connection.user; delete connection.password
@@ -260,6 +272,14 @@ export function flowToHdr(
       user:     cfg.user     ?? '',
       password: cfg.password ?? '',
     } : {}
+    if (connType === 'sqlserver') {
+      // Le port n'est pas force a 1433 : laisse vide avec une instance nommee,
+      // Hydra interroge SQL Browser et trouve le port dynamique lui-meme.
+      // Ecrire 1433 d'office rendrait cette resolution impossible.
+      if (cfg.port === undefined || cfg.port === null || cfg.port === '') delete connection.port
+      if (cfg.instance) connection.instance = cfg.instance
+      if (cfg.schema)   connection.schema   = cfg.schema
+    }
     if (connType === 'mongodb') {
       Object.assign(connection, { uri: cfg.uri ?? 'mongodb://localhost:27017', database: cfg.database ?? '' })
       delete connection.host; delete connection.port; delete connection.user; delete connection.password
@@ -467,7 +487,9 @@ function _sourceToParams(src: HdrSource): Record<string, unknown> {
     return { url: (conn as Record<string,unknown>).base_url ?? ext.endpoint, method: (conn as Record<string,unknown>).method ?? 'GET' }
   }
   // SQL
-  return { host: conn.host, port: conn.port, database: conn.database, user: conn.user, password: conn.password, table: ext.table ?? '', query: ext.query ?? '' }
+  return { host: conn.host, port: conn.port, instance: conn.instance, schema: conn.schema,
+           database: conn.database, user: conn.user, password: conn.password,
+           table: ext.table ?? '', query: ext.query ?? '' }
 }
 
 function _destToParams(dest: HdrDest): Record<string, unknown> {
@@ -482,7 +504,9 @@ function _destToParams(dest: HdrDest): Record<string, unknown> {
     return { uri: conn.uri, database: conn.database, collection: load.collection, mode: load.mode ?? 'replace' }
   }
   // SQL
-  return { host: conn.host, port: conn.port, database: conn.database, user: conn.user, password: conn.password, table: load.table, mode: load.mode ?? 'replace' }
+  return { host: conn.host, port: conn.port, instance: conn.instance, schema: conn.schema,
+           database: conn.database, user: conn.user, password: conn.password,
+           table: load.table, mode: load.mode ?? 'replace' }
 }
 
 function _stepToParams(op: string, raw: Record<string, unknown> = {}): Record<string, unknown> {
@@ -560,6 +584,12 @@ export function flowToJobModel(
       database: cfg.database ?? '', user: cfg.user ?? '', password: cfg.password ?? '',
     } : connType === 'mongodb' ? { uri: cfg.uri ?? '', database: cfg.database ?? '' }
       : connType === 'web_api' ? { base_url: cfg.url ?? '', method: cfg.method ?? 'GET' } : {}
+    if (connType === 'sqlserver') {
+      // Voir plus haut : pas de port force, sinon SQL Browser ne sert a rien.
+      if (cfg.port === undefined || cfg.port === null || cfg.port === '') delete connection.port
+      if (cfg.instance) connection.instance = cfg.instance
+      if (cfg.schema)   connection.schema   = cfg.schema
+    }
     const extract: Record<string, unknown> = isDb
       ? { table: cfg.table ?? '', query: cfg.query, batch_size: 1000 }
       : connType === 'mongodb' ? { collection: cfg.collection ?? '', batch_size: 1000 }
@@ -620,6 +650,12 @@ export function flowToJobModel(
       host: cfg.host ?? 'localhost', port: cfg.port,
       database: cfg.database ?? '', user: cfg.user ?? '', password: cfg.password ?? '',
     } : connType === 'mongodb' ? { uri: cfg.uri ?? '', database: cfg.database ?? '' } : {}
+    if (connType === 'sqlserver') {
+      // Voir plus haut : pas de port force, sinon SQL Browser ne sert a rien.
+      if (cfg.port === undefined || cfg.port === null || cfg.port === '') delete connection.port
+      if (cfg.instance) connection.instance = cfg.instance
+      if (cfg.schema)   connection.schema   = cfg.schema
+    }
     const load: Record<string, unknown> = isDb
       ? { table: cfg.table ?? '', mode: cfg.mode ?? 'replace' }
       : connType === 'mongodb' ? { collection: cfg.collection ?? '', mode: cfg.mode ?? 'replace' }

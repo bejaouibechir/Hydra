@@ -55,6 +55,17 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'table',    label: 'Table',        type: 'text' },
     { key: 'query',    label: 'SQL query',  type: 'textarea' },
   ],
+  source_sqlserver: [
+    { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost  or  MACHINE\\SQLEXPRESS', required: true },
+    { key: 'instance', label: 'Named instance (optional)', type: 'text', placeholder: 'SQLEXPRESS' },
+    { key: 'port',     label: 'Port (leave empty for a named instance)', type: 'number', placeholder: '1433' },
+    { key: 'database', label: 'Database',    type: 'text',   required: true },
+    { key: 'schema',   label: 'Schema',      type: 'text',   placeholder: 'dbo' },
+    { key: 'user',     label: 'User',        type: 'text',   required: true },
+    { key: 'password', label: 'Password',    type: 'password' },
+    { key: 'table',    label: 'Table',       type: 'text' },
+    { key: 'query',    label: 'SQL query',   type: 'textarea' },
+  ],
   source_mongodb:  [
     { key: 'uri',        label: 'MongoDB URI', type: 'text', placeholder: 'mongodb://localhost:27017', required: true },
     { key: 'database',   label: 'Database',        type: 'text', required: true },
@@ -83,6 +94,17 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'database', label: 'Database',        type: 'text',   required: true },
     { key: 'user',     label: 'User', type: 'text',   required: true },
     { key: 'password', label: 'Password', type: 'password' },
+    { key: 'table',    label: 'Table',       type: 'text',   required: true },
+    { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
+  ],
+  dest_sqlserver: [
+    { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost  or  MACHINE\\SQLEXPRESS', required: true },
+    { key: 'instance', label: 'Named instance (optional)', type: 'text', placeholder: 'SQLEXPRESS' },
+    { key: 'port',     label: 'Port (leave empty for a named instance)', type: 'number', placeholder: '1433' },
+    { key: 'database', label: 'Database',    type: 'text',   required: true },
+    { key: 'schema',   label: 'Schema',      type: 'text',   placeholder: 'dbo' },
+    { key: 'user',     label: 'User',        type: 'text',   required: true },
+    { key: 'password', label: 'Password',    type: 'password' },
     { key: 'table',    label: 'Table',       type: 'text',   required: true },
     { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
   ],
@@ -217,7 +239,7 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
 const SHELL_ACTION_TYPES = new Set(['action_powershell', 'action_bash', 'action_ssh'])
 
 // Sources DB — choix mutuellement exclusif Table / SQL query
-const DB_SOURCE_TYPES = new Set(['source_mysql', 'source_postgres'])
+const DB_SOURCE_TYPES = new Set(['source_mysql', 'source_postgres', 'source_sqlserver'])
 
 // ── Couleur par catégorie ─────────────────────────────────────────────────────
 

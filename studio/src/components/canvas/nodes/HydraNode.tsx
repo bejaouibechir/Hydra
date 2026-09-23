@@ -35,6 +35,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   source_parquet:  Database,
   source_mysql:    Database,
   source_postgres: Database,
+  source_sqlserver: Database,
   source_mongodb:  Database,
   source_api:      Globe,
   transform:       Shuffle,

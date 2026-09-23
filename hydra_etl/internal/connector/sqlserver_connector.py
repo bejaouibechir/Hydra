@@ -82,27 +82,51 @@ class SQLServerConnector(BaseDBConnector):
     # Connexion
     # ============================================================
 
-    def _resolve_server(self) -> Tuple[str, Optional[int]]:
-        """Rend (serveur, port) en tenant compte des instances nommées.
+    def _split_instance(self) -> Tuple[str, Optional[str]]:
+        """Rend (hôte, instance) — l'instance étant None pour une instance par défaut.
 
-        Trois écritures acceptées :
-        - ``host: 10.0.0.5`` + ``port: 1433``        -> TCP classique
-        - ``host: MACHINE\\SQLEXPRESS``               -> instance nommée, port ignoré
-        - ``host: MACHINE`` + ``instance: SQLEXPRESS`` -> idem, écrit en deux clés
-
-        Une instance nommée est résolue par le service SQL Browser (UDP 1434) :
-        le port TCP n'est alors ni connu ni utile, on ne le transmet pas.
+        Deux écritures acceptées :
+        - ``host: MACHINE\\SQLEXPRESS``
+        - ``host: MACHINE`` + ``instance: SQLEXPRESS``
         """
         cfg = self._conn_cfg
         host = str(cfg.get("host", "127.0.0.1")).strip()
         instance = cfg.get("instance")
 
         if "\\" in host:
-            return host, None
+            base, inst = host.split("\\", 1)
+            return base.strip(), inst.strip() or None
         if instance:
-            inst = self._validate_identifier(str(instance))
-            return f"{host}\\{inst}", None
-        return host, int(cfg.get("port", _DEFAULT_PORT))
+            return host, self._validate_identifier(str(instance))
+        return host, None
+
+    def _resolve_server(self) -> Tuple[str, Optional[int]]:
+        """Rend (serveur, port) tel qu'il sera passé à pymssql.
+
+        **FreeTDS ne résout pas les instances nommées.** Sa documentation est
+        explicite : il utilise le port 1433 par défaut et ignore toute
+        résolution par le service SQL Browser. Une instance nommée écoute sur
+        un port dynamique, donc la connexion échoue avec « TDS server is
+        unavailable or does not exist », en ne citant que le nom de machine.
+
+        Conséquence, et elle compte pour le public SQL Express, dont l'instance
+        est nommée par construction :
+
+        - **port explicite** -> on l'utilise, et on ignore l'instance. C'est le
+          seul chemin fiable, et il fonctionne aussi pour une instance nommée.
+        - **instance sans port** -> on tente quand même ``HOTE\\INSTANCE``, au
+          cas où le FreeTDS local sache le faire, et `_connect` explique quoi
+          faire si ça échoue.
+        """
+        cfg = self._conn_cfg
+        host, instance = self._split_instance()
+        explicit_port = cfg.get("port")
+
+        if instance is None:
+            return host, int(explicit_port or _DEFAULT_PORT)
+        if explicit_port:
+            return host, int(explicit_port)
+        return f"{host}\\{instance}", None
 
     def _connect(self):
         try:
@@ -159,7 +183,33 @@ class SQLServerConnector(BaseDBConnector):
                 f"{self.__class__.__name__} [{self.name}]: échec connexion DB.\n"
                 f"  DSN : {self._build_connection_string()}\n"
                 f"  Erreur : {type(e).__name__}: {e}"
+                f"{self._named_instance_hint()}"
             ) from e
+
+    def _named_instance_hint(self) -> str:
+        """Conseil affiché quand une instance nommée est tentée sans port.
+
+        Sans ce message, l'utilisateur ne voit qu'une erreur FreeTDS qui ne cite
+        même pas le nom de l'instance, et n'a aucune piste.
+        """
+        _, instance = self._split_instance()
+        if instance is None or self._conn_cfg.get("port"):
+            return ""
+        host, _ = self._split_instance()
+        return (
+            f"\n"
+            f"  Instance nommée '{instance}' : le pilote pymssql/FreeTDS ne sait pas\n"
+            f"  traduire un nom d'instance en numéro de port — il n'interroge pas le\n"
+            f"  service SQL Browser. Indiquez le port TCP de l'instance :\n"
+            f"\n"
+            f"      connection:\n"
+            f"        host: {host}\n"
+            f"        port: <port de l'instance>\n"
+            f"\n"
+            f"  Pour le trouver, exécutez dans SSMS, connecté à cette instance :\n"
+            f"      SELECT local_tcp_port FROM sys.dm_exec_connections\n"
+            f"      WHERE session_id = @@SPID;"
+        )
 
     def _build_connection_string(self) -> str:
         """DSN lisible pour les diagnostics, sans mot de passe."""

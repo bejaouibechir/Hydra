@@ -1,4 +1,4 @@
-"""
+r"""
 Tests E2E du connecteur SQL Server — exigent une instance vivante.
 
 Ces tests sont ignorés par defaut, comme tests/test_e2e_postgresql.py. Ils ne
@@ -28,6 +28,26 @@ Variables reconnues (valeurs par defaut entre parentheses) :
     MSSQL_USER           (sa)
     MSSQL_PASSWORD       (Hydra!Passw0rd)
     MSSQL_DATABASE       (hydra_e2e)
+
+Instance nommee (SQL Express, et toute instance Windows non par defaut)
+----------------------------------------------------------------------
+pymssql/FreeTDS **ne traduit pas un nom d'instance en numero de port** : il
+n'interroge pas le service SQL Browser et retombe sur 1433, ou une instance
+nommee n'ecoute pas. L'erreur obtenue ne cite meme pas le nom de l'instance :
+
+    Unable to connect: TDS server is unavailable or does not exist (MACHINE)
+
+Il faut donc donner le port. Pour le trouver, dans SSMS connecte a l'instance :
+
+    SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID;
+
+Puis, en PowerShell :
+
+    $env:MSSQL_HOST="DESKTOP-463V422"
+    $env:MSSQL_PORT="<le port releve>"
+
+Le connecteur accepte aussi `host: MACHINE\INSTANCE` avec un `port` : le port
+l'emporte et l'instance est ignoree. C'est le chemin fiable.
 
 Portabilite : lancer cette suite sur DEUX configurations avant d'annoncer le
 support — une image Linux conteneurisee et une instance Windows/SQL Express.

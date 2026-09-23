@@ -106,6 +106,44 @@ def test_named_instance_dsn_omits_the_port():
     assert "1433" not in _make(host="MACHINE", instance="SQLEXPRESS")._build_connection_string()
 
 
+def test_explicit_port_wins_over_a_named_instance():
+    """FreeTDS ne sait pas traduire un nom d'instance en port : quand le port est
+    donne, on l'utilise et on laisse tomber l'instance. C'est le seul chemin
+    fiable, et c'est celui que SQL Express impose."""
+    server, port = _make(host="MACHINE\\SQLEXPRESS", port=49732)._resolve_server()
+    assert server == "MACHINE"
+    assert port == 49732
+
+
+def test_explicit_port_wins_with_the_instance_key_too():
+    server, port = _make(host="MACHINE", instance="SQLEXPRESS", port=49732)._resolve_server()
+    assert server == "MACHINE"
+    assert port == 49732
+
+
+def test_split_instance_reads_both_spellings():
+    assert _make(host="M\\I")._split_instance() == ("M", "I")
+    assert _make(host="M", instance="I")._split_instance() == ("M", "I")
+    assert _make(host="M")._split_instance() == ("M", None)
+
+
+def test_named_instance_without_port_gets_a_hint():
+    """Sans ce message, l'utilisateur ne voit qu'une erreur FreeTDS qui ne cite
+    meme pas le nom de l'instance."""
+    hint = _make(host="MACHINE\\SQLEXPRESS")._named_instance_hint()
+    assert "SQLEXPRESS" in hint
+    assert "port" in hint
+    assert "local_tcp_port" in hint, "le message doit donner la requete qui trouve le port"
+
+
+def test_no_hint_when_a_port_is_given():
+    assert _make(host="MACHINE\\SQLEXPRESS", port=49732)._named_instance_hint() == ""
+
+
+def test_no_hint_without_a_named_instance():
+    assert _make(host="10.0.0.5")._named_instance_hint() == ""
+
+
 def test_instance_name_is_validated():
     with pytest.raises(ValueError):
         _make(host="MACHINE", instance="SQLEXPRESS; DROP TABLE users")._resolve_server()

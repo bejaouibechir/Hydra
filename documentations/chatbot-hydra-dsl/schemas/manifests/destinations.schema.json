@@ -95,7 +95,7 @@
       "type": "string"
     }
   },
-  "$id": "https://hydra.local/schemas/0.11.0/manifests/destinations.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.1/manifests/destinations.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Racine du fichier destinations.yaml.\n\nExemple:\n    destinations:\n      dest_dwh:\n        type: mysql\n        connection: {...}\n        load:\n          table: orders\n          mode: upsert\n          key: [id]",
   "properties": {
@@ -118,7 +118,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "manifest",
-    "productVersion": "0.11.0",
+    "productVersion": "0.11.1",
     "sourceModel": "hydra_etl.internal.parser.destination.DestinationsConfig"
   }
 }

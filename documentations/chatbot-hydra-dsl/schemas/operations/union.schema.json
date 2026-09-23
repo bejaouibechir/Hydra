@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.11.0/operations/union.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.1/operations/union.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Union / Union All : empile une 2e source (memes colonnes).",
   "properties": {
@@ -22,7 +22,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.11.0",
+    "productVersion": "0.11.1",
     "sourceModel": "hydra_etl.internal.parser.transform.UnionOp"
   }
 }

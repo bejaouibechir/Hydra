@@ -49,7 +49,7 @@
       "type": "object"
     }
   },
-  "$id": "https://hydra.local/schemas/0.11.0/manifests/pipeline.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.1/manifests/pipeline.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Contenu complet de `pipeline.yaml`.",
@@ -74,7 +74,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "manifest",
-    "productVersion": "0.11.0",
+    "productVersion": "0.11.1",
     "sourceModel": "hydra_etl.internal.parser.pipeline.PipelineConfig"
   }
 }

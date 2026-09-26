@@ -591,7 +591,9 @@ class TestCLIWorkflowValidate:
                     command: echo hi
         """)
         result = runner.invoke(cli, ["workflow", "run", str(p)])
-        assert result.exit_code != 0
+        assert result.exit_code == 1
+        assert "did you mean 'powershell'" in result.output
+        assert not isinstance(result.exception, ValueError)  # pas de trace Python
 
 
 class TestCLIWorkflowList:

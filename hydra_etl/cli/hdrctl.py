@@ -1536,7 +1536,12 @@ def cmd_workflow_run(path: str) -> None:
         error_box(t("workflow.file_not_found", path=str(wf_path)))
         sys.exit(1)
 
-    wf = load_workflow(wf_path)
+    try:
+        wf = load_workflow(wf_path)
+    except ValueError as e:
+        # Manifeste invalide : même message que `workflow validate`, sans trace Python.
+        error_box(t("workflow.validate.failure", error=str(e)))
+        sys.exit(1)
     info(t("workflow.run.starting", name=c(C.CY, wf.name)))
     click.echo(c(C.DM, "  " + "─" * 56))
 

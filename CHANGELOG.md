@@ -6,6 +6,18 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 
 
+## [Unreleased]
+
+### Fixed
+
+- A workflow step with an unknown action is now rejected instead of being
+  silently skipped. Before, a typo such as `powersheII` made the step do nothing
+  while the run still reported success. `hdrctl workflow validate` now fails,
+  names the valid actions and suggests the closest one
+  (`did you mean 'powershell'?`), and `hdrctl workflow run` refuses to start.
+  As a second safeguard, the runner marks any unknown action it still meets as
+  failed rather than successful.
+
 ## [0.11.1] — 2026-09-23
 
 ### Added

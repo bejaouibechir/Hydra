@@ -509,11 +509,14 @@ class WorkflowRunner:
 
         handler_fn = action_handlers.get(action)
         if handler_fn is None:
-            step_log.warning(
-                f"[{step.name}] Action '{action}' non implémentée — ignorée"
-            )
+            # Normalement arrêté au chargement (models.WORKFLOW_ACTIONS). Si un
+            # step arrive ici quand même (construit sans validation), il échoue :
+            # une action qui n'a rien fait ne doit jamais être comptée réussie.
+            error = f"Unknown action '{action}' — step not executed"
+            step_log.error(f"[{step.name}] {error}")
             return StepResult(
-                step_name=step.name, success=True, duration=time.monotonic() - start
+                step_name=step.name, success=False,
+                duration=time.monotonic() - start, error=error,
             )
 
         return handler_fn(step, params, start, step_log)

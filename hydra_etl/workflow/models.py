@@ -19,6 +19,26 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
+# Actions reconnues par un step de type 'action'. Doit rester identique aux
+# clés de `action_handlers` dans workflow/runner.py (test de parité dans
+# tests/test_workflow.py). Une action absente de cette liste est refusée au
+# chargement : `workflow validate` échoue, `workflow run` ne démarre pas.
+WORKFLOW_ACTIONS = frozenset({
+    "assign_param", "bash", "condition", "delay", "email", "log",
+    "powershell", "python", "set_param", "ssh", "webhook",
+})
+
+
+def _unknown_action_message(step_name: str, action: str) -> str:
+    import difflib
+    msg = (f"Step '{step_name}': unknown action '{action}'. "
+           f"Valid actions: {', '.join(sorted(WORKFLOW_ACTIONS))}")
+    close = difflib.get_close_matches(action.lower(), WORKFLOW_ACTIONS, n=1, cutoff=0.6)
+    if close:
+        msg += f" — did you mean '{close[0]}'?"
+    return msg
+
+
 # ---------------------------------------------------------------------------
 # Manifest models (lecture du YAML)
 # ---------------------------------------------------------------------------
@@ -67,6 +87,8 @@ class WorkflowStep(BaseModel):
             raise ValueError(f"Step '{self.name}': type=job requiert le champ 'job'")
         if self.type == "action" and not self.action:
             raise ValueError(f"Step '{self.name}': type=action requiert le champ 'action'")
+        if self.type == "action" and self.action not in WORKFLOW_ACTIONS:
+            raise ValueError(_unknown_action_message(self.name, self.action))
         return self
 
 

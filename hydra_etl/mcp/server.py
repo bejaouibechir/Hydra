@@ -349,9 +349,8 @@ def build_server() -> Any:
     @server.tool(
         description=(
             "List the actions usable in a workflow step of type 'action'. "
-            "Careful: an unknown action is silently ignored at run time and "
-            "the step is still counted as successful, so check the name "
-            "before writing it."
+            "Any other name is rejected: the workflow fails validation and "
+            "does not run."
         )
     ,
         annotations=_annot(**LECTURE, title="Read-only"))

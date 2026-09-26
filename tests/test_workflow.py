@@ -481,22 +481,50 @@ class TestRunnerExecution:
         names = {s.step_name for s in result.steps}
         assert names == {"branch_a", "branch_b"}
 
-    def test_unknown_action_is_noop(self, tmp_path):
-        """Une action inconnue est traitée comme noop (warning, success=True)."""
+    def test_unknown_action_is_rejected_at_load(self, tmp_path):
+        """Une action inconnue est refusée au chargement, jamais exécutée."""
         p = write_workflow(tmp_path, """\
             workflow:
-              name: noop_wf
+              name: typo_wf
               steps:
                 - name: mystery
                   type: action
                   action: unknown_action_xyz
-                  depends_on: []
-                  on_failure: fail
         """)
-        wf = load_workflow(p)
+        with pytest.raises(ValueError, match="unknown action 'unknown_action_xyz'"):
+            load_workflow(p)
+
+    def test_unknown_action_suggests_closest(self, tmp_path):
+        """Une faute de frappe reçoit une suggestion."""
+        with pytest.raises(ValueError, match="did you mean 'powershell'"):
+            WorkflowStep(name="s", type="action", action="powershel")
+
+    def test_unknown_action_fails_if_validation_bypassed(self, tmp_path):
+        """Défense en profondeur : un step construit sans validation échoue."""
+        step = WorkflowStep.model_construct(
+            name="mystery", type="action", action="telegram", params=None,
+            depends_on=[], on_failure="fail", enabled=True, retry=None, when=None,
+        )
+        wf = WorkflowDef.model_construct(
+            version="1.0", name="bypass", description=None,
+            trigger=Trigger(), steps=[step],
+        )
         result = WorkflowRunner(wf, base_dir=tmp_path).run()
-        sr = result.steps[0]
-        assert sr.success is True
+        assert result.success is False
+        assert result.steps[0].success is False
+        assert "Unknown action 'telegram'" in result.steps[0].error
+
+    def test_known_actions_match_runner_handlers(self):
+        """WORKFLOW_ACTIONS et la table action_handlers du runner ne divergent pas."""
+        import sys
+        tools = Path(__file__).resolve().parents[1] / "tools"
+        sys.path.insert(0, str(tools))
+        try:
+            from spec_export import discover_actions
+        finally:
+            sys.path.remove(str(tools))
+        from hydra_etl.workflow.models import WORKFLOW_ACTIONS
+        assert set(discover_actions()) == set(WORKFLOW_ACTIONS)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -534,6 +562,35 @@ class TestCLIWorkflowValidate:
 
     def test_missing_file(self, runner, tmp_path):
         result = runner.invoke(cli, ["workflow", "validate", str(tmp_path / "ghost.yaml")])
+        assert result.exit_code != 0
+
+    def test_misspelled_action_fails_validation(self, runner, tmp_path):
+        p = write_workflow(tmp_path, """\
+            workflow:
+              name: typo
+              steps:
+                - name: backup
+                  type: action
+                  action: powersheII
+                  params:
+                    command: echo hi
+        """)
+        result = runner.invoke(cli, ["workflow", "validate", str(p)])
+        assert result.exit_code != 0
+        assert "powersheII" in result.output
+
+    def test_misspelled_action_does_not_run(self, runner, tmp_path):
+        p = write_workflow(tmp_path, """\
+            workflow:
+              name: typo
+              steps:
+                - name: backup
+                  type: action
+                  action: powersheII
+                  params:
+                    command: echo hi
+        """)
+        result = runner.invoke(cli, ["workflow", "run", str(p)])
         assert result.exit_code != 0
 
 

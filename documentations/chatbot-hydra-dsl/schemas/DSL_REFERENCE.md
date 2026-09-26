@@ -57,6 +57,6 @@ Version du produit : **0.11.1**
 
 `assign_param`, `bash`, `condition`, `delay`, `email`, `log`, `powershell`, `python`, `set_param`, `ssh`, `webhook`
 
-> Attention : une action inconnue est **ignorée silencieusement** à
-> l'exécution et le step est compté comme réussi. Une faute de frappe
-> ne se voit donc pas.
+> Toute autre action est refusée : `hdrctl workflow validate` échoue
+> et `hdrctl workflow run` ne démarre pas, avec une suggestion en cas
+> de faute de frappe.

@@ -401,9 +401,9 @@ def reference_markdown(manifests, operations, actions, connectors) -> str:
         "",
         ", ".join(f"`{a}`" for a in actions),
         "",
-        "> Attention : une action inconnue est **ignorée silencieusement** à",
-        "> l'exécution et le step est compté comme réussi. Une faute de frappe",
-        "> ne se voit donc pas.",
+        "> Toute autre action est refusée : `hdrctl workflow validate` échoue",
+        "> et `hdrctl workflow run` ne démarre pas, avec une suggestion en cas",
+        "> de faute de frappe.",
         "",
     ]
     return "\n".join(lines)

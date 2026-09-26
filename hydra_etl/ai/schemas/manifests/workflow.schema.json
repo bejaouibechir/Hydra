@@ -1,6 +1,7 @@
 {
   "$defs": {
     "RetryPolicy": {
+      "additionalProperties": false,
       "description": "Politique de re-tentative d'un step (appliquée par Retry-scope).",
       "properties": {
         "backoff": {
@@ -27,6 +28,7 @@
       "type": "object"
     },
     "Trigger": {
+      "additionalProperties": false,
       "description": "Déclencheur du workflow.",
       "properties": {
         "cron": {
@@ -56,6 +58,7 @@
       "type": "object"
     },
     "WorkflowStep": {
+      "additionalProperties": false,
       "description": "Un step du workflow — soit un job Hydra, soit une action.",
       "properties": {
         "action": {
@@ -163,6 +166,7 @@
   },
   "$id": "https://hydra.local/schemas/0.11.1/manifests/workflow.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "description": "Définition complète d'un workflow — issu de workflow.yaml.",
   "properties": {
     "description": {

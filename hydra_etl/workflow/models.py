@@ -16,27 +16,89 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-# Actions reconnues par un step de type 'action'. Doit rester identique aux
-# clés de `action_handlers` dans workflow/runner.py (test de parité dans
-# tests/test_workflow.py). Une action absente de cette liste est refusée au
+# Paramètres de chaque action : (requis, facultatifs). Source de vérité de la
+# validation — une action absente est refusée, un paramètre absent de ses deux
+# listes aussi, un paramètre requis manquant ou vide aussi. Tout est vérifié au
 # chargement : `workflow validate` échoue, `workflow run` ne démarre pas.
-WORKFLOW_ACTIONS = frozenset({
-    "assign_param", "bash", "condition", "delay", "email", "log",
-    "powershell", "python", "set_param", "ssh", "webhook",
-})
+#
+# Doit rester aligné sur :
+#   - les clés de `action_handlers` dans workflow/runner.py ;
+#   - les `params.get(...)` de chaque handler ;
+#   - les champs proposés par Studio (NodeConfigDialog.tsx).
+# Des tests de parité dans tests/test_workflow.py vérifient les deux premiers
+# et le troisième.
+ACTION_PARAMS: Dict[str, "tuple[frozenset, frozenset]"] = {
+    "log":          (frozenset(), frozenset({"message"})),
+    "delay":        (frozenset(), frozenset({"seconds", "duration"})),
+    "webhook":      (frozenset({"url"}), frozenset({"method", "body", "headers"})),
+    "email":        (frozenset({"to"}), frozenset({
+                        "subject", "body", "from_addr", "smtp_host", "smtp_port",
+                        "username", "password", "use_tls"})),
+    "bash":         (frozenset({"command"}), frozenset({"working_dir", "timeout"})),
+    "powershell":   (frozenset({"command"}), frozenset({"working_dir", "timeout"})),
+    "ssh":          (frozenset({"host", "username", "command"}),
+                     frozenset({"port", "password", "key_path", "timeout"})),
+    "python":       (frozenset(), frozenset({"script", "file_path", "working_dir", "timeout"})),
+    "set_param":    (frozenset({"name", "value"}), frozenset({"type"})),
+    "assign_param": (frozenset({"name", "value"}), frozenset({"type"})),
+    "condition":    (frozenset(), frozenset({"mode", "expr", "left", "op", "right", "name"})),
+}
+
+WORKFLOW_ACTIONS = frozenset(ACTION_PARAMS)
+
+
+def _suggest(word: str, candidates) -> str:
+    import difflib
+    close = difflib.get_close_matches(str(word).lower(), list(candidates), n=1, cutoff=0.6)
+    return f" — did you mean '{close[0]}'?" if close else ""
 
 
 def _unknown_action_message(step_name: str, action: str) -> str:
-    import difflib
-    msg = (f"Step '{step_name}': unknown action '{action}'. "
-           f"Valid actions: {', '.join(sorted(WORKFLOW_ACTIONS))}")
-    close = difflib.get_close_matches(action.lower(), WORKFLOW_ACTIONS, n=1, cutoff=0.6)
-    if close:
-        msg += f" — did you mean '{close[0]}'?"
-    return msg
+    return (f"Step '{step_name}': unknown action '{action}'. "
+            f"Valid actions: {', '.join(sorted(WORKFLOW_ACTIONS))}"
+            + _suggest(action, WORKFLOW_ACTIONS))
+
+
+def _reject_unknown_keys(data: Any, allowed, where: str) -> None:
+    """Refuse toute clé inconnue, avec suggestion. Une clé mal orthographiée
+    (`depend_on`) serait sinon ignorée en silence."""
+    if not isinstance(data, dict):
+        return
+    for key in data:
+        if key not in allowed:
+            raise ValueError(
+                f"{where}: unknown key '{key}'{_suggest(key, allowed)} "
+                f"Valid keys: {', '.join(sorted(allowed))}"
+            )
+
+
+def _is_blank(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def _check_action_params(step_name: str, action: str, params: Optional[Dict[str, Any]]) -> None:
+    required, optional = ACTION_PARAMS[action]
+    params = params or {}
+    allowed = required | optional
+    for key in params:
+        if key not in allowed:
+            raise ValueError(
+                f"Step '{step_name}': unknown parameter '{key}' for action "
+                f"'{action}'{_suggest(key, allowed)} "
+                f"Valid parameters: {', '.join(sorted(allowed)) or '(none)'}"
+            )
+    for key in sorted(required):
+        if _is_blank(params.get(key)):
+            raise ValueError(
+                f"Step '{step_name}': action '{action}' requires parameter '{key}'"
+            )
+    if action == "python" and _is_blank(params.get("script")) and _is_blank(params.get("file_path")):
+        raise ValueError(
+            f"Step '{step_name}': action 'python' requires 'script' or 'file_path'"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -45,8 +107,15 @@ def _unknown_action_message(step_name: str, action: str) -> str:
 
 class Trigger(BaseModel):
     """Déclencheur du workflow."""
+    model_config = ConfigDict(extra="forbid")
     type: Literal["manual", "schedule", "webhook"] = "manual"
     cron: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_unknown_keys(cls, data: Any) -> Any:
+        _reject_unknown_keys(data, cls.model_fields, "trigger")
+        return data
 
     @model_validator(mode="after")
     def _validate_cron(self) -> "Trigger":
@@ -57,6 +126,14 @@ class Trigger(BaseModel):
 
 class RetryPolicy(BaseModel):
     """Politique de re-tentative d'un step (appliquée par Retry-scope)."""
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_unknown_keys(cls, data: Any) -> Any:
+        _reject_unknown_keys(data, cls.model_fields, "retry")
+        return data
+
     max: int = 0                                      # re-tentatives APRÈS le 1er échec (0 = aucune)
     delay: float = 0.0                                # secondes d'attente entre tentatives
     backoff: Literal["fixed", "exponential"] = "fixed"
@@ -81,14 +158,34 @@ class WorkflowStep(BaseModel):
     retry: Optional[RetryPolicy] = None   # re-tentatives (via Retry-scope)
     when: Optional[str] = None            # garde conditionnelle : step exécuté seulement si l'expression est vraie
 
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_unknown_keys(cls, data: Any) -> Any:
+        name = data.get("name", "?") if isinstance(data, dict) else "?"
+        _reject_unknown_keys(data, cls.model_fields, f"Step '{name}'")
+        return data
+
     @model_validator(mode="after")
     def _validate_fields(self) -> "WorkflowStep":
         if self.type == "job" and not self.job:
             raise ValueError(f"Step '{self.name}': type=job requiert le champ 'job'")
         if self.type == "action" and not self.action:
             raise ValueError(f"Step '{self.name}': type=action requiert le champ 'action'")
-        if self.type == "action" and self.action not in WORKFLOW_ACTIONS:
-            raise ValueError(_unknown_action_message(self.name, self.action))
+        # Un champ qui ne s'applique pas à ce type serait ignoré en silence.
+        if self.type == "job" and (self.action or self.params):
+            raise ValueError(
+                f"Step '{self.name}': 'action' and 'params' apply to type=action, not type=job"
+            )
+        if self.type == "action" and self.job:
+            raise ValueError(
+                f"Step '{self.name}': 'job' applies to type=job, not type=action"
+            )
+        if self.type == "action":
+            if self.action not in WORKFLOW_ACTIONS:
+                raise ValueError(_unknown_action_message(self.name, self.action))
+            _check_action_params(self.name, self.action, self.params)
         return self
 
 
@@ -99,6 +196,14 @@ class WorkflowDef(BaseModel):
     description: Optional[str] = None
     trigger: Trigger = Field(default_factory=Trigger)
     steps: List[WorkflowStep]
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_unknown_keys(cls, data: Any) -> Any:
+        _reject_unknown_keys(data, cls.model_fields, "workflow")
+        return data
 
     @model_validator(mode="after")
     def _validate_unique_names(self) -> "WorkflowDef":

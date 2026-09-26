@@ -23,6 +23,19 @@ and versions follow [Semantic Versioning](https://semver.org/).
   prints validation errors one per line without Pydantic's internal details.
   Shell step failures now read `Command exited with code N`.
 
+- A workflow file with a misspelled or misplaced key is now rejected instead of
+  having that key ignored. Before, `depend_on: [fetch]` validated fine and the
+  step ran without its dependency; `mesage:` under a `log` step was dropped.
+  Validation now refuses unknown keys at every level (top level, `workflow`,
+  steps, `trigger`, `retry`) and unknown action parameters, suggests the
+  closest valid name, and checks each action's required parameters (`command`
+  for `bash`, `url` for `webhook`, `script` or `file_path` for `python`…).
+  A workflow that relied on an ignored key will now fail validation: the error
+  names the key to remove or fix.
+- The `webhook` action now sends the `headers` parameter that Studio offers,
+  and sends a text `body` as written. Before, headers were ignored and a text
+  body was re-encoded as a JSON string.
+
 ## [0.11.1] — 2026-09-23
 
 ### Added

@@ -68,12 +68,12 @@ class TestSetParam:
         assert "existe déjà" in (sr.error or "")
 
     def test_missing_name_fails(self):
-        runner = WorkflowRunner(_wf(WorkflowStep(
-            name="bad", type="action", action="set_param",
-            params={"value": 1},
-        )))
-        result = runner.run()
-        assert not result.success
+        # Refusé dès le chargement, avant toute exécution.
+        with pytest.raises(ValueError, match="requires parameter 'name'"):
+            WorkflowStep(
+                name="bad", type="action", action="set_param",
+                params={"value": 1},
+            )
 
     def test_bad_type_coercion_fails(self):
         runner = WorkflowRunner(_wf(_set("n", "abc", ptype="int")))
@@ -287,7 +287,6 @@ class TestPythonAction:
         assert any("hola" in l for l in _step(res, "p").logs)
 
     def test_missing_script_fails(self):
-        wf = _wf(WorkflowStep(name="p", type="action", action="python", params={}))
-        res = WorkflowRunner(wf).run()
-        assert not res.success
-        assert "requis" in (_step(res, "p").error or "")
+        # Refusé dès le chargement, avant toute exécution.
+        with pytest.raises(ValueError, match="requires 'script' or 'file_path'"):
+            WorkflowStep(name="p", type="action", action="python", params={})

@@ -514,6 +514,83 @@ class TestRunnerExecution:
         assert result.steps[0].success is False
         assert "Unknown action 'telegram'" in result.steps[0].error
 
+    def test_misspelled_step_key_is_rejected(self):
+        """`depend_on` serait sinon ignoré : le step tournerait sans sa dépendance."""
+        with pytest.raises(ValueError, match="unknown key 'depend_on' — did you mean 'depends_on'"):
+            WorkflowStep(name="b", type="action", action="log", depend_on=["a"])
+
+    def test_misspelled_param_is_rejected(self):
+        with pytest.raises(ValueError, match="unknown parameter 'mesage' .* did you mean 'message'"):
+            WorkflowStep(name="b", type="action", action="log", params={"mesage": "hi"})
+
+    def test_missing_required_param_is_rejected(self):
+        with pytest.raises(ValueError, match="action 'bash' requires parameter 'command'"):
+            WorkflowStep(name="b", type="action", action="bash", params={})
+
+    def test_blank_required_param_is_rejected(self):
+        with pytest.raises(ValueError, match="requires parameter 'url'"):
+            WorkflowStep(name="h", type="action", action="webhook", params={"url": "  "})
+
+    def test_templated_required_param_is_accepted(self):
+        WorkflowStep(name="h", type="action", action="webhook",
+                     params={"url": "{{ param:hook_url }}"})
+
+    def test_misspelled_retry_and_trigger_keys_are_rejected(self):
+        with pytest.raises(ValueError, match="retry: unknown key 'retries'"):
+            WorkflowStep(name="a", type="action", action="log", retry={"retries": 3})
+        with pytest.raises(ValueError, match="trigger: unknown key 'cronn'"):
+            Trigger(type="manual", cronn="0 2 * * *")
+
+    def test_field_of_the_other_step_type_is_rejected(self):
+        with pytest.raises(ValueError, match="apply to type=action, not type=job"):
+            WorkflowStep(name="j", type="job", job="./j", action="log")
+        with pytest.raises(ValueError, match="applies to type=job, not type=action"):
+            WorkflowStep(name="a", type="action", action="log", job="./j")
+
+    def test_misplaced_top_level_key_is_rejected(self, tmp_path):
+        p = write_workflow(tmp_path, """\
+            workflow:
+              name: wf
+              steps:
+                - name: a
+                  type: action
+                  action: log
+            trigger:
+              type: schedule
+              cron: "0 2 * * *"
+        """)
+        with pytest.raises(ValueError, match="top level: unknown key 'trigger'"):
+            load_workflow(p)
+
+    def test_webhook_sends_headers_and_text_body(self, tmp_path):
+        """Studio saisit headers et body en texte JSON : les headers étaient
+        ignorés et le body ré-encodé en chaîne JSON."""
+        import json, threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        seen = {}
+
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                seen["auth"] = self.headers.get("Authorization")
+                seen["body"] = self.rfile.read(int(self.headers["Content-Length"])).decode()
+                self.send_response(204); self.end_headers()
+            def log_message(self, *a):
+                pass
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.handle_request, daemon=True).start()
+        wf = WorkflowDef(name="hook", steps=[WorkflowStep(
+            name="h", type="action", action="webhook", params={
+                "url": f"http://127.0.0.1:{srv.server_port}/",
+                "headers": '{"Authorization": "Bearer t0k"}',
+                "body": '{"ok": true}',
+            })])
+        result = WorkflowRunner(wf, base_dir=tmp_path).run()
+        srv.server_close()
+        assert result.success, result.error
+        assert seen["auth"] == "Bearer t0k"
+        assert json.loads(seen["body"]) == {"ok": True}
+
     def test_known_actions_match_runner_handlers(self):
         """WORKFLOW_ACTIONS et la table action_handlers du runner ne divergent pas."""
         import sys
@@ -525,6 +602,55 @@ class TestRunnerExecution:
             sys.path.remove(str(tools))
         from hydra_etl.workflow.models import WORKFLOW_ACTIONS
         assert set(discover_actions()) == set(WORKFLOW_ACTIONS)
+
+    def test_declared_params_match_what_the_runner_reads(self):
+        """Chaque params.get('x') du runner est déclaré dans ACTION_PARAMS, et
+        inversement : un paramètre déclaré mais jamais lu serait accepté puis
+        ignoré en silence."""
+        import ast
+        from hydra_etl.workflow.models import ACTION_PARAMS
+        runner_py = Path(__file__).resolve().parents[1] / "hydra_etl" / "workflow" / "runner.py"
+        tree = ast.parse(runner_py.read_text(encoding="utf-8"))
+        handler_of = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == "action_handlers" for t in node.targets
+            ):
+                for k, v in zip(node.value.keys, node.value.values):
+                    handler_of[k.value] = v.attr
+        read_by = {}
+        for fn in ast.walk(tree):
+            if isinstance(fn, ast.FunctionDef) and fn.name.startswith("_action_"):
+                keys = set()
+                for call in ast.walk(fn):
+                    if (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                            and call.func.attr == "get" and isinstance(call.func.value, ast.Name)
+                            and call.func.value.id == "params" and call.args
+                            and isinstance(call.args[0], ast.Constant)):
+                        keys.add(call.args[0].value)
+                    if (isinstance(call, ast.Subscript) and isinstance(call.value, ast.Name)
+                            and call.value.id == "params" and isinstance(call.slice, ast.Constant)):
+                        keys.add(call.slice.value)
+                read_by[fn.name] = keys
+        for action, (required, optional) in ACTION_PARAMS.items():
+            assert read_by[handler_of[action]] == set(required | optional), action
+
+    def test_declared_params_cover_studio_fields(self):
+        """Tout champ proposé par Studio doit être accepté, sinon un workflow
+        dessiné dans Studio serait refusé au chargement."""
+        import re
+        from hydra_etl.workflow.models import ACTION_PARAMS
+        tsx = (Path(__file__).resolve().parents[1] / "studio" / "src" / "components"
+               / "canvas" / "NodeConfigDialog.tsx")
+        if not tsx.exists():
+            pytest.skip("sources Studio absentes")
+        text = tsx.read_text(encoding="utf-8")
+        for action, (required, optional) in ACTION_PARAMS.items():
+            m = re.search(rf"^\s*action_{action}: \[(.*?)^\s*\],", text, re.S | re.M)
+            if not m:
+                continue
+            fields = set(re.findall(r"key: '([a-z_]+)'", m.group(1)))
+            assert fields <= set(required | optional), (action, fields - set(required | optional))
 
 
 # ═══════════════════════════════════════════════════════════════

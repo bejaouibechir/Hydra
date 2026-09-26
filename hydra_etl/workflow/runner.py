@@ -616,10 +616,29 @@ class WorkflowRunner:
                 f"Action webhook '{step.name}' requiert le paramètre 'url'"
             )
 
+        # Studio saisit body et headers comme du texte JSON ; le YAML écrit à la
+        # main peut donner des objets. Les deux sont acceptés. Avant, un body
+        # texte était ré-encodé en chaîne JSON et les headers étaient ignorés.
+        headers = params.get("headers") or {}
+        if isinstance(headers, str):
+            try:
+                headers = json.loads(headers) if headers.strip() else {}
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Action webhook '{step.name}' : 'headers' n'est pas un JSON valide ({exc})"
+                ) from None
+        if not isinstance(headers, dict):
+            raise ValueError(f"Action webhook '{step.name}' : 'headers' doit être un objet JSON")
+
         step_log.info(f"[{step.name}] webhook {method} {url}")
-        data = json.dumps(body).encode("utf-8") if body else None
+        if isinstance(body, str):
+            data = body.encode("utf-8") if body.strip() else None
+        else:
+            data = json.dumps(body).encode("utf-8") if body else None
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Content-Type", "application/json")
+        for key, value in headers.items():
+            req.add_header(str(key), str(value))
 
         with urllib.request.urlopen(req, timeout=30) as resp:
             step_log.info(f"[{step.name}] HTTP {resp.status}")

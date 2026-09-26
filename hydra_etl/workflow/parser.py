@@ -46,6 +46,14 @@ def load_workflow(path: Union[str, Path]) -> WorkflowDef:
     from hydra_etl.internal.dsl_version import check_dsl_version
     check_dsl_version(raw, path.name)
 
+    # Une clé de premier niveau mal placée (`trigger:` hors de `workflow:`)
+    # serait ignorée en silence.
+    from hydra_etl.workflow.models import _reject_unknown_keys
+    try:
+        _reject_unknown_keys(raw, ("workflow", "version"), "top level")
+    except ValueError as e:
+        raise ValueError(f"Workflow validation error in '{path}':\n  - {e}") from e
+
     wf_data = raw.get("workflow")
     if wf_data is None:
         raise ValueError(

@@ -18,6 +18,11 @@ and versions follow [Semantic Versioning](https://semver.org/).
   As a second safeguard, the runner marks any unknown action it still meets as
   failed rather than successful.
 
+- `hdrctl workflow run` no longer ends in a Python traceback on an invalid
+  manifest, lists the steps that never ran after a failure as skipped, and
+  prints validation errors one per line without Pydantic's internal details.
+  Shell step failures now read `Command exited with code N`.
+
 ## [0.11.1] — 2026-09-23
 
 ### Added

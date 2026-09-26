@@ -595,6 +595,30 @@ class TestCLIWorkflowValidate:
         assert "did you mean 'powershell'" in result.output
         assert not isinstance(result.exception, ValueError)  # pas de trace Python
 
+    @pytest.mark.skipif(__import__("sys").platform == "win32", reason="action bash")
+    def test_run_lists_steps_that_never_ran(self, runner, tmp_path):
+        """Un échec arrête le run : les steps non atteints sont affichés comme sautés."""
+        p = write_workflow(tmp_path, """\
+            workflow:
+              name: chain
+              steps:
+                - name: fetch
+                  type: action
+                  action: bash
+                  params:
+                    command: exit 1
+                - name: clean
+                  type: action
+                  action: log
+                  depends_on: [fetch]
+                  params:
+                    message: never
+        """)
+        result = runner.invoke(cli, ["workflow", "run", str(p)])
+        assert result.exit_code == 1
+        assert "Step 'clean' skipped" in result.output
+        assert "exited with code 1" in result.output
+
 
 class TestCLIWorkflowList:
 

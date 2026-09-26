@@ -202,8 +202,8 @@ class WorkflowRunner:
                             self._mark_dependents_skipped(step.name, groups, skipped)
                             duration = time.monotonic() - start
                             logger.error(
-                                f"✗ Workflow '{self.workflow.name}' échoué "
-                                f"sur step '{step.name}': {sr.error}"
+                                f"✗ Workflow '{self.workflow.name}' failed "
+                                f"at step '{step.name}': {sr.error}"
                             )
                             return WorkflowResult(
                                 workflow_name=self.workflow.name,
@@ -820,7 +820,7 @@ class WorkflowRunner:
 
         if result.returncode != 0:
             raise RuntimeError(
-                f"Commande terminée avec code {result.returncode}\n{result.stderr[:500]}"
+                f"Command exited with code {result.returncode}\n{result.stderr[:500]}"
             )
 
         return StepResult(
@@ -1051,6 +1051,6 @@ class WorkflowRunner:
                     skipped.add(dep_name)
                     logger.warning(
                         f"  ⏭ Step '{dep_name}' skipped "
-                        f"(dépend de '{failed_step}')"
+                        f"(depends on '{failed_step}')"
                     )
                     queue.append(dep_name)

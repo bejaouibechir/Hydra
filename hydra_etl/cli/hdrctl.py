@@ -1549,15 +1549,23 @@ def cmd_workflow_run(path: str) -> None:
     result = runner.run()
 
     click.echo()
+    reported = set()
     for sr in result.steps:
-        if sr.success:
+        reported.add(sr.step_name)
+        if sr.skipped:
+            click.echo(f"  {c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=sr.step_name)}")
+        elif sr.success:
             click.echo(f"  {c(C.GR, '✓')}  {t('workflow.run.step_ok', name=sr.step_name, duration=f'{sr.duration:.1f}')}")
             _echo_step_output(sr)
-        elif sr.error and "skipped" in str(sr.error).lower():
-            click.echo(f"  {c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=sr.step_name)}")
         else:
             click.echo(f"  {c(C.RD, '✗')}  {t('workflow.run.step_fail', name=sr.step_name, error=sr.error)}")
             _echo_step_output(sr)
+    # Un échec en mode on_failure=fail arrête le run : les steps jamais atteints
+    # n'ont pas de résultat. Les afficher quand même, sinon on ne voit pas ce
+    # qui n'a pas tourné.
+    for step in wf.steps:
+        if step.name not in reported:
+            click.echo(f"  {c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=step.name)}")
 
     click.echo()
     if result.success:

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Union
 
 import yaml
+from pydantic import ValidationError
 
 from hydra_etl.workflow.models import WorkflowDef
 
@@ -57,6 +58,16 @@ def load_workflow(path: Union[str, Path]) -> WorkflowDef:
 
     try:
         return WorkflowDef(**wf_data)
+    except ValidationError as e:
+        # Une ligne par erreur, sans le bruit Pydantic (type=, input_value=, URL).
+        lines = []
+        for err in e.errors():
+            msg = str(err.get("msg", "")).replace("Value error, ", "", 1)
+            loc = ".".join(str(x) for x in err.get("loc", ()))
+            lines.append(f"  - {loc}: {msg}" if loc else f"  - {msg}")
+        raise ValueError(
+            f"Workflow validation error in '{path}':\n" + "\n".join(lines)
+        ) from e
     except Exception as e:
         raise ValueError(f"Workflow validation error in '{path}': {e}") from e
 

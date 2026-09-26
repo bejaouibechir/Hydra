@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.11.1/operations/unpivot.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.2/operations/unpivot.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Large -> long (pandas melt).",
   "properties": {
@@ -47,7 +47,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.11.1",
+    "productVersion": "0.11.2",
     "sourceModel": "hydra_etl.internal.parser.transform.UnpivotOp"
   }
 }

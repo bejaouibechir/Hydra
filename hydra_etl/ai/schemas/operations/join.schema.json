@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.11.1/operations/join.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.2/operations/join.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Jointure avec une source de reference (2e flux).\n\nParams YAML:\n    join:\n      right:                    # source de reference (comme une source)\n        type: mysql\n        connection: {...}\n        extract: {table: departments}\n      key: email                # cle commune (str ou liste de str)\n      how: left                 # inner | left | right | outer",
   "properties": {
@@ -34,7 +34,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.11.1",
+    "productVersion": "0.11.2",
     "sourceModel": "hydra_etl.internal.parser.transform.JoinOp"
   }
 }

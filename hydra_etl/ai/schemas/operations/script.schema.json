@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.11.1/operations/script.schema.json",
+  "$id": "https://hydra.local/schemas/0.11.2/operations/script.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Transformation Python personnalisee (facon SSIS Script Component).\n\nL'utilisateur declare un contrat colonnes input -> colonnes output et\nfournit un extrait de code Python execute dans un environnement restreint.\n\nParams YAML:\n    script:\n      inputs: [price, quantity]      # colonnes lues (contrat)\n      outputs:                       # colonnes produites (+ type)\n        total: float\n        label: str\n      mode: vectorized               # vectorized | row\n      code: |\n        total = price * quantity\n        label = \"big\" if total.iloc[0] > 100 else \"small\"\n\nModes:\n- vectorized : chaque colonne input est exposee comme pandas.Series ;\n               le code doit affecter chaque colonne output (Series/scalaire).\n- row        : le code s'execute ligne par ligne (facon SSIS\n               ProcessInputRow) ; chaque colonne input est un scalaire.\n\nTypes outputs autorises: int, float, str, bool, date, datetime, any.",
   "properties": {
@@ -44,7 +44,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.11.1",
+    "productVersion": "0.11.2",
     "sourceModel": "hydra_etl.internal.parser.transform.ScriptOp"
   }
 }

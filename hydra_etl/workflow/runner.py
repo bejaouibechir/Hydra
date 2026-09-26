@@ -1049,7 +1049,7 @@ class WorkflowRunner:
             for dep_name in dependents.get(current, set()):
                 if dep_name not in skipped:
                     skipped.add(dep_name)
-                    logger.warning(
+                    logger.info(
                         f"  ⏭ Step '{dep_name}' skipped "
                         f"(depends on '{failed_step}')"
                     )

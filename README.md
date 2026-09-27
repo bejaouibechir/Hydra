@@ -9,7 +9,7 @@
 [![Status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#project-status)
 [![Glama quality score](https://glama.ai/mcp/servers/bejaouibechir/Hydra/badges/score.svg)](https://glama.ai/mcp/servers/bejaouibechir/Hydra)
 
-**[Website](https://hydraetl.com)** · **[Docs & playground](https://hydraetl.com)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
+**[Website](https://hydraetl.com)** · **[Docs & playground]([Playground: run YAML ETL pipelines in your browser — Hydra ETL](https://hydraetl.com/playground)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
 
 Hydra is an open-source declarative ETL engine. You write what a pipeline *is* in YAML;
 Hydra validates it before touching any data, then runs it. The same manifests run from
@@ -45,7 +45,6 @@ shows you each command before running it. It is the only thing you have to type.
 
 Unlike the labs, this environment includes **Hydra Studio**, the visual editor,
 so you can see the same pipeline as a diagram and run it from there.
-
 
 <!-- TODO: replace with a short GIF: build a job in Studio → hdrctl validate → hdrctl run -->
 

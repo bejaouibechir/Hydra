@@ -103,10 +103,41 @@ class SecretResolver:
             raise SecretResolutionError(f"Variable d'environnement manquante: {key}")
         return os.environ[key]
 
+    @staticmethod
+    def _env_name(key: str) -> str:
+        """
+        Nom de variable d'environnement correspondant a une cle de secret.
+
+        'db.password' et 'db-password' donnent tous deux 'DB_PASSWORD'.
+        Une cle deja en majuscules ('DB_PASSWORD') est inchangee.
+        """
+        return re.sub(r"[.\-]", "_", key).upper()
+
     def _get_secret(self, key: str) -> str:
         """
-        Récupère un secret obligatoire depuis le mapping 'secrets'.
+        Recupere un secret obligatoire, cherche dans cet ordre :
+
+        1) le mapping 'secrets' injecte (coffre applicatif, Vault, AWS...) ;
+        2) la variable d'environnement correspondante, normalisee
+           ('db.password' -> 'DB_PASSWORD') ;
+        3) la variable d'environnement portant exactement le nom de la cle.
+
+        Le repli sur l'environnement est ce qui rend ${SECRET:...} utilisable
+        en CLI, ou aucun mapping n'est injecte : les secrets y sont fournis
+        par l'environnement du processus (CI, gestionnaire de secrets, shell),
+        jamais par un fichier versionne.
         """
-        if key not in self.secrets:
-            raise SecretResolutionError(f"Secret manquant: {key}")
-        return str(self.secrets[key])
+        if key in self.secrets:
+            return str(self.secrets[key])
+
+        env_name = self._env_name(key)
+        if env_name in os.environ:
+            return os.environ[env_name]
+
+        if key in os.environ:
+            return os.environ[key]
+
+        raise SecretResolutionError(
+            f"Secret manquant: {key} — absent des secrets injectes "
+            f"et de la variable d'environnement {env_name}"
+        )

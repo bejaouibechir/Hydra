@@ -214,7 +214,11 @@ Values can be declared once and reused, or created while the workflow runs.
     expr: "region == '{{ param:region }}'"
 ```
 
-`{{ param:NAME }}` reads a parameter, `{{ env:NAME }}` an environment variable, `${SECRET:NAME}` a secret.
+`{{ param:NAME }}` reads a parameter and `{{ env:NAME }}` an environment variable.
+`${SECRET:NAME}` reads a secret: it is looked up in the injected secret store when one is configured, and
+otherwise in the environment, under the name upper-cased with dots and dashes turned into underscores — so
+`${SECRET:db.password}` reads `DB_PASSWORD`. Secrets therefore come from the process environment (CI
+variables, a secret manager, your shell) and never from a file in the repository.
 The `set_param` and `assign_param` actions create and change parameters mid-run, so two jobs can share a
 placeholder and produce different results.
 

@@ -69,3 +69,70 @@ def test_missing_secret_raises():
     r = SecretResolver(secrets={})
     with pytest.raises(SecretResolutionError):
         r.resolve({"x": "${SECRET:not.found}"})
+
+
+def test_secret_falls_back_to_normalised_env_var(monkeypatch):
+    """
+    ${SECRET:db.password} doit lire la variable d'environnement DB_PASSWORD
+    quand aucun mapping de secrets n'est injecte (cas de la CLI).
+    """
+    monkeypatch.setenv("DB_PASSWORD", "from-env")
+
+    r = SecretResolver(secrets={})
+    assert r.resolve({"x": "${SECRET:db.password}"})["x"] == "from-env"
+
+
+def test_secret_reads_uppercase_key_from_env(monkeypatch):
+    """
+    La forme documentee dans le README, ${SECRET:DB_PASSWORD}, doit fonctionner
+    telle quelle depuis l'environnement.
+    """
+    monkeypatch.setenv("DB_PASSWORD", "readme-form")
+
+    r = SecretResolver(secrets={})
+    assert r.resolve({"x": "${SECRET:DB_PASSWORD}"})["x"] == "readme-form"
+
+
+def test_secret_dash_is_normalised_too(monkeypatch):
+    """
+    'api-token' et 'api.token' visent tous deux API_TOKEN.
+    """
+    monkeypatch.setenv("API_TOKEN", "t0ken")
+
+    r = SecretResolver(secrets={})
+    assert r.resolve({"x": "${SECRET:api-token}"})["x"] == "t0ken"
+    assert r.resolve({"x": "${SECRET:api.token}"})["x"] == "t0ken"
+
+
+def test_injected_secret_wins_over_env(monkeypatch):
+    """
+    Le mapping injecte (Vault, coffre applicatif) a la priorite sur l'environnement.
+    """
+    monkeypatch.setenv("DB_PASSWORD", "from-env")
+
+    r = SecretResolver(secrets={"db.password": "from-vault"})
+    assert r.resolve({"x": "${SECRET:db.password}"})["x"] == "from-vault"
+
+
+def test_missing_secret_still_raises_when_env_is_empty(monkeypatch):
+    """
+    Le repli ne doit pas masquer un secret reellement absent.
+    """
+    monkeypatch.delenv("NOT_FOUND", raising=False)
+    monkeypatch.delenv("not.found", raising=False)
+
+    r = SecretResolver(secrets={})
+    with pytest.raises(SecretResolutionError):
+        r.resolve({"x": "${SECRET:not.found}"})
+
+
+def test_missing_secret_message_names_the_env_var(monkeypatch):
+    """
+    Le message doit dire quelle variable d'environnement definir.
+    """
+    monkeypatch.delenv("DB_PASSWORD", raising=False)
+
+    r = SecretResolver(secrets={})
+    with pytest.raises(SecretResolutionError) as exc:
+        r.resolve({"x": "${SECRET:db.password}"})
+    assert "DB_PASSWORD" in str(exc.value)

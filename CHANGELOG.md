@@ -6,6 +6,21 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 
 
+## [0.11.3] — 2026-09-27
+
+### Fixed
+
+- `${SECRET:NAME}` now resolves. Until now the CLI built its resolver with an
+  empty secret store, so every `${SECRET:...}` placeholder failed with
+  `Secret manquant`, even though the README and the DSL reference documented it
+  as a supported way to keep credentials out of a manifest. A secret is now
+  looked up in the injected store first — leaving the door open for Vault, AWS
+  or Azure backends — and otherwise in the process environment, under the name
+  upper-cased with dots and dashes turned into underscores, so
+  `${SECRET:db.password}` reads `DB_PASSWORD` and the documented
+  `${SECRET:DB_PASSWORD}` works as written. When a secret really is missing the
+  error now names the environment variable to define.
+
 ## [0.11.2] — 2026-09-26
 
 ### Fixed

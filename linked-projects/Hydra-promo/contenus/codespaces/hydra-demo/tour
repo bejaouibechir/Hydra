@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# A guided tour of Hydra ETL. Shows each command before running it.
+
+B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; C=$'\033[36m'; R=$'\033[0m'
+
+pause() { echo; printf "${D}   Press Enter to continue, or Ctrl+C to stop.${R}"; read -r _; echo; }
+
+# Strips only Hydra's decorative ASCII banner, so the tour stays readable.
+# Everything the command actually reports is kept.
+strip_banner() { grep -vE '([@:%#=+*][^[:alnum:]]*){6,}|DevOps Edition|^[[:space:]]*[─━]+[[:space:]]*$'; }
+
+run() {                      # run <command>  — shows it, then runs it
+  echo "${C}   \$ $1${R}"
+  echo
+  eval "$1" 2>&1 | strip_banner | sed 's/^/   /'
+  echo
+}
+
+step() { echo; echo "${B}━━━ $1 ━━━${R}"; echo; }
+
+clear
+cat <<EOF
+${B}Hydra ETL — a guided tour${R}
+
+  This takes about five minutes. You will not have to write anything:
+  each step shows you a command, then runs it for you.
+
+  What you have in front of you:
+    - a container with Hydra installed
+    - a MySQL database running in a second container
+    - a pipeline written in YAML, ready to run
+
+EOF
+pause
+
+step "1 of 4 — What a pipeline looks like"
+cat <<EOF
+   In Hydra, a pipeline is not code. It is a few YAML files that say
+   where data comes from, what happens to it, and where it goes.
+
+   Here are the 200 orders we are going to process:
+EOF
+echo
+run "head -4 data/orders.csv"
+cat <<EOF
+   And here is where that job writes them. Look at the connection
+   block: no host, no port, no password. Only placeholders.
+EOF
+echo
+run "cat jobs/load-orders/destinations.yaml"
+cat <<EOF
+   ${B}{{ param:... }}${R} is a value that changes between environments.
+   ${B}\${ENV:...} / \${SECRET:...}${R} is a credential, read from the environment
+   and never written in a file. That is why this repository is safe to share.
+EOF
+pause
+
+step "2 of 4 — Run the whole thing"
+cat <<EOF
+   One command runs five steps in order: a shell command, two jobs,
+   your own Python script, and a final check.
+EOF
+echo
+run "hdrctl workflow run workflows/nightly-report.yaml"
+cat <<EOF
+   Read the summary line above: it was computed by ${B}scripts/summarise.py${R},
+   an ordinary Python file with no Hydra import. Actions run the scripts
+   you already have; they do not ask you to rewrite them.
+EOF
+pause
+
+step "3 of 4 — The same job, a different environment"
+cat <<EOF
+   ${B}environments/dev.yaml${R} keeps orders above 500.
+   ${B}environments/prod.yaml${R} keeps orders above 2000.
+
+   Same job file. Nothing edited between the two runs.
+EOF
+echo
+run "hdrctl run jobs/export-report --env dev  2>&1 | grep -E 'Rows written|completed'"
+run "hdrctl run jobs/export-report --env prod 2>&1 | grep -E 'Rows written|completed'"
+run "ls -1 output/"
+cat <<EOF
+   Two files, two row counts, one job. The file name itself was a
+   parameter — which is why the prod run did not overwrite the dev one.
+EOF
+pause
+
+step "4 of 4 — The same pipeline, seen as a diagram"
+cat <<EOF
+   Everything you just ran from the terminal can also be built and read
+   in a visual editor. It is the same YAML — not an export.
+
+   To open it:
+
+     1. run the command below
+     2. open the ${B}PORTS${R} tab at the bottom of this window
+     3. on the line for port ${B}5678${R}, click the ${B}globe${R} icon
+
+   ${D}(The editor has to open in a real browser tab. GitHub does not allow
+   forwarded ports to display inside the editor's built-in preview.)${R}
+
+     ${C}\$ hdrctl serve --port 5678${R}
+
+   Inside, open the ${B}nightly-report${R} workflow to see the five steps as
+   boxes you can move and connect.
+
+${B}That is the tour.${R}
+
+   Where to go next:
+     - the files in this repository are a working starting point: copy
+       them, change the connection, point them at your own database
+     - guided labs in your browser:  https://killercoda.com/hydra-etl
+     - documentation:                https://hydraetl.com
+     - source and issues:            https://github.com/bejaouibechir/Hydra
+
+   Hydra is a beta built by one maintainer. If anything here felt wrong
+   or unclear, an issue is the most useful thing you can send.
+
+EOF

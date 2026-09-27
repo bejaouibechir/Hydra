@@ -1,0 +1,39 @@
+{
+  "title": "5. hdrctl vs hdrctl workflow: two namespaces, two things",
+  "description": "Scaffold a single job and a full workflow project side by side, then see why hdrctl list and hdrctl workflow list each find only one of them — and run the workflow end to end. In about 8 minutes.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "setup/background.sh",
+      "foreground": "setup/foreground.sh"
+    },
+    "steps": [
+      {
+        "title": "Scaffold a job and a workflow",
+        "text": "step1/text.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "hdrctl list only sees the job",
+        "text": "step2/text.md",
+        "verify": "step2/verify.sh"
+      },
+      {
+        "title": "hdrctl workflow list only sees the workflow",
+        "text": "step3/text.md",
+        "verify": "step3/verify.sh"
+      },
+      {
+        "title": "Validate and run the workflow",
+        "text": "step4/text.md",
+        "verify": "step4/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu"
+  }
+}

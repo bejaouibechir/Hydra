@@ -1,0 +1,20 @@
+{
+  "title": "2. Validate before you run: catching a broken pipeline",
+  "description": "Create a job with a broken source reference, let hdrctl validate catch it, fix it, validate again, and only then run it — in about 8 minutes.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "setup/background.sh",
+      "foreground": "setup/foreground.sh"
+    },
+    "steps": [
+      {"title": "Create an invalid job", "text": "step1/text.md", "verify": "step1/verify.sh"},
+      {"title": "hdrctl validate: the job is not valid", "text": "step2/text.md", "verify": "step2/verify.sh"},
+      {"title": "Fix the job", "text": "step3/text.md", "verify": "step3/verify.sh"},
+      {"title": "hdrctl validate: the job is valid now", "text": "step4/text.md", "verify": "step4/verify.sh"},
+      {"title": "hdrctl run: see the result", "text": "step5/text.md", "verify": "step5/verify.sh"}
+    ],
+    "finish": {"text": "finish.md"}
+  },
+  "backend": {"imageid": "ubuntu"}
+}

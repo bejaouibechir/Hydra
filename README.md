@@ -15,6 +15,38 @@ Hydra is an open-source declarative ETL engine. You write what a pipeline *is* i
 Hydra validates it before touching any data, then runs it. The same manifests run from
 the terminal, a REST API, or a visual editor in your browser, with one `pip install` and nothing else to deploy.
 
+## Try it without installing anything
+
+Two sandboxes run Hydra in your browser. Nothing is installed on your machine,
+and nothing is left behind when you close the tab.
+
+### Guided labs — no account needed
+
+**[killercoda.com/hydra-etl](https://killercoda.com/hydra-etl)**
+
+Killercoda gives you a Linux terminal inside your browser, next to a short
+lesson that tells you exactly what to type. Each lab takes ten to fifteen
+minutes and checks your work as you go. There is nothing to sign up for.
+
+Start with *Meet hdrctl* to see what a job is, then *Parameters and secrets* to
+run one pipeline against two databases.
+
+### A full environment, with the visual editor
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/bejaouibechir/hydra-demo)
+
+GitHub Codespaces starts a real machine in the cloud and opens an editor in your
+browser. It needs a free GitHub account, and it runs within GitHub's free
+monthly allowance.
+
+This one comes with a MySQL database already running beside it and a working
+pipeline. **Once it opens, type `./tour`** — a five-minute walkthrough that
+shows you each command before running it. It is the only thing you have to type.
+
+Unlike the labs, this environment includes **Hydra Studio**, the visual editor,
+so you can see the same pipeline as a diagram and run it from there.
+
+
 <!-- TODO: replace with a short GIF: build a job in Studio → hdrctl validate → hdrctl run -->
 
 <img src="assets/hydrastudio.png" alt="Hydra Studio: visual editor for jobs and workflows" width="720">

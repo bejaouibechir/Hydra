@@ -1,0 +1,4 @@
+order_id,customer,amount
+0901,acme,10.00
+0902,globex,20.00
+0903,initech,30.00

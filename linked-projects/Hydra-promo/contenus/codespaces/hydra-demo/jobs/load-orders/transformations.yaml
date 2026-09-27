@@ -1,0 +1,8 @@
+version: "1.0"
+steps:
+  - cast:
+      mapping:
+        order_id: int
+        amount: float
+  - trim:
+      columns: [customer, region]

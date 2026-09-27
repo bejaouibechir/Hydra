@@ -1,0 +1,8 @@
+version: "1.0"
+destinations:
+  dst_report:
+    type: csv
+    connection: {}
+    load:
+      table: ../../output/report_{{ param:run_label }}.csv
+      mode: replace

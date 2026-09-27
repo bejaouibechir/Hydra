@@ -1,0 +1,15 @@
+{
+  "id": "hydra-demo",
+  "name": "hydra-demo",
+  "description": "Try Hydra ETL in the browser: containers, Studio, and workflow actions",
+  "jobs": [
+    {
+      "name": "load-orders",
+      "path": "jobs/load-orders"
+    },
+    {
+      "name": "export-report",
+      "path": "jobs/export-report"
+    }
+  ]
+}

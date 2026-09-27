@@ -1,0 +1,43 @@
+version: "1.0"
+workflow:
+  name: nightly-report
+  description: Load orders into MySQL, build a filtered report, then summarise it.
+
+  trigger:
+    type: manual
+
+  steps:
+    - name: announce
+      type: action
+      action: bash
+      params:
+        command: echo "=== nightly-report starting at $(date -u +%H:%M:%S) ==="
+
+    - name: load-orders
+      type: job
+      job: ../jobs/load-orders
+      depends_on: [announce]
+      retry:
+        max: 2
+        delay: 3
+        backoff: exponential
+
+    - name: export-report
+      type: job
+      job: ../jobs/export-report
+      depends_on: [load-orders]
+
+    - name: summarise
+      type: action
+      action: python
+      params:
+        file_path: ../scripts/summarise.py
+      depends_on: [export-report]
+
+    - name: list-output
+      type: action
+      action: bash
+      params:
+        command: ls -lh output/
+      depends_on: [summarise]
+      on_failure: continue

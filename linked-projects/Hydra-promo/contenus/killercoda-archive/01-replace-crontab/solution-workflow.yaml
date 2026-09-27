@@ -1,0 +1,30 @@
+workflow:
+  name: nightly-orders
+  description: Same four scripts as the crontab, with the order written down.
+  steps:
+    - name: fetch
+      type: action
+      action: bash
+      params:
+        command: /root/nightly/scripts/fetch.sh
+
+    - name: clean
+      type: action
+      action: bash
+      depends_on: [fetch]
+      params:
+        command: /root/nightly/scripts/clean.sh
+
+    - name: backup
+      type: action
+      action: bash
+      depends_on: [fetch]
+      params:
+        command: /root/nightly/scripts/backup.sh
+
+    - name: report
+      type: action
+      action: bash
+      depends_on: [clean]
+      params:
+        command: /root/nightly/scripts/report.sh

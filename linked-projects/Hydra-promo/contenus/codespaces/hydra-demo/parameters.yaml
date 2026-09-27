@@ -1,0 +1,22 @@
+version: "1.0"
+parameters:
+  mysql_host:
+    type: string
+    default: mysql
+    description: The MySQL container's service name on the compose network.
+  mysql_port:
+    type: string
+    default: "3306"
+    description: The port MySQL listens on inside its own container.
+  mysql_database:
+    type: string
+    default: orders_dev
+    description: Target database.
+  min_amount:
+    type: float
+    default: 500
+    description: Orders below this amount are dropped from the report.
+  run_label:
+    type: string
+    default: dev
+    description: Written into the report file name.

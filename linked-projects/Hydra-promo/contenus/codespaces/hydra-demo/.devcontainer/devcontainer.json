@@ -1,0 +1,21 @@
+{
+  "name": "Hydra ETL demo",
+
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/hydra-demo",
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  "forwardPorts": [5678, 3307],
+  "portsAttributes": {
+    "5678": { "label": "Hydra Studio", "onAutoForward": "openBrowser" },
+    "3307": { "label": "MySQL (demo)", "onAutoForward": "silent" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["redhat.vscode-yaml"]
+    }
+  }
+}

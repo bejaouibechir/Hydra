@@ -1,0 +1,7 @@
+version: "1.0"
+steps:
+  - filter:
+      expr: "amount >= {{ param:min_amount }}"
+  - sort:
+      by: [amount]
+      ascending: false

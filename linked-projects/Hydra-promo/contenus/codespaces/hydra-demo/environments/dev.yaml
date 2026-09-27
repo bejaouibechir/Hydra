@@ -1,0 +1,4 @@
+version: "1.0"
+parameters:
+  min_amount: 500
+  run_label: dev

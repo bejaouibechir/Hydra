@@ -1,0 +1,39 @@
+{
+  "title": "4. hdrctl over HTTP: the API is the CLI",
+  "description": "Start hdrctl serve, call /api/health, then validate a job over HTTP twice — once clean, once broken — and see the JSON response carry the exact same text hdrctl validate prints in a terminal. In about 8 minutes.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "setup/background.sh",
+      "foreground": "setup/foreground.sh"
+    },
+    "steps": [
+      {
+        "title": "Scaffold a job and start hdrctl serve",
+        "text": "step1/text.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "Ask the API how it is doing",
+        "text": "step2/text.md",
+        "verify": "step2/verify.sh"
+      },
+      {
+        "title": "Validate a job over HTTP",
+        "text": "step3/text.md",
+        "verify": "step3/verify.sh"
+      },
+      {
+        "title": "Break it — the API fails exactly like the CLI",
+        "text": "step4/text.md",
+        "verify": "step4/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu"
+  }
+}

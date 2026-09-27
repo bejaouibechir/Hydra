@@ -1,0 +1,39 @@
+{
+  "title": "1. Meet hdrctl: jobs, workflows, and hdrctl list",
+  "description": "Install Hydra ETL, scaffold a job and a full workflow, read them yourself in the Editor, then let hdrctl list check your reading — in about 10 minutes.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "setup/background.sh",
+      "foreground": "setup/foreground.sh"
+    },
+    "steps": [
+      {
+        "title": "Say hello to hdrctl",
+        "text": "step1/text.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "Scaffold a job",
+        "text": "step2/text.md",
+        "verify": "step2/verify.sh"
+      },
+      {
+        "title": "Scaffold a full workflow",
+        "text": "step3/text.md",
+        "verify": "step3/verify.sh"
+      },
+      {
+        "title": "Let hdrctl list check your reading",
+        "text": "step4/text.md",
+        "verify": "step4/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu"
+  }
+}

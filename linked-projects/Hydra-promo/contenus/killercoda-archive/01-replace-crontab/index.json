@@ -1,0 +1,25 @@
+{
+  "title": "Replace a fragile crontab with a declarative workflow",
+  "description": "Four cron lines guess how long each script takes. Rewrite them as a Hydra ETL workflow with real dependencies, retries and a typo check, in about 10 minutes.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "setup/background.sh",
+      "foreground": "setup/foreground.sh"
+    },
+    "steps": [
+      {"title": "Watch the crontab lie", "text": "step1/text.md", "verify": "step1/verify.sh"},
+      {"title": "Write the order down", "text": "step2/text.md", "verify": "step2/verify.sh"},
+      {"title": "Survive a network blip", "text": "step3/text.md", "verify": "step3/verify.sh"},
+      {"title": "Catch the typo before 2 a.m.", "text": "step4/text.md", "verify": "step4/verify.sh"},
+      {"title": "Keep one cron line", "text": "step5/text.md", "verify": "step5/verify.sh"}
+    ],
+    "finish": {"text": "finish.md"},
+    "assets": {
+      "host01": [
+        {"file": "**", "target": "/root/nightly"}
+      ]
+    }
+  },
+  "backend": {"imageid": "ubuntu"}
+}

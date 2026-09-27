@@ -1,0 +1,338 @@
+From bb201dc02525a5fa75a8e9f39349fe6d6bfdde05 Mon Sep 17 00:00:00 2001
+From: Bechir Bejaoui <noreply@hydraetl.com>
+Date: Sat, 19 Sep 2026 12:11:53 +0000
+Subject: [PATCH] fix(cli): validate --strict reads nested steps and checks
+ expression syntax
+
+- Read steps through TransformParser so both 'steps:' and
+  'transformations: steps:' layouts are recognised (examples showed 'none').
+- Check filter/calculate expressions with pandas' own pre-parser
+  (no evaluation); a syntax error now fails validation with exit code 1.
+- Non-strict validate is unchanged.
+- New tests: tests/test_validate_strict.py (21 cases).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ hydra_etl/cli/hdrctl.py       | 80 +++++++++++++++++++++-------
+ hydra_etl/cli/locales/de.json |  5 +-
+ hydra_etl/cli/locales/en.json |  5 +-
+ hydra_etl/cli/locales/es.json |  5 +-
+ hydra_etl/cli/locales/fr.json |  5 +-
+ hydra_etl/cli/locales/ja.json |  5 +-
+ hydra_etl/cli/locales/pt.json |  5 +-
+ hydra_etl/cli/locales/zh.json |  5 +-
+ tests/test_validate_strict.py | 99 +++++++++++++++++++++++++++++++++++
+ 9 files changed, 189 insertions(+), 25 deletions(-)
+ create mode 100644 tests/test_validate_strict.py
+
+diff --git a/hydra_etl/cli/hdrctl.py b/hydra_etl/cli/hdrctl.py
+index fbcdd8e..4352227 100644
+--- a/hydra_etl/cli/hdrctl.py
++++ b/hydra_etl/cli/hdrctl.py
+@@ -1266,6 +1266,38 @@ def cmd_test(path: str, only_src: bool, only_dst: bool, only_trf: bool,
+ # Commande : validate
+ # ─────────────────────────────────────────────────────────────────────────────
+ 
++
++_EXPR_UNCHECKED = object()
++
++
++def _check_expr_syntax(expr: str):
++    """Vérifie la syntaxe d'une expression filter/calculate sans l'évaluer.
++
++    Utilise le pré-analyseur de pandas (backticks, `&`, `|`, `and`/`or`…),
++    c'est-à-dire la même grammaire que `DataFrame.query` / `DataFrame.eval`
++    au moment de l'exécution. Retourne None si la syntaxe est correcte,
++    un message d'erreur sinon, ou _EXPR_UNCHECKED si l'analyseur pandas
++    n'est pas disponible (on ne bloque jamais sur un doute).
++    """
++    import ast
++    import tokenize
++    try:
++        from pandas.core.computation.expr import PandasExprVisitor
++        from pandas.core.computation.scope import Scope
++        preparse = PandasExprVisitor(Scope(level=0), "python", "pandas").preparser
++    except Exception:
++        return _EXPR_UNCHECKED
++    try:
++        ast.parse(preparse(expr), mode="eval")
++    except SyntaxError as e:
++        return e.msg
++    except tokenize.TokenError:
++        return "unbalanced brackets or quotes"
++    except Exception as e:  # autre erreur du tokeniseur pandas
++        return str(e) or type(e).__name__
++    return None
++
++
+ @cli.command("validate", help=t("help.validate.docstring"))
+ @_lang_option
+ @click.argument("path", default=".", type=click.Path())
+@@ -1354,31 +1386,43 @@ def cmd_validate(path: str, strict: bool,
+         err_line(t("validate.coherence_error", error=e))
+         all_ok = False
+ 
+-    # Mode strict — vérifications supplémentaires
++    # Mode strict — vérifications supplémentaires.
++    # Les étapes sont lues via TransformParser (source de vérité du DSL) :
++    # il accepte `steps:` à la racine comme `transformations: steps:`.
+     if strict and job_files["transformations"].exists():
+         section(t("validate.strict_section"))
+         try:
+             import yaml
++            from hydra_etl.internal.parser.transform import TransformParser
+             data  = yaml.safe_load(_read_yaml(job_files["transformations"]))
+-            steps = (data or {}).get("steps", [])
+-            ops   = [next(iter(s)) for s in steps if isinstance(s, dict)]
+-            ok(f"{c(C.WH, t('validate.ops_recognized')):<36} — {', '.join(ops) if ops else 'aucune'}")
+-
+-            # Vérifier expressions calculate/filter (parse only, no eval)
+-            for step in steps:
+-                if not isinstance(step, dict):
+-                    continue
+-                op   = next(iter(step))
+-                pms  = step[op]
+-                if op == "filter" and isinstance(pms, dict):
+-                    expr = pms.get("expr", "")
+-                    ok(f"{c(C.WH, f'filter.expr'):<36} — '{expr[:40]}'")
+-                if op == "calculate" and isinstance(pms, dict):
+-                    col  = pms.get("column", "?")
+-                    expr = pms.get("expr", "")
+-                    ok(f"{c(C.WH, f'calculate.{col}'):<36} — '{expr[:40]}'")
++            steps = TransformParser().parse(data or {}).steps
+         except Exception as e:
++            # Déjà signalé par la validation Pydantic ci-dessus.
+             err_line(t("validate.strict_error", error=e))
++            all_ok = False
++            steps = []
++
++        ops = [s.op for s in steps]
++        ok(f"{c(C.WH, t('validate.ops_recognized')):<36} — "
++           f"{', '.join(ops) if ops else t('validate.ops_none')}")
++
++        # Syntaxe des expressions filter/calculate (analyse seule, aucune évaluation).
++        for idx, step in enumerate(steps, start=1):
++            if step.op not in ("filter", "calculate"):
++                continue
++            pms  = step.params or {}
++            expr = pms.get("expr", "")
++            label = "filter.expr" if step.op == "filter" else f"calculate.{pms.get('column', '?')}"
++            problem = _check_expr_syntax(expr)
++            if problem is None:
++                ok(f"{c(C.WH, label):<36} — '{expr[:40]}'")
++            elif problem is _EXPR_UNCHECKED:
++                info(f"{c(C.WH, label):<36} — {t('validate.expr_unchecked')}")
++            else:
++                msg = t("validate.expr_invalid", step=idx, op=step.op, expr=expr, error=problem)
++                err_line(msg)
++                all_errs.append(f"transformations.yaml: {msg}")
++                all_ok = False
+ 
+     click.echo()
+     if all_ok:
+diff --git a/hydra_etl/cli/locales/de.json b/hydra_etl/cli/locales/de.json
+index 428f26b..85955ca 100644
+--- a/hydra_etl/cli/locales/de.json
++++ b/hydra_etl/cli/locales/de.json
+@@ -77,5 +77,8 @@
+   "list.summary": "{count} Job(s)  {ok} OK",
+   "list.run_hint": "Job ausführen: {cmd}",
+   "help.lang": "Sprache der Oberfläche (en, fr, es, de, pt, zh, ja)",
+-  "help.run.profile": "Zeigt am Ende des Laufs die Zeit pro Schritt"
++  "help.run.profile": "Zeigt am Ende des Laufs die Zeit pro Schritt",
++  "validate.ops_none": "keine",
++  "validate.expr_invalid": "Schritt {step} ({op}): ungültiger Ausdruck '{expr}' — {error}",
++  "validate.expr_unchecked": "Syntax nicht geprüft (pandas-Parser nicht verfügbar)"
+ }
+diff --git a/hydra_etl/cli/locales/en.json b/hydra_etl/cli/locales/en.json
+index aebd3d9..1590128 100644
+--- a/hydra_etl/cli/locales/en.json
++++ b/hydra_etl/cli/locales/en.json
+@@ -141,5 +141,8 @@
+   "backend.rust_fallback": "Rust CSV reader handed '{path}' over to Python: {reason}.",
+   "backend.invalid_value": "Ignoring invalid backend value '{value}' ({origin}): expected 'python' or 'rust'.",
+   "backend.config_unreadable": "Cannot read backend configuration '{path}': {error}. Using defaults.",
+-  "help.run.profile": "Show a per-step timing profile at the end of the run"
++  "help.run.profile": "Show a per-step timing profile at the end of the run",
++  "validate.ops_none": "none",
++  "validate.expr_invalid": "Step {step} ({op}): invalid expression '{expr}' — {error}",
++  "validate.expr_unchecked": "syntax not checked (pandas parser unavailable)"
+ }
+diff --git a/hydra_etl/cli/locales/es.json b/hydra_etl/cli/locales/es.json
+index 74e01d1..a57c7e3 100644
+--- a/hydra_etl/cli/locales/es.json
++++ b/hydra_etl/cli/locales/es.json
+@@ -106,5 +106,8 @@
+   "backend.rust_fallback": "El lector CSV de Rust devolvió '{path}' a Python: {reason}.",
+   "backend.invalid_value": "Se ignora el valor de backend no válido '{value}' ({origin}): se esperaba 'python' o 'rust'.",
+   "backend.config_unreadable": "No se puede leer la configuración de backend '{path}': {error}. Se usan los valores por defecto.",
+-  "help.run.profile": "Muestra el tiempo por etapa al final de la ejecución"
++  "help.run.profile": "Muestra el tiempo por etapa al final de la ejecución",
++  "validate.ops_none": "ninguna",
++  "validate.expr_invalid": "Paso {step} ({op}): expresión no válida '{expr}' — {error}",
++  "validate.expr_unchecked": "sintaxis no verificada (analizador de pandas no disponible)"
+ }
+diff --git a/hydra_etl/cli/locales/fr.json b/hydra_etl/cli/locales/fr.json
+index e4a5f74..91f1203 100644
+--- a/hydra_etl/cli/locales/fr.json
++++ b/hydra_etl/cli/locales/fr.json
+@@ -109,5 +109,8 @@
+   "help.test.docstring": "\b\nExemples :\n  hydra test .\n  hydra test jobs/daily_revenue\n  hydra test . --only-sources\n  hydra test . --only-transform\n  hydra test . -s sources_alt.yaml -d conf/destinations_prod.yaml",
+   "help.validate.docstring": "\b\nExemples :\n  hydra validate .\n  hydra validate jobs/daily_revenue --strict\n  hydra validate . -s sources_alt.yaml -p conf/pipeline_prod.yaml",
+   "help.list.docstring": "\b\nExemples :\n  hydra list\n  hydra list jobs/",
+-  "help.run.profile": "Affiche le temps passé par étape à la fin du job"
++  "help.run.profile": "Affiche le temps passé par étape à la fin du job",
++  "validate.ops_none": "aucune",
++  "validate.expr_invalid": "Étape {step} ({op}) : expression invalide '{expr}' — {error}",
++  "validate.expr_unchecked": "syntaxe non vérifiée (analyseur pandas indisponible)"
+ }
+diff --git a/hydra_etl/cli/locales/ja.json b/hydra_etl/cli/locales/ja.json
+index a77a61a..78ea19d 100644
+--- a/hydra_etl/cli/locales/ja.json
++++ b/hydra_etl/cli/locales/ja.json
+@@ -77,5 +77,8 @@
+   "list.summary": "{count} ジョブ  {ok} OK",
+   "list.run_hint": "ジョブを実行：{cmd}",
+   "help.lang": "インターフェース言語（en, fr, es, de, pt, zh, ja）",
+-  "help.run.profile": "実行終了時にステップごとの所要時間を表示する"
++  "help.run.profile": "実行終了時にステップごとの所要時間を表示する",
++  "validate.ops_none": "なし",
++  "validate.expr_invalid": "ステップ {step} ({op}): 無効な式 '{expr}' — {error}",
++  "validate.expr_unchecked": "構文未確認 (pandas パーサーが利用できません)"
+ }
+diff --git a/hydra_etl/cli/locales/pt.json b/hydra_etl/cli/locales/pt.json
+index 70d0101..02c5de8 100644
+--- a/hydra_etl/cli/locales/pt.json
++++ b/hydra_etl/cli/locales/pt.json
+@@ -77,5 +77,8 @@
+   "list.summary": "{count} job(s)  {ok} OK",
+   "list.run_hint": "Execute um job: {cmd}",
+   "help.lang": "Idioma da interface (en, fr, es, de, pt, zh, ja)",
+-  "help.run.profile": "Mostra o tempo por etapa no fim da execução"
++  "help.run.profile": "Mostra o tempo por etapa no fim da execução",
++  "validate.ops_none": "nenhuma",
++  "validate.expr_invalid": "Etapa {step} ({op}): expressão inválida '{expr}' — {error}",
++  "validate.expr_unchecked": "sintaxe não verificada (analisador do pandas indisponível)"
+ }
+diff --git a/hydra_etl/cli/locales/zh.json b/hydra_etl/cli/locales/zh.json
+index be52f43..4af2aeb 100644
+--- a/hydra_etl/cli/locales/zh.json
++++ b/hydra_etl/cli/locales/zh.json
+@@ -77,5 +77,8 @@
+   "list.summary": "{count} 个作业  {ok} OK",
+   "list.run_hint": "运行作业：{cmd}",
+   "help.lang": "界面语言（en, fr, es, de, pt, zh, ja）",
+-  "help.run.profile": "在运行结束时显示各步骤耗时"
++  "help.run.profile": "在运行结束时显示各步骤耗时",
++  "validate.ops_none": "无",
++  "validate.expr_invalid": "步骤 {step} ({op}): 无效表达式 '{expr}' — {error}",
++  "validate.expr_unchecked": "未检查语法 (pandas 解析器不可用)"
+ }
+diff --git a/tests/test_validate_strict.py b/tests/test_validate_strict.py
+new file mode 100644
+index 0000000..4b59b7c
+--- /dev/null
++++ b/tests/test_validate_strict.py
+@@ -0,0 +1,99 @@
++"""Non-régression de `hdrctl validate --strict`.
++
++1. Les étapes sont reconnues quelle que soit la forme du fichier
++   (`steps:` à la racine ou `transformations: steps:`).
++2. Les expressions filter/calculate sont analysées sans être évaluées :
++   une erreur de syntaxe fait échouer la validation (code 1), une
++   expression valide — y compris la syntaxe propre à pandas — passe.
++"""
++from __future__ import annotations
++
++from pathlib import Path
++
++import pandas as pd
++import pytest
++from click.testing import CliRunner
++
++from hydra_etl.cli.hdrctl import cli, _check_expr_syntax
++
++ROOT = Path(__file__).resolve().parent.parent
++
++
++@pytest.fixture
++def runner():
++    return CliRunner(env={"HYDRA_LANG": "en"})
++
++
++def _job(tmp_path: Path, transformations: str) -> Path:
++    job = tmp_path / "job"
++    job.mkdir()
++    (job / "sources.yaml").write_text(
++        "sources:\n  src:\n    type: csv\n    extract:\n      table: in.csv\n", encoding="utf-8")
++    (job / "destinations.yaml").write_text(
++        "destinations:\n  dst:\n    type: csv\n    load:\n      table: out.csv\n      mode: replace\n",
++        encoding="utf-8")
++    (job / "pipeline.yaml").write_text("pipeline:\n  from: src\n  to: dst\n", encoding="utf-8")
++    (job / "transformations.yaml").write_text(transformations, encoding="utf-8")
++    return job
++
++
++ROOT_FORM = "steps:\n  - filter:\n      expr: 'price > 0'\n  - calculate:\n      column: total\n      expr: 'price * qty'\n"
++NESTED_FORM = "transformations:\n" + "".join("  " + line + "\n" for line in ROOT_FORM.splitlines())
++
++
++@pytest.mark.parametrize("content", [ROOT_FORM, NESTED_FORM], ids=["root", "nested"])
++def test_strict_recognizes_steps_in_both_forms(runner, tmp_path, content):
++    result = runner.invoke(cli, ["validate", str(_job(tmp_path, content)), "--strict"])
++    assert result.exit_code == 0, result.output
++    assert "filter, calculate" in result.output
++    assert "calculate.total" in result.output
++
++
++def test_strict_on_repository_example(runner):
++    result = runner.invoke(cli, ["validate", str(ROOT / "examples" / "minimal_csv"), "--strict"])
++    assert result.exit_code == 0, result.output
++    assert "cast, filter, calculate, rename" in result.output
++
++
++@pytest.mark.parametrize("bad", ["price * (qty", "price >", "price ^> 0", "(a ?? 0)"])
++def test_strict_rejects_invalid_expression(runner, tmp_path, bad):
++    content = f"steps:\n  - calculate:\n      column: total\n      expr: \"{bad}\"\n"
++    result = runner.invoke(cli, ["validate", str(_job(tmp_path, content)), "--strict"])
++    assert result.exit_code == 1, result.output
++    assert "Step 1 (calculate)" in result.output
++
++
++def test_non_strict_behaviour_unchanged(runner, tmp_path):
++    """Sans --strict, les expressions ne sont pas analysées (comportement historique)."""
++    content = "steps:\n  - filter:\n      expr: 'price * (qty'\n"
++    result = runner.invoke(cli, ["validate", str(_job(tmp_path, content))])
++    assert result.exit_code == 0, result.output
++
++
++# Expressions acceptées par pandas à l'exécution : jamais de fausse alerte.
++VALID = [
++    "price > 0",
++    "price * qty",
++    "`unit price` > 0 & qty < 5",
++    "a > 1 and b < 2",
++    "a > 1 or not b",
++    "country in ['FR', 'TN']",
++    "name == 'x' | code != 'y'",
++    "(price - discount) / qty",
++]
++
++
++@pytest.mark.parametrize("expr", VALID)
++def test_valid_expressions_pass_and_really_run_in_pandas(expr):
++    assert _check_expr_syntax(expr) is None
++    df = pd.DataFrame({"price": [1.0], "qty": [2], "unit price": [1.0], "a": [2], "b": [1],
++                       "country": ["TN"], "name": ["x"], "code": ["y"], "discount": [0.0]})
++    df.eval(expr, engine="python")  # la même grammaire que le moteur Hydra ETL
++
++
++@pytest.mark.parametrize("expr", ["price * (qty", "price >", "price ^> 0", "(a ?? 0)", "price **"])
++def test_invalid_expressions_fail_in_pandas_too(expr):
++    assert _check_expr_syntax(expr) is not None
++    df = pd.DataFrame({"price": [1.0], "qty": [2], "a": [1]})
++    with pytest.raises(Exception):
++        df.eval(expr, engine="python")
+-- 
+2.34.1
+

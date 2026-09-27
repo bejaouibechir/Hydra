@@ -1,0 +1,5 @@
+version: "1.0"
+pipeline:
+  from: src_mysql
+  to: dst_report
+  transformations: transformations.yaml

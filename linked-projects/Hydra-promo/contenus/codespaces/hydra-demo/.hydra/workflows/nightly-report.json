@@ -1,0 +1,10 @@
+{
+  "id": "nightly-report",
+  "name": "nightly-report",
+  "project_id": "hydra-demo",
+  "description": "Load orders into MySQL, build a filtered report, then summarise it.",
+  "trigger_type": "manual",
+  "cron": null,
+  "published": true,
+  "path": "workflows/nightly-report.yaml"
+}

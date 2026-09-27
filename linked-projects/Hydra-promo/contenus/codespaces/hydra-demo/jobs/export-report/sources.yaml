@@ -1,0 +1,12 @@
+version: "1.0"
+sources:
+  src_mysql:
+    type: mysql
+    connection:
+      host: "{{ param:mysql_host }}"
+      port: "{{ param:mysql_port }}"
+      database: "{{ param:mysql_database }}"
+      user: ${SECRET:mysql.user}
+      password: ${SECRET:mysql.password}
+    extract:
+      table: orders

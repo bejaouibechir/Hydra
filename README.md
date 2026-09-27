@@ -9,7 +9,7 @@
 [![Status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#project-status)
 [![Glama quality score](https://glama.ai/mcp/servers/bejaouibechir/Hydra/badges/score.svg)](https://glama.ai/mcp/servers/bejaouibechir/Hydra)
 
-**[Website](https://hydraetl.com)** · **[Docs & playground]([Playground: run YAML ETL pipelines in your browser — Hydra ETL](https://hydraetl.com/playground)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
+**[Website](https://hydraetl.com)** · **[Docs & playground](https://hydraetl.com/playground)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
 
 Hydra is an open-source declarative ETL engine. You write what a pipeline *is* in YAML;
 Hydra validates it before touching any data, then runs it. The same manifests run from

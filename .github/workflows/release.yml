@@ -116,3 +116,78 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+
+  # Publie l'image de conteneur sur GHCR, au meme tag que le paquet PyPI.
+  #
+  # Jusqu'ici l'image etait poussee a la main : elle est restee bloquee en
+  # 0.9.6 pendant que le paquet passait en 0.11.3, et `latest` pointait sur
+  # cette meme 0.9.6. Un utilisateur Docker installait donc une version sans
+  # le correctif ${SECRET:}. Ce job supprime l'etape manuelle.
+  #
+  # Aucun jeton a stocker : GITHUB_TOKEN suffit pour publier dans le GHCR du
+  # depot, grace a la permission `packages: write` ci-dessous.
+  container:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version depuis le tag
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # arm64 est construit en emulation. Sans lui, un Mac Apple Silicon tire
+      # une image amd64 et la fait tourner sous Rosetta : lent, bruyant en
+      # avertissements, et parfois en echec franc.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Un premier build amd64 charge localement, seulement pour le verifier.
+      # Le build de publication repart du meme cache : il ne recompile rien.
+      - name: Construction de controle (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: GHCR/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: hydra:check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Meme garde-fou que pour le tag plus haut, applique a l'image : elle
+      # doit se declarer a la version qu'on s'apprete a publier. On lit
+      # __version__ plutot que la sortie de `hdrctl --version`, dont la
+      # banniere pourrait contenir d'autres nombres.
+      - name: L'image annonce-t-elle la bonne version ?
+        run: |
+          VUE=$(docker run --rm hydra:check python -c "import hydra_etl; print(hydra_etl.__version__)")
+          echo "image=$VUE  tag=${{ steps.v.outputs.version }}"
+          test "$VUE" = "${{ steps.v.outputs.version }}" || {
+            echo "::error::L'image annonce $VUE, le tag dit ${{ steps.v.outputs.version }}"
+            exit 1
+          }
+
+      # `latest` ne suit que les tags v*, donc jamais une preversion.
+      - name: Publication multi-architecture
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: GHCR/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/hydra:${{ steps.v.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/hydra:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

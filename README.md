@@ -269,6 +269,20 @@ pip install "hydra-etl[all]"           # everything
 
 Available extras: `server`, `native`, `duckdb`, `parquet`, `mysql`, `postgres`, `mssql`, `mongodb`, `http`, `mcp`, `all`.
 
+### Or run it in a container — optional
+
+Hydra needs no container: it stays one `pip install` and one Python process.
+If your team standardises on containers, or you would rather keep Python off
+the host, the image carries the engine, the CLI, the API and the Studio:
+
+```bash
+docker run --rm -p 5678:5678 -v hydra-workspace:/workspace \
+  ghcr.io/bejaouibechir/hydra:latest
+```
+
+Building it yourself, per system: [Linux](GHCR/README.md#linux) ·
+[Windows](GHCR/README.md#windows) · [macOS](GHCR/README.md#macos).
+
 ---
 
 ## Serving

@@ -1,0 +1,8 @@
+version: '1.0'
+destinations:
+  orders_clean_csv:
+    type: csv
+    connection: {}
+    load:
+      table: __HYDRA_DEMO_ROOT__/output/orders_clean.csv
+      mode: replace

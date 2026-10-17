@@ -1,0 +1,6 @@
+version: '1.0'
+pipeline:
+  name: customers-json-to-csv
+  from: customers_json
+  to: customers_csv
+  transformations: transformations.yaml

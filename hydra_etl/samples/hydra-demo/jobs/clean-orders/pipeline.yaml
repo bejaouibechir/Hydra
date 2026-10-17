@@ -1,0 +1,6 @@
+version: '1.0'
+pipeline:
+  name: clean-orders
+  from: orders_csv
+  to: orders_clean_csv
+  transformations: transformations.yaml

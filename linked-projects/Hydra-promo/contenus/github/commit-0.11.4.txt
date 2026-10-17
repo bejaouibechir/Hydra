@@ -1,0 +1,18 @@
+fix(postgresql): upsert key validation fails on every table
+
+_validate_upsert_key() could never recognise a valid constraint:
+
+- array_agg over information_schema.key_column_usage.column_name (type
+  sql_identifier) is returned by psycopg2 as the raw text '{col}' rather
+  than a list, so the set comparison compared characters;
+- the RealDictCursor row was unpacked as a tuple, binding the dict KEYS,
+  and the error branch indexed it as c[0], raising KeyError: 0 and
+  hiding the real diagnostic.
+
+Cast the aggregate to text and read the row by key. Add a unit test that
+needs no live database, since the existing end-to-end PostgreSQL tests
+cover this path but are skipped at module level and never run in CI.
+
+Also name the extra to install in the "driver missing" errors
+(hydra-etl[postgres], [mysql], [mongodb]) instead of the underlying
+package, matching what the SQL Server connector already did.

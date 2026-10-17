@@ -1065,45 +1065,127 @@ def _print_env_vars(job_dir: Path) -> None:
 VALID_TEMPLATES = sorted(TEMPLATES.keys())
 
 
+_JOB_FILE_ALIASES = {
+    "sources":         ("sources.yaml", "sources.yml"),
+    "destinations":    ("destinations.yaml", "destinations.yml"),
+    "pipeline":        ("pipeline.yaml", "pipeline.yml"),
+    "transformations": ("transformations.yaml", "transformations.yml"),
+}
+
+
+def _has_job_files(folder: Path) -> bool:
+    """Le dossier contient-il lui-même un job (sources + destinations + pipeline) ?
+    transformations est facultatif."""
+    return all(any((folder / n).is_file() for n in _JOB_FILE_ALIASES[k])
+               for k in ("sources", "destinations", "pipeline"))
+
+
+def _write_project_marker(root: Path) -> Path:
+    """Crée `.hydra/project.json` — le marqueur de projet lu par Hydra Studio."""
+    import json
+    import uuid
+    from datetime import datetime, timezone
+    meta_dir = root / ".hydra"
+    (meta_dir / "workflows").mkdir(parents=True, exist_ok=True)
+    f = meta_dir / "project.json"
+    f.write_text(json.dumps({
+        "id": str(uuid.uuid4())[:8],
+        "name": root.resolve().name,
+        "description": "",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "conventions": {"data_dir": "Data", "output_dir": "output"},
+        "workflows": [],
+        "jobs": [],
+    }, indent=2, ensure_ascii=False), encoding="utf-8")
+    return f
+
+
+_WORKFLOW1_YAML = """\
+version: "1.0"
+workflow:
+  name: workflow1
+  description: "First workflow of the project"
+  trigger:
+    type: manual
+  steps:
+    - name: job1
+      type: job
+      job: ../jobs/job1
+      depends_on: []
+      on_failure: fail
+"""
+
+
 @cli.command("init", help=t("help.init.docstring"))
 @_lang_option
-@click.argument("name")
-@click.option("--template", "-t", default="basic",
+@click.argument("path", default=".", type=click.Path())
+@click.option("--template", "-t", default="csv",
               type=click.Choice(VALID_TEMPLATES, case_sensitive=False),
               show_default=True, help=t("help.init.template"))
-@click.option("--force", is_flag=True, default=False, help=t("help.init.force"))
 @click.option("--quiet", "-q", is_flag=True, default=False, help=t("help.init.quiet"))
-def cmd_init(name: str, template: str, force: bool, quiet: bool) -> None:
-    """Crée un nouveau job ETL depuis un template."""
+def cmd_init(path: str, template: str, quiet: bool) -> None:
+    """Initialise un projet Hydra (dossier `.hydra`, workflow1, job1)."""
     print_banner()
-    job_dir = Path(name)
+    root = Path(path)
 
-    if job_dir.exists() and not force:
-        existing_files = list(job_dir.iterdir()) if job_dir.is_dir() else []
-        if existing_files:
-            error_box(t("init.dir_exists", name=name))
-            info(t("init.use_force", flag=c(C.WH, "--force")))
-            sys.exit(1)
+    if root.exists() and not root.is_dir():
+        error_box(t("init.not_a_dir", path=path))
+        sys.exit(1)
 
+    existing = list(root.iterdir()) if root.is_dir() else []
+    shown = root.resolve()
+
+    # Déjà un projet : on ne touche à rien.
+    if (root / ".hydra").is_dir():
+        info(t("init.already_project", path=str(shown)))
+        return
+
+    # Dossier non vide.
+    if existing:
+        if _has_job_files(root):
+            # Alternative 1 : un job existe déjà ici → on ajoute seulement `.hydra`.
+            _write_project_marker(root)
+            success_box(t("init.adopted", path=c(C.WH, str(shown))))
+            click.echo()
+            info(t("init.adopted_note"))
+            click.echo()
+            return
+        error_box(t("init.not_empty", path=str(shown)))
+        info(t("init.not_empty_hint"))
+        sys.exit(1)
+
+    # Alternative 2 : dossier absent ou vide → projet complet.
     if not quiet:
-        click.echo(f"\n  {c(C.CY, t('init.creating'))}  {c(C.WH + C.BD, name)}"
-                   f"  {c(C.DM, f'[template: {template}]')}")
-        click.echo()
+        click.echo(f"\n  {c(C.CY, t('init.creating'))}  {c(C.WH + C.BD, str(shown))}"
+                   f"  {c(C.DM, f'[template: {template}]')}\n")
 
-    job_dir.mkdir(parents=True, exist_ok=True)
-    created = create_job_structure(job_dir, template, force)
+    root.mkdir(parents=True, exist_ok=True)
+    created: list[str] = []
+    for sub in ("Data", "output"):
+        (root / sub).mkdir(exist_ok=True)
+        created.append(f"{sub}/")
+
+    for rel in create_job_structure(root / "jobs" / "job1", template, False):
+        created.append(f"jobs/job1/{rel}")
+
+    (root / "workflows").mkdir(exist_ok=True)
+    (root / "workflows" / "workflow1.yaml").write_text(_WORKFLOW1_YAML, encoding="utf-8")
+    created.append("workflows/workflow1.yaml")
+
+    _write_project_marker(root)
+    created.append(".hydra/project.json")
 
     for fpath in created:
         ok(fpath)
 
-    success_box(t("init.success", name=c(C.WH, name)))
+    success_box(t("init.success", name=c(C.WH, root.resolve().name)))
     click.echo()
     info(t("init.next_steps"))
-    info(t("init.step1", path=c(C.WH, f"./{name}/")))
-    if (job_dir / ".env.example").exists():
+    info(t("init.step1", path=c(C.WH, "jobs/job1/")))
+    if (root / "jobs" / "job1" / ".env.example").exists():
         info(t("init.step2"))
-    info(t("init.step3", cmd=c(C.WH, f"hydra test {name}")))
-    info(t("init.step4", cmd=c(C.WH, f"hdrctl run  {name}")))
+    info(t("init.step3", cmd=c(C.WH, f"hdrctl workflow validate {root / 'workflows' / 'workflow1.yaml'}")))
+    info(t("init.step4", cmd=c(C.WH, f"hdrctl workflow run {root / 'workflows' / 'workflow1.yaml'}")))
     click.echo()
 
 

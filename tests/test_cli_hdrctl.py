@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 from hydra_etl import __version__
+import os
 import yaml
 from click.testing import CliRunner
 
@@ -98,7 +99,6 @@ class TestHelp:
         result = runner.invoke(cli, ["init", "--help"])
         assert result.exit_code == 0
         assert "--template" in result.output
-        assert "--force" in result.output
 
     def test_validate_help(self, runner):
         result = runner.invoke(cli, ["validate", "--help"])
@@ -116,68 +116,97 @@ class TestHelp:
 # ═══════════════════════════════════════════════════════════════
 
 class TestInit:
+    """`hdrctl init` initialise un PROJET : .hydra, workflow1, job1."""
 
-    def test_init_basic_creates_files(self, runner, tmp_path):
+    def test_init_empty_folder_creates_project(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            result = runner.invoke(cli, ["init", "my_job"])
-            assert result.exit_code == 0
-            for f in ["sources.yaml", "destinations.yaml", "pipeline.yaml", "README.md"]:
-                assert Path("my_job" / Path(f)).exists(), f"Manque {f}"
+            result = runner.invoke(cli, ["init", "my_project"])
+            assert result.exit_code == 0, result.output
+            root = Path("my_project")
+            assert (root / ".hydra" / "project.json").is_file()
+            assert (root / "workflows" / "workflow1.yaml").is_file()
+            for f in ["sources.yaml", "destinations.yaml", "pipeline.yaml", "transformations.yaml"]:
+                assert (root / "jobs" / "job1" / f).is_file(), f
+
+    def test_init_dot_in_empty_folder(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("here").mkdir()
+            os.chdir("here")
+            result = runner.invoke(cli, ["init", "."])
+            assert result.exit_code == 0, result.output
+            assert Path(".hydra/project.json").is_file()
+            assert Path("jobs/job1/pipeline.yaml").is_file()
+
+    def test_init_default_path_is_current_dir(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("here").mkdir()
+            os.chdir("here")
+            result = runner.invoke(cli, ["init"])
+            assert result.exit_code == 0, result.output
+            assert Path(".hydra").is_dir()
+
+    def test_workflow1_references_job1(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(cli, ["init", "p"])
+            doc = yaml.safe_load(Path("p/workflows/workflow1.yaml").read_text())
+            assert doc["workflow"]["name"] == "workflow1"
+            steps = doc["workflow"]["steps"]
+            assert [st["name"] for st in steps] == ["job1"]
+            assert (Path("p/workflows") / steps[0]["job"]).resolve() == Path("p/jobs/job1").resolve()
 
     def test_init_all_templates(self, runner, tmp_path):
         for tmpl in VALID_TEMPLATES:
             with runner.isolated_filesystem(temp_dir=tmp_path):
-                result = runner.invoke(cli, ["init", f"job_{tmpl}", "--template", tmpl])
+                result = runner.invoke(cli, ["init", f"proj_{tmpl}", "--template", tmpl])
                 assert result.exit_code == 0, f"Template {tmpl} : {result.output}"
-                assert Path(f"job_{tmpl}/pipeline.yaml").exists()
-
-    def test_init_creates_pipeline_yaml_content(self, runner, tmp_path):
-        with runner.isolated_filesystem(temp_dir=tmp_path):
-            runner.invoke(cli, ["init", "j", "--template", "basic"])
-            data = yaml.safe_load(Path("j/pipeline.yaml").read_text())
-            assert "pipeline" in data
-            assert "from" in data["pipeline"]
-            assert "to" in data["pipeline"]
+                assert Path(f"proj_{tmpl}/jobs/job1/pipeline.yaml").exists()
 
     def test_init_mysql_creates_env_example(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            runner.invoke(cli, ["init", "myjob", "--template", "mysql"])
-            assert Path("myjob/.env.example").exists()
-            content = Path("myjob/.env.example").read_text()
-            assert "DB_HOST" in content
+            runner.invoke(cli, ["init", "p", "--template", "mysql"])
+            assert "DB_HOST" in Path("p/jobs/job1/.env.example").read_text()
 
-    def test_init_csv_creates_sample_data(self, runner, tmp_path):
+    def test_init_csv_template_job_runs(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            runner.invoke(cli, ["init", "j", "--template", "csv"])
-            assert Path("j/data/input.csv").exists()
+            runner.invoke(cli, ["init", "p"])
+            assert Path("p/jobs/job1/data/input.csv").exists()
 
-    def test_init_fails_if_dir_exists_not_empty(self, runner, tmp_path):
+    def test_init_non_empty_foreign_folder_stops(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
             Path("existing").mkdir()
             (Path("existing") / "somefile.txt").write_text("x", encoding="utf-8")
             result = runner.invoke(cli, ["init", "existing"])
             assert result.exit_code != 0
+            assert not Path("existing/.hydra").exists()
+            assert [p.name for p in Path("existing").iterdir()] == ["somefile.txt"]
 
-    def test_init_force_overwrites(self, runner, tmp_path):
+    def test_init_folder_with_job_files_only_adds_hydra(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            runner.invoke(cli, ["init", "j", "--template", "basic"])
-            # Modifier un fichier
-            Path("j/pipeline.yaml").write_text("pipeline:\n  from: old\n  to: old\n", encoding="utf-8")
-            runner.invoke(cli, ["init", "j", "--template", "basic", "--force"])
-            data = yaml.safe_load(Path("j/pipeline.yaml").read_text())
-            assert data["pipeline"]["from"] != "old"
+            job = Path("myjob")
+            job.mkdir()
+            contents = {"sources.yaml": "sources: {}\n", "destinations.yaml": "destinations: {}\n",
+                        "pipeline.yaml": "pipeline: {}\n", "transformations.yaml": "steps: []\n"}
+            for n, c_ in contents.items():
+                (job / n).write_text(c_, encoding="utf-8")
+            result = runner.invoke(cli, ["init", "myjob"])
+            assert result.exit_code == 0, result.output
+            assert (job / ".hydra" / "project.json").is_file()
+            assert not (job / "jobs").exists() and not (job / "workflows").exists()
+            for n, c_ in contents.items():
+                assert (job / n).read_text(encoding="utf-8") == c_
+
+    def test_init_existing_project_is_left_untouched(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(cli, ["init", "p"])
+            Path("p/jobs/job1/pipeline.yaml").write_text("pipeline:\n  from: x\n  to: y\n", encoding="utf-8")
+            result = runner.invoke(cli, ["init", "p"])
+            assert result.exit_code == 0
+            assert "from: x" in Path("p/jobs/job1/pipeline.yaml").read_text()
 
     def test_init_quiet_mode(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            result = runner.invoke(cli, ["init", "j", "--quiet"])
+            result = runner.invoke(cli, ["init", "p", "--quiet"])
             assert result.exit_code == 0
-
-    def test_init_readme_created(self, runner, tmp_path):
-        with runner.isolated_filesystem(temp_dir=tmp_path):
-            runner.invoke(cli, ["init", "myjob"])
-            readme = Path("myjob/README.md")
-            assert readme.exists()
-            assert "myjob" in readme.read_text()
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -23,6 +23,7 @@ env:
     tests/test_parameters.py
     tests/test_mcp_server.py
     tests/test_api_studio.py
+    tests/test_postgresql_upsert_key_validation.py
 
 jobs:
   tests:

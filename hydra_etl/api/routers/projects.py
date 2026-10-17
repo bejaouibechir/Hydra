@@ -20,6 +20,16 @@ def create_project(body: ProjectCreate):
     return store.create_project(name=body.name, description=body.description, project_path=body.project_path)
 
 
+@router.post("/demo", response_model=ProjectResponse, status_code=201)
+def install_demo():
+    """Installe (ou réinstalle) le projet de démonstration."""
+    from hydra_etl.api import demo
+    proj = demo.install_demo_project()
+    if proj is None:
+        raise HTTPException(status_code=404, detail="Demo template not found")
+    return proj
+
+
 @router.post("/open", response_model=ProjectResponse)
 def open_project(body: ProjectOpenRequest):
     """Ouvre un projet depuis le disk.

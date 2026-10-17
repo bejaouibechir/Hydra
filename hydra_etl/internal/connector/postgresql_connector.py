@@ -116,7 +116,8 @@ class PostgreSQLConnector(BaseDBConnector):
         except ImportError as e:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: driver manquant. "
-                f"Installez 'psycopg2-binary'. Erreur: {e}"
+                f"Installez-le avec 'pip install \"hydra-etl[postgres]\"'. "
+                f"Erreur: {e}"
             ) from e
         
         cfg = self._conn_cfg
@@ -807,7 +808,7 @@ DO NOTHING
         query = """
             SELECT 
                 tc.constraint_name,
-                array_agg(kcu.column_name ORDER BY kcu.ordinal_position) as constraint_cols
+                array_agg(kcu.column_name::text ORDER BY kcu.ordinal_position) as constraint_cols
             FROM information_schema.table_constraints tc
             JOIN information_schema.key_column_usage kcu 
               ON tc.constraint_name = kcu.constraint_name
@@ -834,13 +835,14 @@ DO NOTHING
         key_set = set(key)
         
         for constraint in constraints:
-            constraint_name, constraint_cols = constraint
+            constraint_name = constraint["constraint_name"]
+            constraint_cols = constraint["constraint_cols"]
             if set(constraint_cols) == key_set:
                 return  # Contrainte valide trouvee — match exact
 
         # Aucune contrainte ne correspond aux colonnes key
         available = ', '.join(
-            f"{c[0]}({', '.join(c[1])})" for c in constraints
+            f"{c['constraint_name']}({', '.join(c['constraint_cols'])})" for c in constraints
         )
         raise ValueError(
             f"{self.__class__.__name__} [{self.name}]: "

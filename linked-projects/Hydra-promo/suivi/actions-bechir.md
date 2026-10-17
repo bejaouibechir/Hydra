@@ -272,10 +272,42 @@ par 5 scénarios qui font découvrir `hdrctl` lui-même (install, `validate` vs 
 
 ⚠️ Ces quatre points conditionnent le lancement. Pas de Show HN ni de Product Hunt avant les 3 pilotes, la démo et la page benchmark.
 
+## INDICATEURS — relevés le 17/10/2026 (API GitHub + PyPI, depuis le PC)
+
+> Tableau créé le 17/10 : il n'existait pas, donc aucune comparaison semaine/semaine n'était
+> possible avant. Mis à jour à chaque rapport hebdomadaire. **Objectifs à 6 mois (`CLAUDE.md` §3) :
+> +500 étoiles · 5 000 visiteurs/mois · 250 abonnés · 5 contributeurs externes · 5 demandes.**
+
+| Indicateur | 22/09 | 17/10 | Écart | Objectif |
+|---|---|---|---|---|
+| Étoiles `Hydra` | 2 | **4** | +2 | 500 |
+| Forks | 1 | 1 (2 listés) | 0 | — |
+| Watchers | — | **0** | — | — |
+| Issues ouvertes | 7 | 7 | 0 | — |
+| PR externes ouvertes | 0 | **0** | 0 | — |
+| Contributeurs externes | 0 | **0** | 0 | 5 |
+| PyPI | 0.11.1 | **0.11.3** (27/09) | aucune publication depuis 20 j | — |
+| Dernier commit `Hydra` | — | **28/09** | 19 j sans code | — |
+| Articles sur `/blog` | 2 | 2 | 0 | — |
+| PR awesome fusionnées | 1 | **2 sur 4** (`awesome-pipeline`, `awesome-duckdb`) | +1 (constatée, fusion du 21/09) | 4 |
+| Téléchargements PyPI | — | **non mesurable** (pypistats bloqué) | — | — |
+| Trafic site | — | **non mesurable** (pas de jeton Umami) | — | 5 000/mois |
+| Indexation | — | `hydraetl.com` **absent** de la recherche sur sa propre marque ; article 18456 absent de son SERP | — | — |
+
+## Nouveau — issu du rapport du 17/10
+
+- [ ] **Résoudre le conflit de `awesome-mcp-servers` #14699** ▶️ **action n°1 de la semaine.** Vérifié par l'API : `mergeable: false`, `mergeable_state: dirty`, `rebaseable: false`, sur un diff de **+1 ligne**. Le dépôt fusionne activement (#16114 le 15/10, #16032 le 09/10) : **ce n'est pas le mainteneur qui tarde, c'est la PR qui est inerte.** Ne pas relancer dans le fil — refaire la branche depuis `main` à jour, replacer la ligne avec son badge Glama, forcer la mise à jour de la branche de la PR. Liste à ~95 000 étoiles.
+- [ ] **Publier la réponse sur `planemarlin/minimdm` #74** ▶️ fil ouvert, mainteneur actif le 16/10, qui demande lui-même *« which tool would do the loading into your warehouse? »*. Texte EN prêt dans `suivi/veille-forums.md`. **Périssable** : la valeur tombe dès que le fil refroidit. Divulguer « I'm the author of Hydra ETL ».
+- [ ] **Créer la release GitHub `v0.11.3`** ▶️ le tag existe et `release #11` a réussi (27/09), mais l'onglet Releases s'arrête à **v0.11.2** alors que PyPI sert la 0.11.3. Celui qui arrive par les Releases voit une version périmée.
+- [ ] **Activer Discussions** ▶️ toujours `has_discussions: false`. Action d'un clic, en attente depuis le 19/09.
+- [x] ~~**PR awesome-duckdb #353**~~ — **FUSIONNÉE le 21/09**, vérifié le 17/10 : l'entrée est en ligne (README ligne 319). Elle était encore suivie comme en attente.
+- [x] ~~**PR externe #9**~~ — **cette PR n'existe pas.** Le dépôt `Hydra` n'a jamais eu que #1 et #2, toutes deux de Bechir et fusionnées. Ligne de suivi supprimée, rien à faire.
+- [ ] **`awesome-data-engineering` #371** 📋 **ne rien faire pour l'instant.** 28 jours de silence, mais le dépôt est dormant : dernière fusion le 06/09, et les PR #387 à #391 (11 au 16/10) sont toutes ouvertes. Il fusionne par lots. Re-vérifier vers le 17/11.
+
 ## Suivi
 
-- [ ] **PR awesome-mcp-servers #14699** — plus rien à faire : badge posé, 3 labels verts, contrôles 2/2, commentaire posté. Si silence d'ici une semaine, relancer poliment dans le fil.
-- [ ] **PR externe #9** — silence depuis le 20/09. Si rien au 25/09 : fusionner et corriger la puce `--strict` toi-même (`contenus/github/pr-9-traitement.md`).
+- [ ] **PR awesome-mcp-servers #14699** — ⚠️ **corrigé le 17/10 : il y a quelque chose à faire.** La PR est en **conflit de fusion** (`dirty`, non rebasable). ~~plus rien à faire ; si silence d'ici une semaine, relancer poliment~~ — une relance serait inutile et mal vue. Voir « Nouveau — issu du rapport du 17/10 ».
+- [x] ~~**PR externe #9**~~ — **inexistante**, vérifié le 17/10 par l'API : le dépôt `Hydra` n'a eu que #1 et #2, toutes deux de Bechir. Rien à fusionner.
 
 ## Intendance
 

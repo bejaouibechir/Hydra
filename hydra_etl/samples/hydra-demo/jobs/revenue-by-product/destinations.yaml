@@ -1,0 +1,8 @@
+version: '1.0'
+destinations:
+  revenue_csv:
+    type: csv
+    connection: {}
+    load:
+      table: __HYDRA_DEMO_ROOT__/output/revenue_by_product.csv
+      mode: replace

@@ -1,0 +1,9 @@
+version: '1.0'
+transformations:
+  steps:
+    - filter:
+        expr: "active == True"
+    - select:
+        columns: [customer_id, name, region, tier]
+    - sort:
+        by: [region, name]

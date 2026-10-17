@@ -39,7 +39,7 @@ import {
   Save, Play, ChevronLeft, AlertTriangle, CheckCircle2, GitBranch,
   ChevronDown, ChevronUp, Terminal, Circle, Code2, Upload,
   Undo2, Redo2, Trash2, FolderOpen, Package, MoreHorizontal,
-  Pencil, Copy, ArrowLeft, Archive, Boxes,
+  Pencil, Copy, ArrowLeft, Archive, Boxes, RefreshCw,
 } from 'lucide-react'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { loadSettings } from '@/pages/Settings'
@@ -791,6 +791,50 @@ function WorkflowEditorInner() {
     }
     if (projectId) api.jobs.archive(projectId, name).then(r => { if (r?.message) console.info(r.message) }).catch(() => {})
   }, [sceneMode, nodes, wfSnapshot, jobNames, activeJobId, projectId])
+
+  /**
+   * Resynchronise le canvas du job actif depuis ses 4 fichiers YAML sur disque
+   * (jobs/<nom>/sources|transformations|destinations|pipeline.yaml).
+   * Les YAML modifies hors Studio (editeur, hdrctl, git) ne sont jamais relus
+   * automatiquement : le canvas enregistre fait foi tant que cette action n'est
+   * pas declenchee. Ecrase le canvas du job (annulable avec Undo), jamais les fichiers.
+   */
+  const resyncJobFromYaml = useCallback(async () => {
+    if (sceneMode !== 'jobs' || !activeJobId || !projectId) return
+    const jobId   = activeJobId
+    const jobName = jobNames.get(jobId) ?? jobId
+    if (!window.confirm(
+      `Resync job "${jobName}" from its YAML files?\n\n` +
+      `The canvas will be rebuilt from jobs/${jobName}/*.yaml.\n` +
+      `Unsaved changes on this canvas will be replaced (Undo restores them).`
+    )) return
+    try {
+      const files = await api.jobs.files(projectId, jobName)
+      if (!files.sources && !files.destinations && !files.pipeline) {
+        alert(`No YAML found for job "${jobName}" (jobs/${jobName}/).`)
+        return
+      }
+      const model = sectionYamlsToJobModel(
+        { sources: files.sources, transformations: files.transformations,
+          destinations: files.destinations, pipeline: files.pipeline },
+        jobName,
+      )
+      if (!model) {
+        alert(`Invalid YAML in jobs/${jobName}/: the canvas was left unchanged.`)
+        return
+      }
+      const { nodes: n, edges: e } = jobModelToFlow(model)
+      pushHistory(nodes, edges)
+      jobCanvasRef.current.set(jobId, { nodes: n, edges: e })
+      setNodes(n as Node<FlowNodeData>[])
+      setEdges(e)
+      setSelectedNode(null)
+      fitViewSoon()
+      setSaveStatus('idle')
+    } catch (err) {
+      alert(`Resync failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [sceneMode, activeJobId, projectId, jobNames, nodes, edges, pushHistory, setNodes, setEdges, fitViewSoon])
 
   /** Ouvre le menu contextuel (Renommer/Archiver/Supprimer) depuis la liste Jobs de la palette. */
   const onJobContextMenu = useCallback((e: React.MouseEvent, jobId: string) => {
@@ -1740,6 +1784,17 @@ function WorkflowEditorInner() {
               </>
             )}
           </div>
+        )}
+
+        {isJobScene && activeJobId && (
+          <button
+            onClick={() => { void resyncJobFromYaml() }}
+            className="btn-secondary text-xs !py-1.5"
+            title="Rebuild this job's canvas from its YAML files on disk (jobs/<name>/*.yaml)"
+          >
+            <RefreshCw size={13} />
+            Resync from YAML
+          </button>
         )}
 
         <button

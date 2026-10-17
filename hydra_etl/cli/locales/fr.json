@@ -53,7 +53,7 @@
   "init.dir_exists": "Le dossier ‘{name}’ existe déjà et n’est pas vide.",
   "init.use_force": "Utilisez {flag} pour écraser.",
   "init.creating": "Initialisation :",
-  "init.success": "Job ‘{name}’ créé avec succès.",
+  "init.success": "Projet ‘{name}’ créé (workflow1 avec job1).",
   "init.next_steps": "Prochaines étapes :",
   "init.step1": "  1. Éditez les fichiers YAML dans {path}",
   "init.step2": "  2. Copiez .env.example → .env  et renseignez vos credentials",
@@ -89,7 +89,6 @@
   "help.run.on_failure": "Commande à exécuter en cas d’échec",
   "help.run.on_finish": "Commande toujours exécutée en fin de pipeline",
   "help.init.template": "Template à utiliser",
-  "help.init.force": "Écrase les fichiers existants",
   "help.init.quiet": "Mode silencieux (moins de messages)",
   "help.test.only_sources": "Valide uniquement les sources",
   "help.test.only_destinations": "Valide uniquement les destinations",
@@ -105,7 +104,7 @@
   "help.validate.transformations": "Chemin explicite vers le fichier transformations",
   "cli.help": "\b\nhdrctl — Hydra ETL Control CLI\n\nGérez vos pipelines ETL déclaratifs avec simplicité.\n\b\nCommandes principales :\n  run       Exécute un pipeline ETL\n  init      Crée un nouveau job depuis un template\n  test      Valide la configuration d’un job\n  validate  Validation stricte du DSL YAML\n  list      Liste les jobs du répertoire courant",
   "help.run.docstring": "\b\nPATH  Répertoire du job (défaut : répertoire courant)\n\b\nExemples :\n  hydra run .\n  hydra run jobs/daily_revenue -vv\n  hydra run . --dry-run\n  hydra run . --on-success \"curl https://hooks.slack.com/...\"\n  hydra run . -s sources_alt.yaml -d conf/destinations_prod.yaml",
-  "help.init.docstring": "\b\nTemplates disponibles :\n  basic     — CSV simple (défaut)\n  csv       — CSV avec données exemple\n  mysql     — MySQL/MariaDB avec upsert\n  postgres  — PostgreSQL avec ON CONFLICT\n  api       — Web API REST avec pagination\n  mongodb   — MongoDB avec auto-détection schéma\n\b\nExemples :\n  hydra init mon_job\n  hydra init mon_job --template mysql\n  hydra init mon_job --template csv --force",
+  "help.init.docstring": "\b\nInitialise un projet Hydra (dossier .hydra, workflow1, job1).\n\b\n- Dossier vide ou absent : crée le projet complet.\n- Dossier contenant un job (YAML sources/destinations/pipeline) : ajoute seulement .hydra.\n- Tout autre dossier non vide : s’arrête avec un avertissement.\n\b\nTemplates pour job1 :\n  basic     — CSV simple\n  csv       — CSV avec données exemple (défaut)\n  mysql     — MySQL/MariaDB avec upsert\n  postgres  — PostgreSQL avec ON CONFLICT\n  api       — Web API REST avec pagination\n  mongodb   — MongoDB avec auto-détection schéma\n\b\nExemples :\n  hdrctl init mon_projet\n  hdrctl init .\n  hdrctl init mon_projet --template mysql",
   "help.test.docstring": "\b\nExemples :\n  hydra test .\n  hydra test jobs/daily_revenue\n  hydra test . --only-sources\n  hydra test . --only-transform\n  hydra test . -s sources_alt.yaml -d conf/destinations_prod.yaml",
   "help.validate.docstring": "\b\nExemples :\n  hydra validate .\n  hydra validate jobs/daily_revenue --strict\n  hydra validate . -s sources_alt.yaml -p conf/pipeline_prod.yaml",
   "help.list.docstring": "\b\nExemples :\n  hydra list\n  hydra list jobs/",
@@ -113,5 +112,11 @@
   "workflow.run.output_truncated": "… {count} ligne(s) de plus — voir les journaux du run",
   "validate.ops_none": "aucune",
   "validate.expr_invalid": "Étape {step} ({op}) : expression invalide '{expr}' — {error}",
-  "validate.expr_unchecked": "syntaxe non vérifiée (analyseur pandas indisponible)"
+  "validate.expr_unchecked": "syntaxe non vérifiée (analyseur pandas indisponible)",
+  "init.not_a_dir": "‘{path}’ existe et n’est pas un dossier.",
+  "init.already_project": "‘{path}’ est déjà un projet Hydra (.hydra présent). Rien n’a été modifié.",
+  "init.not_empty": "Le dossier ‘{path}’ n’est pas vide et ne contient pas de job Hydra.",
+  "init.not_empty_hint": "Lancez init dans un dossier vide, ou dans un dossier qui contient déjà sources.yaml, destinations.yaml et pipeline.yaml.",
+  "init.adopted": "Job existant détecté dans {path} : .hydra créé.",
+  "init.adopted_note": "Vos fichiers n’ont pas été modifiés. Lancez : hdrctl run ."
 }

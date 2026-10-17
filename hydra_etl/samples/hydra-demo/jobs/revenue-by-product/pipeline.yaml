@@ -1,0 +1,6 @@
+version: '1.0'
+pipeline:
+  name: revenue-by-product
+  from: orders_csv
+  to: revenue_csv
+  transformations: transformations.yaml

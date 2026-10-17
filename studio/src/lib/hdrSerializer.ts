@@ -120,7 +120,7 @@ const OP_TO_NODE: Record<string, string> = {
   sort: 'transform_sort', aggregate: 'transform_aggregate',
   deduplicate: 'transform_dedupe', derive: 'transform_derive',
   calculate: 'transform_derive', join: 'transform_join',
-  fill_null: 'transform_fill_null', clean: 'transform_clean',
+  fill_null: 'transform_fill_null', trim: 'transform_trim', clean: 'transform_clean',
   pivot: 'transform_pivot', unpivot: 'transform_unpivot',
   transpose: 'transform_transpose',
   merge: 'transform_merge',
@@ -517,8 +517,12 @@ function _stepToParams(op: string, raw: Record<string, unknown> = {}): Record<st
     case 'cast':         return { mapping: typeof raw.mapping === 'object' ? JSON.stringify(raw.mapping) : (raw.mapping ?? '') }
     case 'aggregate':    return { by: Array.isArray(raw.by) ? (raw.by as string[]).join(',') : (raw.by ?? ''), agg: typeof raw.agg === 'object' ? JSON.stringify(raw.agg) : (raw.agg ?? '') }
     case 'sort':         return { by: Array.isArray(raw.by) ? (raw.by as string[]).join(',') : (raw.by ?? ''), ascending: raw.ascending === false ? 'DESC' : 'ASC' }
-    case 'derive':       return { column: raw.column ?? '', expr: raw.expr ?? '' }
-    case 'deduplicate':  return { subset: Array.isArray(raw.subset) ? (raw.subset as string[]).join(',') : (raw.subset ?? '') }
+    case 'derive':
+    case 'calculate':    return { column: raw.column ?? '', expr: raw.expr ?? '' }
+    case 'deduplicate': {
+      const cols = raw.columns ?? raw.subset
+      return { columns: Array.isArray(cols) ? (cols as string[]).join(',') : (cols ?? '') }
+    }
     case 'join':         return { right: raw.right ?? '', key: raw.key ?? '', left_key: raw.left_key ?? '', right_key: raw.right_key ?? '', how: raw.how ?? 'inner' }
     case 'merge':        return { right: raw.right ?? '', key: raw.key ?? '', delete_unmatched: raw.delete_unmatched ? 'true' : 'false' }
     case 'union':        return { right: raw.right ?? '', distinct: raw.distinct ? 'true' : 'false' }
@@ -779,7 +783,7 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
     const dst = model.destinations[key]
     const nodeType = CONNECTOR_TO_DEST_NODE[dst.type] ?? 'dest_csv'
     const id = `imported_dst_${key}`
-    const params: Record<string, unknown> = { ...dst.connection, ...dst.load }
+    const params: Record<string, unknown> = _destToParams(dst)
     nodes.push({
       id, type: 'hydraNode', position: { x, y: 100 },
       data: { nodeType, label: key, params } as unknown as FlowNodeData,

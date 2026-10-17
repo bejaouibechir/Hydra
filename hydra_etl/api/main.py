@@ -38,6 +38,11 @@ async def lifespan(app: FastAPI):
     from hydra_etl.api import scheduler
     scheduler.start()
     try:
+        from hydra_etl.api import demo
+        demo.seed_on_first_run()
+    except Exception:  # la démo ne doit jamais empêcher le démarrage
+        pass
+    try:
         yield
     finally:
         scheduler.shutdown()

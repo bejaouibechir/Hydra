@@ -329,11 +329,27 @@ export default function Overview() {
   /** Ouvre un projet : sélecteur de dossier dans les 2 cas.
    *  adopt=false → « Ouvrir un projet » : exige un projet Hydra existant
    *  adopt=true  → « Ouvrir un dossier local » : adopte n'importe quel dossier */
+  const installDemo = useCallback(async () => {
+    setOpening(true)
+    setOpenError(null)
+    try {
+      const proj = await api.projects.installDemo()
+      recordOpen(proj.id)
+      navigate(`/projects/${proj.id}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setOpenError(msg)
+      notify('warning', 'Unable to install the demo project', msg)
+    } finally {
+      setOpening(false)
+    }
+  }, [navigate, notify])
+
   const openFromDisk = useCallback(async (adopt: boolean) => {
     setOpening(true)
     setOpenError(null)
     try {
-      const r = await pickPath('directory')
+      const r = await pickPath('directory', '', { confirmLabel: adopt ? 'Select this folder' : 'Select a project', projectOnly: !adopt })
       if (!r.path) return                       // dialogue annulé
       const proj = await api.projects.open(r.path, adopt)
       recordOpen(proj.id)
@@ -447,6 +463,9 @@ export default function Overview() {
               </p>
               <button className="btn-primary" onClick={() => setShowCreate(true)}>
                 <Plus size={15} /> New project
+              </button>
+              <button className="btn-secondary" style={{ marginLeft: 8 }} disabled={opening} onClick={installDemo}>
+                Install demo project
               </button>
             </div>
           ) : (

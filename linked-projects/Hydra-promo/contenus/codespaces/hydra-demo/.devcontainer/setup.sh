@@ -4,6 +4,13 @@
 # starting this container, so there is nothing to wait for here.
 set -e
 
+# Le bit executable ne survit pas toujours au depot : un fichier commite en
+# 100644 (ce que fait git sous Windows par defaut) arrive ici non executable,
+# et `./tour` repond alors "Permission denied" — devant le public. On le remet
+# a chaque creation du Codespace, pour que la demo ne puisse plus se bloquer
+# sur ce detail, meme si l'index du depot repart un jour de travers.
+chmod +x "$(dirname "${BASH_SOURCE[0]}")/../tour" 2>/dev/null || true
+
 echo "==> Installing Hydra ETL"
 pip install --quiet --upgrade pip
 pip install --quiet "hydra-etl[server]>=0.11.3" mysql-connector-python

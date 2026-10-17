@@ -1,0 +1,12 @@
+sources:
+  src_name:
+    type: postgresql
+    connection:
+      host: ${ENV:PG_HOST}
+      port: 5432
+      database: ${ENV:PG_DB}
+      user: ${ENV:PG_USER}
+      password: ${ENV:PG_PASS}
+    extract:
+      table: source_table
+      batch_size: 10000

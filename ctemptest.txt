@@ -1,0 +1,1562 @@
+........................................................................ [  5%]
+..........................s..s..s..s.................................... [ 10%]
+.................s..s..s..s..........................s.................. [ 15%]
+..s..s..s..s.....s..s........s..s.......F............................... [ 21%]
+.....................sss................................................ [ 26%]
+........................................................................ [ 31%]
+...............................FE..sssssssssssssssss.................... [ 37%]
+......................................................F................. [ 42%]
+......................F..............F.................................. [ 47%]
+..............................................FFFF...................... [ 53%]
+..................................................................FFF.FF [ 58%]
+F....................................................................... [ 63%]
+........FFF.....F............................F..........FEFE............ [ 69%]
+....F.....FF............................................................ [ 74%]
+........................................................................ [ 79%]
+........................................................................ [ 84%]
+..................F..................................................... [ 90%]
+........................................................................ [ 95%]
+......................s..........................s.........              [100%]
+=================================== ERRORS ====================================
+______________ ERROR at teardown of test_merge_multiple_fixtures ______________
+
+path = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2'
+onexc = <function TemporaryDirectory._rmtree.<locals>.onexc at 0x000001831B45B240>
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            if not isinstance(err, FileNotFoundError):
+                onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.rmdir(fullname)
+                except FileNotFoundError:
+                    continue
+                except OSError as err:
+                    onexc(os.rmdir, fullname, err)
+            for name in filenames:
+                fullname = os.path.join(dirpath, name)
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2\\combined.parquet'
+
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:625: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+    @pytest.fixture
+    def temp_job_dir():
+        """Répertoire temporaire pour outputs."""
+>       with tempfile.TemporaryDirectory() as tmpdir:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_e2e_parquet.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:951: in __exit__
+    self.cleanup()
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:955: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:935: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:790: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:629: in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2\\combined.parquet'
+exc = PermissionError(13, 'Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus')
+
+    def onexc(func, path, exc):
+        if isinstance(exc, PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2\\combined.parquet'
+
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:910: PermissionError
+______________ ERROR at teardown of test_load_batches_append_ok _______________
+
+path = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei'
+onexc = <function TemporaryDirectory._rmtree.<locals>.onexc at 0x000001835C60EE80>
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            if not isinstance(err, FileNotFoundError):
+                onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.rmdir(fullname)
+                except FileNotFoundError:
+                    continue
+                except OSError as err:
+                    onexc(os.rmdir, fullname, err)
+            for name in filenames:
+                fullname = os.path.join(dirpath, name)
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei\\output.parquet'
+
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:625: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+    @pytest.fixture
+    def temp_job_dir():
+        """Crée un répertoire temporaire pour les tests."""
+>       with tempfile.TemporaryDirectory() as tmpdir:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_parquet_connector.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:951: in __exit__
+    self.cleanup()
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:955: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:935: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:790: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:629: in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei\\output.parquet'
+exc = PermissionError(13, 'Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus')
+
+    def onexc(func, path, exc):
+        if isinstance(exc, PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei\\output.parquet'
+
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:910: PermissionError
+________ ERROR at teardown of test_load_batches_append_schema_mismatch ________
+
+path = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpoznnni63'
+onexc = <function TemporaryDirectory._rmtree.<locals>.onexc at 0x000001835C60F920>
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            if not isinstance(err, FileNotFoundError):
+                onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.rmdir(fullname)
+                except FileNotFoundError:
+                    continue
+                except OSError as err:
+                    onexc(os.rmdir, fullname, err)
+            for name in filenames:
+                fullname = os.path.join(dirpath, name)
+                try:
+>                   os.unlink(fullname)
+E                   PermissionError: [WinError 32] Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpoznnni63\\output.parquet'
+
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:625: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+    @pytest.fixture
+    def temp_job_dir():
+        """Crée un répertoire temporaire pour les tests."""
+>       with tempfile.TemporaryDirectory() as tmpdir:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_parquet_connector.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:951: in __exit__
+    self.cleanup()
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:955: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:935: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:790: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python313\Lib\shutil.py:629: in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+func = <built-in function unlink>
+path = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpoznnni63\\output.parquet'
+exc = PermissionError(13, 'Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus')
+
+    def onexc(func, path, exc):
+        if isinstance(exc, PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+>                   _os.unlink(path)
+E                   PermissionError: [WinError 32] Le processus ne peut pas accéder au fichier car ce fichier est utilisé par un autre processus: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpoznnni63\\output.parquet'
+
+..\..\AppData\Local\Programs\Python\Python313\Lib\tempfile.py:910: PermissionError
+================================== FAILURES ===================================
+___________________ test_evaluation_dataset_is_synchronised ___________________
+
+    def test_evaluation_dataset_is_synchronised() -> None:
+>       assert DEFAULT_OUTPUT.read_text(encoding="utf-8") == _json_text(build_dataset())
+E       assert '{\n  "cases"...es": 100\n}\n' == '{\n  "cases"...es": 100\n}\n'
+E         
+E         Skipping 656 identical leading characters in diff, use -v to show
+E         - sion": "0.11.4",
+E         ?           ^^ ^
+E         + sion": "0.9.6",
+E         ?           ^ ^
+E                   "notion": "dsl.job_pipeline",...
+E         
+E         ...Full output truncated (3888 lines hidden), use '-vv' to show
+
+tests\test_chatbot_eval_dataset.py:6: AssertionError
+________________________ test_merge_multiple_fixtures _________________________
+
+self = <hydra_etl.internal.connector.parquet_connector.ParquetConnector object at 0x000001831B2957F0>
+batches = [[{'id': 1, 'name': 'Laptop', 'type': 'product'}, {'id': 2, 'name': 'Mouse', 'type': 'product'}, {'id': 3, 'name': 'Ke..., 'type': 'product'}, {'id': 4, 'name': 'Monitor', 'type': 'product'}, {'id': 5, 'name': 'Webcam', 'type': 'product'}]]
+
+    def load_batches(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+        compression: str = "snappy",
+    ) -> None:
+        """Ecrit les lots en flux, sans les accumuler en memoire."""
+        _require_pyarrow()
+        mode_norm = mode.strip().lower()
+        if mode_norm not in {"append", "replace"}:
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' invalide.")
+        comp_norm = compression.strip().lower()
+        if comp_norm not in self.VALID_COMPRESSIONS:
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+        compression_arg = None if comp_norm == "none" else comp_norm
+    
+        resolved_path = self._resolve_path(table)
+        Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
+    
+        tables = [t for t in (self._to_table(b) for b in batches) if t is not None]
+        if not tables:
+            if mode_norm == "replace" and os.path.isfile(resolved_path):
+                os.remove(resolved_path)
+            return
+    
+        recopier = mode_norm == "append" and os.path.isfile(resolved_path)
+        if recopier:
+            existant = pq.ParquetFile(resolved_path)
+            if set(existant.schema_arrow.names) != set(tables[0].schema.names):
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+    
+        cible = Path(resolved_path)
+        temporaire = cible.with_name(cible.name + ".hydra-tmp")
+        writer = None
+        try:
+            if recopier:
+                # Parquet se termine par un pied de page : on ne peut pas y
+                # ajouter en place. On recopie l'existant lot par lot (memoire
+                # bornee), puis on ajoute les nouveaux lots.
+                lecteur = pq.ParquetFile(resolved_path)
+                schema = lecteur.schema_arrow
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+                for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                    writer.write_table(pa.Table.from_batches([rb], schema=schema))
+            else:
+                schema = tables[0].schema
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+    
+            for t in tables:
+                if not t.schema.equals(schema):
+                    try:
+                        t = t.cast(schema)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                        ) from None
+                writer.write_table(t)
+            writer.close()
+            writer = None
+>           os.replace(temporaire, resolved_path)
+E           PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2\\combined.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2\\combined.parquet'
+
+hydra_etl\internal\connector\parquet_connector.py:284: PermissionError
+
+The above exception was the direct cause of the following exception:
+
+fixtures_available = None
+temp_job_dir = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2'
+
+    def test_merge_multiple_fixtures(fixtures_available, temp_job_dir):
+        """Test: Combiner users et products en un seul fichier."""
+        dest_config = {
+            "type": "parquet",
+            "job_dir": temp_job_dir
+        }
+    
+        dest = ParquetConnector(name="dest", config=dest_config)
+    
+        # Load users
+        source_users = ParquetConnector(
+            name="users",
+            config={
+                "type": "parquet",
+                "job_dir": str(FIXTURES_DIR),
+                "extract": {"file": "users.parquet"}
+            }
+        )
+    
+        batches_users = list(source_users.extract_batches())
+    
+        # Créer structure commune (id, name, type)
+        unified_users = []
+        for batch in batches_users:
+            for row in batch:
+                unified_users.append({
+                    "id": row["id"],
+                    "name": row["name"],
+                    "type": "user"
+                })
+    
+        dest.load_batches([unified_users], table="combined.parquet", mode="replace")
+    
+        # Load products (append)
+        source_products = ParquetConnector(
+            name="products",
+            config={
+                "type": "parquet",
+                "job_dir": str(FIXTURES_DIR),
+                "extract": {"file": "products.parquet"}
+            }
+        )
+    
+        batches_products = list(source_products.extract_batches())
+    
+        unified_products = []
+        for batch in batches_products:
+            for row in batch:
+                unified_products.append({
+                    "id": row["product_id"],
+                    "name": row["product_name"],
+                    "type": "product"
+                })
+    
+>       dest.load_batches([unified_products], table="combined.parquet", mode="append")
+
+tests\test_e2e_parquet.py:358: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.connector.parquet_connector.ParquetConnector object at 0x000001831B2957F0>
+batches = [[{'id': 1, 'name': 'Laptop', 'type': 'product'}, {'id': 2, 'name': 'Mouse', 'type': 'product'}, {'id': 3, 'name': 'Ke..., 'type': 'product'}, {'id': 4, 'name': 'Monitor', 'type': 'product'}, {'id': 5, 'name': 'Webcam', 'type': 'product'}]]
+
+    def load_batches(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+        compression: str = "snappy",
+    ) -> None:
+        """Ecrit les lots en flux, sans les accumuler en memoire."""
+        _require_pyarrow()
+        mode_norm = mode.strip().lower()
+        if mode_norm not in {"append", "replace"}:
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' invalide.")
+        comp_norm = compression.strip().lower()
+        if comp_norm not in self.VALID_COMPRESSIONS:
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+        compression_arg = None if comp_norm == "none" else comp_norm
+    
+        resolved_path = self._resolve_path(table)
+        Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
+    
+        tables = [t for t in (self._to_table(b) for b in batches) if t is not None]
+        if not tables:
+            if mode_norm == "replace" and os.path.isfile(resolved_path):
+                os.remove(resolved_path)
+            return
+    
+        recopier = mode_norm == "append" and os.path.isfile(resolved_path)
+        if recopier:
+            existant = pq.ParquetFile(resolved_path)
+            if set(existant.schema_arrow.names) != set(tables[0].schema.names):
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+    
+        cible = Path(resolved_path)
+        temporaire = cible.with_name(cible.name + ".hydra-tmp")
+        writer = None
+        try:
+            if recopier:
+                # Parquet se termine par un pied de page : on ne peut pas y
+                # ajouter en place. On recopie l'existant lot par lot (memoire
+                # bornee), puis on ajoute les nouveaux lots.
+                lecteur = pq.ParquetFile(resolved_path)
+                schema = lecteur.schema_arrow
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+                for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                    writer.write_table(pa.Table.from_batches([rb], schema=schema))
+            else:
+                schema = tables[0].schema
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+    
+            for t in tables:
+                if not t.schema.equals(schema):
+                    try:
+                        t = t.cast(schema)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                        ) from None
+                writer.write_table(t)
+            writer.close()
+            writer = None
+            os.replace(temporaire, resolved_path)
+        except (ImportError, ValueError):
+            self._nettoyer(writer, temporaire)
+            raise
+        except Exception as e:
+            self._nettoyer(writer, temporaire)
+>           raise ValueError(
+                f"ParquetConnector [{self.name}]: echec ecriture Parquet. {type(e).__name__}: {e}"
+            ) from e
+E           ValueError: ParquetConnector [dest]: echec ecriture Parquet. PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2\\combined.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmp63wsy2q2\\combined.parquet'
+
+hydra_etl\internal\connector\parquet_connector.py:290: ValueError
+___________________ test_committed_schemas_are_synchronised ___________________
+
+    def test_committed_schemas_are_synchronised() -> None:
+>       assert check_artifacts(Path(DEFAULT_OUTPUT), build_artifacts()) == []
+E       AssertionError: assert ['obsolète: m...ma.json', ...] == []
+E         
+E         Left contains 23 more items, first extra item: 'obsolète: manifests/sources.schema.json'
+E         Use -v to get more diff
+
+tests\test_generate_dsl_schemas.py:43: AssertionError
+_______________ TestErrorHandling.test_error_both_file_and_url ________________
+
+self = <test_json_connector_fixtures.TestErrorHandling object at 0x0000018318DD8EF0>
+json_connector = <hydra_etl.internal.connector.json_connector.JSONConnector object at 0x000001831AF05770>
+
+    def test_error_both_file_and_url(self, json_connector):
+        """Test erreur: file et url mutuellement exclusifs."""
+        with pytest.raises(ValueError) as exc_info:
+>           list(json_connector.extract_batches(
+                file="test.json",
+                url="http://example.com"
+            ))
+E           TypeError: JSONConnector.extract_batches() got an unexpected keyword argument 'url'
+
+tests\test_json_connector_fixtures.py:475: TypeError
+___________ TestFutureFeatures.test_url_extraction_not_implemented ____________
+
+self = <test_json_connector_fixtures.TestFutureFeatures object at 0x0000018318E0C050>
+json_connector = <hydra_etl.internal.connector.json_connector.JSONConnector object at 0x000001830608EF20>
+
+    def test_url_extraction_not_implemented(self, json_connector):
+        """Test URL extraction \u2192 Sprint 5+."""
+        with pytest.raises(NotImplementedError) as exc_info:
+>           list(json_connector.extract_batches(url="http://example.com/data.json"))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: JSONConnector.extract_batches() got an unexpected keyword argument 'url'
+
+tests\test_json_connector_fixtures.py:628: TypeError
+____________________ TestCastOpAliases.test_alias_integer _____________________
+
+self = <test_new_critical_fixes.TestCastOpAliases object at 0x000001831A9A0A50>
+parser = <hydra_etl.internal.parser.transform.TransformParser object at 0x000001831B39CAA0>
+
+    def test_alias_integer(self, parser):
+>       cfg = parser.parse({"steps": [{"cast": {"mapping": {"id": "integer"}}}]})
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_new_critical_fixes.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.parser.transform.TransformParser object at 0x000001831B39CAA0>
+raw = {'steps': [{'cast': {'mapping': {'id': 'integer'}}}]}
+
+    def parse(self, raw: Dict[str, Any]) -> TransformConfig:
+        converted = self._convert_steps(raw)
+>       return TransformConfig.model_validate(converted)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for TransformConfig
+E       steps.0.mapping
+E         Value error, type de cast invalide: integer (attendu: ['bool', 'date', 'datetime', 'float', 'int', 'str']) [type=value_error, input_value={'id': 'integer'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+hydra_etl\internal\parser\transform.py:453: ValidationError
+_____________________ TestCastOpAliases.test_alias_string _____________________
+
+self = <test_new_critical_fixes.TestCastOpAliases object at 0x000001831A9A0B90>
+parser = <hydra_etl.internal.parser.transform.TransformParser object at 0x000001831B39D040>
+
+    def test_alias_string(self, parser):
+>       cfg = parser.parse({"steps": [{"cast": {"mapping": {"name": "string"}}}]})
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_new_critical_fixes.py:127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.parser.transform.TransformParser object at 0x000001831B39D040>
+raw = {'steps': [{'cast': {'mapping': {'name': 'string'}}}]}
+
+    def parse(self, raw: Dict[str, Any]) -> TransformConfig:
+        converted = self._convert_steps(raw)
+>       return TransformConfig.model_validate(converted)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for TransformConfig
+E       steps.0.mapping
+E         Value error, type de cast invalide: string (attendu: ['bool', 'date', 'datetime', 'float', 'int', 'str']) [type=value_error, input_value={'name': 'string'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+hydra_etl\internal\parser\transform.py:453: ValidationError
+____________________ TestCastOpAliases.test_alias_boolean _____________________
+
+self = <test_new_critical_fixes.TestCastOpAliases object at 0x000001831A95DBA0>
+parser = <hydra_etl.internal.parser.transform.TransformParser object at 0x000001831B234230>
+
+    def test_alias_boolean(self, parser):
+>       cfg = parser.parse({"steps": [{"cast": {"mapping": {"active": "boolean"}}}]})
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_new_critical_fixes.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.parser.transform.TransformParser object at 0x000001831B234230>
+raw = {'steps': [{'cast': {'mapping': {'active': 'boolean'}}}]}
+
+    def parse(self, raw: Dict[str, Any]) -> TransformConfig:
+        converted = self._convert_steps(raw)
+>       return TransformConfig.model_validate(converted)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for TransformConfig
+E       steps.0.mapping
+E         Value error, type de cast invalide: boolean (attendu: ['bool', 'date', 'datetime', 'float', 'int', 'str']) [type=value_error, input_value={'active': 'boolean'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+hydra_etl\internal\parser\transform.py:453: ValidationError
+______________ TestCastOpAliases.test_canonical_types_still_work ______________
+
+self = <test_new_critical_fixes.TestCastOpAliases object at 0x000001831A95DCD0>
+parser = <hydra_etl.internal.parser.transform.TransformParser object at 0x000001831B235EA0>
+
+    def test_canonical_types_still_work(self, parser):
+        cfg = parser.parse({"steps": [{"cast": {"mapping": {"x": "int", "y": "float", "z": "str"}}}]})
+>       assert cfg.steps[0].params.mapping == {"x": "int", "y": "float", "z": "str"}
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'mapping'
+
+tests\test_new_critical_fixes.py:136: AttributeError
+______________________ test_cast_bool_ok[active_string] _______________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001831B236990>
+df_case =    id  price  qty active
+0   1   10.0    1   true
+1   2   20.0    2  false
+2   3   30.0    3   true
+
+    def test_cast_bool_ok(engine, df_case):
+        """Cas nominal : conversion vers bool (gère 3 formats)."""
+        step = {"cast": {"mapping": {"active": "bool"}}}
+    
+        df = engine.apply_step(df_case, step).output
+    
+>       assert str(df["active"].dtype) == "boolean"
+E       AssertionError: assert 'bool' == 'boolean'
+E         
+E         - boolean
+E         + bool
+
+tests\test_pandas_engine.py:232: AssertionError
+________________________ test_cast_bool_ok[active_int] ________________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001831B235090>
+df_case =    id  price  qty  active
+0   1   10.0    1       1
+1   2   20.0    2       0
+2   3   30.0    3       1
+
+    def test_cast_bool_ok(engine, df_case):
+        """Cas nominal : conversion vers bool (gère 3 formats)."""
+        step = {"cast": {"mapping": {"active": "bool"}}}
+    
+        df = engine.apply_step(df_case, step).output
+    
+>       assert str(df["active"].dtype) == "boolean"
+E       AssertionError: assert 'bool' == 'boolean'
+E         
+E         - boolean
+E         + bool
+
+tests\test_pandas_engine.py:232: AssertionError
+_______________________ test_cast_bool_ok[active_bool] ________________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001831B234AF0>
+df_case =    id  price  qty  active
+0   1   10.0    1    True
+1   2   20.0    2   False
+2   3   30.0    3    True
+
+    def test_cast_bool_ok(engine, df_case):
+        """Cas nominal : conversion vers bool (gère 3 formats)."""
+        step = {"cast": {"mapping": {"active": "bool"}}}
+    
+        df = engine.apply_step(df_case, step).output
+    
+>       assert str(df["active"].dtype) == "boolean"
+E       AssertionError: assert 'bool' == 'boolean'
+E         
+E         - boolean
+E         + bool
+
+tests\test_pandas_engine.py:232: AssertionError
+__________________ test_cast_multiple_columns[active_string] __________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835B670D20>
+df_case =    id  price  qty active
+0   1   10.0    1   true
+1   2   20.0    2  false
+2   3   30.0    3   true
+
+    def test_cast_multiple_columns(engine, df_case):
+        """Cast de plusieurs colonnes à la fois."""
+        step = {"cast": {"mapping": {"id": "str", "price": "int", "active": "bool"}}}
+    
+        df = engine.apply_step(df_case, step).output
+    
+        assert str(df["id"].dtype) == "string"
+        assert str(df["price"].dtype) == "Int64"
+>       assert str(df["active"].dtype) == "boolean"
+E       AssertionError: assert 'bool' == 'boolean'
+E         
+E         - boolean
+E         + bool
+
+tests\test_pandas_engine.py:257: AssertionError
+___________________ test_cast_multiple_columns[active_int] ____________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835B6737F0>
+df_case =    id  price  qty  active
+0   1   10.0    1       1
+1   2   20.0    2       0
+2   3   30.0    3       1
+
+    def test_cast_multiple_columns(engine, df_case):
+        """Cast de plusieurs colonnes à la fois."""
+        step = {"cast": {"mapping": {"id": "str", "price": "int", "active": "bool"}}}
+    
+        df = engine.apply_step(df_case, step).output
+    
+        assert str(df["id"].dtype) == "string"
+        assert str(df["price"].dtype) == "Int64"
+>       assert str(df["active"].dtype) == "boolean"
+E       AssertionError: assert 'bool' == 'boolean'
+E         
+E         - boolean
+E         + bool
+
+tests\test_pandas_engine.py:257: AssertionError
+___________________ test_cast_multiple_columns[active_bool] ___________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835B600690>
+df_case =    id  price  qty  active
+0   1   10.0    1    True
+1   2   20.0    2   False
+2   3   30.0    3    True
+
+    def test_cast_multiple_columns(engine, df_case):
+        """Cast de plusieurs colonnes à la fois."""
+        step = {"cast": {"mapping": {"id": "str", "price": "int", "active": "bool"}}}
+    
+        df = engine.apply_step(df_case, step).output
+    
+        assert str(df["id"].dtype) == "string"
+        assert str(df["price"].dtype) == "Int64"
+>       assert str(df["active"].dtype) == "boolean"
+E       AssertionError: assert 'bool' == 'boolean'
+E         
+E         - boolean
+E         + bool
+
+tests\test_pandas_engine.py:257: AssertionError
+___________________ test_step_unknown_op_ko[active_string] ____________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835B603700>
+df_case =    id  price  qty active
+0   1   10.0    1   true
+1   2   20.0    2  false
+2   3   30.0    3   true
+
+    def test_step_unknown_op_ko(engine, df_case):
+        """Cas KO : opération inconnue."""
+        step = {"unknown_op": {"param": "value"}}
+    
+        with pytest.raises(ValueError, match="Opération non supportée"):
+>           engine.apply_step(df_case, step)
+
+tests\test_pandas_engine.py:535: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+hydra_etl\internal\engines\pandas_engine.py:194: in apply_step
+    df_out = self._apply_op(dataset, ns)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835B603700>
+df =    id  price  qty active
+0   1   10.0    1   true
+1   2   20.0    2  false
+2   3   30.0    3   true
+step = _NormalizedStep(op='unknown_op', params={'param': 'value'})
+
+    def _apply_op(self, df: pd.DataFrame, step: _NormalizedStep) -> pd.DataFrame:
+        """Dispatche l'opération vers la méthode appropriée."""
+        if step.op == "select":
+            return self._op_select(df, step.params)
+        if step.op == "rename":
+            return self._op_rename(df, step.params)
+        if step.op == "cast":
+            return self._op_cast(df, step.params)
+        if step.op == "filter":
+            return self._op_filter(df, step.params)
+        if step.op == "calculate":
+            return self._op_calculate(df, step.params)
+        if step.op == "sort":
+            return self._op_sort(df, step.params)
+        if step.op == "deduplicate":
+            return self._op_deduplicate(df, step.params)
+        if step.op == "fill_null":
+            return self._op_fill_null(df, step.params)
+        if step.op == "trim":
+            return self._op_trim(df, step.params)
+        if step.op == "aggregate":
+            return self._op_aggregate(df, step.params)
+        if step.op == "join":
+            return self._op_join(df, step.params)
+        if step.op == "clean":
+            return self._op_clean(df, step.params)
+        if step.op == "pivot":
+            return self._op_pivot(df, step.params)
+        if step.op == "unpivot":
+            return self._op_unpivot(df, step.params)
+        if step.op == "transpose":
+            return self._op_transpose(df, step.params)
+        if step.op == "merge":
+            return self._op_merge(df, step.params)
+        if step.op == "union":
+            return self._op_union(df, step.params)
+        if step.op == "script":
+            return self._op_script(df, step.params)
+    
+>       raise ValueError(
+            f"Opération inconnue: {step.op}. "
+            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script"
+        )
+E       ValueError: Opération inconnue: unknown_op. Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script
+
+hydra_etl\internal\engines\pandas_engine.py:332: ValueError
+
+During handling of the above exception, another exception occurred:
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835B603700>
+df_case =    id  price  qty active
+0   1   10.0    1   true
+1   2   20.0    2  false
+2   3   30.0    3   true
+
+    def test_step_unknown_op_ko(engine, df_case):
+        """Cas KO : opération inconnue."""
+        step = {"unknown_op": {"param": "value"}}
+    
+>       with pytest.raises(ValueError, match="Opération non supportée"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'Opération non supportée'
+E         Actual message: 'Opération inconnue: unknown_op. Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script'
+
+tests\test_pandas_engine.py:534: AssertionError
+_____________________ test_step_unknown_op_ko[active_int] _____________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001831B235310>
+df_case =    id  price  qty  active
+0   1   10.0    1       1
+1   2   20.0    2       0
+2   3   30.0    3       1
+
+    def test_step_unknown_op_ko(engine, df_case):
+        """Cas KO : opération inconnue."""
+        step = {"unknown_op": {"param": "value"}}
+    
+        with pytest.raises(ValueError, match="Opération non supportée"):
+>           engine.apply_step(df_case, step)
+
+tests\test_pandas_engine.py:535: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+hydra_etl\internal\engines\pandas_engine.py:194: in apply_step
+    df_out = self._apply_op(dataset, ns)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001831B235310>
+df =    id  price  qty  active
+0   1   10.0    1       1
+1   2   20.0    2       0
+2   3   30.0    3       1
+step = _NormalizedStep(op='unknown_op', params={'param': 'value'})
+
+    def _apply_op(self, df: pd.DataFrame, step: _NormalizedStep) -> pd.DataFrame:
+        """Dispatche l'opération vers la méthode appropriée."""
+        if step.op == "select":
+            return self._op_select(df, step.params)
+        if step.op == "rename":
+            return self._op_rename(df, step.params)
+        if step.op == "cast":
+            return self._op_cast(df, step.params)
+        if step.op == "filter":
+            return self._op_filter(df, step.params)
+        if step.op == "calculate":
+            return self._op_calculate(df, step.params)
+        if step.op == "sort":
+            return self._op_sort(df, step.params)
+        if step.op == "deduplicate":
+            return self._op_deduplicate(df, step.params)
+        if step.op == "fill_null":
+            return self._op_fill_null(df, step.params)
+        if step.op == "trim":
+            return self._op_trim(df, step.params)
+        if step.op == "aggregate":
+            return self._op_aggregate(df, step.params)
+        if step.op == "join":
+            return self._op_join(df, step.params)
+        if step.op == "clean":
+            return self._op_clean(df, step.params)
+        if step.op == "pivot":
+            return self._op_pivot(df, step.params)
+        if step.op == "unpivot":
+            return self._op_unpivot(df, step.params)
+        if step.op == "transpose":
+            return self._op_transpose(df, step.params)
+        if step.op == "merge":
+            return self._op_merge(df, step.params)
+        if step.op == "union":
+            return self._op_union(df, step.params)
+        if step.op == "script":
+            return self._op_script(df, step.params)
+    
+>       raise ValueError(
+            f"Opération inconnue: {step.op}. "
+            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script"
+        )
+E       ValueError: Opération inconnue: unknown_op. Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script
+
+hydra_etl\internal\engines\pandas_engine.py:332: ValueError
+
+During handling of the above exception, another exception occurred:
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001831B235310>
+df_case =    id  price  qty  active
+0   1   10.0    1       1
+1   2   20.0    2       0
+2   3   30.0    3       1
+
+    def test_step_unknown_op_ko(engine, df_case):
+        """Cas KO : opération inconnue."""
+        step = {"unknown_op": {"param": "value"}}
+    
+>       with pytest.raises(ValueError, match="Opération non supportée"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'Opération non supportée'
+E         Actual message: 'Opération inconnue: unknown_op. Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script'
+
+tests\test_pandas_engine.py:534: AssertionError
+____________________ test_step_unknown_op_ko[active_bool] _____________________
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835C1EC870>
+df_case =    id  price  qty  active
+0   1   10.0    1    True
+1   2   20.0    2   False
+2   3   30.0    3    True
+
+    def test_step_unknown_op_ko(engine, df_case):
+        """Cas KO : opération inconnue."""
+        step = {"unknown_op": {"param": "value"}}
+    
+        with pytest.raises(ValueError, match="Opération non supportée"):
+>           engine.apply_step(df_case, step)
+
+tests\test_pandas_engine.py:535: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+hydra_etl\internal\engines\pandas_engine.py:194: in apply_step
+    df_out = self._apply_op(dataset, ns)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835C1EC870>
+df =    id  price  qty  active
+0   1   10.0    1    True
+1   2   20.0    2   False
+2   3   30.0    3    True
+step = _NormalizedStep(op='unknown_op', params={'param': 'value'})
+
+    def _apply_op(self, df: pd.DataFrame, step: _NormalizedStep) -> pd.DataFrame:
+        """Dispatche l'opération vers la méthode appropriée."""
+        if step.op == "select":
+            return self._op_select(df, step.params)
+        if step.op == "rename":
+            return self._op_rename(df, step.params)
+        if step.op == "cast":
+            return self._op_cast(df, step.params)
+        if step.op == "filter":
+            return self._op_filter(df, step.params)
+        if step.op == "calculate":
+            return self._op_calculate(df, step.params)
+        if step.op == "sort":
+            return self._op_sort(df, step.params)
+        if step.op == "deduplicate":
+            return self._op_deduplicate(df, step.params)
+        if step.op == "fill_null":
+            return self._op_fill_null(df, step.params)
+        if step.op == "trim":
+            return self._op_trim(df, step.params)
+        if step.op == "aggregate":
+            return self._op_aggregate(df, step.params)
+        if step.op == "join":
+            return self._op_join(df, step.params)
+        if step.op == "clean":
+            return self._op_clean(df, step.params)
+        if step.op == "pivot":
+            return self._op_pivot(df, step.params)
+        if step.op == "unpivot":
+            return self._op_unpivot(df, step.params)
+        if step.op == "transpose":
+            return self._op_transpose(df, step.params)
+        if step.op == "merge":
+            return self._op_merge(df, step.params)
+        if step.op == "union":
+            return self._op_union(df, step.params)
+        if step.op == "script":
+            return self._op_script(df, step.params)
+    
+>       raise ValueError(
+            f"Opération inconnue: {step.op}. "
+            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script"
+        )
+E       ValueError: Opération inconnue: unknown_op. Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script
+
+hydra_etl\internal\engines\pandas_engine.py:332: ValueError
+
+During handling of the above exception, another exception occurred:
+
+engine = <hydra_etl.internal.engines.pandas_engine.PandasEngine object at 0x000001835C1EC870>
+df_case =    id  price  qty  active
+0   1   10.0    1    True
+1   2   20.0    2   False
+2   3   30.0    3    True
+
+    def test_step_unknown_op_ko(engine, df_case):
+        """Cas KO : opération inconnue."""
+        step = {"unknown_op": {"param": "value"}}
+    
+>       with pytest.raises(ValueError, match="Opération non supportée"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'Opération non supportée'
+E         Actual message: 'Opération inconnue: unknown_op. Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script'
+
+tests\test_pandas_engine.py:534: AssertionError
+___________________ test_engine_works_with_transform_parser ___________________
+
+    def test_engine_works_with_transform_parser():
+        """
+        Test d'intégration CRITIQUE :
+        Valide que l'engine accepte la sortie du TransformParser.
+    
+        Ce test garantit la compatibilit\xe9 Parser \u2192 Engine.
+        """
+        from hydra_etl.internal.parser.transform import TransformParser
+    
+        # Parser un YAML réel
+        raw = {
+            "steps": [
+                {"select": {"columns": ["id", "name", "price"]}},
+                {"filter": {"expr": "price > 15"}},
+                {"calculate": {"column": "discount", "expr": "price * 0.9"}},
+                {"rename": {"mapping": {"name": "customer_name"}}},
+            ]
+        }
+    
+        # Parser le config
+        config = TransformParser().parse(raw)
+    
+        # Convertir les steps parsés en format dict pour l'engine
+        steps_dict = []
+        for step in config.steps:
+            # Le parser retourne des objets Pydantic, on les convertit en dict
+>           step_dict = {step.op: step.params.model_dump()}
+                                  ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'dict' object has no attribute 'model_dump'
+
+tests\test_pandas_engine.py:594: AttributeError
+________________________ test_init_job_dir_not_exists _________________________
+
+temp_job_dir = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpchxtqcg1'
+
+    def test_init_job_dir_not_exists(temp_job_dir):
+        """Test: job_dir n'existe pas \u2192 ValueError."""
+        bad_dir = os.path.join(temp_job_dir, "nonexistent")
+        config = {"type": "parquet", "job_dir": bad_dir}
+    
+        with pytest.raises(ValueError) as exc:
+            ParquetConnector(name="test", config=config)
+    
+>       assert "n'existe pas" in str(exc.value).lower()
+E       assert "n'existe pas" in "parquetconnector [test]: job_dir 'c:\\users\\dell\\appdata\\local\\temp\\tmpchxtqcg1\\nonexistent' inexistant."
+E        +  where "parquetconnector [test]: job_dir 'c:\\users\\dell\\appdata\\local\\temp\\tmpchxtqcg1\\nonexistent' inexistant." = <built-in method lower of str object at 0x000001835B676D30>()
+E        +    where <built-in method lower of str object at 0x000001835B676D30> = "ParquetConnector [test]: job_dir 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpchxtqcg1\\nonexistent' inexistant.".lower
+E        +      where "ParquetConnector [test]: job_dir 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpchxtqcg1\\nonexistent' inexistant." = str(ValueError("ParquetConnector [test]: job_dir 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpchxtqcg1\\nonexistent' inexistant."))
+E        +        where ValueError("ParquetConnector [test]: job_dir 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpchxtqcg1\\nonexistent' inexistant.") = <ExceptionInfo ValueError("ParquetConnector [test]: job_dir 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpchxtqcg1\\nonexistent' inexistant.") tblen=2>.value
+
+tests\test_parquet_connector.py:93: AssertionError
+_________________________ test_load_batches_append_ok _________________________
+
+self = <hydra_etl.internal.connector.parquet_connector.ParquetConnector object at 0x000001831AAD1080>
+batches = [[{'id': 2, 'name': 'Bob'}]]
+
+    def load_batches(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+        compression: str = "snappy",
+    ) -> None:
+        """Ecrit les lots en flux, sans les accumuler en memoire."""
+        _require_pyarrow()
+        mode_norm = mode.strip().lower()
+        if mode_norm not in {"append", "replace"}:
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' invalide.")
+        comp_norm = compression.strip().lower()
+        if comp_norm not in self.VALID_COMPRESSIONS:
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+        compression_arg = None if comp_norm == "none" else comp_norm
+    
+        resolved_path = self._resolve_path(table)
+        Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
+    
+        tables = [t for t in (self._to_table(b) for b in batches) if t is not None]
+        if not tables:
+            if mode_norm == "replace" and os.path.isfile(resolved_path):
+                os.remove(resolved_path)
+            return
+    
+        recopier = mode_norm == "append" and os.path.isfile(resolved_path)
+        if recopier:
+            existant = pq.ParquetFile(resolved_path)
+            if set(existant.schema_arrow.names) != set(tables[0].schema.names):
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+    
+        cible = Path(resolved_path)
+        temporaire = cible.with_name(cible.name + ".hydra-tmp")
+        writer = None
+        try:
+            if recopier:
+                # Parquet se termine par un pied de page : on ne peut pas y
+                # ajouter en place. On recopie l'existant lot par lot (memoire
+                # bornee), puis on ajoute les nouveaux lots.
+                lecteur = pq.ParquetFile(resolved_path)
+                schema = lecteur.schema_arrow
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+                for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                    writer.write_table(pa.Table.from_batches([rb], schema=schema))
+            else:
+                schema = tables[0].schema
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+    
+            for t in tables:
+                if not t.schema.equals(schema):
+                    try:
+                        t = t.cast(schema)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                        ) from None
+                writer.write_table(t)
+            writer.close()
+            writer = None
+>           os.replace(temporaire, resolved_path)
+E           PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei\\output.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei\\output.parquet'
+
+hydra_etl\internal\connector\parquet_connector.py:284: PermissionError
+
+The above exception was the direct cause of the following exception:
+
+temp_job_dir = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei'
+
+    def test_load_batches_append_ok(temp_job_dir):
+        """Test: Load mode append."""
+        config = {"type": "parquet", "job_dir": temp_job_dir}
+        conn = ParquetConnector(name="test", config=config)
+    
+        # Premier chargement
+        batch1 = [[{"id": 1, "name": "Alice"}]]
+        conn.load_batches(batch1, table="output.parquet", mode="replace")
+    
+        # Append
+        batch2 = [[{"id": 2, "name": "Bob"}]]
+>       conn.load_batches(batch2, table="output.parquet", mode="append")
+
+tests\test_parquet_connector.py:281: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.connector.parquet_connector.ParquetConnector object at 0x000001831AAD1080>
+batches = [[{'id': 2, 'name': 'Bob'}]]
+
+    def load_batches(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+        compression: str = "snappy",
+    ) -> None:
+        """Ecrit les lots en flux, sans les accumuler en memoire."""
+        _require_pyarrow()
+        mode_norm = mode.strip().lower()
+        if mode_norm not in {"append", "replace"}:
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' invalide.")
+        comp_norm = compression.strip().lower()
+        if comp_norm not in self.VALID_COMPRESSIONS:
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+        compression_arg = None if comp_norm == "none" else comp_norm
+    
+        resolved_path = self._resolve_path(table)
+        Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
+    
+        tables = [t for t in (self._to_table(b) for b in batches) if t is not None]
+        if not tables:
+            if mode_norm == "replace" and os.path.isfile(resolved_path):
+                os.remove(resolved_path)
+            return
+    
+        recopier = mode_norm == "append" and os.path.isfile(resolved_path)
+        if recopier:
+            existant = pq.ParquetFile(resolved_path)
+            if set(existant.schema_arrow.names) != set(tables[0].schema.names):
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+    
+        cible = Path(resolved_path)
+        temporaire = cible.with_name(cible.name + ".hydra-tmp")
+        writer = None
+        try:
+            if recopier:
+                # Parquet se termine par un pied de page : on ne peut pas y
+                # ajouter en place. On recopie l'existant lot par lot (memoire
+                # bornee), puis on ajoute les nouveaux lots.
+                lecteur = pq.ParquetFile(resolved_path)
+                schema = lecteur.schema_arrow
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+                for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                    writer.write_table(pa.Table.from_batches([rb], schema=schema))
+            else:
+                schema = tables[0].schema
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+    
+            for t in tables:
+                if not t.schema.equals(schema):
+                    try:
+                        t = t.cast(schema)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                        ) from None
+                writer.write_table(t)
+            writer.close()
+            writer = None
+            os.replace(temporaire, resolved_path)
+        except (ImportError, ValueError):
+            self._nettoyer(writer, temporaire)
+            raise
+        except Exception as e:
+            self._nettoyer(writer, temporaire)
+>           raise ValueError(
+                f"ParquetConnector [{self.name}]: echec ecriture Parquet. {type(e).__name__}: {e}"
+            ) from e
+E           ValueError: ParquetConnector [test]: echec ecriture Parquet. PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei\\output.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpt57fh9ei\\output.parquet'
+
+hydra_etl\internal\connector\parquet_connector.py:290: ValueError
+__________________ test_load_batches_append_schema_mismatch ___________________
+
+temp_job_dir = 'C:\\Users\\DELL\\AppData\\Local\\Temp\\tmpoznnni63'
+
+    def test_load_batches_append_schema_mismatch(temp_job_dir):
+        """Test: Append avec sch\xe9ma incompatible \u2192 ValueError."""
+        config = {"type": "parquet", "job_dir": temp_job_dir}
+        conn = ParquetConnector(name="test", config=config)
+    
+        # Premier chargement
+        batch1 = [[{"id": 1, "name": "Alice"}]]
+        conn.load_batches(batch1, table="output.parquet", mode="replace")
+    
+        # Append avec schéma différent
+        batch2 = [[{"id": 2, "other_field": "Bob"}]]
+    
+        with pytest.raises(ValueError) as exc:
+            conn.load_batches(batch2, table="output.parquet", mode="append")
+    
+>       assert "schéma incompatible" in str(exc.value).lower()
+E       AssertionError: assert 'schéma incompatible' in 'parquetconnector [test]: schema incompatible pour append.'
+E        +  where 'parquetconnector [test]: schema incompatible pour append.' = <built-in method lower of str object at 0x000001831B07D140>()
+E        +    where <built-in method lower of str object at 0x000001831B07D140> = 'ParquetConnector [test]: schema incompatible pour append.'.lower
+E        +      where 'ParquetConnector [test]: schema incompatible pour append.' = str(ValueError('ParquetConnector [test]: schema incompatible pour append.'))
+E        +        where ValueError('ParquetConnector [test]: schema incompatible pour append.') = <ExceptionInfo ValueError('ParquetConnector [test]: schema incompatible pour append.') tblen=2>.value
+
+tests\test_parquet_connector.py:303: AssertionError
+_________________ test_append_conserve_les_lignes_existantes __________________
+
+self = <hydra_etl.internal.connector.parquet_connector.ParquetConnector object at 0x000001831ADC5550>
+batches = [      id cat  montant       note
+0      0   a      0.0    ligne 0
+1      1   b      1.5    ligne 1
+2      2   c      ... 397   b    595.5  ligne 397
+398  398   c    597.0  ligne 398
+399  399   a    598.5  ligne 399
+
+[400 rows x 4 columns]]
+
+    def load_batches(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+        compression: str = "snappy",
+    ) -> None:
+        """Ecrit les lots en flux, sans les accumuler en memoire."""
+        _require_pyarrow()
+        mode_norm = mode.strip().lower()
+        if mode_norm not in {"append", "replace"}:
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' invalide.")
+        comp_norm = compression.strip().lower()
+        if comp_norm not in self.VALID_COMPRESSIONS:
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+        compression_arg = None if comp_norm == "none" else comp_norm
+    
+        resolved_path = self._resolve_path(table)
+        Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
+    
+        tables = [t for t in (self._to_table(b) for b in batches) if t is not None]
+        if not tables:
+            if mode_norm == "replace" and os.path.isfile(resolved_path):
+                os.remove(resolved_path)
+            return
+    
+        recopier = mode_norm == "append" and os.path.isfile(resolved_path)
+        if recopier:
+            existant = pq.ParquetFile(resolved_path)
+            if set(existant.schema_arrow.names) != set(tables[0].schema.names):
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+    
+        cible = Path(resolved_path)
+        temporaire = cible.with_name(cible.name + ".hydra-tmp")
+        writer = None
+        try:
+            if recopier:
+                # Parquet se termine par un pied de page : on ne peut pas y
+                # ajouter en place. On recopie l'existant lot par lot (memoire
+                # bornee), puis on ajoute les nouveaux lots.
+                lecteur = pq.ParquetFile(resolved_path)
+                schema = lecteur.schema_arrow
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+                for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                    writer.write_table(pa.Table.from_batches([rb], schema=schema))
+            else:
+                schema = tables[0].schema
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+    
+            for t in tables:
+                if not t.schema.equals(schema):
+                    try:
+                        t = t.cast(schema)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                        ) from None
+                writer.write_table(t)
+            writer.close()
+            writer = None
+>           os.replace(temporaire, resolved_path)
+E           PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_append_conserve_les_ligne0\\out.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_append_conserve_les_ligne0\\out.parquet'
+
+hydra_etl\internal\connector\parquet_connector.py:284: PermissionError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/DELL/AppData/Local/Temp/pytest-of-DELL/pytest-11/test_append_conserve_les_ligne0')
+
+    def test_append_conserve_les_lignes_existantes(tmp_path: Path):
+        cible = tmp_path / "out.parquet"
+        df1, df2 = _donnees(800), _donnees(400)
+        conn = _conn(tmp_path)
+        conn.load_batches([df1], table=str(cible), mode="replace")
+>       conn.load_batches([df2], table=str(cible), mode="append")
+
+tests\test_parquet_streaming.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <hydra_etl.internal.connector.parquet_connector.ParquetConnector object at 0x000001831ADC5550>
+batches = [      id cat  montant       note
+0      0   a      0.0    ligne 0
+1      1   b      1.5    ligne 1
+2      2   c      ... 397   b    595.5  ligne 397
+398  398   c    597.0  ligne 398
+399  399   a    598.5  ligne 399
+
+[400 rows x 4 columns]]
+
+    def load_batches(
+        self,
+        batches: Iterable[Batch],
+        *,
+        table: str,
+        mode: str = "append",
+        key: Optional[List[str]] = None,
+        compression: str = "snappy",
+    ) -> None:
+        """Ecrit les lots en flux, sans les accumuler en memoire."""
+        _require_pyarrow()
+        mode_norm = mode.strip().lower()
+        if mode_norm not in {"append", "replace"}:
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' invalide.")
+        comp_norm = compression.strip().lower()
+        if comp_norm not in self.VALID_COMPRESSIONS:
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+        compression_arg = None if comp_norm == "none" else comp_norm
+    
+        resolved_path = self._resolve_path(table)
+        Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
+    
+        tables = [t for t in (self._to_table(b) for b in batches) if t is not None]
+        if not tables:
+            if mode_norm == "replace" and os.path.isfile(resolved_path):
+                os.remove(resolved_path)
+            return
+    
+        recopier = mode_norm == "append" and os.path.isfile(resolved_path)
+        if recopier:
+            existant = pq.ParquetFile(resolved_path)
+            if set(existant.schema_arrow.names) != set(tables[0].schema.names):
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+    
+        cible = Path(resolved_path)
+        temporaire = cible.with_name(cible.name + ".hydra-tmp")
+        writer = None
+        try:
+            if recopier:
+                # Parquet se termine par un pied de page : on ne peut pas y
+                # ajouter en place. On recopie l'existant lot par lot (memoire
+                # bornee), puis on ajoute les nouveaux lots.
+                lecteur = pq.ParquetFile(resolved_path)
+                schema = lecteur.schema_arrow
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+                for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                    writer.write_table(pa.Table.from_batches([rb], schema=schema))
+            else:
+                schema = tables[0].schema
+                writer = pq.ParquetWriter(temporaire, schema, compression=compression_arg)
+    
+            for t in tables:
+                if not t.schema.equals(schema):
+                    try:
+                        t = t.cast(schema)
+                    except Exception as e:
+                        raise ValueError(
+                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                        ) from None
+                writer.write_table(t)
+            writer.close()
+            writer = None
+            os.replace(temporaire, resolved_path)
+        except (ImportError, ValueError):
+            self._nettoyer(writer, temporaire)
+            raise
+        except Exception as e:
+            self._nettoyer(writer, temporaire)
+>           raise ValueError(
+                f"ParquetConnector [{self.name}]: echec ecriture Parquet. {type(e).__name__}: {e}"
+            ) from e
+E           ValueError: ParquetConnector [test]: echec ecriture Parquet. PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_append_conserve_les_ligne0\\out.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_append_conserve_les_ligne0\\out.parquet'
+
+hydra_etl\internal\connector\parquet_connector.py:290: ValueError
+_________________________ test_chaine_csv_parquet_csv _________________________
+
+tmp_path = WindowsPath('C:/Users/DELL/AppData/Local/Temp/pytest-of-DELL/pytest-11/test_chaine_csv_parquet_csv0')
+
+    def test_chaine_csv_parquet_csv(tmp_path: Path):
+        src = tmp_path / "src.csv"
+        _donnees(1500).to_csv(src, index=False)
+    
+        etapes = [{"cast": {"mapping": {"montant": "float"}}},
+                  {"filter": {"expr": "montant > 100"}},
+                  {"select": {"columns": ["id", "cat", "montant"]}}]
+    
+        # reference : CSV -> CSV
+        ref = _job(tmp_path, "ref",
+                   {"type": "csv", "connection": {}, "extract": {"table": str(src), "batch_size": 400}},
+                   {"type": "csv", "connection": {},
+                    "load": {"table": str(tmp_path / "ref.csv"), "mode": "replace"}},
+                   etapes)
+        r = JobExecutor(job_dir=ref).run()
+        assert r.success, r.error
+    
+        # chaine : CSV -> Parquet, puis Parquet -> CSV
+        j1 = _job(tmp_path, "j1",
+                  {"type": "csv", "connection": {}, "extract": {"table": str(src), "batch_size": 400}},
+                  {"type": "parquet", "connection": {},
+                   "load": {"table": str(tmp_path / "inter.parquet"), "mode": "replace"}},
+                  etapes)
+>       assert JobExecutor(job_dir=j1).run().success
+E       assert False
+E        +  where False = JobResult(success=False, rows_in=800, rows_out=733, duration=0.14158429999952205, error="ValueError: ParquetConnector ...ELL\\\\pytest-11\\\\test_chaine_csv_parquet_csv0\\\\inter.parquet'", output_sample=[], output_columns=[], profile=None).success
+E        +    where JobResult(success=False, rows_in=800, rows_out=733, duration=0.14158429999952205, error="ValueError: ParquetConnector ...ELL\\\\pytest-11\\\\test_chaine_csv_parquet_csv0\\\\inter.parquet'", output_sample=[], output_columns=[], profile=None) = run()
+E        +      where run = <hydra_etl.internal.runner.executor.JobExecutor object at 0x000001835C19CF50>.run
+E        +        where <hydra_etl.internal.runner.executor.JobExecutor object at 0x000001835C19CF50> = JobExecutor(job_dir=WindowsPath('C:/Users/DELL/AppData/Local/Temp/pytest-of-DELL/pytest-11/test_chaine_csv_parquet_csv0/j1'))
+
+tests\test_parquet_streaming.py:202: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  hydra_etl.internal.runner.batch_size:batch_size.py:67 Job 'ref': batch_size=400 est très petit. Le surcoût fixe de pandas par lot domine alors le temps du job (mesuré : jusqu'à x20 plus lent qu'à 10 000). Retirez batch_size pour le laisser se régler tout seul, ou mettez au moins 1000.
+WARNING  hydra_etl.internal.runner.batch_size:batch_size.py:67 Job 'j1': batch_size=400 est très petit. Le surcoût fixe de pandas par lot domine alors le temps du job (mesuré : jusqu'à x20 plus lent qu'à 10 000). Retirez batch_size pour le laisser se régler tout seul, ou mettez au moins 1000.
+ERROR    hydra_etl.internal.runner.executor:executor.py:367 Job 'j1' failed: ValueError: ParquetConnector [d]: echec ecriture Parquet. PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_chaine_csv_parquet_csv0\\inter.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_chaine_csv_parquet_csv0\\inter.parquet'
+______________ test_le_parquet_intermediaire_conserve_les_types _______________
+
+tmp_path = WindowsPath('C:/Users/DELL/AppData/Local/Temp/pytest-of-DELL/pytest-11/test_le_parquet_intermediaire_0')
+
+    def test_le_parquet_intermediaire_conserve_les_types(tmp_path: Path):
+        """L'interet du format : le job suivant n'a rien a recaster."""
+        src = tmp_path / "src.csv"
+        _donnees(300).to_csv(src, index=False)
+        j = _job(tmp_path, "j",
+                 {"type": "csv", "connection": {}, "extract": {"table": str(src), "batch_size": 100}},
+                 {"type": "parquet", "connection": {},
+                  "load": {"table": str(tmp_path / "inter.parquet"), "mode": "replace"}},
+                 [{"cast": {"mapping": {"id": "int", "montant": "float"}}},
+                  {"select": {"columns": ["id", "montant", "cat"]}}])
+>       assert JobExecutor(job_dir=j).run().success
+E       assert False
+E        +  where False = JobResult(success=False, rows_in=200, rows_out=200, duration=0.10062300000572577, error="ValueError: ParquetConnector ...\\\\pytest-11\\\\test_le_parquet_intermediaire_0\\\\inter.parquet'", output_sample=[], output_columns=[], profile=None).success
+E        +    where JobResult(success=False, rows_in=200, rows_out=200, duration=0.10062300000572577, error="ValueError: ParquetConnector ...\\\\pytest-11\\\\test_le_parquet_intermediaire_0\\\\inter.parquet'", output_sample=[], output_columns=[], profile=None) = run()
+E        +      where run = <hydra_etl.internal.runner.executor.JobExecutor object at 0x000001835C19D130>.run
+E        +        where <hydra_etl.internal.runner.executor.JobExecutor object at 0x000001835C19D130> = JobExecutor(job_dir=WindowsPath('C:/Users/DELL/AppData/Local/Temp/pytest-of-DELL/pytest-11/test_le_parquet_intermediaire_0/j'))
+
+tests\test_parquet_streaming.py:227: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  hydra_etl.internal.runner.batch_size:batch_size.py:67 Job 'j': batch_size=100 est très petit. Le surcoût fixe de pandas par lot domine alors le temps du job (mesuré : jusqu'à x20 plus lent qu'à 10 000). Retirez batch_size pour le laisser se régler tout seul, ou mettez au moins 1000.
+ERROR    hydra_etl.internal.runner.executor:executor.py:367 Job 'j' failed: ValueError: ParquetConnector [d]: echec ecriture Parquet. PermissionError: [WinError 5] Accès refusé: 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_le_parquet_intermediaire_0\\inter.parquet.hydra-tmp' -> 'C:\\Users\\DELL\\AppData\\Local\\Temp\\pytest-of-DELL\\pytest-11\\test_le_parquet_intermediaire_0\\inter.parquet'
+______________________ test_transform_parser_ok_minimal _______________________
+
+    def test_transform_parser_ok_minimal():
+        """
+        Cas OK : une suite simple de steps valides.
+        """
+        raw = {
+            "steps": [
+                {"select": {"columns": ["id", "name", "name"]}},
+                {"filter": {"expr": "id > 1"}},
+                {"calculate": {"column": "total", "expr": "price * qty"}},
+                {"rename": {"mapping": {"name": "full_name"}}},
+                {"cast": {"mapping": {"id": "int", "total": "float"}}},
+            ]
+        }
+    
+        cfg = TransformParser().parse(raw)
+    
+        assert len(cfg.steps) == 5
+        assert cfg.steps[0].op == "select"
+>       assert cfg.steps[0].params.columns == ["id", "name"]  # dédupliqué
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'columns'
+
+tests\test_transform_parser.py:37: AttributeError
+============================== warnings summary ===============================
+tests\test_json_connector_fixtures.py:583
+  C:\Users\DELL\desktop\hydra\tests\test_json_connector_fixtures.py:583: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/test_web_api_connector_v2.py::test_state_manager_save_load
+tests/test_web_api_connector_v2.py::test_state_manager_update_from_items
+tests/test_web_api_connector_v2.py::test_state_manager_reset
+  C:\Users\DELL\Desktop\Hydra\hydra_etl\plugins\web_api_policies\state_manager.py:89: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "updated_at": datetime.utcnow().isoformat(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_chatbot_eval_dataset.py::test_evaluation_dataset_is_synchronised
+FAILED tests/test_e2e_parquet.py::test_merge_multiple_fixtures - ValueError: ...
+FAILED tests/test_generate_dsl_schemas.py::test_committed_schemas_are_synchronised
+FAILED tests/test_json_connector_fixtures.py::TestErrorHandling::test_error_both_file_and_url
+FAILED tests/test_json_connector_fixtures.py::TestFutureFeatures::test_url_extraction_not_implemented
+FAILED tests/test_new_critical_fixes.py::TestCastOpAliases::test_alias_integer
+FAILED tests/test_new_critical_fixes.py::TestCastOpAliases::test_alias_string
+FAILED tests/test_new_critical_fixes.py::TestCastOpAliases::test_alias_boolean
+FAILED tests/test_new_critical_fixes.py::TestCastOpAliases::test_canonical_types_still_work
+FAILED tests/test_pandas_engine.py::test_cast_bool_ok[active_string] - Assert...
+FAILED tests/test_pandas_engine.py::test_cast_bool_ok[active_int] - Assertion...
+FAILED tests/test_pandas_engine.py::test_cast_bool_ok[active_bool] - Assertio...
+FAILED tests/test_pandas_engine.py::test_cast_multiple_columns[active_string]
+FAILED tests/test_pandas_engine.py::test_cast_multiple_columns[active_int] - ...
+FAILED tests/test_pandas_engine.py::test_cast_multiple_columns[active_bool]
+FAILED tests/test_pandas_engine.py::test_step_unknown_op_ko[active_string] - ...
+FAILED tests/test_pandas_engine.py::test_step_unknown_op_ko[active_int] - Ass...
+FAILED tests/test_pandas_engine.py::test_step_unknown_op_ko[active_bool] - As...
+FAILED tests/test_pandas_engine.py::test_engine_works_with_transform_parser
+FAILED tests/test_parquet_connector.py::test_init_job_dir_not_exists - assert...
+FAILED tests/test_parquet_connector.py::test_load_batches_append_ok - ValueEr...
+FAILED tests/test_parquet_connector.py::test_load_batches_append_schema_mismatch
+FAILED tests/test_parquet_streaming.py::test_append_conserve_les_lignes_existantes
+FAILED tests/test_parquet_streaming.py::test_chaine_csv_parquet_csv - assert ...
+FAILED tests/test_parquet_streaming.py::test_le_parquet_intermediaire_conserve_les_types
+FAILED tests/test_transform_parser.py::test_transform_parser_ok_minimal - Att...
+ERROR tests/test_e2e_parquet.py::test_merge_multiple_fixtures - PermissionErr...
+ERROR tests/test_parquet_connector.py::test_load_batches_append_ok - Permissi...
+ERROR tests/test_parquet_connector.py::test_load_batches_append_schema_mismatch

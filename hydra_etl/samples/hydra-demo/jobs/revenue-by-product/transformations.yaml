@@ -1,0 +1,27 @@
+version: '1.0'
+transformations:
+  steps:
+    - clean:
+        columns: [product]
+        case: none
+    - cast:
+        mapping:
+          order_id: int
+          quantity: int
+          unit_price: float
+    - filter:
+        expr: "quantity > 0"
+    - deduplicate:
+        columns: [order_id]
+    - calculate:
+        column: total
+        expr: "quantity * unit_price"
+    - aggregate:
+        by: [product]
+        agg:
+          orders: {func: count, col: order_id}
+          units_sold: {func: sum, col: quantity}
+          revenue: {func: sum, col: total}
+    - sort:
+        by: [revenue]
+        ascending: false

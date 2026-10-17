@@ -13,6 +13,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 
+from hydra_etl.api import store
+
 router = APIRouter()
 
 
@@ -112,8 +114,13 @@ def fs_list(
                 continue
             if ext and not name.lower().endswith(ext):
                 continue
-        entries.append({"name": name, "path": str(child), "is_dir": is_dir})
+        entries.append({
+            "name": name, "path": str(child), "is_dir": is_dir,
+            # Marqueur .hydra/project.json : permet au selecteur de reconnaitre un projet.
+            "is_project": bool(is_dir and store.is_hydra_project(child)),
+        })
 
     entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
     parent = str(p.parent) if p.parent != p else None
-    return {"path": str(p), "parent": parent, "sep": os.sep, "entries": entries}
+    return {"path": str(p), "parent": parent, "sep": os.sep, "entries": entries,
+            "is_project": store.is_hydra_project(p)}

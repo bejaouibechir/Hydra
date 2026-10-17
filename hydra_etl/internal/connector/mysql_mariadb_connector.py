@@ -46,7 +46,8 @@ class MySQLMariaDBConnector(BaseDBConnector):
         except Exception as e:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: driver manquant. "
-                f"Installez 'mysql-connector-python'. Erreur: {type(e).__name__}: {e}"
+                f"Installez-le avec 'pip install \"hydra-etl[mysql]\"'. "
+                f"Erreur: {type(e).__name__}: {e}"
             ) from e
         
         cfg = self._conn_cfg

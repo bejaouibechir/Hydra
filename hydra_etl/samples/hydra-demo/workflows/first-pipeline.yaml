@@ -1,0 +1,24 @@
+version: "1.0"
+workflow:
+  name: first-pipeline
+  description: "Demo : clean the raw orders, export active customers, compute revenue by product."
+  trigger:
+    type: manual
+  steps:
+    - name: clean-orders
+      type: job
+      job: ../jobs/clean-orders
+      depends_on: []
+      on_failure: fail
+
+    - name: customers-json-to-csv
+      type: job
+      job: ../jobs/customers-json-to-csv
+      depends_on: []
+      on_failure: fail
+
+    - name: revenue-by-product
+      type: job
+      job: ../jobs/revenue-by-product
+      depends_on: [clean-orders]
+      on_failure: fail

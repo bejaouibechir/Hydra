@@ -1,0 +1,8 @@
+version: '1.0'
+sources:
+  orders_csv:
+    type: csv
+    connection: {}
+    extract:
+      table: __HYDRA_DEMO_ROOT__/Data/orders_raw.csv
+      batch_size: 1000

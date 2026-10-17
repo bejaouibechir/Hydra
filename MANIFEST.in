@@ -2,6 +2,7 @@ include README.md
 include LICENSE
 recursive-include hydra_etl/cli/locales *.json
 recursive-include hydra_etl/studio_dist *
+recursive-include hydra_etl/samples *
 
 # Jamais dans la distribution : sauvegardes, caches, archives, sources du Studio.
 recursive-exclude hydra_etl *.pyc

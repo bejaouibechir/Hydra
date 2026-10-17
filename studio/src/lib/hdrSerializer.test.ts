@@ -3,6 +3,7 @@ import {
   jobModelToSectionYamls,
   sectionYamlsToJobModel,
   jobModelToFlow,
+  flowToJobModel,
   type HydraJobModel,
 } from './hdrSerializer'
 
@@ -172,5 +173,67 @@ describe('hdrSerializer — SQL Server', () => {
     expect(back!.sources.instance_nommee.connection.port).toBeUndefined()
     expect(back!.sources.port_explicite.connection.port).toBe(14333)
     expect(back!.destinations.cible.load.mode).toBe('upsert')
+  })
+})
+
+/**
+ * Import d'un job ecrit a la main (ou par hdrctl) : YAML -> canvas -> YAML.
+ * Regression du 04/10/2026 : destination CSV sans chemin (load.table copie tel quel
+ * au lieu de path), calculate / trim / deduplicate vides ou transformes en filter.
+ */
+describe('hdrSerializer — import YAML ecrit a la main (job1)', () => {
+  const model: HydraJobModel = {
+    name: 'job1',
+    sources: { src: { type: 'csv', connection: {}, extract: { table: 'data/in.csv' } } },
+    transformations: {
+      steps: [
+        { cast: { mapping: { id: 'int', v: 'int' } } },
+        { trim: { columns: ['name'] } },
+        { deduplicate: { columns: ['id'] } },
+        { calculate: { column: 'v_squared', expr: 'v * v' } },
+        { filter: { expr: 'v > 2' } },
+        { sort: { by: ['v_squared'], ascending: false } },
+      ],
+    },
+    destinations: { dst: { type: 'csv', connection: {}, load: { table: 'd:\\out\\r.csv', mode: 'replace' } } },
+    pipeline: { from: 'src', to: 'dst', transformations: 'transformations' },
+  }
+  const { nodes, edges } = jobModelToFlow(model)
+  const byId = (id: string) => nodes.find(n => n.id === id)!.data as { nodeType: string; params: Record<string, unknown> }
+
+  it('la destination CSV garde son chemin dans path (pas dans table)', () => {
+    const p = byId('imported_dst_dst').params
+    expect(p.path).toBe('d:\\out\\r.csv')
+    expect(p.table).toBeUndefined()
+  })
+
+  it('calculate garde column et expr', () => {
+    const n = byId('imported_tf_3')
+    expect(n.nodeType).toBe('transform_derive')
+    expect(n.params).toEqual({ column: 'v_squared', expr: 'v * v' })
+  })
+
+  it('trim reste un nœud trim', () => {
+    expect(byId('imported_tf_1').nodeType).toBe('transform_trim')
+  })
+
+  it('deduplicate garde ses colonnes', () => {
+    expect(byId('imported_tf_2').params.columns).toBe('id')
+  })
+
+  it('YAML -> canvas -> modele redonne le meme job', () => {
+    const back = flowToJobModel(nodes, edges, 'job1')
+    const steps = back.transformations.steps
+    expect(steps).toEqual([
+      { cast: { mapping: { id: 'int', v: 'int' } } },
+      { trim: { columns: ['name'] } },
+      { deduplicate: { columns: ['id'] } },
+      { calculate: { column: 'v_squared', expr: 'v * v' } },
+      { filter: { expr: 'v > 2' } },
+      { sort: { by: ['v_squared'], ascending: false } },
+    ])
+    const dst = Object.values(back.destinations)[0]
+    expect(dst.load.table).toBe('d:\\out\\r.csv')
+    expect(dst.load.mode).toBe('replace')
   })
 })

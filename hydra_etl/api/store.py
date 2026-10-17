@@ -168,6 +168,20 @@ def _looks_like_hydra_project(path: Path) -> bool:
     return False
 
 
+def is_hydra_project(path: Path) -> bool:
+    """Un dossier est un projet Hydra s'il contient un sous-dossier `.hydra`
+    (decision du 09/10/2026). Rien d'autre ne compte : ni la structure
+    (workflows/, jobs/), ni les anciens marqueurs. Un dossier sans `.hydra`
+    s'ouvre par « Open local folder » (adoption), qui cree `.hydra/`.
+
+    Utilise par le selecteur de dossier : un seul stat, aucun parcours recursif.
+    """
+    try:
+        return (path / STUDIO_DIR).is_dir()
+    except OSError:
+        return False
+
+
 def _register_workflow_in_manifest(project_path: Path, wf_id: str, name: str, rel_file: str) -> None:
     m = _read_manifest(project_path)
     if m is None:
@@ -363,7 +377,7 @@ def open_project(path_str: str, adopt: bool = True) -> Optional[ProjectResponse]
     proj = _project_from_path(path)
     if proj is None:
         # Pas de méta Studio — projet reconnu par sa structure, sinon adoption
-        if not adopt and not _looks_like_hydra_project(path):
+        if not adopt and not is_hydra_project(path):
             raise NotAHydraProject(str(path))
         # Enregistrement (structure reconnue) ou adoption (dossier quelconque) —
         # ne crée que les dossiers manquants, n'écrase jamais l'existant

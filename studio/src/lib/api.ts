@@ -97,6 +97,7 @@ export const api = {
     get:  (id: string)                        => get<Project>(`/projects/${id}`),
     create: (body: { name: string; description?: string; project_path?: string }) => post<Project>('/projects', body),
     open:   (path: string, adopt = true)      => post<Project>('/projects/open', { path, adopt }),
+    installDemo: ()                           => post<Project>('/projects/demo', {}),
     unlist: (id: string)                      => post<{ message: string }>(`/projects/${id}/unlist`, {}),
     delete: (id: string)                      => del<{ message: string }>(`/projects/${id}?remove_files=true`),
   },
@@ -152,7 +153,7 @@ export const api = {
       get<{ path: string | null }>(`/system/browse?type=${type}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`),
     fsRoots: () => get<{ roots: { name: string; path: string }[] }>(`/fs/roots`),
     fsList: (path: string, dirsOnly?: boolean, ext?: string) =>
-      get<{ path: string; parent: string | null; sep: string; entries: { name: string; path: string; is_dir: boolean }[] }>(
+      get<{ path: string; parent: string | null; sep: string; is_project?: boolean; entries: { name: string; path: string; is_dir: boolean; is_project?: boolean }[] }>(
         `/fs/list?path=${encodeURIComponent(path)}${dirsOnly ? '&dirs_only=true' : ''}${ext ? `&ext=${encodeURIComponent(ext)}` : ''}`),
   },
 

@@ -1,0 +1,86 @@
+[
+  {
+    "customer_id": "C001",
+    "name": "Alice Martin",
+    "region": "South",
+    "tier": "gold",
+    "active": true
+  },
+  {
+    "customer_id": "C002",
+    "name": "Bruno Lopez",
+    "region": "East",
+    "tier": "silver",
+    "active": true
+  },
+  {
+    "customer_id": "C003",
+    "name": "Chloe Dubois",
+    "region": "West",
+    "tier": "bronze",
+    "active": true
+  },
+  {
+    "customer_id": "C004",
+    "name": "David Chen",
+    "region": "North",
+    "tier": "bronze",
+    "active": true
+  },
+  {
+    "customer_id": "C005",
+    "name": "Emma Rossi",
+    "region": "South",
+    "tier": "bronze",
+    "active": false
+  },
+  {
+    "customer_id": "C006",
+    "name": "Farid Haddad",
+    "region": "East",
+    "tier": "gold",
+    "active": true
+  },
+  {
+    "customer_id": "C007",
+    "name": "Gina Novak",
+    "region": "West",
+    "tier": "gold",
+    "active": true
+  },
+  {
+    "customer_id": "C008",
+    "name": "Hugo Silva",
+    "region": "North",
+    "tier": "bronze",
+    "active": true
+  },
+  {
+    "customer_id": "C009",
+    "name": "Ines Moreau",
+    "region": "South",
+    "tier": "bronze",
+    "active": true
+  },
+  {
+    "customer_id": "C010",
+    "name": "Jonas Weber",
+    "region": "East",
+    "tier": "bronze",
+    "active": false
+  },
+  {
+    "customer_id": "C011",
+    "name": "Karim Saidi",
+    "region": "West",
+    "tier": "silver",
+    "active": true
+  },
+  {
+    "customer_id": "C012",
+    "name": "Lea Bernard",
+    "region": "North",
+    "tier": "bronze",
+    "active": true
+  }
+]

@@ -47,6 +47,194 @@
 
 ---
 
+## 17 octobre 2026 — test réel du brouillon de veille : bug bloquant trouvé dans la 0.11.3
+
+**Déclencheur :** Bechir a demandé de ne rien publier sans certitude. Le YAML du brouillon
+`minimdm#74` a donc été exécuté contre un PostgreSQL 16.15 réel, et pas seulement validé.
+
+### Trouvé
+
+- **`mode: upsert` sur PostgreSQL ne fonctionne pas en 0.11.3** — échec systématique
+  (`KeyError: 0`), même avec la PRIMARY KEY exactement sur les colonnes de `key`.
+  Double cause dans `_validate_upsert_key()` : `array_agg` sur une colonne `sql_identifier`
+  revient en chaîne et non en liste, et la ligne `RealDictCursor` est déballée comme un tuple.
+  `hdrctl validate` ne voit rien : le défaut n'apparaît qu'à l'exécution. `append` et `replace`
+  ne sont pas touchés. Correctif de 3 lignes écrit et vérifié :
+  `ressources/patchs/0.11.3-upsert-postgres.patch`, rapport complet à côté.
+- **`pip install hydra-etl` n'installe pas le driver PostgreSQL** — il faut
+  `pip install "hydra-etl[postgres]"`. Le message d'erreur renvoie vers `psycopg2-binary`
+  au lieu de l'extra. À corriger dans la doc et à écrire dans tout contenu public.
+- **`SELECT *` casse le chargement** quand le schéma source diffère de la cible.
+
+### Décidé
+
+- **Publication de la réponse à `minimdm#74` suspendue** jusqu'à une 0.11.4 sur PyPI.
+  Mention ajoutée en tête du brouillon dans `suivi/veille-forums.md`.
+- **Règle nouvelle : tout YAML cité publiquement doit avoir été exécuté**, pas seulement validé.
+  `hdrctl validate` est un contrôle statique et ne prouve rien sur le comportement.
+
+### Correctif appliqué (même jour, dossier produit)
+
+Accès à `C:\Users\DELL\Desktop\Hydra` accordé. **Non committé, non poussé** — le dépôt avait déjà
+8 fichiers modifiés sur `main`, laissés intacts, et aucune branche n'a été créée.
+
+- `hydra_etl/internal/connector/postgresql_connector.py` : correctif 3 lignes (LF préservés).
+- `tests/test_postgresql_upsert_key_validation.py` : **nouveau**, 5 cas, sans serveur ni pilote
+  (faux `RealDictCursor` reproduisant les deux comportements de psycopg2). `5 passed` avec le
+  correctif ; contre `HEAD` extrait hors du dépôt, `KeyError: 0` — le test attrape bien la régression.
+- Texte de l'issue et message de commit : `contenus/github/issue-upsert-postgres.md`.
+
+**Cause racine du « bug livré » trouvée :** les tests E2E PostgreSQL couvrent bien l'upsert, mais le
+module est désactivé en bloc (`pytestmark = pytest.mark.skip`) et avale ses exceptions dans
+`print(...)` + `sys.exit(1)` au lieu d'assertions. Le correctif seul ne protège donc de rien : c'est
+le test qui tourne qui compte.
+
+À savoir pour la suite : `git checkout --` et `git commit` sont entravés dans un dossier connecté
+(la suppression de fichiers y est interdite, donc les `.lock` de git subsistent). Les opérations git
+du dépôt produit sont à faire depuis une invite Windows normale.
+
+### Reste ouvert
+
+Relire le correctif et le test, committer, ouvrir l'issue, publier la 0.11.4. Puis décider du sort
+des tests E2E désactivés (job CI avec services PostgreSQL, ou vraies assertions). Question laissée
+de côté : `_validate_upsert_key()` exige une correspondance **exacte** entre `key` et une contrainte,
+ce qui refuse une PK composite plus large ou un index unique partiel que `ON CONFLICT` accepterait.
+
+---
+
+## 17 octobre 2026 — rapport hebdomadaire
+
+> Premier rapport effectivement produit : celui du 10/10 avait échoué (dossier non rattaché à la
+> tâche, API GitHub en 403 depuis le cloud). Le dossier est désormais connecté et `device_bash` +
+> `curl` depuis le PC contourne le blocage de l'API. **Voie à conserver pour les prochains runs.**
+
+### Les chiffres (API GitHub et PyPI, relevés le 17/10 à 09h15 UTC)
+
+| Indicateur | 17/10 | Référence antérieure | Écart |
+|---|---|---|---|
+| Étoiles `Hydra` | **4** | 2 (22/09, journal) | +2 en 25 j |
+| Forks | 1 (compteur) ; 2 forks listés | 1 (22/09) | 0 |
+| Watchers (`subscribers`) | **0** | — | — |
+| Issues ouvertes | 7 (#3,4,5,6,7,8,10), toutes de Bechir, 0 commentaire | 7 (10/10) | 0 |
+| PR ouvertes sur `Hydra` | **0** | 0 | 0 |
+| PyPI `hydra-etl` | **0.11.3**, publiée le 27/09 14:45 UTC | 0.11.3 (10/10) | aucune publication en 20 j |
+| Dernier commit `Hydra` | **28/09 12:25** | — | **19 jours sans code** |
+| CI `Hydra` | ci #26 ✅ succès (28/09) ; 4 derniers runs verts | statuts illisibles le 10/10 | mesure désormais fiable |
+| Release `Hydra` | release #11 ✅ (27/09, tag v0.11.3) | — | ⚠️ voir ci-dessous |
+| Site `bejaouibechir.github.io` | Build & Deploy #14 ✅ (28/09) | — | 19 jours sans déploiement |
+| `hydraetl.com` | en ligne, **2 articles** sur `/blog` | 2 | 0 |
+
+**Le « 0 étoile » du 10/10 était une erreur de lecture** (page HTML, pas l'API). La progression
+réelle est +2 depuis le 22/09, dont une étoile et un fork venant d'un compte probablement
+automatisé (cf. journal du 21/09) : **l'adoption réelle est de l'ordre de 2 à 3 étoiles**.
+
+**Sources inaccessibles ce run, aucun chiffre inventé :** `pypistats.org` (téléchargements PyPI)
+bloqué au proxy depuis le PC **et** depuis le cloud — donc **aucune mesure d'installation
+disponible** ; Umami et Search Console toujours sans jeton ; stargazers datés = authentification
+requise.
+
+### Ce qui a bougé
+
+**Rien côté produit ni site depuis le 28/09.** Les trois semaines sont vides de commits, de
+publication PyPI et de déploiement. Ce qui a bougé est ailleurs :
+
+1. **`awesome-duckdb` #353 est FUSIONNÉE** (21/09 14:54) — vérifié : l'entrée est en ligne,
+   ligne 319 du README. **Jamais consigné comme fusionnée** dans `actions-bechir.md`, qui la
+   listait encore en attente. Donc **2 PR awesome sur 4 ont abouti** (avec `awesome-pipeline`
+   #246, ligne 249), pas une.
+2. **La veille de ce matin (09:02) a produit un brouillon** : `planemarlin/minimdm` #74, fil
+   **ouvert et actif** (mainteneur le 16/10). Le mainteneur y demande littéralement
+   *« which tool would do the loading into your warehouse? »*. Détail et texte EN prêt dans
+   `suivi/veille-forums.md`.
+3. **Les labs Killercoda sont bien 6 dans `hydra-killercoda`** (01-meet-hdrctl → 06-parameters-and-secrets),
+   dernier commit 27/09.
+
+### Ce qui bloque
+
+**1. `awesome-mcp-servers` #14699 est en conflit de fusion — c'est le vrai blocage, pas le silence du mainteneur.**
+Vérifié par l'API : `mergeable: false`, `mergeable_state: "dirty"`, `rebaseable: false`, sur un
+diff de **+1 ligne / -0**. Et le dépôt **fusionne activement** : #16114 fusionnée le 15/10, #16032
+le 09/10. Donc on n'attend personne : la PR est inerte jusqu'à ce que le conflit soit résolu.
+Dernier message de Bechir le 21/09, 26 jours. **Une relance serait inutile et mal vue ; c'est un
+rebase qu'il faut.** Liste à ~95 000 étoiles : c'est l'action au meilleur rendement de la semaine.
+
+**2. `awesome-data-engineering` #371 : 28 jours de silence, et le dépôt est dormant.** Dernière
+fusion le 06/09 ; les PR #387 à #391 (11 au 16/10) sont toutes ouvertes. `mergeable_state: unstable`
+(contrôle en échec, la PR reste fusionnable). Relance de faible valeur — le dépôt fusionne par
+lots. À laisser dormir, re-vérifier dans un mois.
+
+**3. Le tag `v0.11.3` existe, la release GitHub n'existe pas.** Releases publiées : v0.10.1 →
+v0.11.2. Le workflow `release #11` a réussi sur le tag v0.11.3, mais aucune release n'a été créée.
+Conséquence : quiconque arrive par l'onglet Releases voit la 0.11.2 alors que PyPI sert la 0.11.3.
+
+**4. Actions de Bechir en retard, toutes à coût nul et toutes encore ouvertes depuis le 26-27/09 :**
+profil C# Corner (champ site web — le meilleur rendement du projet, 119 articles d'un coup) ·
+indexation du 18456 dans Search Console et Bing · post LinkedIn n°2 · jeton Umami et accès Search
+Console (sans eux, ce rapport reste aveugle sur le trafic et les installations).
+
+**5. `Discussions` est toujours désactivé** sur `Hydra` (`has_discussions: false`).
+
+**6. La « PR externe #9 » suivie dans `actions-bechir.md` n'existe pas.** Le dépôt `Hydra` n'a
+jamais eu que 2 PR, #1 et #2, toutes deux de Bechir et fusionnées. La ligne de suivi est à
+supprimer, pas à relancer.
+
+### Visibilité mesurée
+
+Recherche web sur `"Hydra ETL" declarative YAML hydraetl.com` : **`hydraetl.com` n'apparaît pas**.
+Ce qui remonte : PyPI, AlternativeTo, onworks — plus des résultats du Hydra de Nix (l'homonymie est
+bien le problème annoncé). Recherche sur le SERP visé par l'article 18456 : **absent**, le SERP
+appartient aux sites établis (windowsreport, getgalaxy, stellarinfo, databasehealth), exactement ce
+que `CLAUDE.md` §5 prévoyait. L'article n'a jamais été soumis à l'indexation — cf. action en retard.
+
+### Recommandation d'article
+
+**« Your webhook tells you when, not whether: idempotent loads for event-driven pipelines »**
+
+*Pourquoi maintenant, sur un fait de cette semaine :* le fil miniMDM #74 est le premier besoin
+externe formulé par un tiers, pas un exemple inventé. Le mainteneur a lui-même nommé la pièce
+manquante (l'étape de chargement) et l'utilisateur a dit pourquoi il ne la construira pas
+(« it is another app anyway »). Le vrai sujet n'est pourtant ni le webhook ni l'API : c'est que la
+livraison est à **une seule tentative, 5 s de timeout, sans réessai**, donc une passe de rattrapage
+est obligatoire — et elle n'est sûre que si recharger la même ligne deux fois ne fait rien.
+C'est précisément ce que `mode: upsert` prétend offrir, et c'est un angle que personne ne traite :
+les articles sur les webhooks parlent de signatures et de retries, pas d'idempotence côté données.
+
+*À mesurer ou tester avant d'écrire une ligne :*
+1. **Que `mode: upsert` fonctionne.** Le README l'annonce (ligne 181 : `append | replace | upsert`).
+   `${SECRET:}` était lui aussi documenté publiquement et **ne résolvait rien** (27/09). Donc :
+   charger deux fois le même jeu, vérifier que la seconde passe ne crée aucun doublon et ne modifie
+   aucun compteur, et relever le comportement sans clé primaire déclarée.
+2. **Le rattrapage par filigrane** : un job filtré sur `_state = 'active' AND _deleted_at IS NULL`
+   plus un seuil de date, rejoué trois fois, résultat identique.
+3. **Le cas qui fait mal** : une ligne supprimée à la source — l'upsert ne la supprime pas en
+   cible. À écrire noir sur blanc dans l'article plutôt qu'à taire.
+4. Chiffrer : lignes/seconde sur le rattrapage, et le coût d'un rejeu complet contre un rejeu
+   filtré.
+
+*Règle rappelée :* **aucun article n'est publié sans que chaque commande ait été exécutée.** Les
+trois points ci-dessus sont des exécutions, pas des relectures de code.
+
+*Réserve de séquence :* `CLAUDE.md` §5 place les articles en phase 3, après les retours de la
+phase 2. Celui-ci est justement le premier matériau de phase 2 — mais il ne vaut qu'après un
+échange réel sur le fil. **Répondre d'abord, écrire ensuite.**
+
+### Les 3 actions les plus rentables de la semaine
+
+1. **Résoudre le conflit de `awesome-mcp-servers` #14699** — une ligne, un dépôt qui fusionne
+   chaque semaine, 95 000 étoiles. Rien d'autre cette semaine n'a ce rapport effort/visibilité.
+2. **Publier la réponse sur `minimdm` #74** — fil actif, question posée tout haut par le
+   mainteneur, brouillon prêt. Périssable : d'ici une semaine le fil sera refroidi.
+3. **Le champ « site web » du profil C# Corner, et l'indexation du 18456** — coût nul, l'un
+   couvre 119 articles, l'autre conditionne tout le reste du SEO. Ouverts depuis le 26/09.
+
+### Ce que ce rapport ne sait pas
+
+Trafic du site, téléchargements PyPI, état d'indexation réel. Trois mesures, trois jetons
+manquants. Tant qu'ils manquent, les rapports comparent des étoiles et des dates de commit, ce
+qui ne dit rien de l'usage.
+
+---
+
 ## 27 septembre 2026 (suite) — hydra-demo en ligne, valide dans un vrai Codespace
 
 ### Resultat

@@ -95,7 +95,7 @@ class MongoDBConnector(Connector):
         if not PYMONGO_AVAILABLE:
             raise ImportError(
                 "pymongo is required for MongoDB connector. "
-                "Install with: pip install pymongo"
+                'Install it with: pip install "hydra-etl[mongodb]"'
             )
         
         self.client: Optional[MongoClient] = None

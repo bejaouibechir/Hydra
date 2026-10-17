@@ -1,0 +1,10 @@
+version: "1.0"
+sources:
+  src_orders:
+    type: web_api
+    connection:
+      url: "https://api.example.com/orders"
+      auth:
+        type: api_key
+        key: "YOUR_API_KEY"
+      

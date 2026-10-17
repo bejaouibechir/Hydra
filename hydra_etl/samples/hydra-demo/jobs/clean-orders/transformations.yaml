@@ -1,0 +1,23 @@
+version: '1.0'
+transformations:
+  steps:
+    - clean:
+        columns: [customer_id]
+        case: upper
+    - clean:
+        columns: [product]
+        case: none
+    - cast:
+        mapping:
+          order_id: int
+          quantity: int
+          unit_price: float
+    - filter:
+        expr: "quantity > 0"
+    - deduplicate:
+        columns: [order_id]
+    - calculate:
+        column: total
+        expr: "quantity * unit_price"
+    - sort:
+        by: [order_id]

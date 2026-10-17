@@ -189,3 +189,60 @@ c'est cette sortie-là, et pas la nôtre, qui autorise la publication du comment
 
 Ne publie rien sur `minimdm#74` avant l'étape 8 vérifiée. Le commentaire dit à son lecteur
 d'installer depuis PyPI : tant que PyPI sert la 0.11.3, l'exemple échoue chez lui.
+
+---
+
+# ADDENDUM du 17/10 — release #12 echouee, voici la suite
+
+`ci` #27 est **verte**. `release` #12 a **echoue** a l'etape « La specification du DSL est-elle a
+jour ? », donc les jobs `publish` et `container` ne se sont pas lances : **rien n'est parti sur
+PyPI**, et aucune image n'a ete poussee. Le garde-fou a fait son travail.
+
+## Cause
+
+La specification du DSL est generee depuis le code et embarquee dans le paquet, et elle contient le
+numero de version (`productVersion` et les `$id` des 28 schemas). Bumper `__version__` la
+desynchronise mecaniquement. Verifie : `HEAD` et le tag `v0.11.3` passent tous deux
+`python tools/spec_export.py --check` ; mon arbre avec le bump ne passait plus.
+
+**Regle a retenir : tout changement de version exige `python tools/spec_export.py` suivi d'un
+commit des schemas.** C'est une etape manquante du processus de release, pas un defaut du code.
+
+## Deja fait dans ton dossier
+
+`python tools/spec_export.py` a ete lance. 28 fichiers modifies sous `hydra_etl/ai/schemas/`,
+52 insertions et 52 suppressions — **uniquement** `0.11.3` -> `0.11.4` dans les `$id` et
+`productVersion`, plus une ligne de `DSL_REFERENCE.md`. Rien de ta refonte `init` n'y figure.
+`python tools/spec_export.py --check` repond maintenant « Spec a jour (28 fichiers) ».
+
+## Commandes
+
+```powershell
+cd C:\Users\DELL\Desktop\Hydra
+
+python tools/spec_export.py --check          # doit dire : Spec a jour (28 fichiers)
+git add hydra_etl/ai/schemas/
+git status                                    # 28 fichiers, rien d'autre
+git commit -m "chore(spec): regenerate DSL schemas for 0.11.4"
+git push origin main
+```
+
+Attendre `ci` verte, puis **deplacer le tag** — il pointe sur le commit qui ne passe pas la release.
+Comme rien n'a ete publie, le supprimer et le recreer est sans consequence :
+
+```powershell
+git tag -d v0.11.4
+git push origin :refs/tags/v0.11.4
+git tag -a v0.11.4 -m "0.11.4 — fix PostgreSQL upsert key validation"
+git push origin v0.11.4
+```
+
+Puis surveiller `release` #13 : les trois jobs `build`, `publish` et `container` doivent passer.
+
+> Pas de `git commit --amend` ici : le commit precedent est deja pousse, l'amender imposerait un
+> push force. Un commit `chore(spec)` separe est plus honnete et plus lisible dans l'historique.
+
+## A ajouter au processus, plus tard
+
+Soit une etape de release qui regenere la spec et echoue si le depot est sale, soit une entree dans
+un CHECKLIST de release. En l'etat, chaque bump de version rejouera exactement cette erreur.

@@ -3,7 +3,10 @@
 ARG NODE_IMAGE=node:22-alpine
 ARG PYTHON_IMAGE=python:3.12-slim
 
-FROM ${NODE_IMAGE} AS studio-builder
+# Le Studio est du JavaScript : son resultat ne depend pas de l'architecture
+# cible. On le construit donc sur la plateforme du runner (amd64) plutot que
+# sous emulation : `npm ci` en arm64 via qemu plante en « illegal instruction ».
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS studio-builder
 
 WORKDIR /build/studio
 

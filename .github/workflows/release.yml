@@ -113,9 +113,13 @@ jobs:
       #    pypi.org/manage/project/hydra-etl/settings/publishing/
       # Le jeton dépanne quand l'accès au compte PyPI est perdu ; l'éditeur de
       # confiance reste préférable à terme, car il n'expire pas et ne se vole pas.
+      # skip-existing : si une version est deja sur PyPI, ne pas echouer. Sans
+      # cela, rejouer un tag apres un echec d'une AUTRE etape (le conteneur, par
+      # exemple) rend la release rouge alors que le paquet est deja publie.
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
 
   # Publie l'image de conteneur sur GHCR, au meme tag que le paquet PyPI.
   #
@@ -130,6 +134,9 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    # Sans borne, un build emule qui se bloque consomme les 6 h du runner avant
+    # d'etre annule (vu sur release #13).
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write

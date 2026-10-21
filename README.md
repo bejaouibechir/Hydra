@@ -9,7 +9,13 @@
 [![Status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#project-status)
 [![Glama quality score](https://glama.ai/mcp/servers/bejaouibechir/Hydra/badges/score.svg)](https://glama.ai/mcp/servers/bejaouibechir/Hydra)
 
-**[Website](https://hydraetl.com)** · **[Docs & playground](https://hydraetl.com/playground)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
+**[Website](https://hydraetl.com)** · **[Video tutorials](https://hydraetl.com/academy/?utm_source=github&utm_medium=readme&utm_campaign=academy)** · **[Docs & playground](https://hydraetl.com/playground)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
+
+<p align="center">
+  <a href="https://youtu.be/9cCMWptQEgE"><img src="assets/readme/teaser-cli2.jpg" alt="Video (4:35): create a Hydra ETL project with hdrctl init and explore its structure" width="820"></a>
+  <br>
+  <sub>▶ Watch (4:35): create a project with <code>hdrctl init</code> and explore its structure. More videos in <a href="https://hydraetl.com/academy/?utm_source=github&amp;utm_medium=readme&amp;utm_campaign=academy">Hydra Academy</a>.</sub>
+</p>
 
 Hydra is an open-source declarative ETL engine. You write what a pipeline *is* in YAML;
 Hydra validates it before touching any data, then runs it. The same manifests run from
@@ -62,10 +68,15 @@ hdrctl serve --open            # Studio + API on http://localhost:5678
 Or stay in the terminal:
 
 ```bash
-hdrctl init my_job             # scaffold one of six templates
-hdrctl validate my_job         # strict validation, no data touched
-hdrctl run my_job              # execute
+hdrctl init my_project                 # a project: jobs/job1, workflows/workflow1, Data, output
+hdrctl validate my_project/jobs/job1   # strict validation, no data touched
+hdrctl run my_project/jobs/job1        # execute one job
+hdrctl workflow run my_project/workflows/workflow1.yaml   # or the whole workflow
 ```
+
+`init` scaffolds a project rather than a bare folder: six job templates are available with
+`--template` (`basic`, `csv`, `mysql`, `postgres`, `api`, `mongodb`), and a `.hydra/project.json`
+marks the directory so Studio and the CLI recognise it.
 
 No Node, no build step, no database, no message broker. Python 3.9+ on Linux, macOS or Windows.
 
@@ -113,14 +124,14 @@ readable and run without extra infrastructure.
 | **Engine**    | Declarative jobs: one source, N transformations, one destination         |
 | **CLI**       | `hdrctl`: scaffold, validate, run, inspect. English and Spanish          |
 | **API**       | FastAPI, with interactive docs at `/docs`                                |
-| **Studio**    | Visual editor for jobs and workflows, served by the same process         |
+| **Studio**    | Visual editor for jobs and workflows; opens an existing project folder   |
 | **Workflows** | Multi-job DAG with dependencies, actions, retries and runtime parameters |
 | **MCP**       | Natural-language pipeline authoring, validated by Hydra                  |
 
 **Connectors** (sources and destinations):
 
-| <img src="assets/connectors/csv.png" alt="" width="40"><br>CSV | <img src="assets/connectors/json.png" alt="" width="40"><br>JSON | <img src="assets/connectors/parquet.png" alt="" width="40"><br>Parquet | <img src="assets/connectors/mysql.png" alt="" width="40"><br>MySQL / MariaDB | <img src="assets/connectors/postgresql.png" alt="" width="40"><br>PostgreSQL | <img src="assets/connectors/mongo.png" alt="" width="40"><br>MongoDB | <img src="assets/connectors/api.png" alt="" width="40"><br>Web API |
-|:--------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:------------------------------------------------------------------:|
+| <img src="assets/connectors/csv.png" alt="" width="40"><br>CSV | <img src="assets/connectors/json.png" alt="" width="40"><br>JSON | <img src="assets/connectors/parquet.png" alt="" width="40"><br>Parquet | <img src="assets/connectors/mysql.png" alt="" width="40"><br>MySQL / MariaDB | <img src="assets/connectors/postgresql.png" alt="" width="40"><br>PostgreSQL | <img src="assets/connectors/sqlserver.png" alt="" width="40"><br>SQL Server | <img src="assets/connectors/mongo.png" alt="" width="40"><br>MongoDB | <img src="assets/connectors/api.png" alt="" width="40"><br>Web API |
+|:--------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:------------------------------------------------------------------:|
 
 **Transformation engines:** pandas and DuckDB.
 

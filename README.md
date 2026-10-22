@@ -295,6 +295,19 @@ hdrctl workflow remove daily_sales     # deletes the file and its thread entry; 
 hdrctl run .                           # every workflow, in the order of thread.yaml
 ```
 
+Jobs are added to a workflow as a chain: each step runs after the previous one.
+
+```bash
+hdrctl job add load_orders                    # new job jobs/load_orders/, attached nowhere
+hdrctl job add load_orders daily_sales        # new job, appended to the workflow
+hdrctl job attach clean_orders daily_sales -p 1   # existing job, as step 1: the old step 1 now runs after it
+hdrctl job detach clean_orders daily_sales    # the next step inherits its dependencies; the folder is kept
+hdrctl job detach clean_orders                # from every workflow
+```
+
+`job add` uses the same templates as `init` (`--template mysql`, `postgres`…). These commands rewrite
+the workflow file (comments in it are not kept) and refuse any change that would leave it invalid.
+
 The `workflow` commands work on the project that contains the current folder, or on the one given
 with `--project <path>`; outside a project they stop with an error. Studio keeps `thread.yaml` in
 step too: a workflow created or deleted in Studio is added to or removed from it.

@@ -1289,6 +1289,9 @@ hdrctl run jobs/job1          # run one job alone
 hdrctl workflow list          # workflows in thread order
 hdrctl workflow add <name>    # new workflow, added at the end of workflows/thread.yaml
 hdrctl workflow remove <name> # delete a workflow (its jobs are kept)
+hdrctl job add <job> <workflow>       # new job, appended to a workflow
+hdrctl job attach <job> <workflow> -p 1  # existing job, as the first step
+hdrctl job detach <job> [<workflow>]  # take a job out of one workflow, or of all
 ```
 """
 
@@ -1925,7 +1928,7 @@ def cmd_workflow_add(name: Optional[str], project: Optional[str]) -> None:
     success_box(t("workflow.add.success", name=name, path=str(rel)))
     info(t("workflow.add.thread", stage=stage, mode=thread.thread[stage - 1].mode))
     here = Path.cwd().resolve() == root
-    info(t("workflow.add.next", path=str(rel), project="." if here else str(root)))
+    info(t("workflow.add.next", name=name, project="." if here else str(root)))
     click.echo()
 
 
@@ -2022,6 +2025,136 @@ def _legacy_workflow_list(search_dir: Path) -> None:
             click.echo(f"  {c(C.RD, '?')} {wf_path.relative_to(search_dir)}")
     click.echo()
     info(t("workflow.list.summary", count=len(workflows)))
+    click.echo()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Groupe de commandes : job
+# ─────────────────────────────────────────────────────────────────────────────
+
+@cli.group("job", invoke_without_command=False, help=t("help.job.docstring"))
+@_lang_option
+def cmd_job() -> None:
+    """Groupe job."""
+    pass
+
+
+_position_option = click.option(
+    "-p", "--position", "position", type=int, default=None, metavar="N",
+    help=t("help.job.position"))
+
+
+def _echo_attach(res) -> None:
+    success_box(t("job.attach.success", job=res.step, workflow=res.workflow, position=res.position))
+    if res.after:
+        info(t("job.attach.after", step=res.after))
+    else:
+        info(t("job.attach.first"))
+    if res.rewired:
+        info(t("job.attach.rewired", step=res.rewired, job=res.step))
+    if res.not_rewired:
+        click.echo(f"  {c(C.YL, '⚠')}  {t('job.attach.not_rewired', step=res.not_rewired, job=res.step)}")
+
+
+def _echo_next(root: Path) -> None:
+    here = Path.cwd().resolve() == root
+    info(t("job.next", project="." if here else str(root)))
+    click.echo()
+
+
+@cmd_job.command("add", help=t("help.job.add.docstring"))
+@_lang_option
+@click.argument("name")
+@click.argument("workflow", required=False)
+@_position_option
+@click.option("--template", "-t", default="csv",
+              type=click.Choice(VALID_TEMPLATES, case_sensitive=False),
+              show_default=True, help=t("help.init.template"))
+@_project_option
+def cmd_job_add(name: str, workflow: Optional[str], position: Optional[int],
+                template: str, project: Optional[str]) -> None:
+    """Crée jobs/<NAME>/ et, si WORKFLOW est donné, l'y attache."""
+    from hydra_etl.workflow.jobs import (_load_doc, _workflow_file, attach_job, check_job_name,
+                                         create_job)
+    from hydra_etl.workflow.project import ProjectError
+    root = _project_or_exit(project)
+    if position is not None and not workflow:
+        error_box(t("job.position_needs_workflow"))
+        sys.exit(1)
+    try:
+        name = check_job_name(name)
+        # Tout vérifier AVANT de créer quoi que ce soit.
+        if workflow:
+            n = len(_load_doc(_workflow_file(root, workflow))["workflow"]["steps"])
+            if position is not None and not 1 <= position <= n + 1:
+                raise ProjectError([f"position {position} is out of range: workflow '{workflow}' "
+                                    f"has {n} step(s), use 1 to {n + 1}"])
+        target, created = create_job(root, name, template)
+    except ProjectError as e:
+        _project_error_exit(e)
+    for f in created:
+        ok(f"jobs/{name}/{f}")
+    success_box(t("job.add.success", name=name, path=str(target.relative_to(root))))
+    if workflow:
+        try:
+            _echo_attach(attach_job(root, name, workflow, position))
+        except ProjectError as e:
+            _project_error_exit(e)
+    else:
+        info(t("job.add.free", name=name))
+    _echo_next(root)
+
+
+@cmd_job.command("attach", help=t("help.job.attach.docstring"))
+@_lang_option
+@click.argument("name")
+@click.argument("workflow")
+@_position_option
+@_project_option
+def cmd_job_attach(name: str, workflow: str, position: Optional[int], project: Optional[str]) -> None:
+    """Attache un job existant à un workflow."""
+    from hydra_etl.workflow.jobs import attach_job
+    from hydra_etl.workflow.project import ProjectError
+    root = _project_or_exit(project)
+    try:
+        res = attach_job(root, name, workflow, position)
+    except ProjectError as e:
+        _project_error_exit(e)
+    _echo_attach(res)
+    _echo_next(root)
+
+
+@cmd_job.command("detach", help=t("help.job.detach.docstring"))
+@_lang_option
+@click.argument("name")
+@click.argument("workflow", required=False)
+@_project_option
+def cmd_job_detach(name: str, workflow: Optional[str], project: Optional[str]) -> None:
+    """Détache un job d'un workflow, ou de tous."""
+    from hydra_etl.workflow.jobs import detach_job, job_path, job_usage
+    from hydra_etl.workflow.project import ProjectError
+    root = _project_or_exit(project)
+    usage = job_usage(root, name)
+    if not usage and not job_path(root, name).is_dir():
+        error_box(t("job.not_found", name=name, path=str(job_path(root, name).relative_to(root))))
+        sys.exit(1)
+    try:
+        results = detach_job(root, name, workflow)
+    except ProjectError as e:
+        _project_error_exit(e)
+    if not results:
+        if workflow and usage:
+            info(t("job.detach.not_in", job=name, workflow=workflow, others=", ".join(usage)))
+        else:
+            info(t("job.detach.free", job=name))
+        return
+    for r in results:
+        ok(t("job.detach.success", job=name, workflow=r.workflow, steps=", ".join(r.steps)))
+        for step, deps in r.rewired.items():
+            info(t("job.detach.rewired", step=step, deps=", ".join(deps) if deps else "—"))
+    left = job_usage(root, name)
+    if not left:
+        info(t("job.detach.now_free", job=name))
     click.echo()
 
 

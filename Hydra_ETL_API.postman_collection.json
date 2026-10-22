@@ -1356,6 +1356,108 @@
               }
             }
           }
+        },
+        {
+          "name": "Job Add (CLI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jobs/job/add",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "job",
+                "add"
+              ]
+            },
+            "description": "Équivalent `hdrctl job add <name> [workflow] [-p N] --project <path>`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project\": \"C:/data/my_project\",\n  \"name\": \"load_orders\",\n  \"workflow\": \"daily_sales\",\n  \"position\": null,\n  \"template\": \"csv\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Job Attach (CLI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jobs/job/attach",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "job",
+                "attach"
+              ]
+            },
+            "description": "Équivalent `hdrctl job attach <name> <workflow> [-p N] --project <path>`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project\": \"C:/data/my_project\",\n  \"name\": \"load_orders\",\n  \"workflow\": \"daily_sales\",\n  \"position\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Job Detach (CLI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jobs/job/detach",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "job",
+                "detach"
+              ]
+            },
+            "description": "Équivalent `hdrctl job detach <name> [workflow] --project <path>`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project\": \"C:/data/my_project\",\n  \"name\": \"load_orders\",\n  \"workflow\": \"daily_sales\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
       ]
     }

@@ -43,6 +43,8 @@ on the `cli-reform` branch.
   errors (`set_param`, `assign_param`, `webhook`, `delay`, `python`, `ssh`,
   `email`…), unconfigured job, cycles, unknown dependency, duplicate step names,
   `when` guards and retry logs. They were in French.
+- `hdrctl --help` showed "Examples: …" as the summary of `clear`, `list`,
+  `test` and `validate`; each command now has a one-line description.
 - Help texts still showed the old `hydra` command (`hydra test`,
   `hydra workflow run`…); they now show `hdrctl`.
 
@@ -85,6 +87,17 @@ on the `cli-reform` branch.
   stage, mode, active/inactive and step count, plus workflows missing from
   `thread.yaml` and thread entries without a file. Outside a project it still
   searches for `workflow.yaml` files.
+- `hdrctl job add <job> [workflow] [-p N] [--template T]` creates
+  `jobs/<job>/` from the `init` templates and, given a workflow, attaches it.
+  `hdrctl job attach <job> <workflow> [-p N]` attaches an existing job.
+  Steps form a chain: at the end, the job runs after the last step; at
+  position N it runs after step N-1 and the former step N runs after it.
+  `hdrctl job detach <job> [workflow]` removes it from one workflow or from all;
+  the steps that ran after it inherit its dependencies, and the job folder is
+  kept. Messages say when a job is free or not in that workflow. Every change
+  is validated before the workflow file is written; nothing is created when a
+  check fails (unknown workflow, position out of range, existing job).
+  API: `POST /api/jobs/job/add`, `/job/attach`, `/job/detach`.
 - `hdrctl workflow run` and `workflow validate` accept a workflow name
   (`hdrctl workflow run daily_sales`) as well as a file path, and `--project`.
 - API: `POST /api/jobs/workflow/add` and `POST /api/jobs/workflow/remove`

@@ -311,6 +311,27 @@ class WorkflowRemoveRequest(BaseModel):
     name: str
 
 
+class JobAddRequest(BaseModel):
+    project: str
+    name: str
+    workflow: Optional[str] = None
+    position: Optional[int] = None
+    template: str = "csv"
+
+
+class JobAttachRequest(BaseModel):
+    project: str
+    name: str
+    workflow: str
+    position: Optional[int] = None
+
+
+class JobDetachRequest(BaseModel):
+    project: str
+    name: str
+    workflow: Optional[str] = None
+
+
 @router.post("/workflow/run", response_model=CLIResult)
 def run_workflow_cli(body: WorkflowRunRequest):
     """Lance un workflow via CLI (équivalent `hdrctl workflow run`)."""
@@ -342,3 +363,29 @@ def remove_workflow_cli(body: WorkflowRemoveRequest):
     """Supprime un workflow et son entrée de thread.yaml (équivalent
     `hdrctl workflow remove -y`)."""
     return _run_cli("workflow", "remove", body.name, "--project", body.project, "-y")
+
+
+@router.post("/job/add", response_model=CLIResult)
+def add_job_cli(body: JobAddRequest):
+    """Crée jobs/<name>/ et, si `workflow` est donné, l'y attache (équivalent
+    `hdrctl job add`)."""
+    args = ["job", "add", body.name] + ([body.workflow] if body.workflow else [])
+    if body.position is not None:
+        args += ["--position", str(body.position)]
+    return _run_cli(*args, "--template", body.template, "--project", body.project)
+
+
+@router.post("/job/attach", response_model=CLIResult)
+def attach_job_cli(body: JobAttachRequest):
+    """Attache un job existant à un workflow (équivalent `hdrctl job attach`)."""
+    args = ["job", "attach", body.name, body.workflow]
+    if body.position is not None:
+        args += ["--position", str(body.position)]
+    return _run_cli(*args, "--project", body.project)
+
+
+@router.post("/job/detach", response_model=CLIResult)
+def detach_job_cli(body: JobDetachRequest):
+    """Détache un job d'un workflow, ou de tous (équivalent `hdrctl job detach`)."""
+    args = ["job", "detach", body.name] + ([body.workflow] if body.workflow else [])
+    return _run_cli(*args, "--project", body.project)

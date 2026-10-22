@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/).
 
 
+## [0.12.2] — 2026-10-22
+
+### Added
+
+- Studio: the workflow cards of a project page can be rearranged by drag and
+  drop: grab a card by its title and drop it on another card (dashed outline)
+  to swap them. Display only: the order is kept in `.hydra/card-order.json`
+  and does not change `thread.yaml` or `hdrctl run`.
+  API: `PUT /api/projects/{id}/card-order`.
+
 ## [0.12.1] — 2026-10-22
 
 ### Added
@@ -45,11 +55,6 @@ and versions follow [Semantic Versioning](https://semver.org/).
   **Preview** draws the thread: blocks left to right by stage, stacked when
   parallel, a diamond for each delay, inactive workflows dashed, loops as
   dashed return arrows labelled ×N. Clicking a block opens the workflow.
-- Studio: the workflow cards of a project page can be rearranged by drag and
-  drop: grab a card by its title and drop it on another card (dashed outline)
-  to swap them. Display only: the order is kept in `.hydra/card-order.json`
-  and does not change `thread.yaml` or `hdrctl run`.
-  API: `PUT /api/projects/{id}/card-order`.
 
 ### Changed
 

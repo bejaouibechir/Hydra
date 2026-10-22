@@ -1,7 +1,7 @@
 """Ordre des cartes de workflows sur la page projet de Studio (glisser-déposer).
 
-Purement visuel : rangé dans .hydra/project.json ("card_order"), sans effet
-sur workflows/thread.yaml.
+Purement visuel : rangé dans .hydra/card-order.json, sans effet sur
+workflows/thread.yaml.
 """
 import json
 
@@ -50,8 +50,8 @@ def test_reorder_is_kept(client, proj):
     after = names(client, p.id)
     assert after[:2] == ["gamma", "alpha"]
     assert sorted(after) == sorted(before)
-    meta = json.loads((root / ".hydra" / "project.json").read_text(encoding="utf-8"))
-    assert meta["card_order"] == order
+    saved = json.loads((root / ".hydra" / "card-order.json").read_text(encoding="utf-8"))
+    assert saved["order"] == order
     # visuel seulement
     assert (root / "workflows" / "thread.yaml").read_text(encoding="utf-8") == thread_before
 
@@ -70,9 +70,21 @@ def test_new_workflow_goes_last_and_deleted_leaves_order(client, proj):
     r = client.post("/api/workflows", json={"name": "delta", "project_id": p.id})
     assert names(client, p.id)[-1] == "delta"
     assert client.delete(f"/api/workflows/{b}?project_id={p.id}").status_code == 200
-    meta = json.loads((store._resolve_project_path(p.id) / ".hydra" / "project.json").read_text(encoding="utf-8"))
-    assert b not in meta["card_order"]
     assert names(client, p.id)[:2] == ["gamma", "alpha"]
+    # l'id disparu sort de la liste au prochain enregistrement
+    order = client.put(f"/api/projects/{p.id}/card-order", json={"order": [a, b, g]}).json()["order"]
+    assert b not in order and order[:2] == [a, g]
+
+
+def test_project_without_studio_meta(client, proj):
+    """Projet sans .hydra/project.json : l'ordre s'enregistre quand même."""
+    p, root, (a, b, g) = proj
+    (root / ".hydra" / "project.json").rename(root / ".hydra" / "project.json.bak")
+    try:
+        ids = [w.id for w in store.list_workflows(p.id)]
+        assert store.set_card_order(p.id, list(reversed(ids)))[0] == ids[-1]
+    finally:
+        (root / ".hydra" / "project.json.bak").rename(root / ".hydra" / "project.json")
 
 
 def test_unknown_project_404(client):

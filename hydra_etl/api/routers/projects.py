@@ -72,7 +72,7 @@ def set_card_order(project_id: str, body: CardOrder):
     try:
         return CardOrder(order=store.set_card_order(project_id, body.order))
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e))  # dossier introuvable
 
 
 @router.post("/{project_id}/unlist", response_model=MessageResponse)

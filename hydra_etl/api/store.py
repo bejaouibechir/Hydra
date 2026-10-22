@@ -200,8 +200,6 @@ def _unregister_workflow_in_manifest(project_path: Path, wf_id: str) -> None:
     if m is None:
         return
     m["workflows"] = [w for w in m.get("workflows", []) if w.get("id") != wf_id]
-    if "card_order" in m:
-        m["card_order"] = [i for i in m["card_order"] if i != wf_id]
     _write_manifest(project_path, m)
 
 
@@ -551,12 +549,26 @@ def list_workflows(project_id: str) -> List[WorkflowResponse]:
 
 # ---------------------------------------------------------------------------
 # Ordre des cartes de workflows (page projet de Studio) — purement visuel :
-# rangé dans .hydra/project.json ("card_order"), sans effet sur thread.yaml
-# ni sur hdrctl run. Les workflows absents de la liste viennent à la fin.
+# rangé dans .hydra/card-order.json, sans effet sur thread.yaml ni sur
+# hdrctl run. Fichier à part : marche aussi pour un projet sans méta Studio.
+# Les workflows absents de la liste viennent à la fin ; ids disparus ignorés.
 # ---------------------------------------------------------------------------
 
+def _card_order_file(project_path: Path) -> Path:
+    return project_path / STUDIO_DIR / "card-order.json"
+
+
+def _read_card_order(project_path: Path) -> List[str]:
+    try:
+        data = json.loads(_card_order_file(project_path).read_text(encoding="utf-8"))
+        order = data.get("order") if isinstance(data, dict) else None
+        return [str(i) for i in order] if isinstance(order, list) else []
+    except Exception:
+        return []
+
+
 def _apply_card_order(project_path: Path, workflows: List[WorkflowResponse]) -> List[WorkflowResponse]:
-    order = (_read_manifest(project_path) or {}).get("card_order") or []
+    order = _read_card_order(project_path)
     if not order:
         return workflows
     rank = {wid: i for i, wid in enumerate(order)}
@@ -567,15 +579,15 @@ def set_card_order(project_id: str, ids: List[str]) -> List[str]:
     """Enregistre l'ordre d'affichage des cartes. Les ids inconnus sont ignorés,
     les workflows non cités gardent leur ordre, à la fin. Renvoie l'ordre retenu."""
     project_path = _resolve_project_path(project_id)
-    m = _read_manifest(project_path)
-    if m is None:
-        raise ValueError("this project has no Studio metadata (.hydra/project.json)")
+    if not project_path.is_dir():
+        raise ValueError(f"project folder not found: {project_path}")
     known = [w.id for w in list_workflows(project_id)]
     seen: set = set()
     order = [i for i in ids if i in known and not (i in seen or seen.add(i))]
     order += [i for i in known if i not in seen]
-    m["card_order"] = order
-    _write_manifest(project_path, m)
+    f = _card_order_file(project_path)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(f, json.dumps({"order": order}, indent=2) + "\n")
     return order
 
 

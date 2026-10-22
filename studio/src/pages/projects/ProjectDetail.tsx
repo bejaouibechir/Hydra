@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Workflow } from '@/lib/api'
 import { Plus, GitBranch, Trash2, ArrowRight, ChevronLeft, Upload, Clock, Webhook, GripVertical } from 'lucide-react'
-import { moveTo } from '@/lib/cardOrder'
+import { swap } from '@/lib/cardOrder'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useRunsList } from '@/hooks/useRunPolling'
 import EmptyState from '@/components/ui/EmptyState'
@@ -254,24 +254,34 @@ export default function ProjectDetail() {
   const project   = useQuery({ queryKey: ['project', projectId],   queryFn: () => api.projects.get(projectId!) })
   const workflows = useQuery({ queryKey: ['workflows', projectId], queryFn: () => api.workflows.list(projectId!) })
 
-  // Glisser-déposer des cartes : ordre purement visuel (.hydra/project.json),
-  // sans effet sur thread.yaml. Saisie par la poignée / l'en-tête de la carte.
+  // Glisser-déposer des cartes : déposer une carte sur une autre échange leurs
+  // places. Ordre purement visuel (.hydra/card-order.json), sans effet sur
+  // thread.yaml. Saisie par l'en-tête de la carte (pas depuis les champs).
+  // Les refs portent l'état du glisser : les événements drag* ne doivent pas
+  // dépendre d'un rendu React pour fonctionner.
+  const dragRef = useRef<string | null>(null)
+  const grabRef = useRef<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
-  const [armedId, setArmedId] = useState<string | null>(null)
+  const [orderError, setOrderError] = useState<string | null>(null)
   const saveOrder = useMutation({
     mutationFn: (order: string[]) => api.projects.saveCardOrder(projectId!, order),
-    onError: () => qc.invalidateQueries({ queryKey: ['workflows', projectId] }),
+    onSuccess: () => setOrderError(null),
+    onError: (e: Error) => {
+      setOrderError(`The card order was not saved: ${e.message}`)
+      qc.invalidateQueries({ queryKey: ['workflows', projectId] })
+    },
   })
   const dropOn = (targetId: string) => {
-    const list = workflows.data ?? []
-    if (!dragId || dragId === targetId) return
-    const ids = moveTo(list.map(w => w.id), dragId, targetId)
+    const src = dragRef.current
+    const list = qc.getQueryData<Workflow[]>(['workflows', projectId]) ?? workflows.data ?? []
+    if (!src || src === targetId) return
+    const ids = swap(list.map(w => w.id), src, targetId)
     const byId = new Map(list.map(w => [w.id, w]))
     qc.setQueryData(['workflows', projectId], ids.map(i => byId.get(i)!))
     saveOrder.mutate(ids)
   }
-  const endDrag = () => { setDragId(null); setOverId(null); setArmedId(null) }
+  const endDrag = () => { dragRef.current = null; grabRef.current = null; setDragId(null); setOverId(null) }
 
   const delWf = useMutation({
     mutationFn: (wfId: string) => api.workflows.delete(wfId, projectId!),
@@ -364,6 +374,7 @@ export default function ProjectDetail() {
             (w.path ?? '').replace(/\\/g, '/').split('/').pop()?.replace(/\.ya?ml$/i, '') ?? w.name, w.id]))} />
       )}
 
+      {orderError && <p className="text-xs" style={{ color: 'var(--error)', textAlign: 'center', margin: '0 0 10px' }}>{orderError}</p>}
       {workflows.isLoading
         ? <div className="flex justify-center py-20"><Spinner size="lg" /></div>
         : workflows.data?.length === 0
@@ -378,11 +389,21 @@ export default function ProjectDetail() {
                   : null
                 return (
                 <div key={wf.id} className="card group" data-testid={`wf-card-${wf.name}`}
-                  draggable={armedId === wf.id}
-                  onDragStart={e => { setDragId(wf.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', wf.id) }}
-                  onDragOver={e => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overId !== wf.id) setOverId(wf.id) } }}
-                  onDragLeave={() => { if (overId === wf.id) setOverId(null) }}
-                  onDrop={e => { e.preventDefault(); dropOn(wf.id); endDrag() }}
+                  draggable
+                  onMouseDown={e => { grabRef.current = (e.target as HTMLElement).closest('[data-grab]') ? wf.id : null }}
+                  onDragStart={e => {
+                    if (grabRef.current !== wf.id) { e.preventDefault(); return }   // pas saisie par l'en-tête
+                    dragRef.current = wf.id
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', wf.id)
+                    setTimeout(() => setDragId(wf.id), 0)   // ne pas toucher au DOM pendant dragstart
+                  }}
+                  onDragEnter={e => { if (dragRef.current) { e.preventDefault(); if (dragRef.current !== wf.id) setOverId(wf.id) } }}
+                  onDragOver={e => { if (dragRef.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } }}
+                  onDragLeave={e => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOverId(o => (o === wf.id ? null : o))
+                  }}
+                  onDrop={e => { e.preventDefault(); e.stopPropagation(); dropOn(wf.id); endDrag() }}
                   onDragEnd={endDrag}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 12, transition: 'border-color 0.15s, opacity 0.15s', width: 270,
@@ -390,13 +411,12 @@ export default function ProjectDetail() {
                     outline: overId === wf.id && dragId !== wf.id ? '2px dashed var(--primary)' : undefined, outlineOffset: 3,
                   }}
                   onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--bg-border)'; if (!dragId) setArmedId(null) }}>
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--bg-border)')}>
 
                   {/* En-tête : poignée + icône trigger + nom + suppression */}
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5" style={{ minWidth: 0, cursor: 'grab' }}
-                      title="Drag to reorder the cards (display only: the execution order stays in thread.yaml)"
-                      onMouseDown={() => setArmedId(wf.id)} onMouseUp={() => { if (!dragId) setArmedId(null) }}>
+                    <div data-grab className="flex items-center gap-2.5" style={{ minWidth: 0, cursor: 'grab' }}
+                      title="Drag onto another card to swap them (display only: the execution order stays in thread.yaml)">
                       <GripVertical size={14} data-testid={`wf-grip-${wf.name}`}
                         style={{ color: 'var(--text-muted)', marginRight: -6, flexShrink: 0 }} />
                       <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"

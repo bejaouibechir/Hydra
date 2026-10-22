@@ -13,6 +13,17 @@ export function moveTo(ids: string[], dragId: string, targetId: string): string[
   return next
 }
 
+/** Échange les places de `a` et `b` (glisser une carte sur une autre). */
+export function swap(ids: string[], a: string, b: string): string[] {
+  const i = ids.indexOf(a)
+  const j = ids.indexOf(b)
+  if (i < 0 || j < 0 || i === j) return ids
+  const next = [...ids]
+  next[i] = b
+  next[j] = a
+  return next
+}
+
 /** Range `items` selon `ids` (les absents à la fin, ordre conservé). */
 export function sortByIds<T extends { id: string }>(items: T[], ids: string[]): T[] {
   const rank = new Map(ids.map((id, i) => [id, i]))

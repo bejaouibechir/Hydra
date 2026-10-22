@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { moveTo, sortByIds } from './cardOrder'
+import { moveTo, sortByIds, swap } from './cardOrder'
 
 describe('moveTo', () => {
   it('moves forward and backward', () => {
@@ -11,6 +11,18 @@ describe('moveTo', () => {
     const ids = ['a', 'b']
     expect(moveTo(ids, 'a', 'a')).toBe(ids)
     expect(moveTo(ids, 'x', 'a')).toBe(ids)
+  })
+})
+
+describe('swap', () => {
+  it('exchanges the two cards only', () => {
+    expect(swap(['a', 'b', 'c', 'd'], 'd', 'a')).toEqual(['d', 'b', 'c', 'a'])
+    expect(swap(['a', 'b', 'c'], 'a', 'b')).toEqual(['b', 'a', 'c'])
+  })
+  it('ignores unknown ids and self drops', () => {
+    const ids = ['a', 'b']
+    expect(swap(ids, 'a', 'a')).toBe(ids)
+    expect(swap(ids, 'x', 'a')).toBe(ids)
   })
 })
 

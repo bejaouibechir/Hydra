@@ -1,4 +1,6 @@
 """Projet de démo livré avec le package : installation, chemins, exécution."""
+from pathlib import Path
+
 import pytest
 
 from hydra_etl.api import demo, store
@@ -48,3 +50,20 @@ def test_button_twice_makes_copy(ws):
 def test_jobs_registered(ws):
     p = demo.install_demo_project()
     assert len(store.list_workflows(p.id)) >= 1
+
+
+def test_demo_has_the_project_layout(ws):
+    """Le projet démo suit la structure de `hdrctl init` et tourne en entier."""
+    from click.testing import CliRunner
+    from hydra_etl.cli.hdrctl import cli
+    from hydra_etl.api import demo
+    proj = demo.install_demo_project()
+    root = Path(proj.path)
+    for d in ("outputs", "environments", "scripts", "Data", "jobs", "workflows"):
+        assert (root / d).is_dir(), d
+    assert (root / "workflows" / "thread.yaml").is_file()
+    assert (root / ".hydra" / "secrets").is_file() and ".hydra/secrets" in (root / ".gitignore").read_text()
+    assert not (root / "output").exists()
+    res = CliRunner().invoke(cli, ["run", str(root)])
+    assert res.exit_code == 0, res.output
+    assert (root / "outputs" / "orders_clean.csv").is_file()

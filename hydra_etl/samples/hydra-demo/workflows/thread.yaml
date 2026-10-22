@@ -1,0 +1,12 @@
+# Execution order of this project's workflows (read by `hdrctl run`).
+# Stages run one after the other.
+#   mode        : sequential (one workflow after the other) | parallel (all at once)
+#   delay_after : pause after the stage, in seconds or 30s / 5m / 1h (optional)
+#   active      : false skips the workflow without removing it (debugging)
+# Each name refers to workflows/<name>.yaml.
+version: "1.0"
+thread:
+  - mode: sequential
+    workflows:
+      - name: first-pipeline
+        active: true

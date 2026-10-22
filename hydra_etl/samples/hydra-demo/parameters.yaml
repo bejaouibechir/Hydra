@@ -1,0 +1,4 @@
+# Project parameters, available in every job and workflow as {{ param:NAME }}.
+# Per-environment values go in environments/<env>.yaml (select with --env <env>).
+version: "1.0"
+parameters: {}

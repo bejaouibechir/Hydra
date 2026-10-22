@@ -35,7 +35,10 @@ def install_demo_project() -> Optional[ProjectResponse]:
         dest = store.WORKSPACE / f"{DEMO_NAME}-{n}"
         n += 1
     shutil.copytree(TEMPLATE_DIR, dest, ignore=shutil.ignore_patterns("__pycache__", ".hydra"))
-    (dest / "output").mkdir(exist_ok=True)
+    # Même structure qu'un projet de `hdrctl init` (les dossiers vides ne
+    # voyagent pas dans le paquet).
+    for sub in ("outputs", "environments", "scripts"):
+        (dest / sub).mkdir(exist_ok=True)
 
     root = dest.resolve().as_posix()          # '/' accepté aussi sous Windows
     for f in dest.rglob("*"):
@@ -45,6 +48,8 @@ def install_demo_project() -> Optional[ProjectResponse]:
                 f.write_text(txt.replace(_TOKEN, root), encoding="utf-8")
 
     proj = store.open_project(str(dest), adopt=True)
+    from hydra_etl.internal.config.secrets import scaffold_secrets
+    scaffold_secrets(dest)                     # .hydra/secrets + .gitignore
     try:
         _seeded_flag().write_text("1", encoding="utf-8")
     except OSError:

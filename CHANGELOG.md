@@ -38,6 +38,12 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 - `init` no longer creates an empty `.hydra/workflows/`: Studio creates it
   when it saves a workflow canvas.
+- The demo project (Studio's "Install demo") has the same layout as
+  `hdrctl init`: `outputs/` (was `output/`), `environments/`, `scripts/`,
+  `parameters.yaml`, `workflows/thread.yaml`, `.hydra/secrets` and
+  `.gitignore`; `hdrctl run .` runs it whole. Studio's file path examples for
+  CSV/JSON/Parquet destinations point to the project's `outputs/`
+  (`../../outputs/file.csv` from a job).
 - The generated `.gitignore` also excludes `.env.*` (keeping `.env.example`),
   so the `.env.<name>` files written by Studio's environments API stay out of
   git.

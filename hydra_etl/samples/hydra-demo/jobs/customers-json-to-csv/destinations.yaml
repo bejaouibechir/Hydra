@@ -4,5 +4,5 @@ destinations:
     type: csv
     connection: {}
     load:
-      table: __HYDRA_DEMO_ROOT__/output/active_customers.csv
+      table: __HYDRA_DEMO_ROOT__/outputs/active_customers.csv
       mode: replace

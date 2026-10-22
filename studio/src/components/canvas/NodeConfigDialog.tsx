@@ -76,9 +76,9 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'method', label: 'Method', type: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'] },
   ],
   // Destinations
-  dest_csv:     [{ key: 'path', label: 'File path', type: 'text', placeholder: './output/file.csv',     required: true, browseType: 'save_file', browseExt: '.csv' }],
-  dest_json:    [{ key: 'path', label: 'File path', type: 'text', placeholder: './output/file.json',    required: true, browseType: 'save_file', browseExt: '.json' }],
-  dest_parquet: [{ key: 'path', label: 'File path', type: 'text', placeholder: './output/file.parquet', required: true, browseType: 'save_file', browseExt: '.parquet' }],
+  dest_csv:     [{ key: 'path', label: 'File path', type: 'text', placeholder: '../../outputs/file.csv',     required: true, browseType: 'save_file', browseExt: '.csv' }],
+  dest_json:    [{ key: 'path', label: 'File path', type: 'text', placeholder: '../../outputs/file.json',    required: true, browseType: 'save_file', browseExt: '.json' }],
+  dest_parquet: [{ key: 'path', label: 'File path', type: 'text', placeholder: '../../outputs/file.parquet', required: true, browseType: 'save_file', browseExt: '.parquet' }],
   dest_mysql:    [
     { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
     { key: 'port',     label: 'Port',        type: 'number', placeholder: '3306' },

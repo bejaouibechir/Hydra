@@ -8,6 +8,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#project-status)
 [![Glama quality score](https://glama.ai/mcp/servers/bejaouibechir/Hydra/badges/score.svg)](https://glama.ai/mcp/servers/bejaouibechir/Hydra)
+<a href="https://www.saashub.com/hydra-etl?utm_source=badge&utm_campaign=badge&utm_content=hydra-etl&badge_variant=color&badge_kind=approved"><img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="Hydra ETL on SaaSHub" height="20"></a>
 
 **[Website](https://hydraetl.com)** · **[Video tutorials](https://hydraetl.com/academy/?utm_source=github&utm_medium=readme&utm_campaign=academy)** · **[Docs & playground](https://hydraetl.com/playground)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
 

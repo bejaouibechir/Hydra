@@ -33,6 +33,18 @@ and versions follow [Semantic Versioning](https://semver.org/).
   `hdrctl run <project>`; one run, one line per workflow, followed live).
   API: `GET|PUT /api/projects/{id}/thread`, `POST /api/projects/{id}/check`;
   `POST /api/runs` with the project folder as `workflow_path` runs the project.
+- Loops in `workflows/thread.yaml` (optional): `loops: [{from, to, times, delay}]`
+  replays the part of the thread from `to` to `from`, `times` passes in total,
+  with an optional pause before each repeat. A loop can link any two workflows
+  of the thread (`to` before `from`, or the same workflow); loops must not
+  overlap. `hdrctl run` shows `(pass i/N)` and `↻ Loop …`, `--dry-run` lists the
+  loops; `workflow remove` drops the loops that cite the removed workflow. The
+  VS Code schema validates the `loops` block.
+- Studio: the **Execution order** panel has two tabs. **Define** edits the
+  stages and the loops (from / to / passes / pause, checked as you type).
+  **Preview** draws the thread: blocks left to right by stage, stacked when
+  parallel, a diamond for each delay, inactive workflows dashed, loops as
+  dashed return arrows labelled ×N. Clicking a block opens the workflow.
 
 ### Changed
 

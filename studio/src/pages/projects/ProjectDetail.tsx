@@ -339,7 +339,9 @@ export default function ProjectDetail() {
       </div>
 
       {(workflows.data?.length ?? 0) > 0 && (
-        <ThreadEditor projectId={projectId!} projectPath={project.data.path} />
+        <ThreadEditor projectId={projectId!} projectPath={project.data.path}
+          workflowIds={Object.fromEntries((workflows.data ?? []).map(w => [
+            (w.path ?? '').replace(/\\/g, '/').split('/').pop()?.replace(/\.ya?ml$/i, '') ?? w.name, w.id]))} />
       )}
 
       {workflows.isLoading

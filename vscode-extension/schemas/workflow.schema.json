@@ -25,7 +25,7 @@
 
     "threadFile": {
       "type": "object",
-      "description": "workflows/thread.yaml — execution order of the project's workflows, read by hdrctl run. Stages run one after the other.",
+      "description": "workflows/thread.yaml — execution order of the project's workflows, read by hdrctl run. Stages run one after the other; optional loops replay a part of the thread.",
       "required": ["thread"],
       "additionalProperties": false,
       "properties": {
@@ -38,6 +38,11 @@
           "type": "array",
           "description": "Stages, run one after the other.",
           "items": { "$ref": "#/definitions/threadStage" }
+        },
+        "loops": {
+          "type": "array",
+          "description": "Optional loops: when workflow 'from' finishes, go back to workflow 'to' (earlier in the thread, or the same one) and replay that part. Loops must not overlap.",
+          "items": { "$ref": "#/definitions/threadLoop" }
         }
       }
     },
@@ -85,6 +90,40 @@
           "type": "boolean",
           "default": true,
           "description": "false: hdrctl run skips this workflow without removing it (debugging)."
+        }
+      }
+    },
+
+    "threadLoop": {
+      "type": "object",
+      "required": ["from", "to", "times"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$",
+          "description": "Workflow at the end of the loop: when it finishes, the run goes back to 'to'.",
+          "examples": ["workflow5"]
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$",
+          "description": "Workflow where the loop starts again. Must come before 'from' in the thread (or be the same workflow).",
+          "examples": ["workflow1"]
+        },
+        "times": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Number of passes in total (2 = this part of the thread runs twice)."
+        },
+        "delay": {
+          "description": "Pause before each repeat: a number of seconds, or a duration such as 30s, 5m, 1h, 500ms.",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+          ],
+          "examples": ["5m", 30]
         }
       }
     },

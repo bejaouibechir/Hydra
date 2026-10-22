@@ -118,3 +118,27 @@ def test_run_project_success(client, proj):
     r = client.post("/api/runs", json={"workflow_path": str(root)})
     run = client.get(f"/api/runs/{r.json()['run_id']}").json()
     assert run["status"] == "success" and [s["step_name"] for s in run["steps"]] == ["workflow1"]
+
+
+def test_put_and_get_loops(client, proj):
+    p, root = proj
+    body = {"thread": [{"workflows": [{"name": "a"}, {"name": "b"}]}],
+            "loops": [{"from": "b", "to": "a", "times": 3, "delay": "1s"}]}
+    r = client.put(f"/api/projects/{p.id}/thread", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["thread"]["loops"] == [{"from": "b", "to": "a", "times": 3, "delay": "1s"}]
+    assert "loops:" in (root / "workflows" / "thread.yaml").read_text(encoding="utf-8")
+    bad = {"thread": [{"workflows": [{"name": "a"}, {"name": "b"}]}], "loops": [{"from": "a", "to": "b", "times": 2}]}
+    r = client.put(f"/api/projects/{p.id}/thread", json=bad)
+    assert r.status_code == 422 and "must come before" in r.text
+
+
+def test_run_project_with_loop_records_each_pass(client, proj):
+    p, root = proj
+    client.put(f"/api/projects/{p.id}/thread", json={
+        "thread": [{"workflows": [{"name": "a"}, {"name": "b"}]}],
+        "loops": [{"from": "b", "to": "a", "times": 2}]})
+    r = client.post("/api/runs", json={"workflow_path": str(root)})
+    run = client.get(f"/api/runs/{r.json()['run_id']}").json()
+    assert run["status"] == "success"
+    assert [s["step_name"] for s in run["steps"]] == ["a (pass 1/2)", "b (pass 1/2)", "a (pass 2/2)", "b (pass 2/2)"]

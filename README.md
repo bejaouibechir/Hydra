@@ -120,9 +120,16 @@ thread:
     workflows:
       - name: export-a
       - name: export-b
+loops:                        # optional
+  - from: export-b            # when export-b finishes…
+    to: workflow1             # …go back to workflow1
+    times: 3                  # 3 passes in total
+    delay: 5m                 # optional pause before each repeat
 ```
 
-In Studio, the project page edits the same file (**Execution order**) and has a **Run project** button.
+A loop can link any two workflows of the thread (`to` comes before `from`, or is the same
+workflow); loops must not overlap. In Studio, the project page edits the same file
+(**Execution order** → **Define**), draws it (**Preview**) and has a **Run project** button.
 `hdrctl run <project>` checks the thread, every active workflow and the job folders they use
 before starting anything, then runs the stages in order. A failed workflow stops the project;
 in a parallel stage the workflows already started finish first. Without `thread.yaml`, every

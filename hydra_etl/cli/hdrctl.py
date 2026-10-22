@@ -1053,7 +1053,11 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
                     continue
                 wf = plan.workflows[w.name]
                 steps = ", ".join(st.name for st in wf.steps)
-                click.echo(f"     {c(C.GR, '•')}  {c(C.WH, w.name)}  {c(C.DM, f'({len(wf.steps)}: {steps})')}")
+                detail = f"({len(wf.steps)}: {steps})" if steps else "(0)"
+                click.echo(f"     {c(C.GR, '•')}  {c(C.WH, w.name)}  {c(C.DM, detail)}")
+        for lp in plan.thread.loops:
+            pause = f", {t('run.project.loop_pause', seconds=_fmt_seconds(lp.delay_seconds))}" if lp.delay_seconds else ""
+            click.echo(f"  {c(C.CY, '↻')}  {t('run.project.plan_loop', start=lp.to, end=lp.from_, times=lp.times)}{pause}")
         click.echo()
         success_box(t("run.project.dry_run_done"))
         return 0
@@ -1067,7 +1071,9 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
         elif kind == "not_run":
             click.echo(f"  {c(C.YL, '⏭')}  {t('run.project.not_run', name=data.name)}")
         elif kind == "start":
-            click.echo(f"  {c(C.WH, '▶')}  {t('workflow.run.starting', name=c(C.CY, data['name']))}")
+            it = f"  {c(C.DM, t('run.project.pass', iteration=data['iteration'], iterations=data['iterations']))}" \
+                if data.get("iterations", 1) > 1 else ""
+            click.echo(f"  {c(C.WH, '▶')}  {t('workflow.run.starting', name=c(C.CY, data['name']))}{it}")
         elif kind == "end":
             if data.result is not None:
                 _print_workflow_steps(plan.workflows[data.name], data.result, indent="     ")
@@ -1075,6 +1081,10 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
                 click.echo(f"  {c(C.RD, '✗')}  {t('run.project.wf_failed', name=data.name, duration=f'{data.duration:.1f}', error=data.error or '')}")
             else:
                 click.echo(f"  {c(C.GR, '✓')}  {t('run.project.wf_ok', name=data.name, duration=f'{data.duration:.1f}')}")
+        elif kind == "loop":
+            lp = data["loop"]
+            pause = f" — {t('run.project.loop_pause', seconds=_fmt_seconds(data['seconds']))}" if data["seconds"] else ""
+            click.echo(f"\n  {c(C.CY, '↻')}  {t('run.project.loop', start=lp.to, end=lp.from_, iteration=data['iteration'], iterations=data['iterations'])}{pause}")
         elif kind == "delay":
             click.echo(f"  {c(C.DM, '⏸')}  {c(C.DM, t('run.project.delay', seconds=_fmt_seconds(data['seconds'])))}")
 

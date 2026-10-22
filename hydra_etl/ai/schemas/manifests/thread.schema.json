@@ -1,5 +1,50 @@
 {
   "$defs": {
+    "ThreadLoop": {
+      "additionalProperties": false,
+      "description": "Boucle : rejouer la portion du thread qui va de `to` à `from`.",
+      "properties": {
+        "delay": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delay"
+        },
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "times": {
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Times",
+          "type": "integer"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "times"
+      ],
+      "title": "ThreadLoop",
+      "type": "object"
+    },
     "ThreadStage": {
       "additionalProperties": false,
       "properties": {
@@ -69,6 +114,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "loops": {
+      "items": {
+        "$ref": "#/$defs/ThreadLoop"
+      },
+      "title": "Loops",
+      "type": "array"
+    },
     "thread": {
       "items": {
         "$ref": "#/$defs/ThreadStage"

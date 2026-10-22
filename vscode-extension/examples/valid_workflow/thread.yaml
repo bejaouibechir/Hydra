@@ -11,3 +11,8 @@ thread:
     workflows:
       - name: export-a
       - name: export-b
+loops:
+  - from: export-b
+    to: workflow1
+    times: 3
+    delay: 5m

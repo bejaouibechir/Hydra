@@ -3,7 +3,7 @@
  * Base URL configurée via import.meta.env.VITE_API_URL (défaut: /api via proxy Vite)
  */
 
-import type { ThreadStage } from './thread'
+import type { ThreadLoop, ThreadStage } from './thread'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -119,7 +119,7 @@ export interface WorkflowUpdatePayload extends Partial<Workflow> {
 }
 
 export interface ThreadInfo {
-  thread: { version: string; thread: ThreadStage[] }
+  thread: { version: string; thread: ThreadStage[]; loops?: ThreadLoop[] }
   implicit: boolean            // pas de thread.yaml : ordre alphabétique
   workflows: string[]          // workflows/*.yaml du projet
   missing: string[]            // noms du thread sans fichier
@@ -148,7 +148,8 @@ export const api = {
     delete: (id: string)                      => del<{ message: string }>(`/projects/${id}?remove_files=true`),
     /** workflows/thread.yaml : ordre d'exécution des workflows du projet. */
     thread: (id: string)                      => get<ThreadInfo>(`/projects/${id}/thread`),
-    saveThread: (id: string, thread: ThreadStage[]) => put<ThreadInfo>(`/projects/${id}/thread`, { thread }),
+    saveThread: (id: string, thread: ThreadStage[], loops: ThreadLoop[] = []) =>
+      put<ThreadInfo>(`/projects/${id}/thread`, { thread, loops }),
     /** Vérifie le projet comme `hdrctl run --dry-run`. */
     check:  (id: string)                      => post<{ ok: boolean; errors: string[]; active: string[] }>(`/projects/${id}/check`, {}),
   },

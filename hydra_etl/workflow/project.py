@@ -151,6 +151,8 @@ class WorkflowRun:
     duration: float = 0.0
     result: Any = None          # WorkflowResult
     error: Optional[str] = None
+    iteration: int = 1          # passage dans une boucle (1 hors boucle)
+    iterations: int = 1         # nombre total de passages prévus
 
 
 @dataclass
@@ -168,10 +170,11 @@ class ProjectResult:
 # Événements envoyés au callback `on_event(kind, data)` :
 #   "stage"     {"index", "total", "stage"}
 #   "inactive"  WorkflowRun
-#   "start"     {"name", "stage"}
+#   "start"     {"name", "stage", "iteration", "iterations"}
 #   "end"       WorkflowRun          (succès ou échec)
 #   "not_run"   WorkflowRun
 #   "delay"     {"seconds", "stage"}
+#   "loop"      {"loop": ThreadLoop, "iteration": n, "iterations": N, "seconds": pause}
 EventCallback = Callable[[str, Any], None]
 
 
@@ -194,10 +197,12 @@ class ProjectRunner:
             except Exception:
                 pass
 
-    def _run_one(self, name: str, stage: int, on_event: Optional[EventCallback]) -> WorkflowRun:
+    def _run_one(self, name: str, stage: int, on_event: Optional[EventCallback],
+                 iteration: int = 1, iterations: int = 1) -> WorkflowRun:
         from hydra_etl.workflow.runner import WorkflowRunner
 
-        self._emit(on_event, "start", {"name": name, "stage": stage})
+        self._emit(on_event, "start", {"name": name, "stage": stage,
+                                       "iteration": iteration, "iterations": iterations})
         wf = self.plan.workflows[name]
         path = workflow_file(self.plan.root, name)
         t0 = time.monotonic()
@@ -208,53 +213,90 @@ class ProjectRunner:
             run = WorkflowRun(name=name, stage=stage,
                               status=SUCCESS if result.success else FAILED,
                               duration=time.monotonic() - t0, result=result,
-                              error=None if result.success else result.error)
+                              error=None if result.success else result.error,
+                              iteration=iteration, iterations=iterations)
         except Exception as e:  # noqa: BLE001
             run = WorkflowRun(name=name, stage=stage, status=FAILED,
-                              duration=time.monotonic() - t0, error=f"{type(e).__name__}: {e}")
+                              duration=time.monotonic() - t0, error=f"{type(e).__name__}: {e}",
+                              iteration=iteration, iterations=iterations)
         self._emit(on_event, "end", run)
         return run
 
     def run(self, on_event: Optional[EventCallback] = None) -> ProjectResult:
+        """Exécute les unités du thread (un workflow d'une étape séquentielle, ou
+        une étape parallèle entière) avec un compteur de position : les boucles
+        ramènent ce compteur en arrière, les délais d'étape s'appliquent en
+        passant d'une étape à la suivante."""
         t0 = time.monotonic()
+        th = self.plan.thread
+        stages = th.thread
+        units = th.units()
+        active = {w.name: w.active for st in stages for w in st.workflows}
+        # Boucles : unité de fin -> (boucle, unité de début, passages restants)
+        loops = {}
+        for lp in th.loops:
+            loops[th.unit_of(lp.from_)] = [lp, th.unit_of(lp.to), lp.times - 1]
+        # Passage courant d'une unité (1 hors boucle) et nombre total.
+        def pass_of(ui: int):
+            for end, (lp, start, remaining) in loops.items():
+                if start <= ui <= end:
+                    return lp.times - remaining, lp.times
+            return 1, 1
+
         runs: List[WorkflowRun] = []
-        stages = self.plan.thread.thread
         stopped = False
-        for i, stage in enumerate(stages, 1):
+        last_stage = -1
+        pc = 0
+        while pc < len(units):
+            u = units[pc]
+            stage_no = u.stage + 1
+            it, its = pass_of(pc)
             if stopped:
-                for w in stage.workflows:
-                    r = WorkflowRun(w.name, i, INACTIVE if not w.active else NOT_RUN)
+                for n in u.names:
+                    r = WorkflowRun(n, stage_no, INACTIVE if not active[n] else NOT_RUN)
                     runs.append(r)
                     self._emit(on_event, "inactive" if r.status == INACTIVE else "not_run", r)
+                pc += 1
                 continue
-            self._emit(on_event, "stage", {"index": i, "total": len(stages), "stage": stage})
-            active = [w.name for w in stage.workflows if w.active]
-            if stage.mode == "parallel" and len(active) > 1:
-                for w in stage.workflows:
-                    if not w.active:
-                        r = WorkflowRun(w.name, i, INACTIVE)
-                        runs.append(r)
-                        self._emit(on_event, "inactive", r)
-                with ThreadPoolExecutor(max_workers=len(active)) as pool:
-                    stage_runs = list(pool.map(lambda n: self._run_one(n, i, on_event), active))
-                runs.extend(stage_runs)
-                stopped = any(r.status == FAILED for r in stage_runs)
-            else:
-                # Ordre du fichier, inactifs compris.
-                for w in stage.workflows:
-                    if not w.active:
-                        r = WorkflowRun(w.name, i, INACTIVE)
-                        self._emit(on_event, "inactive", r)
-                    elif stopped:
-                        r = WorkflowRun(w.name, i, NOT_RUN)
-                        self._emit(on_event, "not_run", r)
-                    else:
-                        r = self._run_one(w.name, i, on_event)
-                        stopped = r.status == FAILED
+            if u.stage != last_stage:
+                self._emit(on_event, "stage", {"index": stage_no, "total": len(stages),
+                                               "stage": stages[u.stage]})
+                last_stage = u.stage
+            todo = [n for n in u.names if active[n]]
+            for n in u.names:
+                if not active[n]:
+                    r = WorkflowRun(n, stage_no, INACTIVE, iteration=it, iterations=its)
                     runs.append(r)
-            if not stopped and i < len(stages) and stage.delay_seconds > 0:
-                self._emit(on_event, "delay", {"seconds": stage.delay_seconds, "stage": i})
-                self._sleep(stage.delay_seconds)
+                    self._emit(on_event, "inactive", r)
+            if u.parallel and len(todo) > 1:
+                with ThreadPoolExecutor(max_workers=len(todo)) as pool:
+                    done = list(pool.map(lambda n: self._run_one(n, stage_no, on_event, it, its), todo))
+            else:
+                done = [self._run_one(n, stage_no, on_event, it, its) for n in todo]
+            runs.extend(done)
+            stopped = any(r.status == FAILED for r in done)
+            if stopped:
+                pc += 1
+                continue
+            # Boucle qui finit ici et a encore des passages : retour en arrière.
+            lp_state = loops.get(pc)
+            if lp_state and lp_state[2] > 0:
+                lp, start, remaining = lp_state
+                lp_state[2] = remaining - 1
+                nxt, total = lp.times - lp_state[2], lp.times
+                self._emit(on_event, "loop", {"loop": lp, "iteration": nxt, "iterations": total,
+                                              "seconds": lp.delay_seconds})
+                if lp.delay_seconds > 0:
+                    self._sleep(lp.delay_seconds)
+                pc = start
+                last_stage = -1
+                continue
+            # Fin d'étape : délai avant l'étape suivante (jamais après la dernière).
+            st = stages[u.stage]
+            if u.last_in_stage and pc < len(units) - 1 and st.delay_seconds > 0:
+                self._emit(on_event, "delay", {"seconds": st.delay_seconds, "stage": stage_no})
+                self._sleep(st.delay_seconds)
+            pc += 1
         return ProjectResult(project=self.plan.root.name,
                              success=not any(r.status == FAILED for r in runs),
                              duration=time.monotonic() - t0, runs=runs)

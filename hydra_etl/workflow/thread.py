@@ -16,6 +16,20 @@ projet. Il est fait d'étapes (stages) exécutées l'une après l'autre :
   `mode: parallel` : ils tournent en même temps.
 - `delay_after` : secondes (nombre) ou durée `30s`, `5m`, `1h`.
 - `name` désigne le fichier `workflows/<name>.yaml`.
+
+Boucles (facultatives) : rejouer une portion du thread N fois.
+
+    loops:
+      - from: workflow5      # dernier workflow de la portion répétée
+        to: workflow1        # premier workflow de la portion
+        times: 3             # nombre total de passages (1 = pas de reprise)
+        delay: 5m            # pause avant chaque reprise (optionnel)
+
+- `to` doit venir avant `from` dans le thread (ou être le même workflow).
+- Dans une étape `parallel`, les workflows n'ont pas d'ordre : une boucle qui y
+  commence reprend toute l'étape ; une boucle qui y finit attend toute l'étape.
+- Plusieurs boucles sont possibles si leurs portions ne se chevauchent pas.
+- Un échec arrête le projet, boucles comprises.
 """
 from __future__ import annotations
 
@@ -81,10 +95,47 @@ class ThreadStage(BaseModel):
         return parse_delay(self.delay_after)
 
 
+MAX_LOOP_TIMES = 1000
+
+
+class ThreadLoop(BaseModel):
+    """Boucle : rejouer la portion du thread qui va de `to` à `from`."""
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    from_: str = Field(alias="from")
+    to: str
+    times: int = Field(ge=1, le=MAX_LOOP_TIMES)
+    delay: Optional[Union[int, float, str]] = None
+
+    @field_validator("from_", "to")
+    @classmethod
+    def _check_names(cls, v: str) -> str:
+        return ThreadWorkflow._check_name(v)
+
+    @field_validator("delay")
+    @classmethod
+    def _check_delay(cls, v: Any) -> Any:
+        parse_delay(v)
+        return v
+
+    @property
+    def delay_seconds(self) -> float:
+        return parse_delay(self.delay)
+
+
+class ThreadUnit(BaseModel):
+    """Unité d'exécution : un workflow d'une étape séquentielle, ou une étape
+    parallèle entière. Les boucles et les délais se placent entre unités."""
+    stage: int                       # index de l'étape (0-based)
+    names: List[str]
+    parallel: bool
+    last_in_stage: bool
+
+
 class ThreadDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
     version: str = "1.0"
     thread: List[ThreadStage] = Field(default_factory=list)
+    loops: List[ThreadLoop] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _unique_names(self) -> "ThreadDef":
@@ -96,8 +147,45 @@ class ThreadDef(BaseModel):
                 seen.add(wf.name)
         return self
 
+    @model_validator(mode="after")
+    def _check_loops(self) -> "ThreadDef":
+        spans = []
+        for lp in self.loops:
+            for n in (lp.from_, lp.to):
+                if n not in self.workflow_names():
+                    raise ValueError(f"loop {lp.from_} -> {lp.to}: workflow '{n}' is not in the thread")
+            a, b = self.unit_of(lp.to), self.unit_of(lp.from_)
+            if a > b:
+                raise ValueError(f"loop {lp.from_} -> {lp.to}: '{lp.to}' must come before "
+                                 f"'{lp.from_}' in the thread (a loop goes back)")
+            for (a2, b2, other) in spans:
+                if not (b < a2 or b2 < a):
+                    raise ValueError(f"loops {other} and {lp.from_} -> {lp.to} overlap; "
+                                     f"loops must cover separate parts of the thread")
+            spans.append((a, b, f"{lp.from_} -> {lp.to}"))
+        return self
+
     def workflow_names(self) -> List[str]:
         return [wf.name for stage in self.thread for wf in stage.workflows]
+
+    def units(self) -> List[ThreadUnit]:
+        out: List[ThreadUnit] = []
+        for si, st in enumerate(self.thread):
+            if st.mode == "parallel":
+                out.append(ThreadUnit(stage=si, names=[w.name for w in st.workflows],
+                                      parallel=True, last_in_stage=True))
+            else:
+                n = len(st.workflows)
+                out.extend(ThreadUnit(stage=si, names=[w.name], parallel=False,
+                                      last_in_stage=(i == n - 1))
+                           for i, w in enumerate(st.workflows))
+        return out
+
+    def unit_of(self, name: str) -> int:
+        for i, u in enumerate(self.units()):
+            if name in u.names:
+                return i
+        raise KeyError(name)
 
 
 def _format_errors(e: ValidationError) -> str:
@@ -152,6 +240,12 @@ def default_thread_yaml(workflow_names: List[str]) -> str:
         "#   delay_after : pause after the stage, in seconds or 30s / 5m / 1h (optional)",
         "#   active      : false skips the workflow without removing it (debugging)",
         "# Each name refers to workflows/<name>.yaml.",
+        "# Optional loops, to replay a part of the thread N times:",
+        "#   loops:",
+        "#     - from: workflow1   # last workflow of the part",
+        "#       to: workflow1     # first workflow of the part",
+        "#       times: 3          # total passes",
+        "#       delay: 5m         # pause before each repeat (optional)",
         'version: "1.0"',
         "thread:",
         "  - mode: sequential",
@@ -185,6 +279,12 @@ def render_thread(thread: ThreadDef) -> str:
         for wf in stage.workflows:
             lines.append(f"      - name: {wf.name}")
             lines.append(f"        active: {'true' if wf.active else 'false'}")
+    if thread.loops:
+        lines.append("loops:")
+        for lp in thread.loops:
+            lines += [f"  - from: {lp.from_}", f"    to: {lp.to}", f"    times: {lp.times}"]
+            if lp.delay not in (None, "", 0):
+                lines.append(f"    delay: {lp.delay}")
     return "\n".join(lines) + "\n"
 
 
@@ -199,7 +299,7 @@ def add_to_thread(thread: ThreadDef, name: str) -> ThreadDef:
         stages[-1].workflows.append(new)
     else:
         stages.append(ThreadStage(mode="sequential", workflows=[new]))
-    return ThreadDef(version=thread.version, thread=stages)
+    return ThreadDef(version=thread.version, thread=stages, loops=list(thread.loops))
 
 
 def remove_from_thread(thread: ThreadDef, name: str) -> "tuple[ThreadDef, bool]":
@@ -212,4 +312,6 @@ def remove_from_thread(thread: ThreadDef, name: str) -> "tuple[ThreadDef, bool]"
         found = found or len(kept) != len(s.workflows)
         if kept:
             stages.append(s.model_copy(update={"workflows": kept}, deep=True))
-    return ThreadDef(version=thread.version, thread=stages), found
+    # Une boucle qui cite ce workflow n'a plus de sens : elle part avec lui.
+    loops = [lp for lp in thread.loops if name not in (lp.from_, lp.to)]
+    return ThreadDef(version=thread.version, thread=stages, loops=loops), found

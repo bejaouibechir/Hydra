@@ -1,4 +1,5 @@
-# Expected errors: unknown mode, bad delay, empty stage, unknown key "enabled"
+# Expected errors: unknown mode, bad delay, empty stage, unknown key "enabled",
+# loop without "times", loop with times 0
 thread:
   - mode: random
     delay_after: 2x
@@ -6,3 +7,9 @@ thread:
       - name: workflow1
         enabled: true
   - workflows: []
+loops:
+  - from: workflow1
+    to: workflow1
+  - from: workflow1
+    to: workflow1
+    times: 0

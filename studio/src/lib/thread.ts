@@ -68,3 +68,64 @@ export function namesIn(stages: ThreadStage[]): string[] {
 const DELAY_RE = /^\s*\d+(\.\d+)?\s*(ms|s|m|h)?\s*$/i
 export const isValidDelay = (v: string | number | null | undefined) =>
   v === undefined || v === null || v === '' || typeof v === 'number' || DELAY_RE.test(v)
+
+// ── Boucles ─────────────────────────────────────────────────────────────────
+/** Boucle : rejouer la portion du thread qui va de `to` à `from`, `times` fois en tout. */
+export interface ThreadLoop { from: string; to: string; times: number; delay?: string | number | null }
+
+export const MAX_LOOP_TIMES = 1000
+
+/** Unités d'exécution, comme ThreadDef.units() côté Python : un workflow d'une
+ *  étape séquentielle, ou une étape parallèle entière. */
+export interface ThreadUnit { stage: number; names: string[]; parallel: boolean; lastInStage: boolean }
+
+export function threadUnits(stages: ThreadStage[]): ThreadUnit[] {
+  const out: ThreadUnit[] = []
+  stages.forEach((st, si) => {
+    if (st.workflows.length === 0) return
+    if (st.mode === 'parallel') {
+      out.push({ stage: si, names: st.workflows.map(w => w.name), parallel: true, lastInStage: true })
+    } else {
+      st.workflows.forEach((w, i) => out.push({
+        stage: si, names: [w.name], parallel: false, lastInStage: i === st.workflows.length - 1,
+      }))
+    }
+  })
+  return out
+}
+
+export function unitOf(units: ThreadUnit[], name: string): number {
+  return units.findIndex(u => u.names.includes(name))
+}
+
+/** Mêmes règles que le moteur : un message par boucle invalide (null si valide). */
+export function loopErrors(stages: ThreadStage[], loops: ThreadLoop[]): (string | null)[] {
+  const units = threadUnits(stages)
+  const spans: [number, number][] = []
+  return loops.map(lp => {
+    const a = unitOf(units, lp.to), b = unitOf(units, lp.from)
+    if (a < 0 || b < 0) return `'${a < 0 ? lp.to : lp.from}' is not in the thread`
+    if (a > b) return `'${lp.to}' must come before '${lp.from}' (a loop goes back)`
+    if (!Number.isInteger(lp.times) || lp.times < 1 || lp.times > MAX_LOOP_TIMES) return `times: 1 to ${MAX_LOOP_TIMES}`
+    if (!isValidDelay(lp.delay ?? '')) return 'invalid delay (use 30s, 5m, 1h)'
+    if (spans.some(([a2, b2]) => !(b < a2 || b2 < a))) return 'overlaps another loop'
+    spans.push([a, b])
+    return null
+  })
+}
+
+/** Boucles prêtes à l'envoi : délai vide retiré. */
+export function loopsForSave(loops: ThreadLoop[]): ThreadLoop[] {
+  return loops.map(lp => {
+    const d = typeof lp.delay === 'string' ? lp.delay.trim() : lp.delay
+    const out: ThreadLoop = { from: lp.from, to: lp.to, times: Number(lp.times) }
+    if (d !== undefined && d !== null && d !== '' && d !== 0) out.delay = d
+    return out
+  })
+}
+
+/** Retire les boucles qui citent un workflow sorti du thread. */
+export function pruneLoops(stages: ThreadStage[], loops: ThreadLoop[]): ThreadLoop[] {
+  const names = new Set(namesIn(stages))
+  return loops.filter(lp => names.has(lp.from) && names.has(lp.to))
+}

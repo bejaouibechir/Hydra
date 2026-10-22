@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 class ThreadResponse(BaseModel):
-    thread: Dict[str, Any]            # {"version": "1.0", "thread": [stages…]}
+    thread: Dict[str, Any]            # {"version": "1.0", "thread": [stages…], "loops": [...]}
     implicit: bool                    # pas de thread.yaml : ordre alphabétique
     workflows: List[str]              # workflows/*.yaml du projet
     missing: List[str]                # noms du thread sans fichier
@@ -31,6 +31,7 @@ class ThreadResponse(BaseModel):
 
 class ThreadPayload(BaseModel):
     thread: List[Dict[str, Any]]
+    loops: List[Dict[str, Any]] = []      # [{"from", "to", "times", "delay"}]
 
 
 class CheckResponse(BaseModel):
@@ -51,7 +52,7 @@ def _describe(root: Path) -> ThreadResponse:
     except ValueError as e:
         raise HTTPException(422, detail=f"workflows/thread.yaml: {e}")
     return ThreadResponse(
-        thread=th.model_dump(), implicit=implicit,
+        thread=th.model_dump(by_alias=True), implicit=implicit,
         workflows=sorted(workflow_files(root)),
         missing=missing_workflow_files(th, root / "workflows"),
     )
@@ -66,7 +67,7 @@ def get_thread(project_id: str):
 def put_thread(project_id: str, body: ThreadPayload):
     root = _root(project_id)
     try:
-        th = parse_thread({"version": "1.0", "thread": body.thread})
+        th = parse_thread({"version": "1.0", "thread": body.thread, "loops": body.loops})
     except ValueError as e:
         raise HTTPException(422, detail=str(e))
     missing = missing_workflow_files(th, root / "workflows")

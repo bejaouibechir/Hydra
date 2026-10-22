@@ -148,7 +148,8 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
             logs.append("inactive in workflows/thread.yaml")
         if r.status == NOT_RUN:
             logs.append("not run: a previous workflow failed")
-        return {"step_name": r.name, "success": r.status not in (FAILED,),
+        label = f"{r.name} (pass {r.iteration}/{r.iterations})" if r.iterations > 1 else r.name
+        return {"step_name": label, "success": r.status not in (FAILED,),
                 "duration": r.duration, "error": r.error, "logs": logs,
                 "skipped": r.status in (INACTIVE, NOT_RUN)}
 

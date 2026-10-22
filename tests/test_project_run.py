@@ -352,3 +352,105 @@ def test_cli_no_active_workflow(tmp_path, runner):
     res = runner.invoke(cli, ["run", str(root), "--lang", "en"])
     assert res.exit_code == 0
     assert "nothing to run" in res.output
+
+
+# ── Boucles ───────────────────────────────────────────────────────────────────
+
+def _loop_project(tmp_path, runner, body, fail=()):
+    root = _project(tmp_path, runner)
+    _params(root)
+    for n in ("a", "b", "c", "d", "e"):
+        _action_wf(root, n, fail=n in fail)
+    (root / "workflows" / "thread.yaml").write_text('version: "1.0"\n' + textwrap.dedent(body), encoding="utf-8")
+    return root
+
+
+def test_loop_replays_the_part_n_times(tmp_path, runner):
+    root = _loop_project(tmp_path, runner, """\
+        thread:
+          - workflows: [{name: a}, {name: b}]
+          - mode: parallel
+            delay_after: 7s
+            workflows: [{name: c}, {name: d}]
+          - workflows: [{name: e}]
+        loops:
+          - from: d
+            to: b
+            times: 3
+            delay: 2m
+        """)
+    sleeps, events = [], []
+    res = ProjectRunner(prepare_project(root), sleep=sleeps.append).run(lambda k, d: events.append((k, d)))
+    assert res.success
+    log = [ln.split()[0] for ln in _log(root)]
+    assert log[0] == "a" and log[-1] == "e"
+    assert log.count("b") == 3 and log.count("c") == 3 and log.count("d") == 3 and log.count("a") == 1
+    # pause de boucle avant chaque reprise, puis délai d'étape une seule fois (vers e)
+    assert sleeps == [120.0, 120.0, 7.0]
+    loops = [d for k, d in events if k == "loop"]
+    assert [(d["iteration"], d["iterations"]) for d in loops] == [(2, 3), (3, 3)]
+    b_runs = [(r.iteration, r.iterations) for r in res.runs if r.name == "b"]
+    assert b_runs == [(1, 3), (2, 3), (3, 3)]
+    assert [r.iteration for r in res.runs if r.name == "e"] == [1]
+
+
+def test_loop_on_a_single_workflow(tmp_path, runner):
+    root = _loop_project(tmp_path, runner, """\
+        thread:
+          - workflows: [{name: a}, {name: b}]
+        loops:
+          - {from: a, to: a, times: 4}
+        """)
+    assert ProjectRunner(prepare_project(root), sleep=lambda s: None).run().success
+    assert [ln.split()[0] for ln in _log(root)] == ["a", "a", "a", "a", "b"]
+
+
+def test_failure_inside_a_loop_stops_everything(tmp_path, runner):
+    root = _loop_project(tmp_path, runner, """\
+        thread:
+          - workflows: [{name: a}]
+        """)
+    # boom échoue au 2e passage : on fabrique un workflow qui échoue s'il a déjà tourné
+    log = (root / "log.txt").as_posix()
+    script = (f"import os,sys; p=r'{log}'; n=open(p).read().count('x') if os.path.exists(p) else 0; "
+              f"open(p,'a').write('x'+chr(10)); sys.exit(1 if n>=1 else 0)")
+    (root / "workflows" / "x.yaml").write_text(
+        "workflow:\n  name: x\n  steps:\n    - name: s\n      type: action\n      action: python\n"
+        f"      params:\n        script: {json.dumps(script)}\n", encoding="utf-8")
+    (root / "workflows" / "thread.yaml").write_text(textwrap.dedent("""\
+        thread:
+          - workflows: [{name: x}, {name: e}]
+        loops:
+          - {from: x, to: x, times: 5}
+        """), encoding="utf-8")
+    res = ProjectRunner(prepare_project(root), sleep=lambda s: None).run()
+    assert not res.success
+    assert [(r.name, r.status, r.iteration) for r in res.runs] == [
+        ("x", SUCCESS, 1), ("x", FAILED, 2), ("e", NOT_RUN, 1)]
+
+
+def test_cli_shows_passes_and_dry_run_plan(tmp_path, runner):
+    root = _loop_project(tmp_path, runner, """\
+        thread:
+          - workflows: [{name: a}]
+        loops:
+          - {from: a, to: a, times: 2, delay: 1}
+        """)
+    res = runner.invoke(cli, ["run", str(root), "--dry-run", "--lang", "en"])
+    assert res.exit_code == 0 and "loop a → a, 2 pass(es), waiting 1s" in res.output
+    res = runner.invoke(cli, ["run", str(root), "--lang", "en"])
+    assert res.exit_code == 0, res.output
+    assert "(pass 2/2)" in res.output and "Loop a → a: pass 2/2" in res.output
+
+
+def test_remove_workflow_drops_its_loop(tmp_path, runner):
+    root = _loop_project(tmp_path, runner, """\
+        thread:
+          - workflows: [{name: a}, {name: b}]
+        loops:
+          - {from: b, to: a, times: 2}
+        """)
+    res = runner.invoke(cli, ["workflow", "remove", "b", "-y", "--project", str(root)])
+    assert res.exit_code == 0, res.output
+    from hydra_etl.workflow.thread import load_thread
+    assert load_thread(root / "workflows" / "thread.yaml").loops == []

@@ -5,6 +5,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/).
 
 
+## [0.12.1] — 2026-10-22
+
+### Added
+
+- Project secrets in `.hydra/secrets`: one `name=value` per line, read by
+  `${SECRET:name}` in jobs and in workflow action parameters. `init` (and a
+  project created in Studio) writes a commented template and a `.gitignore`
+  that excludes `.hydra/secrets` and `.env`. An environment variable wins over
+  the file (`${SECRET:db.password}` first reads `DB_PASSWORD`). To keep the
+  file elsewhere: `HYDRA_SECRETS_FILE=<path>` or `--secrets-file <path>` on
+  `hdrctl run` and `hdrctl workflow run`. Parse errors give the line, never
+  the value.
+
+### Changed
+
+- `init` no longer creates an empty `.hydra/workflows/`: Studio creates it
+  when it saves a workflow canvas.
+
+
 ## [0.12.0] — 2026-10-22
 
 CLI reform: a project is now the unit you create and run. Delivered step by step
@@ -17,8 +36,6 @@ on the `cli-reform` branch.
   `parameters.yaml`, `README.md`, `scripts/` and `workflows/` holding
   `workflow1.yaml` and `thread.yaml`. The results folder is now `outputs/`
   (was `output/`), also for projects created from Studio.
-- `init` no longer creates an empty `.hydra/workflows/`: Studio creates it
-  when it saves a workflow canvas.
 - The "Next steps" printed by `init` are numbered without gaps (they read
   1, 3, 4 for templates without `.env.example`).
 - The README generated in `jobs/job1/` lists `hdrctl validate`, `hdrctl test`
@@ -113,14 +130,6 @@ on the `cli-reform` branch.
   the end, deleting one removes it, and opening a project no longer registers
   `thread.yaml` itself as a workflow.
 - `parameters.yaml` at the project root, empty, with a commented example.
-- Project secrets in `.hydra/secrets`: one `name=value` per line, read by
-  `${SECRET:name}` in jobs and in workflow action parameters. `init` (and a
-  project created in Studio) writes a commented template and a `.gitignore`
-  that excludes `.hydra/secrets` and `.env`. An environment variable wins over
-  the file (`${SECRET:db.password}` first reads `DB_PASSWORD`). To keep the
-  file elsewhere: `HYDRA_SECRETS_FILE=<path>` or `--secrets-file <path>` on
-  `hdrctl run` and `hdrctl workflow run`. Parse errors give the line, never
-  the value.
 
 
 ## [0.11.4] — 2026-10-17

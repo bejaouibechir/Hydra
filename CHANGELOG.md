@@ -45,6 +45,10 @@ and versions follow [Semantic Versioning](https://semver.org/).
   **Preview** draws the thread: blocks left to right by stage, stacked when
   parallel, a diamond for each delay, inactive workflows dashed, loops as
   dashed return arrows labelled ×N. Clicking a block opens the workflow.
+- Studio: the workflow cards of a project page can be reordered by drag and
+  drop (grab a card by its title). Display only: the order is kept in
+  `.hydra/project.json` and does not change `thread.yaml` or `hdrctl run`.
+  API: `PUT /api/projects/{id}/card-order`.
 
 ### Changed
 

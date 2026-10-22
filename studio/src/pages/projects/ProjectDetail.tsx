@@ -2,7 +2,8 @@ import { useState, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Workflow } from '@/lib/api'
-import { Plus, GitBranch, Trash2, ArrowRight, ChevronLeft, Upload, Clock, Webhook } from 'lucide-react'
+import { Plus, GitBranch, Trash2, ArrowRight, ChevronLeft, Upload, Clock, Webhook, GripVertical } from 'lucide-react'
+import { moveTo } from '@/lib/cardOrder'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useRunsList } from '@/hooks/useRunPolling'
 import EmptyState from '@/components/ui/EmptyState'
@@ -253,6 +254,25 @@ export default function ProjectDetail() {
   const project   = useQuery({ queryKey: ['project', projectId],   queryFn: () => api.projects.get(projectId!) })
   const workflows = useQuery({ queryKey: ['workflows', projectId], queryFn: () => api.workflows.list(projectId!) })
 
+  // Glisser-déposer des cartes : ordre purement visuel (.hydra/project.json),
+  // sans effet sur thread.yaml. Saisie par la poignée / l'en-tête de la carte.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+  const [armedId, setArmedId] = useState<string | null>(null)
+  const saveOrder = useMutation({
+    mutationFn: (order: string[]) => api.projects.saveCardOrder(projectId!, order),
+    onError: () => qc.invalidateQueries({ queryKey: ['workflows', projectId] }),
+  })
+  const dropOn = (targetId: string) => {
+    const list = workflows.data ?? []
+    if (!dragId || dragId === targetId) return
+    const ids = moveTo(list.map(w => w.id), dragId, targetId)
+    const byId = new Map(list.map(w => [w.id, w]))
+    qc.setQueryData(['workflows', projectId], ids.map(i => byId.get(i)!))
+    saveOrder.mutate(ids)
+  }
+  const endDrag = () => { setDragId(null); setOverId(null); setArmedId(null) }
+
   const delWf = useMutation({
     mutationFn: (wfId: string) => api.workflows.delete(wfId, projectId!),
     onSuccess: () => {
@@ -357,14 +377,28 @@ export default function ProjectDetail() {
                   ? Object.keys(wf.layout.job_names as Record<string, unknown>).length
                   : null
                 return (
-                <div key={wf.id} className="card group"
-                  style={{ display: 'flex', flexDirection: 'column', gap: 12, transition: 'border-color 0.15s', width: 270 }}
+                <div key={wf.id} className="card group" data-testid={`wf-card-${wf.name}`}
+                  draggable={armedId === wf.id}
+                  onDragStart={e => { setDragId(wf.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', wf.id) }}
+                  onDragOver={e => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overId !== wf.id) setOverId(wf.id) } }}
+                  onDragLeave={() => { if (overId === wf.id) setOverId(null) }}
+                  onDrop={e => { e.preventDefault(); dropOn(wf.id); endDrag() }}
+                  onDragEnd={endDrag}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 12, transition: 'border-color 0.15s, opacity 0.15s', width: 270,
+                    opacity: dragId === wf.id ? 0.4 : 1,
+                    outline: overId === wf.id && dragId !== wf.id ? '2px dashed var(--primary)' : undefined, outlineOffset: 3,
+                  }}
                   onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--bg-border)')}>
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--bg-border)'; if (!dragId) setArmedId(null) }}>
 
-                  {/* En-tête : icône trigger + nom + suppression */}
+                  {/* En-tête : poignée + icône trigger + nom + suppression */}
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5" style={{ minWidth: 0 }}>
+                    <div className="flex items-center gap-2.5" style={{ minWidth: 0, cursor: 'grab' }}
+                      title="Drag to reorder the cards (display only: the execution order stays in thread.yaml)"
+                      onMouseDown={() => setArmedId(wf.id)} onMouseUp={() => { if (!dragId) setArmedId(null) }}>
+                      <GripVertical size={14} data-testid={`wf-grip-${wf.name}`}
+                        style={{ color: 'var(--text-muted)', marginRight: -6, flexShrink: 0 }} />
                       <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
                         style={{ background: 'rgba(139,92,246,0.12)' }}>
                         <TriggerIcon t={wf.trigger_type} />

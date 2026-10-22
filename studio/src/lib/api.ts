@@ -152,6 +152,8 @@ export const api = {
       put<ThreadInfo>(`/projects/${id}/thread`, { thread, loops }),
     /** Vérifie le projet comme `hdrctl run --dry-run`. */
     check:  (id: string)                      => post<{ ok: boolean; errors: string[]; active: string[] }>(`/projects/${id}/check`, {}),
+    /** Ordre des cartes de workflows (visuel seulement, .hydra/project.json). */
+    saveCardOrder: (id: string, order: string[]) => put<{ order: string[] }>(`/projects/${id}/card-order`, { order }),
   },
 
   workflows: {

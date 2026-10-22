@@ -1,6 +1,7 @@
 """api/routers/projects.py — CRUD projets."""
 from typing import List
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from hydra_etl.api import store
 from hydra_etl.api.models import MessageResponse, ProjectCreate, ProjectOpenRequest, ProjectResponse
@@ -56,6 +57,22 @@ def get_project(project_id: str):
     if not proj:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
     return proj
+
+
+class CardOrder(BaseModel):
+    order: List[str]                     # ids des workflows, dans l'ordre d'affichage
+
+
+@router.put("/{project_id}/card-order", response_model=CardOrder)
+def set_card_order(project_id: str, body: CardOrder):
+    """Ordre des cartes de workflows sur la page projet (glisser-déposer).
+    Purement visuel : thread.yaml et hdrctl run ne changent pas."""
+    if not store.get_project(project_id):
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+    try:
+        return CardOrder(order=store.set_card_order(project_id, body.order))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.post("/{project_id}/unlist", response_model=MessageResponse)

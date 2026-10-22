@@ -25,6 +25,14 @@ and versions follow [Semantic Versioning](https://semver.org/).
   `.hydra/secrets` and the field keeps `${SECRET:<node>.<field>}`. The hints no
   longer point to "Environments" (`.env.<name>` files the engine never reads).
   API: `GET|PUT /api/secrets`, `DELETE /api/secrets/{name}`.
+- Studio: an **Execution order** panel on the project page edits
+  `workflows/thread.yaml` — stages, `sequential`/`parallel`, `delay_after`,
+  active or skipped workflows, order (up/down, across stages), workflows not
+  in the thread — with **Check** (same checks as `hdrctl run --dry-run`) and
+  **Run project** (every active workflow in that order, like
+  `hdrctl run <project>`; one run, one line per workflow, followed live).
+  API: `GET|PUT /api/projects/{id}/thread`, `POST /api/projects/{id}/check`;
+  `POST /api/runs` with the project folder as `workflow_path` runs the project.
 
 ### Changed
 

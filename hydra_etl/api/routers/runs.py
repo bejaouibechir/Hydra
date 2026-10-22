@@ -120,6 +120,56 @@ def _execute_workflow(run_id: str, workflow_path: str, step: Optional[str], env:
     store.save_run(run)
 
 
+def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
+    """Exécute un projet entier (workflows/thread.yaml) : un « step » de run par
+    workflow, mis à jour au fil de l'exécution pour le suivi en direct."""
+    from hydra_etl.workflow.project import (
+        FAILED, INACTIVE, NOT_RUN, ProjectError, ProjectRunner, prepare_project,
+    )
+    base = store.get_run(run_id)
+    if not base:
+        return
+    steps: list = []
+
+    def _save(status: str, **extra) -> None:
+        store.save_run(RunResponse(
+            run_id=run_id, workflow_name=base.workflow_name, workflow_path=root,
+            status=status, started_at=base.started_at, steps=list(steps),
+            trigger=base.trigger or "manual", **extra))
+
+    def _step(r) -> dict:
+        logs = []
+        if r.result is not None:
+            for sr in r.result.steps:
+                state = "SKIPPED" if sr.skipped else ("OK" if sr.success else "FAILED")
+                logs.append(f"{state} {sr.step_name}" + (f": {sr.error}" if sr.error else ""))
+                logs.extend(f"  {ln}" for ln in (getattr(sr, "output", None) or []))
+        if r.status == INACTIVE:
+            logs.append("inactive in workflows/thread.yaml")
+        if r.status == NOT_RUN:
+            logs.append("not run: a previous workflow failed")
+        return {"step_name": r.name, "success": r.status not in (FAILED,),
+                "duration": r.duration, "error": r.error, "logs": logs,
+                "skipped": r.status in (INACTIVE, NOT_RUN)}
+
+    def on_event(kind, data) -> None:
+        if kind in ("end", "inactive", "not_run"):
+            steps.append(_step(data))
+            _save("running")
+
+    _save("running")
+    try:
+        plan = prepare_project(Path(root))
+        result = ProjectRunner(plan, env=None if env in (None, "", "default") else env).run(on_event)
+        _save("success" if result.success else "failed", finished_at=_now(),
+              duration=result.duration,
+              error=None if result.success else "failed: " + ", ".join(r.name for r in result.failed))
+    except ProjectError as e:
+        _save("failed", finished_at=_now(), error="; ".join(e.errors))
+    except Exception as e:  # noqa: BLE001
+        _save("failed", finished_at=_now(), error=f"{type(e).__name__}: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Execution inline d\'un job HDR (sans fichier sur disk)
 # ---------------------------------------------------------------------------
@@ -292,6 +342,14 @@ def run_workflow(body: RunRequest, background_tasks: BackgroundTasks):
         started_at=_now(),
     )
     store.save_run(run)
+    from hydra_etl.workflow.project import is_project_root
+    if wf_path.is_dir() and is_project_root(wf_path) and not (wf_path / "workflow.yaml").exists():
+        # Dossier d'un projet : tous ses workflows, dans l'ordre de thread.yaml
+        # (équivalent de `hdrctl run <projet>`).
+        run.workflow_name = f"project:{wf_path.resolve().name}"
+        store.save_run(run)
+        background_tasks.add_task(_execute_project, run_id, str(wf_path.resolve()), body.env)
+        return run
     background_tasks.add_task(_execute_workflow, run_id, str(wf_path), body.step, body.env)
     return run
 

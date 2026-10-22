@@ -1,0 +1,70 @@
+/**
+ * lib/thread.ts — Opérations pures sur workflows/thread.yaml côté Studio.
+ * Même modèle que hydra_etl/workflow/thread.py : des étapes (stages) lancées
+ * l'une après l'autre, chacune sequential ou parallel, avec un délai optionnel
+ * et des workflows actifs ou non.
+ */
+export interface ThreadWorkflow { name: string; active: boolean }
+export interface ThreadStage {
+  mode: 'sequential' | 'parallel'
+  delay_after?: string | number | null
+  workflows: ThreadWorkflow[]
+}
+
+const clone = (s: ThreadStage[]): ThreadStage[] =>
+  s.map(st => ({ ...st, workflows: st.workflows.map(w => ({ ...w })) }))
+
+/** Déplace un workflow d'un cran (dir = -1 haut, +1 bas), en passant d'une étape à l'autre. */
+export function moveWorkflow(stages: ThreadStage[], si: number, wi: number, dir: -1 | 1): ThreadStage[] {
+  const out = clone(stages)
+  const st = out[si]
+  if (!st || !st.workflows[wi]) return out
+  const ws = st.workflows
+  if (dir === -1) {
+    if (wi > 0) { [ws[wi - 1], ws[wi]] = [ws[wi], ws[wi - 1]]; return out }
+    if (si === 0) return out
+    const [w] = ws.splice(wi, 1)
+    out[si - 1].workflows.push(w)
+    return out
+  }
+  if (wi < ws.length - 1) { [ws[wi + 1], ws[wi]] = [ws[wi], ws[wi + 1]]; return out }
+  if (si === out.length - 1) return out
+  const [w] = ws.splice(wi, 1)
+  out[si + 1].workflows.unshift(w)
+  return out
+}
+
+/** Ajoute un workflow en fin de thread (dernière étape si séquentielle, sinon nouvelle étape). */
+export function appendWorkflow(stages: ThreadStage[], name: string): ThreadStage[] {
+  const out = clone(stages)
+  const last = out[out.length - 1]
+  if (last && last.mode === 'sequential') last.workflows.push({ name, active: true })
+  else out.push({ mode: 'sequential', workflows: [{ name, active: true }] })
+  return out
+}
+
+export function removeWorkflow(stages: ThreadStage[], si: number, wi: number): ThreadStage[] {
+  const out = clone(stages)
+  out[si]?.workflows.splice(wi, 1)
+  return out
+}
+
+/** Étapes vides retirées, délai vide supprimé : ce qu'on envoie à l'API. */
+export function forSave(stages: ThreadStage[]): ThreadStage[] {
+  return clone(stages)
+    .filter(st => st.workflows.length > 0)
+    .map(st => {
+      const d = typeof st.delay_after === 'string' ? st.delay_after.trim() : st.delay_after
+      const out: ThreadStage = { mode: st.mode, workflows: st.workflows }
+      if (d !== undefined && d !== null && d !== '' && d !== 0) out.delay_after = d
+      return out
+    })
+}
+
+export function namesIn(stages: ThreadStage[]): string[] {
+  return stages.flatMap(st => st.workflows.map(w => w.name))
+}
+
+const DELAY_RE = /^\s*\d+(\.\d+)?\s*(ms|s|m|h)?\s*$/i
+export const isValidDelay = (v: string | number | null | undefined) =>
+  v === undefined || v === null || v === '' || typeof v === 'number' || DELAY_RE.test(v)

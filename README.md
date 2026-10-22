@@ -122,6 +122,7 @@ thread:
       - name: export-b
 ```
 
+In Studio, the project page edits the same file (**Execution order**) and has a **Run project** button.
 `hdrctl run <project>` checks the thread, every active workflow and the job folders they use
 before starting anything, then runs the stages in order. A failed workflow stops the project;
 in a parallel stage the workflows already started finish first. Without `thread.yaml`, every

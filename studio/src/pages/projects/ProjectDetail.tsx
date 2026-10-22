@@ -8,6 +8,7 @@ import { useRunsList } from '@/hooks/useRunPolling'
 import EmptyState from '@/components/ui/EmptyState'
 import Spinner from '@/components/ui/Spinner'
 import Modal from '@/components/ui/Modal'
+import ThreadEditor from '@/components/project/ThreadEditor'
 import * as yaml from 'js-yaml'
 import { sectionYamlsToJobModel, jobModelToFlow, type JobSectionYamls } from '@/lib/hdrSerializer'
 import { buildWorkflowLayout, type ImportStep } from '@/lib/workflowImport'
@@ -23,7 +24,11 @@ function CreateWorkflowModal({ projectId, open, onClose }: { projectId: string; 
       name, project_id: projectId, trigger_type: trigger,
       cron: trigger === 'schedule' ? cron : undefined,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workflows', projectId] }); onClose(); setName('') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workflows', projectId] })
+      qc.invalidateQueries({ queryKey: ['thread', projectId] })   // ajouté en fin de thread.yaml
+      onClose(); setName('')
+    },
   })
 
   return (
@@ -250,7 +255,10 @@ export default function ProjectDetail() {
 
   const delWf = useMutation({
     mutationFn: (wfId: string) => api.workflows.delete(wfId, projectId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflows', projectId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workflows', projectId] })
+      qc.invalidateQueries({ queryKey: ['thread', projectId] })     // retiré de thread.yaml
+    },
   })
 
   // ── Runs : dernier statut affiché sur chaque carte (information passive) ──
@@ -329,6 +337,10 @@ export default function ProjectDetail() {
           <p className="text-xs mt-1 text-right" style={{ color: 'var(--error)' }}>{importError}</p>
         )}
       </div>
+
+      {(workflows.data?.length ?? 0) > 0 && (
+        <ThreadEditor projectId={projectId!} projectPath={project.data.path} />
+      )}
 
       {workflows.isLoading
         ? <div className="flex justify-center py-20"><Spinner size="lg" /></div>

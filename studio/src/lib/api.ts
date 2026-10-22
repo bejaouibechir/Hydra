@@ -3,6 +3,8 @@
  * Base URL configurée via import.meta.env.VITE_API_URL (défaut: /api via proxy Vite)
  */
 
+import type { ThreadStage } from './thread'
+
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
 /** Erreur HTTP de l'API : garde le statut et le `detail` structuré (ex. 409). */
@@ -116,6 +118,13 @@ export interface WorkflowUpdatePayload extends Partial<Workflow> {
   force?: boolean
 }
 
+export interface ThreadInfo {
+  thread: { version: string; thread: ThreadStage[] }
+  implicit: boolean            // pas de thread.yaml : ordre alphabétique
+  workflows: string[]          // workflows/*.yaml du projet
+  missing: string[]            // noms du thread sans fichier
+}
+
 /** Secrets du projet (.hydra/secrets) : noms seulement, jamais les valeurs. */
 export interface SecretsInfo {
   file: string                 // chemin affiché (relatif au projet si possible)
@@ -137,6 +146,11 @@ export const api = {
     installDemo: ()                           => post<Project>('/projects/demo', {}),
     unlist: (id: string)                      => post<{ message: string }>(`/projects/${id}/unlist`, {}),
     delete: (id: string)                      => del<{ message: string }>(`/projects/${id}?remove_files=true`),
+    /** workflows/thread.yaml : ordre d'exécution des workflows du projet. */
+    thread: (id: string)                      => get<ThreadInfo>(`/projects/${id}/thread`),
+    saveThread: (id: string, thread: ThreadStage[]) => put<ThreadInfo>(`/projects/${id}/thread`, { thread }),
+    /** Vérifie le projet comme `hdrctl run --dry-run`. */
+    check:  (id: string)                      => post<{ ok: boolean; errors: string[]; active: string[] }>(`/projects/${id}/check`, {}),
   },
 
   workflows: {

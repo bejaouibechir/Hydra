@@ -30,6 +30,7 @@ from hydra_etl.api.routers import (
     transform,
     parameters,
     secrets,
+    thread,
 )
 
 
@@ -70,6 +71,7 @@ app.add_middleware(
 # Routers
 app.include_router(health.router,       tags=["Health"])
 app.include_router(projects.router,     prefix="/api/projects",     tags=["Projects"])
+app.include_router(thread.router,       prefix="/api/projects",     tags=["Projects"])
 app.include_router(workflows.router,    prefix="/api/workflows",    tags=["Workflows"])
 app.include_router(runs.router,         prefix="/api/runs",         tags=["Runs"])
 app.include_router(environments.router, prefix="/api/environments", tags=["Environments"])

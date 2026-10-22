@@ -43,6 +43,7 @@ on the `cli-reform` branch.
   errors (`set_param`, `assign_param`, `webhook`, `delay`, `python`, `ssh`,
   `email`…), unconfigured job, cycles, unknown dependency, duplicate step names,
   `when` guards and retry logs. They were in French.
+- `hdrctl list` printed "OK" twice in its summary ("3 job(s)  3 OK OK").
 - `hdrctl --help` showed "Examples: …" as the summary of `clear`, `list`,
   `test` and `validate`; each command now has a one-line description.
 - Help texts still showed the old `hydra` command (`hydra test`,
@@ -98,6 +99,10 @@ on the `cli-reform` branch.
   is validated before the workflow file is written; nothing is created when a
   check fails (unknown workflow, position out of range, existing job).
   API: `POST /api/jobs/job/add`, `/job/attach`, `/job/detach`.
+- `hdrctl job list` lists a project's jobs: free, or the workflows that use
+  them, or the required files they lack, plus job folders a workflow refers
+  to that do not exist. `hdrctl list` on a project folder shows the same list
+  (it answered "No jobs found"; only `hdrctl list <project>/jobs` worked).
 - `hdrctl workflow run` and `workflow validate` accept a workflow name
   (`hdrctl workflow run daily_sales`) as well as a file path, and `--project`.
 - API: `POST /api/jobs/workflow/add` and `POST /api/jobs/workflow/remove`

@@ -1292,6 +1292,7 @@ hdrctl workflow remove <name> # delete a workflow (its jobs are kept)
 hdrctl job add <job> <workflow>       # new job, appended to a workflow
 hdrctl job attach <job> <workflow> -p 1  # existing job, as the first step
 hdrctl job detach <job> [<workflow>]  # take a job out of one workflow, or of all
+hdrctl job list               # jobs, and the workflows that use them
 ```
 """
 
@@ -1737,6 +1738,12 @@ def cmd_list(path: str) -> None:
         error_box(t("dir.not_found", path=path))
         sys.exit(1)
 
+    # Racine d'un projet : ses jobs (jobs/*) et les workflows qui les utilisent.
+    from hydra_etl.workflow.project import is_project_root
+    if is_project_root(root) and not _has_job_files(root):
+        _print_project_jobs(root)
+        return
+
     click.echo(f"  {c(C.WH, t('list.header'))} {c(C.CY, str(root))}\n")
     click.echo(f"  {c(C.DM, '─' * 70)}")
 
@@ -1764,7 +1771,7 @@ def cmd_list(path: str) -> None:
 
     click.echo(f"  {c(C.DM, '─' * 70)}")
     click.echo()
-    info(t("list.summary", count=len(jobs), ok=c(C.GR, str(n_ok) + " OK")))
+    info(t("list.summary", count=len(jobs), ok=c(C.GR, str(n_ok))))
     info(t("list.run_hint", cmd=c(C.WH, "hdrctl run <job>")))
     click.echo()
 
@@ -2060,6 +2067,47 @@ def _echo_next(root: Path) -> None:
     here = Path.cwd().resolve() == root
     info(t("job.next", project="." if here else str(root)))
     click.echo()
+
+
+def _print_project_jobs(root: Path) -> None:
+    """Jobs d'un projet : état des fichiers et workflows qui les utilisent."""
+    from hydra_etl.workflow.jobs import jobs_overview
+    items = jobs_overview(root)
+    info(t("job.list.title", name=c(C.CY, root.name)) + f"  {c(C.DM, str(root))}")
+    click.echo(c(C.DM, "  " + "─" * 56))
+    if not items:
+        info(t("job.list.none"))
+        click.echo()
+        return
+    width = max(len(i.name) for i in items)
+    for it in items:
+        wfs = ", ".join(sorted({w for w, _ in it.used_by}))
+        if not it.exists:
+            status = c(C.RD, "✗ " + t("job.list.missing_folder", workflows=wfs))
+        elif it.missing:
+            status = c(C.RD, "✗ " + t("job.list.incomplete", files=", ".join(it.missing)))
+            if wfs:
+                status += c(C.DM, "  " + t("job.list.used_by", workflows=wfs))
+        elif wfs:
+            status = c(C.GR, "✓ ") + t("job.list.used_by", workflows=wfs)
+        else:
+            status = c(C.YL, "○ " + t("job.list.free"))
+        click.echo(f"  {c(C.WH, it.name.ljust(width))}  {status}")
+    click.echo()
+    free = sum(1 for i in items if i.exists and not i.missing and not i.used_by)
+    info(t("job.list.summary", count=sum(1 for i in items if i.exists), free=free))
+    info(t("job.list.run_hint"))
+    click.echo()
+
+
+@cmd_job.command("list", help=t("help.job.list.docstring"))
+@_lang_option
+@click.argument("path", required=False, metavar="[PROJECT]")
+@_project_option
+def cmd_job_list(path: Optional[str], project: Optional[str]) -> None:
+    """Liste les jobs du projet et les workflows qui les utilisent."""
+    root = _project_or_exit(project or path)
+    _print_project_jobs(root)
 
 
 @cmd_job.command("add", help=t("help.job.add.docstring"))

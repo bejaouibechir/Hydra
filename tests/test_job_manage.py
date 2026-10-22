@@ -281,3 +281,57 @@ def test_api_job_and_workflow_endpoints(tmp_path, runner):
     assert r.remove_workflow_cli(r.WorkflowRemoveRequest(project=P, name="w2")).success
     assert not (root / "workflows" / "w2.yaml").exists()
     assert not r.attach_job_cli(r.JobAttachRequest(project=P, name="ghost", workflow="workflow1")).success
+
+
+# ── job list / hdrctl list <projet> ───────────────────────────────────────────
+
+def _overview_project(runner, proj):
+    runner.invoke(cli, ["job", "add", "a", "workflow1"])
+    runner.invoke(cli, ["job", "add", "lonely"])
+    (proj / "jobs" / "broken").mkdir()
+    add_workflow(proj, "w2")
+    attach_job(proj, "a", "w2")
+    wf = proj / "workflows" / "w2.yaml"
+    doc = yaml.safe_load(wf.read_text(encoding="utf-8"))
+    doc["workflow"]["steps"].append({"name": "g", "type": "job", "job": "../jobs/ghost", "depends_on": ["a"]})
+    wf.write_text(dump_workflow(doc), encoding="utf-8")
+
+
+def test_jobs_overview(runner, proj):
+    from hydra_etl.workflow.jobs import jobs_overview
+    _overview_project(runner, proj)
+    got = {i.name: (i.exists, i.missing, sorted(w for w, _ in i.used_by)) for i in jobs_overview(proj)}
+    assert got == {
+        "a": (True, [], ["w2", "workflow1"]),
+        "broken": (True, ["sources.yaml", "destinations.yaml", "pipeline.yaml"], []),
+        "job1": (True, [], ["workflow1"]),
+        "lonely": (True, [], []),
+        "ghost": (False, [], ["w2"]),
+    }
+
+
+@pytest.mark.parametrize("args", [["job", "list"], ["list"], ["list", "."]])
+def test_job_list_and_list_on_project(runner, proj, args):
+    _overview_project(runner, proj)
+    res = runner.invoke(cli, args)
+    assert res.exit_code == 0, res.output
+    out = res.output
+    assert "Jobs of project" in out
+    assert "in: w2, workflow1" in out
+    assert "free (in no workflow)" in out
+    assert "missing: sources.yaml" in out
+    assert "folder missing, used by: w2" in out
+    assert "4 job(s), 1 free" in out
+    assert "No jobs found" not in out
+
+
+def test_job_list_outside_project(runner, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    res = runner.invoke(cli, ["job", "list"])
+    assert res.exit_code == 1 and "--project" in res.output
+
+
+def test_job_list_with_project_option(runner, proj, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    res = runner.invoke(cli, ["job", "list", "--project", str(proj)])
+    assert res.exit_code == 0 and "job1" in res.output

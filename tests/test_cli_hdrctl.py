@@ -456,7 +456,8 @@ class TestList:
         make_job(tmp_path, "j1")
         make_job(tmp_path, "j2")
         result = runner.invoke(cli, ["list", str(tmp_path)])
-        assert "2" in result.output
+        assert "2 job(s)" in result.output
+        assert "OK OK" not in result.output
 
 
 # ═══════════════════════════════════════════════════════════════

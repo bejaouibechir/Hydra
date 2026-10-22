@@ -259,3 +259,51 @@ def detach_job(root: Path, job: str, workflow: Optional[str] = None) -> List[Det
         _save_doc(wf_file, doc)
         results.append(res)
     return results
+
+
+# ---------------------------------------------------------------------------
+# Vue d'ensemble (hdrctl job list, hdrctl list <projet>)
+# ---------------------------------------------------------------------------
+
+REQUIRED_JOB_FILES = ("sources.yaml", "destinations.yaml", "pipeline.yaml")
+
+
+@dataclass
+class JobInfo:
+    name: str                                   # nom du dossier, ou chemin relatif hors jobs/
+    path: Path
+    exists: bool
+    missing: List[str] = field(default_factory=list)            # fichiers requis absents
+    used_by: List[Tuple[str, str]] = field(default_factory=list)  # (workflow, step)
+
+
+def jobs_overview(root: Path) -> List[JobInfo]:
+    """Jobs du projet (dossiers jobs/*) avec les workflows qui les utilisent,
+    puis les dossiers référencés par un workflow mais absents."""
+    root = Path(root).resolve()
+    infos: Dict[Path, JobInfo] = {}
+    jdir = root / JOBS_DIR
+    if jdir.is_dir():
+        for d in sorted(p for p in jdir.iterdir() if p.is_dir() and not p.name.startswith(".")):
+            r = d.resolve()
+            infos[r] = JobInfo(d.name, r, True,
+                               [f for f in REQUIRED_JOB_FILES if not (d / f).is_file()
+                                and not (d / f.replace(".yaml", ".yml")).is_file()])
+    for wf_name, f in workflow_files(root).items():
+        try:
+            steps = _load_doc(f)["workflow"]["steps"]
+        except ProjectError:
+            continue
+        for s in steps:
+            if not isinstance(s, dict) or s.get("type") != "job" or not s.get("job"):
+                continue
+            p = Path(str(s["job"]))
+            r = (p if p.is_absolute() else f.parent / p).resolve()
+            if r not in infos:
+                try:
+                    label = r.relative_to(jdir.resolve()).as_posix()
+                except ValueError:
+                    label = os.path.relpath(r, root).replace(os.sep, "/")
+                infos[r] = JobInfo(label, r, r.is_dir())
+            infos[r].used_by.append((wf_name, str(s.get("name"))))
+    return list(infos.values())

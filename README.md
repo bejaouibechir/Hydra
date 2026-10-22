@@ -303,6 +303,7 @@ hdrctl job add load_orders daily_sales        # new job, appended to the workflo
 hdrctl job attach clean_orders daily_sales -p 1   # existing job, as step 1: the old step 1 now runs after it
 hdrctl job detach clean_orders daily_sales    # the next step inherits its dependencies; the folder is kept
 hdrctl job detach clean_orders                # from every workflow
+hdrctl job list                               # each job: free, or the workflows it is in
 ```
 
 `job add` uses the same templates as `init` (`--template mysql`, `postgres`…). These commands rewrite

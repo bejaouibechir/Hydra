@@ -17,11 +17,22 @@ and versions follow [Semantic Versioning](https://semver.org/).
   file elsewhere: `HYDRA_SECRETS_FILE=<path>` or `--secrets-file <path>` on
   `hdrctl run` and `hdrctl workflow run`. Parse errors give the line, never
   the value.
+- Studio: a **Secrets** tab in the bottom panel of the workflow editor lists
+  the project's secrets (names only: values never leave the server), adds,
+  replaces and deletes them, copies the `${SECRET:name}` reference, and shows
+  when an environment variable overrides one. In a node's password field, a
+  plain-text value now offers "Move to Secrets": the value goes to
+  `.hydra/secrets` and the field keeps `${SECRET:<node>.<field>}`. The hints no
+  longer point to "Environments" (`.env.<name>` files the engine never reads).
+  API: `GET|PUT /api/secrets`, `DELETE /api/secrets/{name}`.
 
 ### Changed
 
 - `init` no longer creates an empty `.hydra/workflows/`: Studio creates it
   when it saves a workflow canvas.
+- The generated `.gitignore` also excludes `.env.*` (keeping `.env.example`),
+  so the `.env.<name>` files written by Studio's environments API stay out of
+  git.
 
 ### Fixed
 

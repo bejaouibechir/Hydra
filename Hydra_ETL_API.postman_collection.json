@@ -1458,6 +1458,97 @@
               }
             }
           }
+        },
+        {
+          "name": "Secrets List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/secrets?project_id={{project_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "secrets"
+              ],
+              "query": [
+                {
+                  "key": "project_id",
+                  "value": "{{project_id}}"
+                }
+              ]
+            },
+            "description": "Noms des secrets du projet (.hydra/secrets) — jamais les valeurs."
+          }
+        },
+        {
+          "name": "Secret Set",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/secrets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "secrets"
+              ]
+            },
+            "description": "Ajoute ou remplace un secret dans .hydra/secrets.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"name\": \"db.password\",\n  \"value\": \"change-me\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Secret Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/secrets/db.password?project_id={{project_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "secrets",
+                "db.password"
+              ],
+              "query": [
+                {
+                  "key": "project_id",
+                  "value": "{{project_id}}"
+                }
+              ]
+            },
+            "description": "Supprime un secret."
+          }
         }
       ]
     }

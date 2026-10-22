@@ -341,7 +341,8 @@ db.password=change-me
 api.token=abc123
 ```
 
-To keep that file outside the project, point to it with `HYDRA_SECRETS_FILE=<path>` or
+In Studio, the **Secrets** tab of the workflow editor manages the same file (names only; values are never
+sent back to the browser). To keep that file outside the project, point to it with `HYDRA_SECRETS_FILE=<path>` or
 `hdrctl run . --secrets-file <path>`. The environment always wins over the file, so production can supply
 the values without touching the project.
 The `set_param` and `assign_param` actions create and change parameters mid-run, so two jobs can share a

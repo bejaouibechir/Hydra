@@ -173,3 +173,88 @@ def test_job_reads_project_secret(runner, proj):
     assert res.exit_code == 0, res.output
     res = runner.invoke(cli, ["run", str(proj)])
     assert res.exit_code == 0, res.output
+
+
+# ── Édition du fichier (Studio) ───────────────────────────────────────────────
+
+def test_set_and_delete_secret_keep_comments(tmp_path):
+    from hydra_etl.internal.config.secrets import delete_secret, load_secrets_file, set_secret
+    f = tmp_path / ".hydra" / "secrets"
+    set_secret(f, "db.password", "p1")                       # créé depuis le modèle commenté
+    text = f.read_text(encoding="utf-8")
+    assert text.startswith("# Project secrets") and text.rstrip().endswith("db.password=p1")
+    set_secret(f, "api.token", "  spaced value ")
+    set_secret(f, "db.password", "p2")                       # remplacé sur place
+    set_secret(f, "q", '"quoted"')
+    assert load_secrets_file(f) == {"db.password": "p2", "api.token": "  spaced value ", "q": '"quoted"'}
+    assert [ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.startswith("db.password=")] == ["db.password=p2"]
+    assert delete_secret(f, "api.token") is True
+    assert delete_secret(f, "api.token") is False
+    assert "# Project secrets" in f.read_text(encoding="utf-8")
+    with pytest.raises(SecretResolutionError):
+        set_secret(f, "bad name", "x")
+    with pytest.raises(SecretResolutionError):
+        set_secret(f, "x", "a\nb")
+
+
+def test_env_override(monkeypatch):
+    from hydra_etl.internal.config.secrets import env_override
+    assert env_override("db.password") is None
+    monkeypatch.setenv("DB_PASSWORD", "x")
+    assert env_override("db.password") == "DB_PASSWORD"
+
+
+def test_gitignore_covers_studio_env_files(proj):
+    import shutil, subprocess
+    if shutil.which("git") is None:
+        pytest.skip("git absent")
+    subprocess.run(["git", "init", "-q"], cwd=proj, check=True)
+    for f in (".env", ".env.prod", "jobs/job1/.env"):
+        assert subprocess.run(["git", "check-ignore", "-q", f], cwd=proj).returncode == 0, f
+    assert subprocess.run(["git", "check-ignore", "-q", "jobs/job1/.env.example"], cwd=proj).returncode == 1
+
+
+# ── API /api/secrets ──────────────────────────────────────────────────────────
+
+@pytest.fixture
+def api_proj(tmp_path, monkeypatch):
+    pytest.importorskip("fastapi")
+    from hydra_etl.api import store
+    monkeypatch.setattr(store, "WORKSPACE", tmp_path / "ws")
+    monkeypatch.setattr(store, "_INDEX_FILE", tmp_path / "ws" / "index.json")
+    (tmp_path / "ws").mkdir()
+    proj = store.create_project("p", project_path=str(tmp_path))
+    return proj, Path(proj.path)
+
+
+def test_api_secrets_never_returns_values(api_proj, monkeypatch):
+    from fastapi import HTTPException
+    from hydra_etl.api.routers import secrets as r
+    proj, root = api_proj
+    out = r.list_secrets(project_id=proj.id)
+    assert out.file == ".hydra/secrets" and out.exists and out.secrets == [] and not out.external
+    out = r.put_secret(r.SecretSet(project_id=proj.id, name="db.password", value="TOPSECRET"))
+    assert [s.name for s in out.secrets] == ["db.password"]
+    assert "TOPSECRET" not in out.model_dump_json()
+    assert project_secrets(root) == {"db.password": "TOPSECRET"}
+    monkeypatch.setenv("DB_PASSWORD", "env")
+    assert r.list_secrets(project_id=proj.id).secrets[0].overridden_by == "DB_PASSWORD"
+    out = r.remove_secret("db.password", project_id=proj.id)
+    assert out.secrets == []
+    with pytest.raises(HTTPException) as e:
+        r.remove_secret("db.password", project_id=proj.id)
+    assert e.value.status_code == 404
+    with pytest.raises(HTTPException) as e:
+        r.put_secret(r.SecretSet(project_id=proj.id, name="bad name", value="x"))
+    assert e.value.status_code == 422
+
+
+def test_api_secrets_external_file(api_proj, tmp_path, monkeypatch):
+    from hydra_etl.api.routers import secrets as r
+    proj, root = api_proj
+    ext = tmp_path / "vault" / "app.secrets"
+    monkeypatch.setenv(SECRETS_FILE_ENV, str(ext))
+    out = r.put_secret(r.SecretSet(project_id=proj.id, name="k", value="v"))
+    assert out.external and out.file == str(ext)
+    assert ext.read_text(encoding="utf-8").rstrip().endswith("k=v")
+    assert "k=" not in (root / ".hydra" / "secrets").read_text(encoding="utf-8")

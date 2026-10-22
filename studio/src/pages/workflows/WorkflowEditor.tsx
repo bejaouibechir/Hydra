@@ -33,6 +33,7 @@ import NodeConfigDialog from '@/components/canvas/NodeConfigDialog'
 import YamlCodePanel from '@/components/canvas/YamlCodePanel'
 import TerminalPanel from '@/components/canvas/TerminalPanel'
 import ParametersPanel from '@/components/canvas/ParametersPanel'
+import SecretsPanel from '@/components/canvas/SecretsPanel'
 import LogViewer from '@/components/ui/LogViewer'
 import Spinner from '@/components/ui/Spinner'
 import {
@@ -288,7 +289,7 @@ function WorkflowEditorInner() {
   const [viewer, setViewer] = useState<{ loading: boolean; error: string | null; cols: string[]; rows: Record<string, unknown>[] }>({ loading: false, error: null, cols: [], rows: [] })
   // Terminal intégré (bash / powershell)
   const [terminalShell, setTerminalShell] = useState<'powershell' | 'bash' | 'ssh' | null>(null)
-  const [bottomTab, setBottomTab] = useState<'logs' | 'params' | 'terminal'>('logs')
+  const [bottomTab, setBottomTab] = useState<'logs' | 'params' | 'secrets' | 'terminal'>('logs')
   const { data: sysInfo } = useQuery({ queryKey: ['system-info'], queryFn: api.system.info, staleTime: Infinity })
   const defaultShell: 'powershell' | 'bash' = sysInfo?.is_windows ? 'powershell' : 'bash'
 
@@ -2232,6 +2233,8 @@ function WorkflowEditorInner() {
         {dialogNode && (
           <NodeConfigDialog
             node={dialogNode}
+            projectId={projectId ?? undefined}
+            onOpenSecrets={() => { setBottomTab('secrets'); setLogsOpen(true) }}
             onClose={() => setDialogNode(null)}
             onSave={(id, patch) => onNodeDataChange(id, patch)}
             joinSources={nodes
@@ -2291,7 +2294,7 @@ function WorkflowEditorInner() {
           />
           {/* Header */}
           <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
-            {([['logs', 'LOGS'], ['params', 'PARAMETERS'], ['terminal', 'TERMINAL']] as const).map(([key, label]) => (
+            {([['logs', 'LOGS'], ['params', 'PARAMETERS'], ['secrets', 'SECRETS'], ['terminal', 'TERMINAL']] as const).map(([key, label]) => (
               <button key={key} type="button" onClick={() => setBottomTab(key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, letterSpacing: 1, fontFamily: 'monospace',
@@ -2315,11 +2318,13 @@ function WorkflowEditorInner() {
             <button onClick={() => setLogsOpen(false)} className="btn-secondary text-xs !py-0.5" title="Close">✕</button>
           </div>
           {/* Contenu */}
-          <div style={{ flex: 1, overflow: bottomTab === 'params' ? 'auto' : 'hidden', padding: bottomTab === 'terminal' ? 0 : '6px 10px' }}>
+          <div style={{ flex: 1, overflow: (bottomTab === 'params' || bottomTab === 'secrets') ? 'auto' : 'hidden', padding: bottomTab === 'terminal' ? 0 : '6px 10px' }}>
             {bottomTab === 'terminal' ? (
               <TerminalPanel shell={(terminalShell === 'ssh' ? null : terminalShell) ?? defaultShell} onClose={() => setBottomTab('logs')} />
             ) : bottomTab === 'params' ? (
               <ParametersPanel projectId={projectId} accent={'var(--primary)'} />
+            ) : bottomTab === 'secrets' ? (
+              <SecretsPanel projectId={projectId ?? ''} accent={'var(--primary)'} />
             ) : lastRun
               ? <LogViewer lines={logLines} maxHeight={logsPanelH - 70} title={lastRun.workflow_name} />
               : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace' }}>

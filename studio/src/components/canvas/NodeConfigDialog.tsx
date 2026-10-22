@@ -283,17 +283,21 @@ interface Props {
   onClose: () => void
   onSave:  (id: string, patch: Partial<FlowNodeData>) => void
   joinSources?: { id: string; label: string }[]   // sources du canvas (pour le noeud join)
+  projectId?: string             // pour ranger un mot de passe dans .hydra/secrets
+  onOpenSecrets?: () => void     // ouvre l'onglet Secrets du volet bas
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
-export default function NodeConfigDialog({ node, onClose, onSave, joinSources = [] }: Props) {
+export default function NodeConfigDialog({ node, onClose, onSave, joinSources = [], projectId, onOpenSecrets }: Props) {
   const d   = node.data
   const def = getNode(d.nodeType)
 
   const accent = CATEGORY_ACCENT[def?.category ?? 'source'] ?? 'var(--primary)'
   const Icon   = resolveIcon(def?.icon)
 
+  const [secretBusy,  setSecretBusy]  = useState(false)
+  const [secretError, setSecretError] = useState<string | null>(null)
   const [stepName,  setStepName]  = useState(d.stepName ?? '')
   const [jobPath,   setJobPath]   = useState(d.jobPath  ?? '')
   const [onFailure, setOnFailure] = useState<'fail' | 'skip' | 'continue'>(d.onFailure ?? 'fail')
@@ -882,7 +886,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                       type={revealed[field.key] ? 'text' : 'password'}
                       value={params[field.key] ?? ''}
                       onChange={e => setParam(field.key, e.target.value)}
-                      placeholder={field.placeholder ?? '${ENV:MY_SECRET}'}
+                      placeholder={field.placeholder ?? '${SECRET:db.password}'}
                       autoComplete="new-password"
                       style={{
                         display: 'block', width: '100%', boxSizing: 'border-box',
@@ -904,30 +908,49 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                     </button>
                   </div>
                   {(() => {
-                    // Sécurité (Volet B) : ne jamais persister le secret en clair.
-                    // On encourage une référence ${ENV:NOM} ; la valeur réelle vit
-                    // dans un Environnement (.env, hors Git), résolue par le moteur.
+                    // Sécurité : ne jamais écrire un mot de passe en clair dans les
+                    // YAML du projet (versionnés). La valeur va dans .hydra/secrets
+                    // (ignoré par git), le champ garde la référence ${SECRET:nom}.
                     const raw = String(params[field.key] ?? '')
                     const isRef = /^\s*\$\{(ENV|SECRET):[A-Za-z0-9_.-]+\}\s*$/.test(raw)
-                    const base = String(d.label || d.nodeType || 'node').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-                    const suggested = '${ENV:' + (base ? base + '_' : '') + field.key.toUpperCase() + '}'
+                    const base = String(d.label || d.stepName || d.nodeType || 'node').toLowerCase()
+                      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+                    const secretName = (base ? base + '.' : '') + field.key.toLowerCase()
+                    const ref = '${SECRET:' + secretName + '}'
+                    const linkBtn: React.CSSProperties = { display: 'inline-block', marginTop: 5, marginRight: 6, background: 'transparent', border: '1px solid var(--bg-border)', borderRadius: 6, padding: '2px 8px', color: 'var(--primary)', cursor: 'pointer', fontSize: 11, fontFamily: 'monospace' }
                     if (raw && !isRef) {
                       return (
                         <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.45, color: 'var(--error)' }}>
-                          ⚠ Plain-text secret — it will be written to the project files. Reference it here and store the actual value in <b>Environments</b>.
-                          <button
-                            type="button"
-                            onClick={() => setParam(field.key, suggested)}
-                            style={{ display: 'inline-block', marginTop: 5, background: 'transparent', border: '1px solid var(--bg-border)', borderRadius: 6, padding: '2px 8px', color: 'var(--primary)', cursor: 'pointer', fontSize: 11, fontFamily: 'monospace' }}
-                          >
-                            Utiliser {suggested}
-                          </button>
+                          ⚠ Plain-text secret — it would be written to the project files, which go to git.
+                          {projectId ? (
+                            <div>
+                              <button type="button" style={linkBtn} disabled={secretBusy}
+                                onClick={async () => {
+                                  setSecretBusy(true); setSecretError(null)
+                                  try {
+                                    await api.secrets.set(projectId, secretName, raw)
+                                    setParam(field.key, ref)
+                                  } catch (e) {
+                                    setSecretError((e as Error).message)
+                                  } finally { setSecretBusy(false) }
+                                }}>
+                                Move to Secrets as {ref}
+                              </button>
+                              {secretError && <span>{secretError}</span>}
+                            </div>
+                          ) : (
+                            <div>Store the value in .hydra/secrets and reference it as <code>{ref}</code>.</div>
+                          )}
                         </div>
                       )
                     }
                     return (
                       <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.45, color: 'var(--text-muted)' }}>
-                        Security tip: reference a secret with <code style={{ fontFamily: 'monospace' }}>{'${ENV:NAME}'}</code> — define the actual value in <b>Environments</b> (.env, outside Git), never here.
+                        Reference a secret with <code style={{ fontFamily: 'monospace' }}>{'${SECRET:name}'}</code>; its value lives in{' '}
+                        {onOpenSecrets
+                          ? <button type="button" onClick={onOpenSecrets} style={{ ...linkBtn, marginTop: 0, padding: '0 6px' }}>Secrets</button>
+                          : <b>Secrets</b>}
+                        {' '}(.hydra/secrets, ignored by git), never here.
                       </div>
                     )
                   })()}

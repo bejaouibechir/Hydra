@@ -172,7 +172,7 @@ SECRETS_TEMPLATE = """\
 # db.password=change-me
 """
 
-GITIGNORE_LINES = ("# Hydra: never commit secrets", ".hydra/secrets", ".env")
+GITIGNORE_LINES = ("# Hydra: never commit secrets", ".hydra/secrets", ".env", ".env.*", "!.env.example")
 
 
 def parse_secrets_text(text: str, source: str = "secrets") -> Dict[str, str]:
@@ -256,3 +256,81 @@ def scaffold_secrets(root: Path) -> list:
         gi.write_text(text.lstrip("\n"), encoding="utf-8")
         changed.append(".gitignore")
     return changed
+
+
+# ---------------------------------------------------------------------------
+# Édition du fichier (Studio : onglet Secrets). Les commentaires et l'ordre des
+# lignes sont conservés ; seule la ligne du secret visé change.
+# ---------------------------------------------------------------------------
+
+def secrets_file_for(project_root: Path) -> Path:
+    """Fichier utilisé pour ce projet : HYDRA_SECRETS_FILE s'il est défini,
+    sinon <projet>/.hydra/secrets."""
+    explicit = os.environ.get(SECRETS_FILE_ENV)
+    return Path(explicit).expanduser() if explicit else Path(project_root) / PROJECT_SECRETS_FILE
+
+
+def check_secret_name(name: str) -> str:
+    n = (name or "").strip()
+    if not _SECRET_KEY_RE.match(n):
+        raise SecretResolutionError(
+            f"invalid secret name '{name}': use letters, digits, '.', '_' or '-'")
+    return n
+
+
+def _format_value(value: str) -> str:
+    if "\n" in value or "\r" in value:
+        raise SecretResolutionError("a secret value cannot contain a line break")
+    needs = (value != value.strip() or value[:1] in ("'", '"', "#"))
+    if not needs:
+        return value
+    q = "'" if value.startswith('"') or value.endswith('"') else '"'
+    return f"{q}{value}{q}"
+
+
+def _key_of(line: str) -> Optional[str]:
+    s = line.strip()
+    if not s or s.startswith("#") or "=" not in s:
+        return None
+    if s.startswith("export "):
+        s = s[7:].lstrip()
+    return s.split("=", 1)[0].strip()
+
+
+def set_secret(path: Path, name: str, value: str) -> None:
+    """Ajoute ou remplace `name=value` dans le fichier (créé si absent)."""
+    name = check_secret_name(name)
+    path = Path(path)
+    lines = path.read_text(encoding="utf-8-sig").splitlines() if path.is_file() else \
+        SECRETS_TEMPLATE.splitlines()
+    new = f"{name}={_format_value(str(value))}"
+    for i, ln in enumerate(lines):
+        if _key_of(ln) == name:
+            lines[i] = new
+            break
+    else:
+        lines.append(new)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def delete_secret(path: Path, name: str) -> bool:
+    path = Path(path)
+    if not path.is_file():
+        return False
+    lines = path.read_text(encoding="utf-8-sig").splitlines()
+    kept = [ln for ln in lines if _key_of(ln) != name]
+    if len(kept) == len(lines):
+        return False
+    path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+    return True
+
+
+def env_override(name: str) -> Optional[str]:
+    """Nom de la variable d'environnement qui l'emporte sur ce secret, s'il y en a une."""
+    norm = SecretResolver._env_name(name)
+    if norm in os.environ:
+        return norm
+    if name in os.environ:
+        return name
+    return None

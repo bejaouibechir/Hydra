@@ -116,6 +116,14 @@ export interface WorkflowUpdatePayload extends Partial<Workflow> {
   force?: boolean
 }
 
+/** Secrets du projet (.hydra/secrets) : noms seulement, jamais les valeurs. */
+export interface SecretsInfo {
+  file: string                 // chemin affiché (relatif au projet si possible)
+  external: boolean            // fichier désigné par HYDRA_SECRETS_FILE
+  exists: boolean
+  secrets: { name: string; overridden_by?: string | null }[]
+}
+
 // ── Projects ─────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -210,6 +218,15 @@ export const api = {
   transform: {
     scriptPreview: (body: { inputs: string[]; outputs: Record<string, string>; code: string; mode: string; rows: Record<string, unknown>[] }) =>
       post<{ columns: string[]; rows: Record<string, unknown>[]; error: string | null }>('/transform/script/preview', body),
+  },
+
+  secrets: {
+    list:   (projectId: string) =>
+      get<SecretsInfo>(`/secrets?project_id=${encodeURIComponent(projectId)}`),
+    set:    (projectId: string, name: string, value: string) =>
+      put<SecretsInfo>('/secrets', { project_id: projectId, name, value }),
+    remove: (projectId: string, name: string) =>
+      del<SecretsInfo>(`/secrets/${encodeURIComponent(name)}?project_id=${encodeURIComponent(projectId)}`),
   },
 
   parameters: {

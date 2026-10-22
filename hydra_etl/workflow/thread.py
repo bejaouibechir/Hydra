@@ -160,3 +160,56 @@ def default_thread_yaml(workflow_names: List[str]) -> str:
     for n in workflow_names:
         lines += [f"      - name: {n}", "        active: true"]
     return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Écriture et modification du thread (hdrctl workflow add/remove, Studio)
+# ---------------------------------------------------------------------------
+
+_HEADER = default_thread_yaml([]).split('version: "1.0"')[0]
+
+
+def render_thread(thread: ThreadDef) -> str:
+    """ThreadDef → texte de thread.yaml, avec l'en-tête commenté standard.
+    Les commentaires ajoutés à la main dans le fichier ne sont pas conservés."""
+    lines = [_HEADER.rstrip("\n"), f'version: "{thread.version}"']
+    if not thread.thread:
+        lines.append("thread: []")
+        return "\n".join(lines) + "\n"
+    lines.append("thread:")
+    for stage in thread.thread:
+        lines.append(f"  - mode: {stage.mode}")
+        if stage.delay_after not in (None, "", 0):
+            lines.append(f"    delay_after: {stage.delay_after}")
+        lines.append("    workflows:")
+        for wf in stage.workflows:
+            lines.append(f"      - name: {wf.name}")
+            lines.append(f"        active: {'true' if wf.active else 'false'}")
+    return "\n".join(lines) + "\n"
+
+
+def add_to_thread(thread: ThreadDef, name: str) -> ThreadDef:
+    """Ajoute `name` en fin de thread : dans la dernière étape si elle est
+    séquentielle, sinon dans une nouvelle étape séquentielle."""
+    if name in thread.workflow_names():
+        raise ValueError(f"workflow '{name}' is already in the thread")
+    stages = [s.model_copy(deep=True) for s in thread.thread]
+    new = ThreadWorkflow(name=name)
+    if stages and stages[-1].mode == "sequential":
+        stages[-1].workflows.append(new)
+    else:
+        stages.append(ThreadStage(mode="sequential", workflows=[new]))
+    return ThreadDef(version=thread.version, thread=stages)
+
+
+def remove_from_thread(thread: ThreadDef, name: str) -> "tuple[ThreadDef, bool]":
+    """Retire `name` du thread ; une étape devenue vide disparaît.
+    Retourne (thread, trouvé)."""
+    found = False
+    stages: List[ThreadStage] = []
+    for s in thread.thread:
+        kept = [w for w in s.workflows if w.name != name]
+        found = found or len(kept) != len(s.workflows)
+        if kept:
+            stages.append(s.model_copy(update={"workflows": kept}, deep=True))
+    return ThreadDef(version=thread.version, thread=stages), found

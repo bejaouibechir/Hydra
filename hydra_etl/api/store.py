@@ -26,6 +26,7 @@ pas par un fichier manifest. Rétro-compatibilité : anciens projets
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import uuid
@@ -42,6 +43,8 @@ from hydra_etl.api.models import (
     RunResponse,
     WorkflowResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 # Répertoire racine de tous les projets Studio
 WORKSPACE = Path(os.environ.get("HYDRA_WORKSPACE", Path.home() / "hydra-workspace"))
@@ -438,7 +441,7 @@ def _discover_disk_content(project_path: Path, project_id: str) -> None:
     if not wf_root.exists():
         return
     for f in sorted(list(wf_root.glob("*.yaml")) + list(wf_root.glob("*.yml"))):
-        if str(f) in known_files:
+        if str(f) in known_files or f.name in ("thread.yaml", "thread.yml"):
             continue
         try:
             doc = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
@@ -613,7 +616,35 @@ def create_workflow(
     )
     _save_wf_meta(project_path, wf)
     _register_workflow_in_manifest(project_path, wf_id, name, f"workflows/{wf_file.name}")
+    _thread_add(project_path, wf_file.stem)
     return wf
+
+
+def _thread_add(project_path: Path, name: str) -> None:
+    """Inscrit un workflow créé dans Studio en fin de workflows/thread.yaml,
+    comme `hdrctl workflow add`, pour que `hdrctl run` le lance aussi."""
+    try:
+        from hydra_etl.workflow.project import resolve_thread, save_thread
+        from hydra_etl.workflow.thread import add_to_thread
+        thread, _ = resolve_thread(project_path)
+        if name not in thread.workflow_names():
+            thread = add_to_thread(thread, name)
+        save_thread(project_path, thread)
+    except Exception as exc:  # thread.yaml invalide : la création reste valable
+        logger.warning("thread.yaml not updated for workflow %s: %s", name, exc)
+
+
+def _thread_remove(project_path: Path, name: str) -> None:
+    try:
+        from hydra_etl.workflow.project import save_thread
+        from hydra_etl.workflow.thread import load_thread, remove_from_thread
+        tf = project_path / "workflows" / "thread.yaml"
+        if tf.is_file():
+            thread, found = remove_from_thread(load_thread(tf), name)
+            if found:
+                save_thread(project_path, thread)
+    except Exception as exc:
+        logger.warning("thread.yaml not updated after removing workflow %s: %s", name, exc)
 
 
 def _materialize_jobs(project_path: Path, jobs: List[dict]) -> None:
@@ -713,6 +744,8 @@ def delete_workflow(project_id: str, workflow_id: str) -> bool:
     wf_file = _wf_yaml_file(project_path, workflow_id)
     if wf_file and wf_file.exists():
         wf_file.unlink()
+    if wf_file:
+        _thread_remove(project_path, wf_file.stem)
     meta.unlink()
     _unregister_workflow_in_manifest(project_path, workflow_id)
     return True

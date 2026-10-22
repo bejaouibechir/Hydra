@@ -258,3 +258,190 @@ class ProjectRunner:
         return ProjectResult(project=self.plan.root.name,
                              success=not any(r.status == FAILED for r in runs),
                              duration=time.monotonic() - t0, runs=runs)
+
+
+# ---------------------------------------------------------------------------
+# Gestion des workflows d'un projet (hdrctl workflow add | remove | list)
+# ---------------------------------------------------------------------------
+
+def require_project(path: Optional[str] = None) -> Path:
+    """Racine du projet désigné par `path` (ou contenant le dossier courant).
+    ProjectError si aucun projet Hydra n'est trouvé."""
+    start = Path(path) if path else Path.cwd()
+    if path and not start.exists():
+        raise ProjectError([f"{start} does not exist"])
+    root = find_project_root(start)
+    if root is None:
+        raise ProjectError([f"{start.resolve()} is not inside a Hydra project (no .hydra/ folder)"])
+    return root
+
+
+def workflow_files(root: Path) -> Dict[str, Path]:
+    """Nom → fichier, pour chaque workflows/*.yaml|yml (thread.yaml exclu)."""
+    wdir = Path(root) / WORKFLOWS_DIR
+    out: Dict[str, Path] = {}
+    if not wdir.is_dir():
+        return out
+    for p in sorted(wdir.glob("*.yml")) + sorted(wdir.glob("*.yaml")):
+        if p.name in (THREAD_FILE, "thread.yml"):
+            continue
+        out[p.stem] = p          # .yaml l'emporte sur .yml (lu après)
+    return dict(sorted(out.items()))
+
+
+def save_thread(root: Path, thread: ThreadDef) -> Path:
+    from hydra_etl.workflow.thread import render_thread
+    f = Path(root) / WORKFLOWS_DIR / THREAD_FILE
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(render_thread(thread), encoding="utf-8")
+    return f
+
+
+def _check_new_name(name: str) -> str:
+    from hydra_etl.workflow.thread import ThreadWorkflow
+    try:
+        return ThreadWorkflow(name=name).name
+    except Exception:
+        raise ProjectError([f"invalid workflow name '{name}': use letters, digits, '-', '_' or '.', "
+                            f"starting with a letter or a digit"]) from None
+
+
+def new_workflow_yaml(name: str) -> str:
+    return (
+        'version: "1.0"\n'
+        "workflow:\n"
+        f"  name: {name}\n"
+        '  description: ""\n'
+        "  trigger:\n"
+        "    type: manual\n"
+        "  steps: []\n"
+    )
+
+
+def add_workflow(root: Path, name: Optional[str] = None) -> Tuple[str, Path, ThreadDef]:
+    """Crée workflows/<name>.yaml (sans step) et l'inscrit en fin de thread.
+    Sans nom : `workflow-<8 hex>`. Sans thread.yaml : il est créé avec les
+    workflows existants (ordre alphabétique), puis le nouveau."""
+    import uuid
+    from hydra_etl.workflow.thread import add_to_thread
+
+    root = Path(root)
+    existing = workflow_files(root)
+    if name is None:
+        name = f"workflow-{uuid.uuid4().hex[:8]}"
+        while name in existing:
+            name = f"workflow-{uuid.uuid4().hex[:8]}"
+    name = _check_new_name(name)
+    if name in existing:
+        raise ProjectError([f"workflow '{name}' already exists: {existing[name]}"])
+    try:
+        thread, _ = resolve_thread(root)
+    except ValueError as e:
+        raise ProjectError([f"{WORKFLOWS_DIR}/{THREAD_FILE}: {e}"]) from None
+    if name in thread.workflow_names():
+        # Référencé dans le thread mais sans fichier : on crée le fichier, le
+        # thread ne change pas.
+        new_thread = thread
+    else:
+        new_thread = add_to_thread(thread, name)
+    path = root / WORKFLOWS_DIR / f"{name}.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(new_workflow_yaml(name), encoding="utf-8")
+    save_thread(root, new_thread)
+    return name, path, new_thread
+
+
+def _forget_in_studio(root: Path, path: Path) -> None:
+    """Retire les traces Studio d'un fichier workflow supprimé : méta
+    .hydra/workflows/<id>.json et entrée de .hydra/project.json."""
+    import json
+    rel = f"{WORKFLOWS_DIR}/{path.name}"
+    meta_dir = root / PROJECT_MARKER / "workflows"
+    ids = set()
+    if meta_dir.is_dir():
+        for f in meta_dir.glob("*.json"):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            p = str(data.get("path") or "")
+            if p and Path(p).name == path.name and Path(p).parent.name == WORKFLOWS_DIR:
+                ids.add(data.get("id"))
+                f.unlink()
+    manifest = root / PROJECT_MARKER / "project.json"
+    if manifest.is_file():
+        try:
+            m = json.loads(manifest.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        before = m.get("workflows", [])
+        after = [w for w in before if w.get("file") != rel and w.get("id") not in ids]
+        if len(after) != len(before):
+            m["workflows"] = after
+            manifest.write_text(json.dumps(m, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def remove_workflow(root: Path, name: str) -> Tuple[Optional[Path], bool]:
+    """Supprime workflows/<name>.yaml et son entrée du thread. Les jobs sont
+    conservés. Retourne (fichier supprimé ou None, retiré du thread)."""
+    from hydra_etl.workflow.thread import load_thread, remove_from_thread
+
+    root = Path(root)
+    name = name[:-5] if name.endswith(".yaml") else name[:-4] if name.endswith(".yml") else name
+    files = workflow_files(root)
+    tf = root / WORKFLOWS_DIR / THREAD_FILE
+    thread = None
+    if tf.is_file():
+        try:
+            thread = load_thread(tf)
+        except ValueError as e:
+            raise ProjectError([f"{WORKFLOWS_DIR}/{THREAD_FILE}: {e}"]) from None
+    in_thread = thread is not None and name in thread.workflow_names()
+    if name not in files and not in_thread:
+        raise ProjectError([f"workflow '{name}' not found in {root / WORKFLOWS_DIR}"])
+    removed: Optional[Path] = None
+    if name in files:
+        removed = files[name]
+        removed.unlink()
+        _forget_in_studio(root, removed)
+    if in_thread:
+        save_thread(root, remove_from_thread(thread, name)[0])
+    return removed, in_thread
+
+
+@dataclass
+class WorkflowInfo:
+    name: str
+    path: Optional[Path]
+    stage: Optional[int] = None        # 1-based, None = absent du thread
+    mode: Optional[str] = None
+    active: Optional[bool] = None
+    steps: Optional[int] = None        # None = manifeste illisible
+    error: Optional[str] = None
+
+
+def list_workflows(root: Path) -> Tuple[List[WorkflowInfo], bool]:
+    """Workflows du projet dans l'ordre du thread, puis ceux absents du thread.
+    Retourne (liste, thread implicite)."""
+    from hydra_etl.workflow.parser import load_workflow
+
+    root = Path(root)
+    files = workflow_files(root)
+    thread, implicit = resolve_thread(root)
+    out: List[WorkflowInfo] = []
+    seen = set()
+    for i, stage in enumerate(thread.thread, 1):
+        for w in stage.workflows:
+            seen.add(w.name)
+            out.append(WorkflowInfo(w.name, files.get(w.name), i, stage.mode, w.active))
+    for name, p in files.items():
+        if name not in seen:
+            out.append(WorkflowInfo(name, p))
+    for info in out:
+        if info.path is None:
+            continue
+        try:
+            info.steps = len(load_workflow(info.path).steps)
+        except Exception as e:  # noqa: BLE001
+            info.error = str(e).splitlines()[0][:120]
+    return out, implicit

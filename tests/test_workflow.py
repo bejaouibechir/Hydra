@@ -802,30 +802,3 @@ class TestCLIWorkflowRun:
         assert result.exit_code != 0
 
 
-class TestCLIWorkflowInit:
-    """workflow init écrit dans le répertoire courant -> toujours exécuter
-    dans tmp_path (monkeypatch.chdir) pour ne pas polluer le repo."""
-
-    def test_init_basic(self, runner, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        result = runner.invoke(cli, ["workflow", "init", "my_wf", "--force"], catch_exceptions=False)
-        # Doit créer my_wf.yaml dans le répertoire courant ou indiquer le chemin
-        assert result.exit_code == 0
-
-    def test_init_parallel_template(self, runner, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        result = runner.invoke(
-            cli,
-            ["workflow", "init", "par_wf", "--template", "parallel", "--force"],
-            catch_exceptions=False,
-        )
-        assert result.exit_code == 0
-
-    def test_init_scheduled_template(self, runner, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        result = runner.invoke(
-            cli,
-            ["workflow", "init", "sched_wf", "--template", "scheduled", "--force"],
-            catch_exceptions=False,
-        )
-        assert result.exit_code == 0

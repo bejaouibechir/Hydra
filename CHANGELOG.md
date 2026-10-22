@@ -48,6 +48,9 @@ on the `cli-reform` branch.
 
 ### Removed
 
+- `hdrctl workflow init` and its templates, and `POST /api/jobs/workflow/init`.
+  They wrote a `workflow.yaml` plus `jobs/job_a`… in the old layout; use
+  `hdrctl workflow add`.
 - The French, German, Portuguese, Japanese and Chinese CLI translations, which
   the CLI never loaded (`--lang` only accepts `en` and `es`) and which were
   incomplete. Moved to `tools/cli-locales-archive/`. The Spanish translation is now
@@ -71,6 +74,24 @@ on the `cli-reform` branch.
   `-s/-d/-p/-t` and `--profile` are refused, as they only make sense for one
   job. `hdrctl run <job folder>` is unchanged. Engine in
   `hydra_etl/workflow/project.py`.
+- `hdrctl workflow add [name]` creates `workflows/<name>.yaml` with no step and
+  adds it at the end of `thread.yaml` (last stage if sequential, otherwise a new
+  sequential stage); without a name it is `workflow-<8 hex>`. `hdrctl workflow
+  remove <name>` deletes the file and its thread entry (and Studio's metadata
+  for it), keeps the jobs, and asks for confirmation unless `-y`. Both work on
+  the project containing the current folder or on `--project <path>`, and stop
+  with an error outside a project.
+- `hdrctl workflow list` lists a project's workflows in thread order with
+  stage, mode, active/inactive and step count, plus workflows missing from
+  `thread.yaml` and thread entries without a file. Outside a project it still
+  searches for `workflow.yaml` files.
+- `hdrctl workflow run` and `workflow validate` accept a workflow name
+  (`hdrctl workflow run daily_sales`) as well as a file path, and `--project`.
+- API: `POST /api/jobs/workflow/add` and `POST /api/jobs/workflow/remove`
+  (Postman collection updated).
+- Studio keeps `workflows/thread.yaml` in step: creating a workflow adds it at
+  the end, deleting one removes it, and opening a project no longer registers
+  `thread.yaml` itself as a workflow.
 - `parameters.yaml` at the project root, empty, with a commented example.
 
 

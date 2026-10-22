@@ -287,10 +287,17 @@ workflow:
 ```
 
 ```bash
-hdrctl workflow validate workflows/workflow1.yaml
-hdrctl workflow run      workflows/workflow1.yaml   # one workflow
-hdrctl run .                                        # every workflow, in the order of thread.yaml
+hdrctl workflow add daily_sales        # new empty workflow, added at the end of thread.yaml
+hdrctl workflow list                   # workflows in thread order: stage, active/inactive, steps
+hdrctl workflow validate daily_sales   # by name inside a project, or by file path
+hdrctl workflow run daily_sales        # one workflow
+hdrctl workflow remove daily_sales     # deletes the file and its thread entry; jobs are kept
+hdrctl run .                           # every workflow, in the order of thread.yaml
 ```
+
+The `workflow` commands work on the project that contains the current folder, or on the one given
+with `--project <path>`; outside a project they stop with an error. Studio keeps `thread.yaml` in
+step too: a workflow created or deleted in Studio is added to or removed from it.
 
 An edge is a **dependency**, not a pipe: it decides *when* a job runs, never what data reaches it.
 Steps that share no dependency run in parallel.

@@ -301,10 +301,14 @@ class WorkflowValidateRequest(BaseModel):
     path: str = "./workflow.yaml"
 
 
-class WorkflowInitRequest(BaseModel):
+class WorkflowAddRequest(BaseModel):
+    project: str
+    name: Optional[str] = None
+
+
+class WorkflowRemoveRequest(BaseModel):
+    project: str
     name: str
-    template: str = "basic"
-    force: bool = False
 
 
 @router.post("/workflow/run", response_model=CLIResult)
@@ -325,10 +329,16 @@ def list_workflows_cli(path: str = "."):
     return _run_cli("workflow", "list", path)
 
 
-@router.post("/workflow/init", response_model=CLIResult)
-def init_workflow_cli(body: WorkflowInitRequest):
-    """Scaffold un nouveau workflow (équivalent `hdrctl workflow init`)."""
-    args = ["workflow", "init", body.name, "--template", body.template]
-    if body.force:
-        args.append("--force")
+@router.post("/workflow/add", response_model=CLIResult)
+def add_workflow_cli(body: WorkflowAddRequest):
+    """Crée un workflow vide et l'inscrit dans thread.yaml (équivalent
+    `hdrctl workflow add`)."""
+    args = ["workflow", "add"] + ([body.name] if body.name else []) + ["--project", body.project]
     return _run_cli(*args)
+
+
+@router.post("/workflow/remove", response_model=CLIResult)
+def remove_workflow_cli(body: WorkflowRemoveRequest):
+    """Supprime un workflow et son entrée de thread.yaml (équivalent
+    `hdrctl workflow remove -y`)."""
+    return _run_cli("workflow", "remove", body.name, "--project", body.project, "-y")

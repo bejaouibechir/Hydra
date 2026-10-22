@@ -1290,7 +1290,7 @@
           }
         },
         {
-          "name": "Workflow Init (CLI)",
+          "name": "Workflow Add (CLI)",
           "request": {
             "method": "POST",
             "header": [
@@ -1300,7 +1300,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/jobs/workflow/init",
+              "raw": "{{base_url}}/api/jobs/workflow/add",
               "host": [
                 "{{base_url}}"
               ],
@@ -1308,13 +1308,47 @@
                 "api",
                 "jobs",
                 "workflow",
-                "init"
+                "add"
               ]
             },
-            "description": "Équivalent `hdrctl workflow init`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"mon_workflow\",\n  \"template\": \"basic\",\n  \"force\": false\n}",
+              "raw": "{\n  \"project\": \"C:/data/my_project\",\n  \"name\": \"daily_sales\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Équivalent `hdrctl workflow add [name] --project <path>`."
+          }
+        },
+        {
+          "name": "Workflow Remove (CLI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jobs/workflow/remove",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "workflow",
+                "remove"
+              ]
+            },
+            "description": "Équivalent `hdrctl workflow remove <name> --project <path> -y`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project\": \"C:/data/my_project\",\n  \"name\": \"daily_sales\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

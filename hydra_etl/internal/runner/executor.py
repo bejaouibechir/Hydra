@@ -103,7 +103,9 @@ class JobExecutor:
             logger.warning(f"Could not load .env layers: {e}")
         
         # Parsers et engine
-        self._secret_resolver = SecretResolver(secrets={})
+        from hydra_etl.internal.config.secrets import project_secrets
+        self._secret_resolver = SecretResolver(
+            secrets={}, fallback=project_secrets(self.job_dir, self.root_dir, self.path_base))
         # Parametres (couche statique, lecture seule) resolus avant le parsing
         self._runtime_params = dict(params or {})
         self._active_env = env or os.environ.get("HYDRA_ENV")

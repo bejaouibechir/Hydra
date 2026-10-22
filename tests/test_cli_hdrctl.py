@@ -216,8 +216,9 @@ class TestInit:
             assert result.exit_code == 0, result.output
             root = Path("myproject")
             assert sorted(p.name for p in root.iterdir()) == sorted([
-                ".hydra", "Data", "environments", "jobs", "outputs",
+                ".gitignore", ".hydra", "Data", "environments", "jobs", "outputs",
                 "parameters.yaml", "README.md", "scripts", "workflows"])
+            assert sorted(p.name for p in (root / ".hydra").iterdir()) == ["project.json", "secrets"]
             for d in ["Data", "environments", "outputs", "scripts"]:
                 assert (root / d).is_dir(), d
             assert sorted(p.name for p in (root / "workflows").iterdir()) == ["thread.yaml", "workflow1.yaml"]

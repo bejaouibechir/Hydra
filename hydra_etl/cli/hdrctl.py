@@ -809,13 +809,15 @@ def cli(ctx: click.Context) -> None:
 @click.option("-P", "--param", "param_overrides", multiple=True, metavar="KEY=VALUE",
               help=t("help.run.param"))
 @click.option("--profile", "profile", is_flag=True, default=False, help=t("help.run.profile"))
+@click.option("--secrets-file", "secrets_file", default=None, metavar="FILE",
+              help=t("help.run.secrets_file"))
 def cmd_run(path: str, verbosity: int, dry_run: bool,
             sources_file: Optional[str], destinations_file: Optional[str],
             pipeline_file: Optional[str], transformations_file: Optional[str],
             on_success: Optional[str], on_failure: Optional[str],
             on_finish: Optional[str],
             env_name: Optional[str] = None, param_overrides: tuple = (),
-            profile: bool = False) -> None:
+            profile: bool = False, secrets_file: Optional[str] = None) -> None:
     """Exécute un pipeline ETL."""
     verbosity = verbosity or 0  # click < 8.2 passes None when no -v flag is given
     print_banner()
@@ -825,6 +827,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
     if not job_dir.exists() or not job_dir.is_dir():
         error_box(t("dir.not_found", path=path))
         sys.exit(1)
+    _use_secrets_file(secrets_file)
 
     # Projet (.hydra/ sans fichiers de job à la racine) → tous ses workflows,
     # dans l'ordre de workflows/thread.yaml. Sinon : un job seul.
@@ -958,6 +961,19 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
         fire_hook("on-finish", on_finish, verbosity)
 
     sys.exit(0 if status == "SUCCESS" else 1)
+
+
+def _use_secrets_file(path: Optional[str]) -> None:
+    """--secrets-file : fichier de secrets hors du projet (prend la place de
+    .hydra/secrets pour ce run). Transmis au moteur par HYDRA_SECRETS_FILE."""
+    if not path:
+        return
+    from hydra_etl.internal.config.secrets import SECRETS_FILE_ENV
+    f = Path(path).expanduser().resolve()
+    if not f.is_file():
+        error_box(t("run.secrets_file_not_found", path=str(f)))
+        sys.exit(1)
+    os.environ[SECRETS_FILE_ENV] = str(f)
 
 
 def _parse_param_overrides(items) -> dict:
@@ -1231,7 +1247,7 @@ def _write_project_marker(root: Path) -> Path:
     import uuid
     from datetime import datetime, timezone
     meta_dir = root / ".hydra"
-    (meta_dir / "workflows").mkdir(parents=True, exist_ok=True)
+    meta_dir.mkdir(parents=True, exist_ok=True)
     f = meta_dir / "project.json"
     f.write_text(json.dumps({
         "id": str(uuid.uuid4())[:8],
@@ -1268,7 +1284,7 @@ Hydra ETL project created with `hdrctl init`.
 
 | Path | Purpose |
 |---|---|
-| `.hydra/` | Project marker and Hydra Studio metadata (do not edit) |
+| `.hydra/` | Project marker, Hydra Studio data, and `secrets` (git-ignored, see below) |
 | `Data/` | Input data shared by the jobs |
 | `environments/` | Parameter values per environment (`dev.yaml`, `prod.yaml`, ...) |
 | `jobs/` | One folder per job: `sources.yaml`, `destinations.yaml`, `pipeline.yaml`, `transformations.yaml` |
@@ -1276,6 +1292,14 @@ Hydra ETL project created with `hdrctl init`.
 | `parameters.yaml` | Project parameters, used as `{{{{ param:NAME }}}}` |
 | `scripts/` | Scripts called by workflow actions (python, bash, powershell) |
 | `workflows/` | Workflows (`<name>.yaml`) and their execution order (`thread.yaml`) |
+
+## Secrets
+
+Put passwords and tokens in `.hydra/secrets`, one `name=value` per line, and use them as
+`${{SECRET:name}}` in jobs and workflows. The file is listed in `.gitignore`. An environment variable
+wins over it (`${{SECRET:db.password}}` first reads `DB_PASSWORD`), so CI or a vault can provide the
+values without the file. To keep the file elsewhere: `HYDRA_SECRETS_FILE=<path>` or
+`hdrctl run . --secrets-file <path>`.
 
 ## Commands
 
@@ -1379,6 +1403,8 @@ def cmd_init(path: str, template: str, quiet: bool) -> None:
 
     _write_project_marker(root)
     created.append(".hydra/project.json")
+    from hydra_etl.internal.config.secrets import scaffold_secrets
+    created.extend(scaffold_secrets(root))
 
     for fpath in created:
         ok(fpath)
@@ -1821,12 +1847,15 @@ def _echo_step_output(step_result) -> None:
 @_lang_option
 @click.argument("path", default="./workflow.yaml", metavar="NAME|PATH")
 @click.option("--project", "project", default=None, metavar="PATH", help=t("help.workflow.project"))
-def cmd_workflow_run(path: str, project: Optional[str]) -> None:
+@click.option("--secrets-file", "secrets_file", default=None, metavar="FILE",
+              help=t("help.run.secrets_file"))
+def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[str]) -> None:
     """Execute un workflow DAG."""
     from hydra_etl.workflow.parser import load_workflow, validate_workflow
     from hydra_etl.workflow.runner import WorkflowRunner
 
     print_banner()
+    _use_secrets_file(secrets_file)
     wf_path = _resolve_workflow_arg(path, project)
     if not wf_path.exists():
         error_box(t("workflow.file_not_found", path=str(wf_path)))

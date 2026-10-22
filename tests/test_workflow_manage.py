@@ -137,6 +137,7 @@ def test_remove_deletes_file_and_thread_entry_keeps_jobs(runner, proj):
 
 def test_remove_also_cleans_studio_metadata(proj):
     meta = proj / ".hydra" / "workflows" / "ab12cd34.json"
+    meta.parent.mkdir(parents=True, exist_ok=True)
     meta.write_text(json.dumps({"id": "ab12cd34", "name": "workflow1",
                                 "path": str(proj / "workflows" / "workflow1.yaml")}), encoding="utf-8")
     manifest = proj / ".hydra" / "project.json"

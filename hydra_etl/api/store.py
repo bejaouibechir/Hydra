@@ -282,8 +282,10 @@ def create_project(name: str, description: Optional[str] = None, project_path: O
         path = base / f"{slug}-{project_id}"
 
     # Structure canonique du projet
-    for subdir in ["workflows", "jobs", "Data", "environments", "outputs", "scripts", ".hydra/workflows"]:
+    for subdir in ["workflows", "jobs", "Data", "environments", "outputs", "scripts", ".hydra"]:
         (path / subdir).mkdir(parents=True, exist_ok=True)
+    from hydra_etl.internal.config.secrets import scaffold_secrets
+    scaffold_secrets(path)
 
     created = _now()
     _write_manifest(path, {
@@ -385,7 +387,7 @@ def open_project(path_str: str, adopt: bool = True) -> Optional[ProjectResponse]
         # Enregistrement (structure reconnue) ou adoption (dossier quelconque) —
         # ne crée que les dossiers manquants, n'écrase jamais l'existant
         project_id = str(uuid.uuid4())[:8]
-        for subdir in ["workflows", "jobs", "Data", "outputs", ".hydra/workflows"]:
+        for subdir in ["workflows", "jobs", "Data", "outputs", ".hydra"]:
             (path / subdir).mkdir(parents=True, exist_ok=True)
         created = _now()
         _write_manifest(path, {

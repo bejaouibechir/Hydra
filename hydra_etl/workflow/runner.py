@@ -567,6 +567,11 @@ class WorkflowRunner:
         Un placeholder seul préserve le type ; un paramètre inconnu lève une
         erreur claire (fail-fast / débogage)."""
         from hydra_etl.internal.config.parameters import ParameterResolver
+        from hydra_etl.internal.config.secrets import SecretResolver, project_secrets
+        # ${SECRET:x} / ${ENV:X} d'abord, comme dans les jobs.
+        params = SecretResolver(
+            secrets={}, fallback=project_secrets(self.project_root, self.base_dir),
+        ).resolve(params)
         merged = {**self._project_params(), **self._runtime_snapshot()}
         resolver = ParameterResolver(
             params=merged, env=dict(os.environ),

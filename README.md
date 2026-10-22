@@ -82,7 +82,8 @@ A project is a set of workflows; a workflow is a set of jobs and actions.
 
 ```
 my_project
-├── .hydra/              project marker, read by Studio and the CLI
+├── .gitignore           keeps .hydra/secrets and .env out of git
+├── .hydra/              project marker, Studio data, and secrets (name=value, git-ignored)
 ├── Data/                input data
 ├── environments/        parameter values per environment (dev.yaml, prod.yaml…)
 ├── jobs/
@@ -330,10 +331,19 @@ Values can be declared once and reused, or created while the workflow runs.
 ```
 
 `{{ param:NAME }}` reads a parameter and `{{ env:NAME }}` an environment variable.
-`${SECRET:NAME}` reads a secret: it is looked up in the injected secret store when one is configured, and
-otherwise in the environment, under the name upper-cased with dots and dashes turned into underscores — so
-`${SECRET:db.password}` reads `DB_PASSWORD`. Secrets therefore come from the process environment (CI
-variables, a secret manager, your shell) and never from a file in the repository.
+`${SECRET:NAME}` reads a secret. It is looked up first in the environment, under the name upper-cased with
+dots and dashes turned into underscores — so `${SECRET:db.password}` reads `DB_PASSWORD` (CI variables, a
+secret manager, your shell, a `.env` file) — then in the project's `.hydra/secrets` file:
+
+```
+# .hydra/secrets — one name=value per line, listed in .gitignore by hdrctl init
+db.password=change-me
+api.token=abc123
+```
+
+To keep that file outside the project, point to it with `HYDRA_SECRETS_FILE=<path>` or
+`hdrctl run . --secrets-file <path>`. The environment always wins over the file, so production can supply
+the values without touching the project.
 The `set_param` and `assign_param` actions create and change parameters mid-run, so two jobs can share a
 placeholder and produce different results.
 

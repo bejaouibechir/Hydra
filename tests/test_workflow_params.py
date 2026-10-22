@@ -65,7 +65,7 @@ class TestSetParam:
         assert not result.success
         sr = _step(result, "set_x_again")
         assert not sr.success
-        assert "existe déjà" in (sr.error or "")
+        assert "already exists" in (sr.error or "")
 
     def test_missing_name_fails(self):
         # Refusé dès le chargement, avant toute exécution.
@@ -97,7 +97,7 @@ class TestAssignParam:
         result = runner.run()
         assert not result.success
         sr = _step(result, "assign_ghost")
-        assert "n'existe pas" in (sr.error or "")
+        assert "does not exist" in (sr.error or "")
 
     def test_persists_across_steps(self):
         runner = WorkflowRunner(_wf(
@@ -215,8 +215,8 @@ class TestJobPrecheck:
         res = WorkflowRunner(wf, base_dir=tmp_path).run()
         assert not res.success
         err = _step(res, "j").error or ""
-        assert "non configuré" in err
-        assert "requiert une source et une destination" in err
+        assert "is not configured" in err
+        assert "needs a configured source and destination" in err
 
     def test_placeholder_source_passes_precheck(self, tmp_path):
         j = self._mk_job(tmp_path, "{{ param:src }}", "out.csv")

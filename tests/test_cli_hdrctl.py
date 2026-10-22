@@ -208,6 +208,83 @@ class TestInit:
             result = runner.invoke(cli, ["init", "p", "--quiet"])
             assert result.exit_code == 0
 
+    # ── Structure 0.12 : environments, outputs, scripts, parameters, thread ──
+
+    def test_init_creates_full_project_layout(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            result = runner.invoke(cli, ["init", "myproject"])
+            assert result.exit_code == 0, result.output
+            root = Path("myproject")
+            assert sorted(p.name for p in root.iterdir()) == sorted([
+                ".hydra", "Data", "environments", "jobs", "outputs",
+                "parameters.yaml", "README.md", "scripts", "workflows"])
+            for d in ["Data", "environments", "outputs", "scripts"]:
+                assert (root / d).is_dir(), d
+            assert sorted(p.name for p in (root / "workflows").iterdir()) == ["thread.yaml", "workflow1.yaml"]
+            assert sorted(p.name for p in (root / "jobs" / "job1").iterdir()) == sorted([
+                "README.md", "data", "destinations.yaml", "pipeline.yaml",
+                "sources.yaml", "transformations.yaml"])
+            assert not (root / "output").exists()
+
+    def test_init_full_path(self, runner, tmp_path):
+        target = tmp_path / "deep" / "myproject"
+        result = runner.invoke(cli, ["init", str(target)])
+        assert result.exit_code == 0, result.output
+        assert (target / "workflows" / "thread.yaml").is_file()
+        assert (target / ".hydra" / "project.json").is_file()
+
+    def test_init_thread_yaml_lists_workflow1(self, runner, tmp_path):
+        from hydra_etl.workflow.thread import load_thread, missing_workflow_files
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(cli, ["init", "p"])
+            th = load_thread(Path("p/workflows/thread.yaml"))
+            assert len(th.thread) == 1
+            assert th.thread[0].mode == "sequential"
+            assert [(w.name, w.active) for w in th.thread[0].workflows] == [("workflow1", True)]
+            assert missing_workflow_files(th, Path("p/workflows")) == []
+
+    def test_init_parameters_yaml_is_empty_and_valid(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(cli, ["init", "p"])
+            doc = yaml.safe_load(Path("p/parameters.yaml").read_text(encoding="utf-8"))
+            assert doc == {"version": "1.0", "parameters": {}}
+
+    def test_init_project_readme_and_marker(self, runner, tmp_path):
+        import json
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(cli, ["init", "p"])
+            readme = Path("p/README.md").read_text(encoding="utf-8")
+            assert readme.startswith("# p\n")
+            for entry in ["environments/", "outputs/", "scripts/", "thread.yaml", "parameters.yaml"]:
+                assert entry in readme, entry
+            marker = json.loads(Path("p/.hydra/project.json").read_text(encoding="utf-8"))
+            assert marker["conventions"]["output_dir"] == "outputs"
+
+    def test_init_job_readme_uses_hdrctl(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(cli, ["init", "p"])
+            readme = Path("p/jobs/job1/README.md").read_text(encoding="utf-8")
+            assert "hdrctl test" in readme
+            assert "hydra test" not in readme
+
+    @pytest.mark.parametrize("template,expected", [("csv", 3), ("mysql", 4)])
+    def test_init_next_steps_are_numbered_consecutively(self, runner, tmp_path, template, expected):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            result = runner.invoke(cli, ["init", "p", "--template", template, "--lang", "en"])
+            import re as _re
+            nums = [int(n) for n in _re.findall(r"^\s+(\d+)\. ", result.output, _re.M)]
+            assert nums == list(range(1, expected + 1)), result.output
+            assert "hdrctl run p --dry-run" in result.output
+            assert "workflow run" not in result.output
+
+    def test_init_generated_workflow_runs(self, runner, tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(cli, ["init", "p"])
+            wf = str(Path("p/workflows/workflow1.yaml"))
+            assert runner.invoke(cli, ["workflow", "validate", wf]).exit_code == 0
+            result = runner.invoke(cli, ["workflow", "run", wf])
+            assert result.exit_code == 0, result.output
+
 
 # ═══════════════════════════════════════════════════════════════
 # 3. Commande validate

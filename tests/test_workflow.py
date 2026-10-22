@@ -140,7 +140,7 @@ class TestWorkflowDef:
         assert len(wf.steps) == 1
 
     def test_duplicate_names_rejected(self):
-        with pytest.raises(ValueError, match="dupliqués"):
+        with pytest.raises(ValueError, match="Duplicate step names"):
             WorkflowDef(
                 name="wf",
                 steps=[

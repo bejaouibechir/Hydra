@@ -90,7 +90,7 @@ def _eval_node(node: ast.AST, ns: Mapping[str, Any]) -> Any:
     if isinstance(node, ast.Name):
         if node.id in ns:
             return ns[node.id]
-        raise ValueError(f"nom non autorisé dans l'expression : '{node.id}'")
+        raise ValueError(f"name not allowed in the expression: '{node.id}'")
     if isinstance(node, (ast.List, ast.Tuple)):
         return [_eval_node(e, ns) for e in node.elts]
     if isinstance(node, ast.BoolOp):
@@ -119,7 +119,7 @@ def _eval_node(node: ast.AST, ns: Mapping[str, Any]) -> Any:
                 return False
             left = right
         return True
-    raise ValueError(f"élément non autorisé dans l'expression : {type(node).__name__}")
+    raise ValueError(f"element not allowed in the expression: {type(node).__name__}")
 
 
 def evaluate_bool(expr: str, params: Mapping[str, Any], env: Mapping[str, str]) -> bool:
@@ -133,7 +133,7 @@ def evaluate_bool(expr: str, params: Mapping[str, Any], env: Mapping[str, str]) 
         raise ValueError(f"expression invalide : {ex}") from None
     for n in ast.walk(tree):
         if not isinstance(n, _ALLOWED_NODES):
-            raise ValueError(f"expression non autorisée : {type(n).__name__}")
+            raise ValueError(f"expression not allowed: {type(n).__name__}")
     return bool(_eval_node(tree, ns))
 
 
@@ -162,7 +162,7 @@ def evaluate_structured(left: Any, op: str, right: Any,
         except TypeError:
             return False
     if op not in _STRUCT_OPS:
-        raise ValueError(f"opérateur inconnu : '{op}'")
+        raise ValueError(f"unknown operator: '{op}'")
     lc, rc = _coerce_pair(lv, rv)
     try:
         return bool(_STRUCT_OPS[op](lc, rc))

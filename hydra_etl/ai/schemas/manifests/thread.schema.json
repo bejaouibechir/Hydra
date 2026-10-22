@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "ThreadStage": {
+      "additionalProperties": false,
+      "properties": {
+        "delay_after": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delay After"
+        },
+        "mode": {
+          "default": "sequential",
+          "enum": [
+            "sequential",
+            "parallel"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "workflows": {
+          "items": {
+            "$ref": "#/$defs/ThreadWorkflow"
+          },
+          "minItems": 1,
+          "title": "Workflows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "workflows"
+      ],
+      "title": "ThreadStage",
+      "type": "object"
+    },
+    "ThreadWorkflow": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "default": true,
+          "title": "Active",
+          "type": "boolean"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ThreadWorkflow",
+      "type": "object"
+    }
+  },
+  "$id": "https://hydra.local/schemas/0.11.4/manifests/thread.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "thread": {
+      "items": {
+        "$ref": "#/$defs/ThreadStage"
+      },
+      "title": "Thread",
+      "type": "array"
+    },
+    "version": {
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "title": "ThreadDef",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "thread",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "manifest",
+    "productVersion": "0.11.4",
+    "sourceModel": "hydra_etl.workflow.thread.ThreadDef"
+  }
+}

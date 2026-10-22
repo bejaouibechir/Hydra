@@ -33,6 +33,14 @@ import click
 
 from hydra_etl.cli.i18n import t, set_lang
 
+import logging as _logging
+
+# La CLI affiche elle-même le résultat des workflows. Sans handler, les
+# logger.error du moteur passeraient par le handler de dernier recours de Python
+# et apparaîtraient une seconde fois, sur stderr. Un NullHandler n'empêche pas la
+# propagation vers les handlers configurés ailleurs (hdrctl serve, -vvv).
+_logging.getLogger("hydra_etl.workflow").addHandler(_logging.NullHandler())
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Couleurs ANSI
 # ─────────────────────────────────────────────────────────────────────────────
@@ -604,18 +612,19 @@ def create_job_structure(job_dir: Path, template: str, force: bool) -> list[str]
     readme = job_dir / "README.md"
     if not readme.exists() or force:
         readme.write_text(
-            f"# Job : {job_dir.name}\n\n"
-            f"Template : `{template}`\n\n"
-            "## Structure\n\n"
-            "- `sources.yaml` — sources de données\n"
-            "- `destinations.yaml` — destinations\n"
-            "- `pipeline.yaml` — orchestration\n"
-            "- `transformations.yaml` — transformations DSL (optionnel)\n"
-            "- `.env` — variables d'environnement (à créer depuis .env.example)\n\n"
-            "## Utilisation\n\n"
+            f"# Job: {job_dir.name}\n\n"
+            f"Template: `{template}`\n\n"
+            "## Files\n\n"
+            "- `sources.yaml` — where the data comes from\n"
+            "- `destinations.yaml` — where the data goes\n"
+            "- `pipeline.yaml` — which source feeds which destination\n"
+            "- `transformations.yaml` — DSL transformations (optional)\n"
+            "- `.env` — credentials (copy it from `.env.example` when present)\n\n"
+            "## Commands\n\n"
             "```bash\n"
-            f"hydra test {job_dir.name}   # valider la config\n"
-            f"hdrctl run  {job_dir.name}   # exécuter\n"
+            f"hdrctl validate {job_dir.name}   # check the YAML files\n"
+            f"hdrctl test     {job_dir.name}   # check the connections\n"
+            f"hdrctl run      {job_dir.name}   # run this job alone\n"
             "```\n",
             encoding="utf-8",
         )
@@ -817,6 +826,28 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
         error_box(t("dir.not_found", path=path))
         sys.exit(1)
 
+    # Projet (.hydra/ sans fichiers de job à la racine) → tous ses workflows,
+    # dans l'ordre de workflows/thread.yaml. Sinon : un job seul.
+    from hydra_etl.workflow.project import is_project_root
+    if is_project_root(job_dir) and not _has_job_files(job_dir):
+        job_only = [opt for opt, val in (("-s/--sources", sources_file),
+                                         ("-d/--destinations", destinations_file),
+                                         ("-p/--pipeline", pipeline_file),
+                                         ("-t/--transformations", transformations_file),
+                                         ("--profile", profile)) if val]
+        if job_only:
+            error_box(t("run.project.job_options", options=", ".join(job_only),
+                        path=path))
+            sys.exit(1)
+        code = _run_project(job_dir, verbosity, dry_run, env_name,
+                            _parse_param_overrides(param_overrides))
+        status = "SUCCESS" if code == 0 else "FAILURE"
+        if not dry_run:
+            fire_hook("on-success", on_success if status == "SUCCESS" else None, verbosity)
+            fire_hook("on-failure", on_failure if status == "FAILURE" else None, verbosity)
+            fire_hook("on-finish", on_finish, verbosity)
+        sys.exit(code)
+
     job_files = resolve_job_files(
         job_dir,
         sources=sources_file,
@@ -835,13 +866,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
     job_name = job_dir.name
 
     # Parametres CLI (--param KEY=VALUE, repetable)
-    param_dict: dict = {}
-    for _item in param_overrides:
-        if "=" not in _item:
-            error_box(t("run.param_invalid", item=_item))
-            sys.exit(1)
-        _k, _v = _item.split("=", 1)
-        param_dict[_k.strip()] = _v.strip()
+    param_dict = _parse_param_overrides(param_overrides)
 
     # ── Mode dry-run ─────────────────────────────────────────────
     if dry_run:
@@ -854,7 +879,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             error_box(t("run.dry_run_failed"))
             sys.exit(1)
         success_box(t("run.dry_run_done"))
-        info(t("run.hint", cmd=c(C.WH, f"hydra run {path}")))
+        info(t("run.hint", cmd=c(C.WH, f"hdrctl run {path}")))
         sys.exit(0)
 
     # ── Exécution réelle ──────────────────────────────────────────
@@ -933,6 +958,126 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
         fire_hook("on-finish", on_finish, verbosity)
 
     sys.exit(0 if status == "SUCCESS" else 1)
+
+
+def _parse_param_overrides(items) -> dict:
+    """--param KEY=VALUE (répétable) → dict. Sort en erreur si `=` manque."""
+    out: dict = {}
+    for item in items or ():
+        if "=" not in item:
+            error_box(t("run.param_invalid", item=item))
+            sys.exit(1)
+        k, v = item.split("=", 1)
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _print_workflow_steps(wf, result, indent: str = "  ") -> None:
+    """Une ligne par step (OK / échec / ignoré), sortie des actions script."""
+    reported = set()
+    for sr in result.steps:
+        reported.add(sr.step_name)
+        if sr.skipped:
+            click.echo(f"{indent}{c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=sr.step_name)}")
+        elif sr.success:
+            click.echo(f"{indent}{c(C.GR, '✓')}  {t('workflow.run.step_ok', name=sr.step_name, duration=f'{sr.duration:.1f}')}")
+            _echo_step_output(sr)
+        else:
+            click.echo(f"{indent}{c(C.RD, '✗')}  {t('workflow.run.step_fail', name=sr.step_name, error=sr.error)}")
+            _echo_step_output(sr)
+    # Un échec en mode on_failure=fail arrête le run : les steps jamais atteints
+    # n'ont pas de résultat. Les afficher quand même, sinon on ne voit pas ce
+    # qui n'a pas tourné.
+    for step in wf.steps:
+        if step.name not in reported:
+            click.echo(f"{indent}{c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=step.name)}")
+
+
+def _fmt_seconds(sec: float) -> str:
+    return f"{sec:g}s"
+
+
+def _run_project(root: Path, verbosity: int, dry_run: bool,
+                 env_name: Optional[str], params: dict) -> int:
+    """`hdrctl run <projet>` : valide tout, puis lance les workflows selon
+    workflows/thread.yaml. Retourne le code de sortie (0 succès, 1 échec)."""
+    from hydra_etl.workflow.project import (
+        FAILED, INACTIVE, NOT_RUN, ProjectError, ProjectRunner, prepare_project,
+    )
+
+    try:
+        plan = prepare_project(root)
+    except ProjectError as e:
+        error_box(t("run.project.invalid", name=root.name))
+        for msg in e.errors:
+            err_line(f"  — {msg}")
+        return 1
+
+    stages = plan.thread.thread
+    n_wf = len(plan.thread.workflow_names())
+    env_txt = f"  {c(C.DM, f'[env: {env_name}]')}" if env_name else ""
+    click.echo(f"\n  {c(C.WH, '▶')}  {t('run.project.title', name=c(C.CY + C.BD, root.name), workflows=n_wf, stages=len(stages))}{env_txt}")
+    if plan.implicit:
+        info(t("run.project.no_thread"))
+    if not plan.active_names:
+        click.echo()
+        info(t("run.project.none_active"))
+        return 0
+
+    if dry_run:
+        click.echo(f"\n  {c(C.YL + C.BD, t('run.dry_run_mode'))} — {c(C.DM, t('run.dry_run_no_write'))}")
+        section(t("run.project.plan"))
+        for i, stage in enumerate(stages, 1):
+            delay = f"  {c(C.DM, t('run.project.then_wait', seconds=_fmt_seconds(stage.delay_seconds)))}" \
+                if stage.delay_seconds and i < len(stages) else ""
+            click.echo(f"  {t('run.project.stage', index=i, total=len(stages), mode=stage.mode)}{delay}")
+            for w in stage.workflows:
+                if not w.active:
+                    click.echo(f"     {c(C.YL, '⏭')}  {t('run.project.inactive', name=w.name)}")
+                    continue
+                wf = plan.workflows[w.name]
+                steps = ", ".join(st.name for st in wf.steps)
+                click.echo(f"     {c(C.GR, '•')}  {c(C.WH, w.name)}  {c(C.DM, f'({len(wf.steps)}: {steps})')}")
+        click.echo()
+        success_box(t("run.project.dry_run_done"))
+        return 0
+
+    def on_event(kind, data):
+        if kind == "stage":
+            click.echo(f"\n  {c(C.CY, t('run.project.stage', index=data['index'], total=data['total'], mode=data['stage'].mode))}")
+            click.echo(c(C.DM, "  " + "─" * 56))
+        elif kind == "inactive":
+            click.echo(f"  {c(C.YL, '⏭')}  {t('run.project.inactive', name=data.name)}")
+        elif kind == "not_run":
+            click.echo(f"  {c(C.YL, '⏭')}  {t('run.project.not_run', name=data.name)}")
+        elif kind == "start":
+            click.echo(f"  {c(C.WH, '▶')}  {t('workflow.run.starting', name=c(C.CY, data['name']))}")
+        elif kind == "end":
+            if data.result is not None:
+                _print_workflow_steps(plan.workflows[data.name], data.result, indent="     ")
+            if data.status == FAILED:
+                click.echo(f"  {c(C.RD, '✗')}  {t('run.project.wf_failed', name=data.name, duration=f'{data.duration:.1f}', error=data.error or '')}")
+            else:
+                click.echo(f"  {c(C.GR, '✓')}  {t('run.project.wf_ok', name=data.name, duration=f'{data.duration:.1f}')}")
+        elif kind == "delay":
+            click.echo(f"  {c(C.DM, '⏸')}  {c(C.DM, t('run.project.delay', seconds=_fmt_seconds(data['seconds'])))}")
+
+    try:
+        result = ProjectRunner(plan, env=env_name, params=params).run(on_event)
+    except KeyboardInterrupt:
+        click.echo(f"\n\n  {c(C.YL, '⚠  ' + t('run.interrupted'))}")
+        return 130
+
+    click.echo()
+    ran = [r for r in result.runs if r.status not in (INACTIVE, NOT_RUN)]
+    ok_count = sum(1 for r in ran if r.status != FAILED)
+    if result.success:
+        success_box(t("run.project.success", name=root.name, duration=f"{result.duration:.1f}",
+                      ok=ok_count, total=len(ran)))
+        return 0
+    error_box(t("run.project.failure", name=root.name, duration=f"{result.duration:.1f}",
+                failed=", ".join(r.name for r in result.failed)))
+    return 1
 
 
 def _run_validate_only(job_dir: Path, verbosity: int, job_files: dict[str, Path]) -> bool:
@@ -1093,11 +1238,56 @@ def _write_project_marker(root: Path) -> Path:
         "name": root.resolve().name,
         "description": "",
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "conventions": {"data_dir": "Data", "output_dir": "output"},
+        "conventions": {"data_dir": "Data", "output_dir": "outputs"},
         "workflows": [],
         "jobs": [],
     }, indent=2, ensure_ascii=False), encoding="utf-8")
     return f
+
+
+_PROJECT_PARAMETERS_YAML = """\
+# Project parameters, available in every job and workflow as {{ param:NAME }}.
+# Per-environment values go in environments/<env>.yaml (select with --env <env>).
+# Example:
+#   min_amount:
+#     type: float
+#     default: 50
+#     description: Orders below this amount are dropped.
+version: "1.0"
+parameters: {}
+"""
+
+
+def _project_readme(name: str) -> str:
+    return f"""\
+# {name}
+
+Hydra ETL project created with `hdrctl init`.
+
+## Structure
+
+| Path | Purpose |
+|---|---|
+| `.hydra/` | Project marker and Hydra Studio metadata (do not edit) |
+| `Data/` | Input data shared by the jobs |
+| `environments/` | Parameter values per environment (`dev.yaml`, `prod.yaml`, ...) |
+| `jobs/` | One folder per job: `sources.yaml`, `destinations.yaml`, `pipeline.yaml`, `transformations.yaml` |
+| `outputs/` | Files produced by the jobs |
+| `parameters.yaml` | Project parameters, used as `{{{{ param:NAME }}}}` |
+| `scripts/` | Scripts called by workflow actions (python, bash, powershell) |
+| `workflows/` | Workflows (`<name>.yaml`) and their execution order (`thread.yaml`) |
+
+## Commands
+
+Run them from this folder.
+
+```bash
+hdrctl run . --dry-run        # validate the whole project, run nothing
+hdrctl run .                  # run every workflow, in the order of workflows/thread.yaml
+hdrctl run . --env prod       # same, with environments/prod.yaml
+hdrctl run jobs/job1          # run one job alone
+```
+"""
 
 
 _WORKFLOW1_YAML = """\
@@ -1161,7 +1351,7 @@ def cmd_init(path: str, template: str, quiet: bool) -> None:
 
     root.mkdir(parents=True, exist_ok=True)
     created: list[str] = []
-    for sub in ("Data", "output"):
+    for sub in ("Data", "environments", "outputs", "scripts"):
         (root / sub).mkdir(exist_ok=True)
         created.append(f"{sub}/")
 
@@ -1171,6 +1361,14 @@ def cmd_init(path: str, template: str, quiet: bool) -> None:
     (root / "workflows").mkdir(exist_ok=True)
     (root / "workflows" / "workflow1.yaml").write_text(_WORKFLOW1_YAML, encoding="utf-8")
     created.append("workflows/workflow1.yaml")
+    from hydra_etl.workflow.thread import THREAD_FILE, default_thread_yaml
+    (root / "workflows" / THREAD_FILE).write_text(default_thread_yaml(["workflow1"]), encoding="utf-8")
+    created.append(f"workflows/{THREAD_FILE}")
+
+    (root / "parameters.yaml").write_text(_PROJECT_PARAMETERS_YAML, encoding="utf-8")
+    created.append("parameters.yaml")
+    (root / "README.md").write_text(_project_readme(root.resolve().name), encoding="utf-8")
+    created.append("README.md")
 
     _write_project_marker(root)
     created.append(".hydra/project.json")
@@ -1181,11 +1379,13 @@ def cmd_init(path: str, template: str, quiet: bool) -> None:
     success_box(t("init.success", name=c(C.WH, root.resolve().name)))
     click.echo()
     info(t("init.next_steps"))
-    info(t("init.step1", path=c(C.WH, "jobs/job1/")))
+    steps = [t("init.step1", path=c(C.WH, str(root / "jobs" / "job1") + "/"))]
     if (root / "jobs" / "job1" / ".env.example").exists():
-        info(t("init.step2"))
-    info(t("init.step3", cmd=c(C.WH, f"hdrctl workflow validate {root / 'workflows' / 'workflow1.yaml'}")))
-    info(t("init.step4", cmd=c(C.WH, f"hdrctl workflow run {root / 'workflows' / 'workflow1.yaml'}")))
+        steps.append(t("init.step2"))
+    steps.append(t("init.step3", cmd=c(C.WH, f"hdrctl run {root} --dry-run")))
+    steps.append(t("init.step4", cmd=c(C.WH, f"hdrctl run {root}")))
+    for i, line in enumerate(steps, 1):
+        info(f"  {i}. {line}")
     click.echo()
 
 
@@ -1337,7 +1537,7 @@ def cmd_test(path: str, only_src: bool, only_dst: bool, only_trf: bool,
     click.echo()
     if all_ok:
         success_box(t("test.all_ok"))
-        info(t("run.hint", cmd=c(C.WH, f"hydra run {path}")))
+        info(t("run.hint", cmd=c(C.WH, f"hdrctl run {path}")))
         sys.exit(0)
     else:
         error_box(t("test.errors"))
@@ -1538,7 +1738,7 @@ def cmd_list(path: str) -> None:
 
     if not jobs:
         info(t("list.none_found"))
-        info(t("list.create_hint", cmd=c(C.WH, "hydra init mon_job")))
+        info(t("list.create_hint", cmd=c(C.WH, "hdrctl init my_project")))
         sys.exit(0)
 
     n_ok = 0
@@ -1559,7 +1759,7 @@ def cmd_list(path: str) -> None:
     click.echo(f"  {c(C.DM, '─' * 70)}")
     click.echo()
     info(t("list.summary", count=len(jobs), ok=c(C.GR, str(n_ok) + " OK")))
-    info(t("list.run_hint", cmd=c(C.WH, "hydra run <nom>")))
+    info(t("list.run_hint", cmd=c(C.WH, "hdrctl run <job>")))
     click.echo()
 
 
@@ -1631,23 +1831,7 @@ def cmd_workflow_run(path: str) -> None:
     result = runner.run()
 
     click.echo()
-    reported = set()
-    for sr in result.steps:
-        reported.add(sr.step_name)
-        if sr.skipped:
-            click.echo(f"  {c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=sr.step_name)}")
-        elif sr.success:
-            click.echo(f"  {c(C.GR, '✓')}  {t('workflow.run.step_ok', name=sr.step_name, duration=f'{sr.duration:.1f}')}")
-            _echo_step_output(sr)
-        else:
-            click.echo(f"  {c(C.RD, '✗')}  {t('workflow.run.step_fail', name=sr.step_name, error=sr.error)}")
-            _echo_step_output(sr)
-    # Un échec en mode on_failure=fail arrête le run : les steps jamais atteints
-    # n'ont pas de résultat. Les afficher quand même, sinon on ne voit pas ce
-    # qui n'a pas tourné.
-    for step in wf.steps:
-        if step.name not in reported:
-            click.echo(f"  {c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=step.name)}")
+    _print_workflow_steps(wf, result)
 
     click.echo()
     if result.success:

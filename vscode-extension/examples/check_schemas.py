@@ -33,6 +33,7 @@ MAPPING = {
     "pipeline.yaml": "pipeline.schema.json",
     "transformations.yaml": "transformations.schema.json",
     "workflow.yaml": "workflow.schema.json",
+    "thread.yaml": "workflow.schema.json",
 }
 
 OK, KO = "  OK  ", "  KO  "

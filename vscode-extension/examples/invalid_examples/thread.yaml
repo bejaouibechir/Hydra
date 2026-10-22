@@ -1,0 +1,8 @@
+# Expected errors: unknown mode, bad delay, empty stage, unknown key "enabled"
+thread:
+  - mode: random
+    delay_after: 2x
+    workflows:
+      - name: workflow1
+        enabled: true
+  - workflows: []

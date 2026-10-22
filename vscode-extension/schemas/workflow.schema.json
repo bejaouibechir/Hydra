@@ -1,16 +1,94 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://hydraetl.com/schemas/workflow-v1.json",
-  "title": "Hydra — workflow.yaml",
-  "description": "Orchestration of several Hydra jobs and actions, expressed as a dependency graph.",
+  "title": "Hydra — workflows/<name>.yaml and workflows/thread.yaml",
+  "description": "A workflow file (several Hydra jobs and actions, expressed as a dependency graph) or the project thread file workflows/thread.yaml (the order in which hdrctl runs the workflows). A file with a top-level 'thread' key is read as the thread file.",
   "type": "object",
-  "required": ["workflow"],
-  "additionalProperties": false,
-  "properties": {
-    "workflow": { "$ref": "#/definitions/workflowDef" }
-  },
+  "if": { "required": ["thread"] },
+  "then": { "$ref": "#/definitions/threadFile" },
+  "else": { "$ref": "#/definitions/workflowFile" },
 
   "definitions": {
+    "workflowFile": {
+      "type": "object",
+      "required": ["workflow"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "default": "1.0",
+          "description": "Workflow file DSL version, written by hdrctl init at the top of the file."
+        },
+        "workflow": { "$ref": "#/definitions/workflowDef" }
+      }
+    },
+
+    "threadFile": {
+      "type": "object",
+      "description": "workflows/thread.yaml — execution order of the project's workflows, read by hdrctl run. Stages run one after the other.",
+      "required": ["thread"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "default": "1.0",
+          "description": "Thread file DSL version."
+        },
+        "thread": {
+          "type": "array",
+          "description": "Stages, run one after the other.",
+          "items": { "$ref": "#/definitions/threadStage" }
+        }
+      }
+    },
+
+    "threadStage": {
+      "type": "object",
+      "required": ["workflows"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["sequential", "parallel"],
+          "default": "sequential",
+          "description": "sequential: the stage's workflows run one after the other. parallel: they run at the same time."
+        },
+        "delay_after": {
+          "description": "Pause after the stage: a number of seconds, or a duration such as 30s, 5m, 1h, 500ms.",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+          ],
+          "examples": ["30s", "5m", 10]
+        },
+        "workflows": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Workflows of this stage.",
+          "items": { "$ref": "#/definitions/threadWorkflow" }
+        }
+      }
+    },
+
+    "threadWorkflow": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$",
+          "description": "Workflow name: refers to workflows/<name>.yaml.",
+          "examples": ["workflow1"]
+        },
+        "active": {
+          "type": "boolean",
+          "default": true,
+          "description": "false: hdrctl run skips this workflow without removing it (debugging)."
+        }
+      }
+    },
+
     "workflowDef": {
       "type": "object",
       "required": ["name", "steps"],

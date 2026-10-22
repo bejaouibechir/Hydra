@@ -1,0 +1,13 @@
+version: "1.0"
+thread:
+  - mode: sequential
+    delay_after: 30s
+    workflows:
+      - name: workflow1
+        active: true
+      - name: workflow2
+        active: false
+  - mode: parallel
+    workflows:
+      - name: export-a
+      - name: export-b

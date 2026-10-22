@@ -120,7 +120,7 @@ class Trigger(BaseModel):
     @model_validator(mode="after")
     def _validate_cron(self) -> "Trigger":
         if self.type == "schedule" and not self.cron:
-            raise ValueError("trigger.cron est requis quand type='schedule'")
+            raise ValueError("trigger.cron is required when type='schedule'")
         return self
 
 
@@ -170,9 +170,9 @@ class WorkflowStep(BaseModel):
     @model_validator(mode="after")
     def _validate_fields(self) -> "WorkflowStep":
         if self.type == "job" and not self.job:
-            raise ValueError(f"Step '{self.name}': type=job requiert le champ 'job'")
+            raise ValueError(f"Step '{self.name}': type=job requires the 'job' field")
         if self.type == "action" and not self.action:
-            raise ValueError(f"Step '{self.name}': type=action requiert le champ 'action'")
+            raise ValueError(f"Step '{self.name}': type=action requires the 'action' field")
         # Un champ qui ne s'applique pas à ce type serait ignoré en silence.
         if self.type == "job" and (self.action or self.params):
             raise ValueError(
@@ -210,7 +210,7 @@ class WorkflowDef(BaseModel):
         names = [s.name for s in self.steps]
         duplicates = {n for n in names if names.count(n) > 1}
         if duplicates:
-            raise ValueError(f"Noms de steps dupliqués : {duplicates}")
+            raise ValueError(f"Duplicate step names: {duplicates}")
         return self
 
 

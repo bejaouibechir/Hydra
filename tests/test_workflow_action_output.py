@@ -89,3 +89,62 @@ def test_echo_step_output_tolerates_a_result_without_output(capsys):
     """Compatibilité : un StepResult construit sans le champ output."""
     _echo_step_output(StepResult(step_name="s", success=True, duration=0.0))
     assert capsys.readouterr().out == ""
+
+
+# ── Échec d'une action script : sortie conservée, message en anglais ──────────
+
+def test_failed_python_script_keeps_output(tmp_path):
+    wf = _workflow(tmp_path, "import sys; print('before'); print('boom', file=sys.stderr); sys.exit(3)")
+    res = WorkflowRunner(load_workflow(wf), base_dir=tmp_path).run()
+    sr = res.steps[0]
+    assert not sr.success
+    assert sr.error == "Python script exited with code 3: boom"
+    assert sr.output == ["before", "boom"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="action bash : Linux/macOS")
+def test_failed_bash_command_keeps_output(tmp_path):
+    wf = tmp_path / "workflow.yaml"
+    wf.write_text(textwrap.dedent("""\
+        workflow:
+          name: t
+          steps:
+            - name: sh
+              type: action
+              action: bash
+              params:
+                command: "echo out; echo err >&2; exit 4"
+        """), encoding="utf-8")
+    sr = WorkflowRunner(load_workflow(wf), base_dir=tmp_path).run().steps[0]
+    assert sr.error == "bash command exited with code 4: err"
+    assert sr.output == ["out", "err"]
+
+
+def test_cli_shows_failed_output_once_and_no_stray_log(runner, tmp_path):
+    wf = _workflow(tmp_path, "import sys; print('visible-line'); sys.exit(2)")
+    result = runner.invoke(cli, ["workflow", "run", str(wf)])
+    assert result.exit_code == 1
+    assert "visible-line" in result.output
+    # le message du logger du moteur ne s'affiche plus en double
+    assert "failed at step" not in result.output
+    assert result.output.count("exited with code 2") == 2   # ligne du step + encadré final
+
+
+def test_action_errors_are_in_english(tmp_path):
+    wf = tmp_path / "workflow.yaml"
+    wf.write_text(textwrap.dedent("""\
+        workflow:
+          name: t
+          steps:
+            - name: a
+              type: action
+              action: set_param
+              params: {name: x, value: 1}
+            - name: b
+              type: action
+              action: set_param
+              params: {name: x, value: 2}
+              depends_on: [a]
+        """), encoding="utf-8")
+    sr = WorkflowRunner(load_workflow(wf), base_dir=tmp_path).run().steps[-1]
+    assert "already exists" in sr.error and "assign_param" in sr.error

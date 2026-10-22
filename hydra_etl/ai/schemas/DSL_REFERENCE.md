@@ -27,6 +27,7 @@ Version du produit : **0.11.4**
 | `destinations.yaml` | `hydra_etl.internal.parser.destination.DestinationsConfig` | `destinations` |
 | `pipeline.yaml` | `hydra_etl.internal.parser.pipeline.PipelineConfig` | `pipeline` |
 | `sources.yaml` | `hydra_etl.internal.parser.source.SourcesConfig` | — |
+| `thread.yaml` | `hydra_etl.workflow.thread.ThreadDef` | — |
 | `transformations.yaml` | `hydra_etl.internal.parser.transform.TransformConfig` | `steps` |
 | `workflow.yaml` | `hydra_etl.workflow.models.WorkflowDef` | `name`, `steps` |
 

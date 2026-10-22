@@ -279,7 +279,7 @@ def create_project(name: str, description: Optional[str] = None, project_path: O
         path = base / f"{slug}-{project_id}"
 
     # Structure canonique du projet
-    for subdir in ["workflows", "jobs", "Data", "output", ".hydra/workflows"]:
+    for subdir in ["workflows", "jobs", "Data", "environments", "outputs", "scripts", ".hydra/workflows"]:
         (path / subdir).mkdir(parents=True, exist_ok=True)
 
     created = _now()
@@ -290,7 +290,7 @@ def create_project(name: str, description: Optional[str] = None, project_path: O
         "created_at": created,
         "conventions": {
             "data_dir": "Data",      # données d'input (optionnel — l'utilisateur reste libre)
-            "output_dir": "output",  # résultats générés par les jobs
+            "output_dir": "outputs",  # résultats générés par les jobs
         },
         "workflows": [],
         "jobs": [],
@@ -382,7 +382,7 @@ def open_project(path_str: str, adopt: bool = True) -> Optional[ProjectResponse]
         # Enregistrement (structure reconnue) ou adoption (dossier quelconque) —
         # ne crée que les dossiers manquants, n'écrase jamais l'existant
         project_id = str(uuid.uuid4())[:8]
-        for subdir in ["workflows", "jobs", "Data", "output", ".hydra/workflows"]:
+        for subdir in ["workflows", "jobs", "Data", "outputs", ".hydra/workflows"]:
             (path / subdir).mkdir(parents=True, exist_ok=True)
         created = _now()
         _write_manifest(path, {
@@ -390,7 +390,7 @@ def open_project(path_str: str, adopt: bool = True) -> Optional[ProjectResponse]
             "name": path.name,
             "description": "",
             "created_at": created,
-            "conventions": {"data_dir": "Data", "output_dir": "output"},
+            "conventions": {"data_dir": "Data", "output_dir": "outputs"},
             "workflows": [],
             "jobs": [],
         })

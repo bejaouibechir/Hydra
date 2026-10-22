@@ -92,7 +92,7 @@ function CreateProjectModal({ open, onClose }: { open: boolean; onClose: () => v
             </button>
           </div>
           <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-            Automatically creates: <code>jobs/</code>, <code>data/input/</code>, <code>data/output/</code>
+            Automatically creates: <code>jobs/</code>, <code>workflows/</code>, <code>Data/</code>, <code>environments/</code>, <code>outputs/</code>, <code>scripts/</code>
           </p>
         </div>
 

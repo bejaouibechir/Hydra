@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- `workflows/thread.yaml` is validated: stages, `mode` (`sequential` |
+  `parallel`), `delay_after` and per-workflow `active`, with hover help. It was
+  previously checked against the workflow schema and reported a false error.
+
+## 0.1.4
+
+- Publisher set to **hydraetl**. The identifier becomes `hydraetl.hydra-etl`.
+  The previous publisher, `Bechir Bejaoui`, contained a space and was rejected
+  by both Open VSX and the Visual Studio Marketplace.
+- Published on Open VSX, so the extension can be installed in VSCodium,
+  code-server, Gitpod and Killercoda, not only in VS Code.
+- Workflows are validated where `hdrctl init` puts them: `workflows/*.yaml`, in
+  addition to `workflow.yaml`.
+- `workflow.yaml` no longer reports a false error on a top-level `version` key,
+  which `hdrctl init` writes.
+
 ## 0.1.3
 
 - `pipeline.yaml` no longer reports a false error on files written by Hydra

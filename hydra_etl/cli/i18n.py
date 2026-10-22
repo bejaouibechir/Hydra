@@ -12,7 +12,7 @@ Usage:
 
     t("key")
     t("key_with_param", name="Alice", count=3)
-    set_lang("fr")   # override (called by --lang Click callback)
+    set_lang("es")   # override (called by --lang Click callback)
 """
 from __future__ import annotations
 

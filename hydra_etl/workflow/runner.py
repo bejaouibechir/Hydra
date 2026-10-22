@@ -60,6 +60,22 @@ class _JobLogCapture(logging.Handler):
             pass
 
 
+class ActionFailed(RuntimeError):
+    """Échec d'une action script (python, bash, powershell, ssh). Garde la
+    sortie (stdout + stderr) pour qu'elle reste visible dans le résultat du
+    step, comme en cas de succès."""
+
+    def __init__(self, message: str, output: Optional[List[str]] = None) -> None:
+        super().__init__(message)
+        self.output = list(output or [])
+
+
+def _exit_message(what: str, code: int, stderr: str) -> str:
+    """`Python script exited with code 3: <dernière ligne de stderr>`."""
+    last = next((ln.strip() for ln in reversed((stderr or "").splitlines()) if ln.strip()), "")
+    return f"{what} exited with code {code}" + (f": {last[:300]}" if last else "")
+
+
 def _make_step_logger(step_name: str) -> tuple[logging.Logger, _ListHandler]:
     """
     Crée un logger **isolé** pour un step donné.
@@ -96,14 +112,27 @@ class WorkflowRunner:
         workflow: WorkflowDef,
         base_dir: Optional[Path] = None,
         env: Optional[str] = None,
+        *,
+        project_root: Optional[Path] = None,
+        params: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.workflow = workflow
         self.base_dir = Path(base_dir).resolve() if base_dir else Path.cwd()
         self.env = env
+        # Racine du projet (dossier qui contient `.hydra/`). Un workflow rangé
+        # dans `workflows/` a pour base_dir ce sous-dossier : parameters.yaml et
+        # environments/ se trouvent un niveau au-dessus. Sans `.hydra/` trouvé,
+        # on garde base_dir (ancien layout : workflow.yaml à la racine).
+        if project_root is not None:
+            self.project_root = Path(project_root).resolve()
+        else:
+            from hydra_etl.workflow.project import find_project_root
+            self.project_root = find_project_root(self.base_dir) or self.base_dir
         # Paramètres runtime MUTABLES, partagés entre tous les steps d'un run.
-        # Alimentés par les actions set_param / assign_param. Protégés par un
-        # lock car les groupes de steps peuvent s'exécuter en parallèle.
-        self.runtime_params: Dict[str, Any] = {}
+        # Alimentés par les actions set_param / assign_param, et au départ par
+        # les surcharges --param de la CLI. Protégés par un lock car les groupes
+        # de steps peuvent s'exécuter en parallèle.
+        self.runtime_params: Dict[str, Any] = dict(params or {})
         self._params_lock = threading.Lock()
         self._project_params_cache: Optional[Dict[str, Any]] = None
 
@@ -131,7 +160,7 @@ class WorkflowRunner:
                 except Exception:
                     pass
 
-        logger.info(f"▶ Workflow '{self.workflow.name}' démarré")
+        logger.info(f"▶ Workflow '{self.workflow.name}' started")
 
         try:
             groups = self._build_execution_groups()
@@ -143,7 +172,7 @@ class WorkflowRunner:
                         step_results[s.name] = StepResult(
                             step_name=s.name, success=False,
                             duration=0.0, skipped=True,
-                            logs=[f"INFO [{s.name}] SKIPPED (dépendance échouée)"],
+                            logs=[f"INFO [{s.name}] SKIPPED (a dependency failed)"],
                         )
 
                 # Ignorer les steps désactivés (enabled=False) — enregistrement silencieux
@@ -168,8 +197,8 @@ class WorkflowRunner:
                         except Exception as ex:
                             step_results[s.name] = StepResult(
                                 step_name=s.name, success=False, duration=0.0,
-                                error=f"when invalide: {ex}",
-                                logs=[f"ERROR [{s.name}] garde 'when' invalide: {ex}"],
+                                error=f"invalid 'when': {ex}",
+                                logs=[f"ERROR [{s.name}] invalid 'when' guard: {ex}"],
                             )
                             self._mark_dependents_skipped(s.name, groups, skipped)
                             continue
@@ -222,7 +251,7 @@ class WorkflowRunner:
             duration = time.monotonic() - start
             all_success = all(sr.success for sr in step_results.values())
 
-            status = "✅ terminé" if all_success else "⚠ terminé avec erreurs"
+            status = "✅ completed" if all_success else "⚠ completed with errors"
             logger.info(f"{status} — workflow '{self.workflow.name}' ({duration:.2f}s)")
 
             return WorkflowResult(
@@ -234,7 +263,7 @@ class WorkflowRunner:
 
         except Exception as e:
             duration = time.monotonic() - start
-            logger.exception(f"✗ Workflow '{self.workflow.name}' exception inattendue")
+            logger.exception(f"✗ Workflow '{self.workflow.name}' unexpected exception")
             return WorkflowResult(
                 workflow_name=self.workflow.name,
                 success=False,
@@ -261,7 +290,7 @@ class WorkflowRunner:
             for dep in step.depends_on:
                 if dep not in steps_by_name:
                     raise ValueError(
-                        f"Step '{step.name}' dépend de '{dep}' qui n'existe pas"
+                        f"Step '{step.name}' depends on '{dep}', which does not exist"
                     )
 
         # Détection de cycles (DFS)
@@ -281,8 +310,8 @@ class WorkflowRunner:
 
             if not ready:
                 raise ValueError(
-                    f"Cycle détecté dans le workflow '{self.workflow.name}' — "
-                    f"steps bloqués : {remaining}"
+                    f"Cycle detected in workflow '{self.workflow.name}' — "
+                    f"blocked steps: {remaining}"
                 )
 
             groups.append(ready)
@@ -304,7 +333,7 @@ class WorkflowRunner:
                     continue
                 if color[dep] == GRAY:
                     raise ValueError(
-                        f"Cycle détecté : '{dep}' → ... → '{name}' → '{dep}'"
+                        f"Cycle detected: '{dep}' → ... → '{name}' → '{dep}'"
                     )
                 if color[dep] == WHITE:
                     dfs(dep)
@@ -332,15 +361,15 @@ class WorkflowRunner:
             accumulated.extend(sr.logs)
             if sr.success or attempt >= max_retries:
                 if attempt > 0:
-                    verb = "réussi" if sr.success else "abandonné"
-                    accumulated.append(f"INFO [{step.name}] {verb} après {attempt} re-tentative(s)")
+                    verb = "succeeded" if sr.success else "gave up"
+                    accumulated.append(f"INFO [{step.name}] {verb} after {attempt} retry(ies)")
                 sr.logs = accumulated
                 return sr
             attempt += 1
             wait = delay * (2 ** (attempt - 1)) if backoff == "exponential" else delay
             accumulated.append(
-                f"WARNING [{step.name}] échec, re-tentative {attempt}/{max_retries}"
-                + (f" dans {wait:.0f}s" if wait > 0 else "")
+                f"WARNING [{step.name}] failed, retry {attempt}/{max_retries}"
+                + (f" in {wait:.0f}s" if wait > 0 else "")
             )
             if wait > 0:
                 time.sleep(wait)
@@ -360,9 +389,20 @@ class WorkflowRunner:
             elif step.type == "action":
                 result = self._run_action(step, start, step_log)
             else:
-                raise ValueError(f"Type de step inconnu : '{step.type}'")
+                raise ValueError(f"Unknown step type: '{step.type}'")
             result.logs = handler.records
             return result
+        except ActionFailed as e:
+            duration = time.monotonic() - start
+            step_log.error(f"[{step.name}] FAILED {e}")
+            return StepResult(
+                step_name=step.name,
+                success=False,
+                duration=duration,
+                error=str(e),
+                logs=handler.records,
+                output=e.output,
+            )
         except Exception as e:
             duration = time.monotonic() - start
             step_log.error(f"[{step.name}] FAILED {e.__class__.__name__}: {e}")
@@ -409,16 +449,16 @@ class WorkflowRunner:
 
         missing = []
         if not _has_target(job_path, "sources", "extract"):
-            missing.append("source (fichier/table/query vide)")
+            missing.append("source (empty file/table/query)")
         if not _has_target(job_path, "destinations", "load"):
-            missing.append("destination (fichier/table vide)")
+            missing.append("destination (empty file/table)")
         if missing:
             raise ValueError(
-                f"Job '{job_path.name}' non configuré : {' et '.join(missing)}. "
-                f"Un job requiert une source et une destination configurées — "
-                f"ouvrez le job dans Studio et renseignez ces champs. "
-                f"(Pour une simple action log/script, utilisez un nœud Action "
-                f"sur le canvas workflow, pas un job.)"
+                f"Job '{job_path.name}' is not configured: {' and '.join(missing)}. "
+                f"A job needs a configured source and destination — "
+                f"open the job in Studio and fill in these fields. "
+                f"(For a simple log/script step, use an Action node "
+                f"on the workflow canvas, not a job.)"
             )
 
     def _run_job(self, step: WorkflowStep, start: float,
@@ -444,7 +484,7 @@ class WorkflowRunner:
         with self._params_lock:
             runtime_snapshot = dict(self.runtime_params)
         executor = JobExecutor(
-            job_dir=job_path, root_dir=self.base_dir, env=self.env,
+            job_dir=job_path, root_dir=self.project_root, env=self.env,
             params=runtime_snapshot,
         )
         # Détails internes du job (env, connecteurs, scripts...) -> log du step
@@ -565,11 +605,17 @@ class WorkflowRunner:
                 return block if isinstance(block, dict) else {}
             return {}
 
-        declarations = _block(self.base_dir / "parameters.yaml")
-        env_values = (
-            _block(self.base_dir / "environments" / f"{self.env}.yaml")
-            if self.env else {}
-        )
+        # Racine projet d'abord (précédence faible), puis le dossier du
+        # workflow s'il est différent (le plus proche l'emporte).
+        dirs = [self.project_root]
+        if self.base_dir != self.project_root:
+            dirs.append(self.base_dir)
+        declarations: Dict[str, Any] = {}
+        env_values: Dict[str, Any] = {}
+        for d in dirs:
+            declarations.update(_block(d / "parameters.yaml"))
+            if self.env:
+                env_values.update(_block(d / "environments" / f"{self.env}.yaml"))
         try:
             effective = build_effective(declarations, [env_values])
         except Exception:
@@ -613,7 +659,7 @@ class WorkflowRunner:
 
         if not url:
             raise ValueError(
-                f"Action webhook '{step.name}' requiert le paramètre 'url'"
+                f"Action webhook '{step.name}': parameter 'url' is required"
             )
 
         # Studio saisit body et headers comme du texte JSON ; le YAML écrit à la
@@ -625,10 +671,10 @@ class WorkflowRunner:
                 headers = json.loads(headers) if headers.strip() else {}
             except json.JSONDecodeError as exc:
                 raise ValueError(
-                    f"Action webhook '{step.name}' : 'headers' n'est pas un JSON valide ({exc})"
+                    f"Action webhook '{step.name}': 'headers' is not valid JSON ({exc})"
                 ) from None
         if not isinstance(headers, dict):
-            raise ValueError(f"Action webhook '{step.name}' : 'headers' doit être un objet JSON")
+            raise ValueError(f"Action webhook '{step.name}': 'headers' must be a JSON object")
 
         step_log.info(f"[{step.name}] webhook {method} {url}")
         if isinstance(body, str):
@@ -658,7 +704,7 @@ class WorkflowRunner:
         try:
             seconds = max(0.0, float(raw))
         except (TypeError, ValueError):
-            raise ValueError(f"Action delay '{step.name}' : 'seconds' doit être un nombre (reçu: {raw!r})")
+            raise ValueError(f"Action delay '{step.name}': 'seconds' must be a number (got {raw!r})")
         step_log.info(f"[{step.name}] delay {seconds}s")
         time.sleep(seconds)
         return StepResult(
@@ -708,7 +754,7 @@ class WorkflowRunner:
         step_log: logging.Logger,
     ) -> StepResult:
         """Log un message."""
-        message = params.get("message", f"Step '{step.name}' exécuté")
+        message = params.get("message", f"Step '{step.name}' executed")
         step_log.info(f"[{step.name}] {message}")
         return StepResult(
             step_name=step.name,
@@ -732,21 +778,21 @@ class WorkflowRunner:
 
         name = params.get("name")
         if not name or not isinstance(name, str):
-            raise ValueError(f"Action set_param '{step.name}' : paramètre 'name' (str) requis")
+            raise ValueError(f"Action set_param '{step.name}': parameter 'name' (string) is required")
         if "value" not in params:
-            raise ValueError(f"Action set_param '{step.name}' : paramètre 'value' requis")
+            raise ValueError(f"Action set_param '{step.name}': parameter 'value' is required")
 
         typ = str(params.get("type", "any"))
         try:
             value = coerce_value(params["value"], typ, name)
         except ParameterError as ex:
-            raise ValueError(f"Action set_param '{step.name}' : {ex}") from None
+            raise ValueError(f"Action set_param '{step.name}': {ex}") from None
 
         with self._params_lock:
             if name in self.runtime_params:
                 raise ValueError(
-                    f"Action set_param '{step.name}' : le paramètre '{name}' existe déjà "
-                    f"(valeur={self.runtime_params[name]!r}). Utilisez assign_param pour le modifier."
+                    f"Action set_param '{step.name}': parameter '{name}' already exists "
+                    f"(value={self.runtime_params[name]!r}). Use assign_param to change it."
                 )
             self.runtime_params[name] = value
 
@@ -771,21 +817,21 @@ class WorkflowRunner:
 
         name = params.get("name")
         if not name or not isinstance(name, str):
-            raise ValueError(f"Action assign_param '{step.name}' : paramètre 'name' (str) requis")
+            raise ValueError(f"Action assign_param '{step.name}': parameter 'name' (string) is required")
         if "value" not in params:
-            raise ValueError(f"Action assign_param '{step.name}' : paramètre 'value' requis")
+            raise ValueError(f"Action assign_param '{step.name}': parameter 'value' is required")
 
         typ = str(params.get("type", "any"))
         try:
             value = coerce_value(params["value"], typ, name)
         except ParameterError as ex:
-            raise ValueError(f"Action assign_param '{step.name}' : {ex}") from None
+            raise ValueError(f"Action assign_param '{step.name}': {ex}") from None
 
         with self._params_lock:
             if name not in self.runtime_params:
                 raise ValueError(
-                    f"Action assign_param '{step.name}' : le paramètre '{name}' n'existe pas. "
-                    f"Utilisez set_param pour le créer d'abord."
+                    f"Action assign_param '{step.name}': parameter '{name}' does not exist. "
+                    f"Create it first with set_param."
                 )
             old = self.runtime_params[name]
             self.runtime_params[name] = value
@@ -810,15 +856,15 @@ class WorkflowRunner:
         timeout  = int(params.get("timeout", 60))
 
         if not command:
-            raise ValueError(f"Action '{step.name}' : paramètre 'command' requis")
+            raise ValueError(f"Action '{step.name}': parameter 'command' is required")
 
         if action == "bash":
             if _sys.platform == "win32":
-                raise RuntimeError("Action Bash non disponible sur Windows")
+                raise RuntimeError("The bash action is not available on Windows (use powershell)")
             shell_args = ["bash", "-c", command]
         else:  # powershell
             if _sys.platform != "win32":
-                raise RuntimeError("Action PowerShell non disponible sur Linux/macOS")
+                raise RuntimeError("The powershell action is not available on Linux/macOS (use bash)")
             shell_args = ["powershell", "-NonInteractive", "-Command", command]
 
         step_log.info(f"[{step.name}] {action}: {command[:80]}{'…' if len(command) > 80 else ''}")
@@ -838,9 +884,8 @@ class WorkflowRunner:
             step_log.info(f"  {line}")
 
         if result.returncode != 0:
-            raise RuntimeError(
-                f"Command exited with code {result.returncode}\n{result.stderr[:500]}"
-            )
+            raise ActionFailed(_exit_message(f"{action} command", result.returncode, result.stderr),
+                               out_lines)
 
         return StepResult(
             step_name=step.name, success=True,
@@ -871,15 +916,20 @@ class WorkflowRunner:
 
         if not script.strip() and not file_path.strip():
             raise ValueError(
-                f"Action python '{step.name}' : 'script' (inline) ou 'file_path' requis"
+                f"Action python '{step.name}': 'script' (inline) or 'file_path' is required"
             )
 
         if file_path.strip():
             fp = Path(file_path)
             if not fp.is_absolute():
-                fp = self.base_dir / fp
+                # Relatif au workflow (historique), sinon à la racine projet
+                # (`scripts/x.py` depuis workflows/<nom>.yaml).
+                cand = self.base_dir / fp
+                if not cand.exists() and (self.project_root / fp).exists():
+                    cand = self.project_root / fp
+                fp = cand
             if not fp.exists():
-                raise FileNotFoundError(f"Script Python introuvable : {fp}")
+                raise FileNotFoundError(f"Python script not found: {fp}")
             args = [_sys.executable, str(fp)]
             shown = str(fp)
         else:
@@ -898,10 +948,8 @@ class WorkflowRunner:
             step_log.info(f"  {line}")
 
         if result.returncode != 0:
-            raise RuntimeError(
-                f"Script Python terminé avec code {result.returncode}"
-                f"{chr(10)}{result.stderr[:500]}"
-            )
+            raise ActionFailed(_exit_message("Python script", result.returncode, result.stderr),
+                               out_lines)
 
         return StepResult(
             step_name=step.name, success=True,
@@ -923,13 +971,13 @@ class WorkflowRunner:
         timeout  = int(params.get("timeout", 30))
 
         if not host or not username or not command:
-            raise ValueError(f"Action SSH '{step.name}' : 'host', 'username' et 'command' requis")
+            raise ValueError(f"Action ssh '{step.name}': 'host', 'username' and 'command' are required")
 
         try:
             import paramiko  # type: ignore
         except ImportError:
             raise RuntimeError(
-                "Dépendance manquante : installez paramiko → pip install paramiko"
+                "Missing dependency for the ssh action: pip install paramiko"
             )
 
         step_log.info(f"[{step.name}] SSH {username}@{host}:{port} → {command[:60]}")
@@ -955,11 +1003,12 @@ class WorkflowRunner:
         finally:
             client.close()
 
-        for line in (out + err).splitlines():
+        out_lines = (out + err).splitlines()
+        for line in out_lines:
             step_log.info(f"  {line}")
 
         if rc != 0:
-            raise RuntimeError(f"Commande SSH terminée avec code {rc}\n{err[:500]}")
+            raise ActionFailed(_exit_message("SSH command", rc, err), out_lines)
 
         return StepResult(
             step_name=step.name, success=True,
@@ -986,7 +1035,7 @@ class WorkflowRunner:
         use_tls   = str(params.get("use_tls", "false")).lower() == "true"
 
         if not to_addr:
-            raise ValueError(f"Action email '{step.name}' : paramètre 'to' requis")
+            raise ValueError(f"Action email '{step.name}': parameter 'to' is required")
 
         step_log.info(f"[{step.name}] email → {to_addr} via {smtp_host}:{smtp_port}")
 
@@ -1003,7 +1052,7 @@ class WorkflowRunner:
                 server.login(username, password)
             server.sendmail(from_addr, [to_addr], msg.as_string())
 
-        step_log.info(f"[{step.name}] email envoyé ✓")
+        step_log.info(f"[{step.name}] email sent ✓")
         return StepResult(
             step_name=step.name, success=True,
             duration=time.monotonic() - start,
@@ -1019,7 +1068,7 @@ class WorkflowRunner:
         """Exécute une liste de steps en parallèle."""
         results: Dict[str, StepResult] = {}
         logger.info(
-            f"  ⚡ Parallèle : {[s.name for s in steps]}"
+            f"  ⚡ Parallel: {[s.name for s in steps]}"
         )
 
         with ThreadPoolExecutor(max_workers=len(steps)) as executor:

@@ -5,6 +5,74 @@ The format follows [Keep a Changelog](https://keepachangelog.com/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/).
 
 
+## [Unreleased] — 0.12.0
+
+CLI reform: a project is now the unit you create and run. Delivered step by step
+on the `cli-reform` branch.
+
+### Changed
+
+- `hdrctl init <path>` (or `hdrctl init .`) creates the full project layout:
+  `.hydra/`, `Data/`, `environments/`, `jobs/job1/`, `outputs/`,
+  `parameters.yaml`, `README.md`, `scripts/` and `workflows/` holding
+  `workflow1.yaml` and `thread.yaml`. The results folder is now `outputs/`
+  (was `output/`), also for projects created from Studio.
+- The "Next steps" printed by `init` are numbered without gaps (they read
+  1, 3, 4 for templates without `.env.example`).
+- The README generated in `jobs/job1/` lists `hdrctl validate`, `hdrctl test`
+  and `hdrctl run` (it suggested the old `hydra test`). The hints printed by
+  `run --dry-run` and `list` no longer suggest the old `hydra` command.
+- `init` now suggests `hdrctl run <project> --dry-run` and `hdrctl run <project>`.
+
+### Fixed
+
+- A workflow stored in `workflows/` did not see the project's `parameters.yaml`
+  and `environments/`: its actions looked for them in `workflows/`, so
+  `{{ param:X }}` stayed unresolved. The runner now finds the project root (the
+  folder holding `.hydra/`). A `python` action's `file_path` is also looked up
+  from the project root when it is not found next to the workflow, so
+  `scripts/x.py` works from any workflow.
+- When a workflow failed, the engine's own log line ("Workflow 'x' failed at
+  step 'y'…") was printed a second time on stderr, under the CLI's summary. The
+  CLI now owns that output.
+- The output of a `python`, `bash`, `powershell` or `ssh` action that fails is
+  now shown under the step, as it already was on success (it was dropped). The
+  error reads `Python script exited with code 3: <last stderr line>` instead of
+  repeating the whole stderr.
+- Workflow engine messages are in English, like the rest of the CLI: action
+  errors (`set_param`, `assign_param`, `webhook`, `delay`, `python`, `ssh`,
+  `email`…), unconfigured job, cycles, unknown dependency, duplicate step names,
+  `when` guards and retry logs. They were in French.
+- Help texts still showed the old `hydra` command (`hydra test`,
+  `hydra workflow run`…); they now show `hdrctl`.
+
+### Removed
+
+- The French, German, Portuguese, Japanese and Chinese CLI translations, which
+  the CLI never loaded (`--lang` only accepts `en` and `es`) and which were
+  incomplete. Moved to `tools/cli-locales-archive/`. The Spanish translation is now
+  complete, and a test keeps every supported language in step with English.
+
+### Added
+
+- `workflows/thread.yaml`: the order in which the project's workflows run.
+  Stages run one after the other; each stage is `sequential` or `parallel`,
+  takes an optional `delay_after` (`30s`, `5m`, `1h`), and each workflow can be
+  set `active: false` to skip it while debugging. Model and validation in
+  `hydra_etl/workflow/thread.py`.
+- `hdrctl run <project>` (or `hdrctl run .`) runs a whole project: every
+  workflow, in the order of `workflows/thread.yaml`. Before starting anything it
+  checks the thread, every active workflow manifest and the job folders they
+  reference, and lists every problem found. A failed workflow stops the project
+  (exit code 1); workflows not reached are reported as not run. Without
+  `thread.yaml`, every `workflows/*.yaml` runs one after the other in
+  alphabetical order. `--dry-run` prints the execution plan; `--env`, `-P` and
+  the `--on-success/--on-failure/--on-finish` hooks apply to the whole project;
+  `-s/-d/-p/-t` and `--profile` are refused, as they only make sense for one
+  job. `hdrctl run <job folder>` is unchanged. Engine in
+  `hydra_etl/workflow/project.py`.
+- `parameters.yaml` at the project root, empty, with a commented example.
+
 
 ## [0.11.4] — 2026-10-17
 
@@ -30,8 +98,23 @@ and versions follow [Semantic Versioning](https://semver.org/).
   `pip install "hydra-etl[mysql]"`, matching what the SQL Server connector
   already did. Same for the MongoDB connector, which pointed at `pymongo`.
 
+- `hdrctl init` now scaffolds a **project**, not a bare job folder: `jobs/job1`,
+  `workflows/workflow1.yaml`, `Data/`, `output/`, and a `.hydra/project.json`
+  that marks the directory as a Hydra project. The six job templates are
+  unchanged and still selected with `--template`. Commands that used to read
+  `hdrctl run my_job` now take the path to a job inside the project, for example
+  `hdrctl run my_project/jobs/job1`, or the workflow with
+  `hdrctl workflow run my_project/workflows/workflow1.yaml`.
+- The Studio file picker tells a Hydra project from an ordinary directory: the
+  listing endpoint reports `is_project` for each entry, based on the presence of
+  `.hydra/project.json`, so an existing project can be opened directly instead of
+  being rebuilt by hand.
+
 ### Added
 
+- A demo project shipped inside the package (`hydra_etl/samples/hydra-demo`) and
+  an endpoint that installs it, so a fresh install has something to run without
+  writing any YAML first.
 - `tests/test_postgresql_upsert_key_validation.py` — unit coverage for the upsert
   key validation, with no database or driver required. The existing end-to-end
   PostgreSQL tests do cover this path but are skipped at module level because

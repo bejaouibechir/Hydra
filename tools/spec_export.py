@@ -6,7 +6,7 @@ Source de vérité : les modèles Pydantic et les registres du moteur. Rien n'es
 écrit à la main ici : toute évolution du code se propage automatiquement.
 
 Sorties (par défaut sous documentations/chatbot-hydra-dsl/schemas/) :
-  manifests/<nom>.schema.json      5 manifestes
+  manifests/<nom>.schema.json      6 manifestes
   operations/<nom>.schema.json     les 18 opérations de transformation
   actions.schema.json              les actions de workflow
   index.json                       inventaire machine
@@ -50,6 +50,7 @@ def discover_manifests() -> Dict[str, Any]:
     from hydra_etl.internal.parser.transform import TransformConfig
     from hydra_etl.internal.parser.pipeline import PipelineConfig
     from hydra_etl.workflow.models import WorkflowDef
+    from hydra_etl.workflow.thread import ThreadDef
 
     return {
         "sources": SourcesConfig,
@@ -57,6 +58,7 @@ def discover_manifests() -> Dict[str, Any]:
         "destinations": DestinationsConfig,
         "pipeline": PipelineConfig,
         "workflow": WorkflowDef,
+        "thread": ThreadDef,
     }
 
 

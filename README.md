@@ -69,15 +69,65 @@ hdrctl serve --open            # Studio + API on http://localhost:5678
 Or stay in the terminal:
 
 ```bash
-hdrctl init my_project                 # a project: jobs/job1, workflows/workflow1, Data, output
-hdrctl validate my_project/jobs/job1   # strict validation, no data touched
-hdrctl run my_project/jobs/job1        # execute one job
-hdrctl workflow run my_project/workflows/workflow1.yaml   # or the whole workflow
+hdrctl init my_project                 # or `hdrctl init .` in an empty folder
+hdrctl run my_project --dry-run        # validate the whole project, run nothing
+hdrctl run my_project                  # run every workflow (or `hdrctl run .` from inside)
+hdrctl validate my_project/jobs/job1   # strict validation of one job, no data touched
+hdrctl run my_project/jobs/job1        # run one job alone
 ```
 
-`init` scaffolds a project rather than a bare folder: six job templates are available with
-`--template` (`basic`, `csv`, `mysql`, `postgres`, `api`, `mongodb`), and a `.hydra/project.json`
-marks the directory so Studio and the CLI recognise it.
+A project is a set of workflows; a workflow is a set of jobs and actions.
+
+`init` scaffolds a full project:
+
+```
+my_project
+├── .hydra/              project marker, read by Studio and the CLI
+├── Data/                input data
+├── environments/        parameter values per environment (dev.yaml, prod.yaml…)
+├── jobs/
+│   └── job1/
+│       ├── README.md
+│       ├── data/input.csv
+│       ├── destinations.yaml
+│       ├── pipeline.yaml
+│       ├── sources.yaml
+│       └── transformations.yaml
+├── outputs/             files produced by the jobs
+├── parameters.yaml      project parameters, used as {{ param:NAME }}
+├── README.md
+├── scripts/             scripts called by workflow actions
+└── workflows/
+    ├── thread.yaml      execution order of the workflows
+    └── workflow1.yaml
+```
+
+Six job templates are available with `--template` (`basic`, `csv`, `mysql`, `postgres`, `api`,
+`mongodb`). `workflows/thread.yaml` lists the workflows in stages, each `sequential` or `parallel`,
+with an optional `delay_after` and an `active` flag per workflow:
+
+```yaml
+version: "1.0"
+thread:
+  - mode: sequential
+    delay_after: 30s          # optional pause before the next stage
+    workflows:
+      - name: workflow1
+      - name: workflow2
+        active: false         # skipped, without removing it
+  - mode: parallel
+    workflows:
+      - name: export-a
+      - name: export-b
+```
+
+`hdrctl run <project>` checks the thread, every active workflow and the job folders they use
+before starting anything, then runs the stages in order. A failed workflow stops the project;
+in a parallel stage the workflows already started finish first. Without `thread.yaml`, every
+`workflows/*.yaml` runs one after the other, in alphabetical order. Parameters come from the
+project's `parameters.yaml`, `environments/<env>.yaml` (`--env`) and `-P KEY=VALUE`, in that
+order of precedence. Workflow triggers (`schedule`, `webhook`) are ignored by `hdrctl run`;
+they apply under `hdrctl serve`.
 
 No Node, no build step, no database, no message broker. Python 3.9+ on Linux, macOS or Windows.
 
@@ -237,8 +287,9 @@ workflow:
 ```
 
 ```bash
-hdrctl workflow validate ./workflow.yaml
-hdrctl workflow run      ./workflow.yaml
+hdrctl workflow validate workflows/workflow1.yaml
+hdrctl workflow run      workflows/workflow1.yaml   # one workflow
+hdrctl run .                                        # every workflow, in the order of thread.yaml
 ```
 
 An edge is a **dependency**, not a pipe: it decides *when* a job runs, never what data reaches it.

@@ -5,6 +5,20 @@
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
+/** Erreur HTTP de l'API : garde le statut et le `detail` structuré (ex. 409). */
+export class ApiError extends Error {
+  status: number
+  detail: unknown
+  constructor(status: number, detail: unknown) {
+    const msg = typeof detail === 'string'
+      ? detail
+      : (detail as { message?: string } | null)?.message ?? `HTTP ${status}`
+    super(msg)
+    this.status = status
+    this.detail = detail
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
@@ -12,9 +26,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail ?? `HTTP ${res.status}`)
+    throw new ApiError(res.status, err.detail ?? `HTTP ${res.status}`)
   }
   return res.json()
+}
+
+/** Fichiers en conflit d'une réponse 409 de PUT /workflows/{id}, sinon null. */
+export function conflictFiles(err: unknown): string[] | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null
+  const files = (err.detail as { files?: unknown } | null)?.files
+  return Array.isArray(files) ? files.map(String) : []
 }
 
 const get  = <T>(path: string) => request<T>(path)
@@ -32,6 +53,10 @@ export interface Workflow {
   trigger_type: string; cron?: string; published: boolean; path: string
   layout?: Record<string, unknown>
   yaml_content?: string        // contenu workflow.yaml (GET détail — lecture seule)
+  /** Fichiers modifiés hors de Studio (CLI, éditeur) depuis sa dernière sauvegarde. */
+  external_changes?: string[] | null
+  /** Empreintes actuelles des fichiers du workflow : à renvoyer comme base_disk. */
+  disk_state?: Record<string, string> | null
 }
 export interface Run {
   run_id: string
@@ -85,6 +110,10 @@ export interface JobFilesPayload {
 export interface WorkflowUpdatePayload extends Partial<Workflow> {
   yaml_content?: string
   jobs?: JobFilesPayload[]   // jobs à matérialiser sur disk (symétrie CLI ↔ Studio)
+  /** Empreintes sur lesquelles le canvas a été construit (sinon 409 si un fichier a changé). */
+  base_disk?: Record<string, string>
+  /** Écrire même si des fichiers ont changé hors de Studio. */
+  force?: boolean
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────

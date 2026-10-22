@@ -23,6 +23,20 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - `init` no longer creates an empty `.hydra/workflows/`: Studio creates it
   when it saves a workflow canvas.
 
+### Fixed
+
+- Studio no longer overwrites changes made outside it. It draws a workflow
+  from its saved canvas and, on save, rewrites the workflow file and the files
+  of its jobs: a job attached with `hdrctl job attach`, or a file edited by
+  hand, was not shown and was then erased by the next save (or auto-save).
+  Studio now records a fingerprint of every file it writes. When a workflow is
+  opened and one of its files has changed since, the canvas is rebuilt from
+  the files and a notice lists them. When a file changes while the workflow is
+  open, the save is refused (HTTP 409, nothing written), auto-save pauses, and
+  Studio offers "Reload from disk" or "Overwrite with Studio's version".
+  API: `GET /api/workflows/{id}` returns `external_changes` and `disk_state`;
+  `PUT` accepts `base_disk` and `force`.
+
 
 ## [0.12.0] — 2026-10-22
 

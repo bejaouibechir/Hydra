@@ -466,7 +466,7 @@ def _discover_disk_content(project_path: Path, project_id: str) -> None:
         meta_dir.mkdir(parents=True, exist_ok=True)
         atomic_write_text(
             _wf_meta_new(project_path, wf_id),
-            wf.model_dump_json(indent=2, exclude={"yaml_content"}))
+            wf.model_dump_json(indent=2, exclude={"yaml_content", "external_changes", "disk_state"}))
         _register_workflow_in_manifest(project_path, wf_id, wf.name, f"workflows/{f.name}")
 
 
@@ -559,11 +559,110 @@ def get_workflow(project_id: str, workflow_id: str) -> Optional[WorkflowResponse
             wf.yaml_content = f.read_text(encoding="utf-8")
         except Exception:
             pass
+    wf.external_changes = _external_changes(project_path, workflow_id, wf) or None
+    wf.disk_state = disk_state(project_path, workflow_id, wf)
     return wf
 
 
+# ---------------------------------------------------------------------------
+# Cohérence Studio ↔ disque
+#
+# Studio dessine un workflow depuis sa méta (layout) et, à la sauvegarde,
+# réécrit le YAML du workflow et ceux de ses jobs. Si la CLI ou un éditeur a
+# modifié ces fichiers entre-temps, la sauvegarde les écraserait. On garde donc
+# l'empreinte de chaque fichier écrit : un écart au GET demande à Studio de
+# recharger depuis le disque, un écart au PUT refuse d'écrire (409).
+# ---------------------------------------------------------------------------
+
+class WorkflowConflict(Exception):
+    def __init__(self, files: List[str]) -> None:
+        super().__init__(", ".join(files))
+        self.files = files
+
+
+_JOB_FILES = ("sources.yaml", "transformations.yaml", "destinations.yaml", "pipeline.yaml")
+_MTIME_TOLERANCE = 5.0   # s : la méta est écrite juste avant les fichiers
+
+
+def _sha256(path: Path) -> Optional[str]:
+    import hashlib
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _rel(project_path: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(project_path.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _owned_files(project_path: Path, workflow_id: str, wf: WorkflowResponse) -> List[Path]:
+    """Fichiers que Studio peut réécrire pour ce workflow : son YAML et les 4
+    YAML de chaque job dessiné dans son canvas ou cité par son YAML."""
+    files: List[Path] = []
+    f = _wf_yaml_file(project_path, workflow_id)
+    if f:
+        files.append(f)
+    names = {_slug(str(n)) for n in ((wf.layout or {}).get("job_names") or {}).values()}
+    if f and f.exists():
+        try:
+            doc = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            for st in ((doc.get("workflow") or {}).get("steps") or []):
+                if isinstance(st, dict) and st.get("type") == "job" and st.get("job"):
+                    names.add(Path(str(st["job"]).replace("\\", "/")).name)
+        except Exception:
+            pass
+    for jname in sorted(names):
+        files.extend(project_path / "jobs" / jname / fn for fn in _JOB_FILES)
+    return files
+
+
+def disk_state(project_path: Path, workflow_id: str, wf: WorkflowResponse) -> Dict[str, str]:
+    """Empreinte actuelle des fichiers du workflow (absent = non listé)."""
+    return {_rel(project_path, p): h for p in _owned_files(project_path, workflow_id, wf)
+            if (h := _sha256(p)) is not None}
+
+
+def _external_changes(project_path: Path, workflow_id: str, wf: WorkflowResponse) -> List[str]:
+    layout = wf.layout or {}
+    if not layout.get("nodes") and not layout.get("job_canvases"):
+        return []                                  # jamais dessiné : Studio lit déjà le disque
+    if wf.disk_hashes:
+        return sorted(rel for rel, h in wf.disk_hashes.items()
+                      if _sha256(project_path / rel) != h)
+    # Méta antérieure aux empreintes : comparaison des dates.
+    meta = _wf_meta_new(project_path, workflow_id)
+    if not meta.exists():
+        return []
+    limit = meta.stat().st_mtime + _MTIME_TOLERANCE
+    return sorted(_rel(project_path, p) for p in _owned_files(project_path, workflow_id, wf)
+                  if p.exists() and p.stat().st_mtime > limit)
+
+
+def _conflicts(project_path: Path, workflow_id: str, wf: WorkflowResponse,
+               targets: List[Path], base: Optional[Dict[str, str]]) -> List[str]:
+    """Fichiers qu'une sauvegarde écraserait alors qu'ils ont changé sur le
+    disque depuis la version sur laquelle Studio travaille.
+
+    `base` : empreintes renvoyées par le GET (ou le PUT) qui a servi à
+    construire le canvas. Sans `base` (ancien client, appel d'API direct), on
+    compare aux empreintes de la dernière sauvegarde Studio."""
+    out = []
+    if base is not None:
+        for p in targets:
+            cur = _sha256(p)
+            if cur is not None and cur != base.get(_rel(project_path, p)):
+                out.append(_rel(project_path, p))
+        return sorted(out)
+    changed = set(_external_changes(project_path, workflow_id, wf))
+    return sorted(r for r in (_rel(project_path, p) for p in targets) if r in changed)
+
+
 def _save_wf_meta(project_path: Path, wf: WorkflowResponse) -> None:
-    payload = wf.model_dump_json(indent=2, exclude={"yaml_content"})
+    payload = wf.model_dump_json(indent=2, exclude={"yaml_content", "external_changes", "disk_state"})
     if _is_legacy_wf(project_path, wf.id):
         atomic_write_text(_wf_meta_legacy(project_path, wf.id), payload)
     else:
@@ -679,6 +778,24 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
     # Champs hors modèle WorkflowResponse
     yaml_content = patch.pop("yaml_content", None)
     jobs = patch.pop("jobs", None)
+    force = bool(patch.pop("force", None))
+    base = patch.pop("base_disk", None)
+    patch.pop("external_changes", None)
+    patch.pop("disk_hashes", None)
+    patch.pop("disk_state", None)
+
+    # Fichiers que cette sauvegarde va réécrire.
+    targets: List[Path] = []
+    wf_file = _wf_yaml_file(project_path, workflow_id) if yaml_content else None
+    if wf_file:
+        targets.append(wf_file)
+    for job in jobs or []:
+        jdir = project_path / "jobs" / _slug(job.get("name", "job"))
+        targets.extend(jdir / fn for fn in _JOB_FILES)
+    if targets and not force:
+        conflicts = _conflicts(project_path, workflow_id, wf, targets, base)
+        if conflicts:
+            raise WorkflowConflict(conflicts)
 
     data = wf.model_dump()
     data.update({k: v for k, v in patch.items() if v is not None})
@@ -690,11 +807,9 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
         _materialize_jobs(project_path, jobs)
 
     # Persister le workflow.yaml sérialisé depuis le canvas
-    if yaml_content:
-        wf_file = _wf_yaml_file(project_path, workflow_id)
-        if wf_file:
-            wf_file.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_text(wf_file, yaml_content)
+    if yaml_content and wf_file:
+        wf_file.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(wf_file, yaml_content)
 
     # Changement de trigger SANS re-sérialisation du canvas (ex. depuis la carte
     # projet) : on patche le bloc `trigger` du fichier YAML, qui est la source de
@@ -703,6 +818,10 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
     elif "trigger_type" in patch or "cron" in patch:
         wf_file = _wf_yaml_file(project_path, workflow_id)
         if wf_file and wf_file.exists():
+            rel = _rel(project_path, wf_file)
+            # Le YAML était-il tel que Studio l'avait écrit ? Si oui, cette
+            # retouche de Studio ne doit pas passer pour un changement externe.
+            in_sync = (wf_updated.disk_hashes or {}).get(rel) == _sha256(wf_file)
             try:
                 doc = yaml.safe_load(wf_file.read_text(encoding="utf-8")) or {}
                 if not isinstance(doc, dict):
@@ -719,9 +838,19 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
                     wf_file,
                     yaml.dump(doc, default_flow_style=False, allow_unicode=True, sort_keys=False),
                 )
+                if in_sync and (h := _sha256(wf_file)) is not None:
+                    wf_updated.disk_hashes = {**(wf_updated.disk_hashes or {}), rel: h}
+                    _save_wf_meta(project_path, wf_updated)
             except Exception:
                 pass
 
+    # Empreintes des fichiers écrits : base de la détection suivante.
+    if targets:
+        wf_updated.disk_hashes = {_rel(project_path, p): h for p in targets
+                                  if (h := _sha256(p)) is not None}
+        wf_updated.external_changes = None
+        _save_wf_meta(project_path, wf_updated)
+    wf_updated.disk_state = disk_state(project_path, workflow_id, wf_updated)
     return wf_updated
 
 

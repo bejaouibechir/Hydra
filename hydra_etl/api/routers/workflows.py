@@ -58,7 +58,16 @@ def get_workflow(workflow_id: str, project_id: str = Query(...)):
 
 @router.put("/{workflow_id}", response_model=WorkflowResponse)
 def update_workflow(workflow_id: str, body: WorkflowUpdate, project_id: str = Query(...)):
-    wf = store.update_workflow(project_id, workflow_id, body.model_dump(exclude_none=True))
+    try:
+        wf = store.update_workflow(project_id, workflow_id, body.model_dump(exclude_none=True))
+    except store.WorkflowConflict as e:
+        # Fichiers modifiés hors de Studio (CLI, éditeur) depuis la dernière
+        # sauvegarde : rien n'est écrit. Studio propose de recharger depuis le
+        # disque, ou de renvoyer avec force=true.
+        raise HTTPException(status_code=409, detail={
+            "message": "Files changed outside Studio since the last save",
+            "files": e.files,
+        })
     if not wf:
         raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found")
     scheduler.sync_workflow(project_id, workflow_id)

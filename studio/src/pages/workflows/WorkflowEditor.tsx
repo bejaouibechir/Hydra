@@ -14,7 +14,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import * as YAML from 'js-yaml'
-import { api, type Run } from '@/lib/api'
+import { api, conflictFiles, type Run } from '@/lib/api'
 import { validateDAG, edgesToDAGNodes } from '@/lib/dag'
 import { flowToWorkflow, workflowToYAMLString, workflowToFlow, parseWorkflowYAML, isContainerNode, isProxyEdge, CONTAINER_NODE_TYPE, type FlowNodeData } from '@/lib/workflowSerializer'
 import { flowToHdr, parseHdr, sectionYamlsToJobModel, jobModelToFlow, flowToJobModel, jobModelToSectionYamls, type JobSectionYamls } from '@/lib/hdrSerializer'
@@ -266,6 +266,11 @@ function WorkflowEditorInner() {
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   // Erreurs de manifests détectées au chargement : « fichier — ligne N : message »
   const [loadIssues, setLoadIssues] = useState<string[]>([])
+  // Cohérence avec le disque : empreintes des fichiers sur lesquelles le canvas
+  // est construit, fichiers rechargés au chargement, conflit à la sauvegarde.
+  const baseDiskRef = useRef<Record<string, string> | undefined>(undefined)
+  const [diskReloaded, setDiskReloaded] = useState<string[]>([])
+  const [diskConflict, setDiskConflict] = useState<string[] | null>(null)
   const [contextMenu, setContextMenu]    = useState<ContextMenuState | null>(null)
   const [renameNodeId, setRenameNodeId]  = useState<string | null>(null)
   // Mode "replace" — nodeId en attente de remplacement
@@ -499,9 +504,16 @@ function WorkflowEditorInner() {
     initializedWfRef.current = workflowId ?? ''
     canAutoSave.current = false
     setLoadIssues([])
+    setDiskConflict(null)
+    jobCanvasRef.current.clear()
+    baseDiskRef.current = wfQuery.data.disk_state ?? undefined
+    // Fichiers modifiés hors de Studio (CLI : hdrctl job attach…, éditeur) :
+    // le canvas enregistré est périmé → on reconstruit depuis le disque.
+    const external = wfQuery.data.external_changes ?? []
+    setDiskReloaded(external)
     let cancelled = false
 
-    const layout = wfQuery.data.layout as {
+    const layout = (external.length > 0 ? undefined : wfQuery.data.layout) as {
       nodes?: Node<FlowNodeData>[]
       edges?: Edge[]
       job_canvases?: Record<string, { nodes: Node[]; edges: Edge[] }>
@@ -1119,7 +1131,7 @@ function WorkflowEditorInner() {
   // ── Mutations API ─────────────────────────────────────────────────────────
 
   const saveMut = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { force?: boolean }) => {
       if (!workflowId || !projectId) throw new Error('workflowId / projectId manquants')
       const currentJobCanvases = Object.fromEntries(jobCanvasRef.current)
       const allJobCanvases = (sceneMode === 'jobs' && activeJobId)
@@ -1133,7 +1145,7 @@ function WorkflowEditorInner() {
         triggerType: (wfQuery.data?.trigger_type ?? 'manual') as 'manual' | 'schedule' | 'webhook',
         cron:        wfQuery.data?.cron,
       })
-      await api.workflows.update(workflowId, projectId, {
+      return api.workflows.update(workflowId, projectId, {
         layout: {
           nodes:        wfNodes,
           edges:        wfEdges,
@@ -1143,25 +1155,41 @@ function WorkflowEditorInner() {
         yaml_content: workflowToYAMLString(wf),
         // Symétrie CLI ↔ Studio : chaque job canvas devient un vrai dossier jobs/<nom>/
         jobs: buildJobsPayload(allJobCanvases as Record<string, { nodes: Node[]; edges: Edge[] }>, jobNames),
+        base_disk: baseDiskRef.current,
+        force: opts?.force || undefined,
       })
     },
     onMutate:  () => setSaveStatus('saving'),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      if (saved?.disk_state) baseDiskRef.current = saved.disk_state
+      setDiskConflict(null)
       setSaveStatus('saved')
       qc.invalidateQueries({ queryKey: ['workflow', workflowId] })
       setTimeout(() => setSaveStatus('idle'), 2000)
     },
-    onError: () => setSaveStatus('error'),
+    onError: (err) => {
+      const files = conflictFiles(err)
+      if (files) setDiskConflict(files)
+      setSaveStatus('error')
+    },
   })
+
+  /** Abandonne le canvas en cours et le reconstruit depuis les fichiers du disque. */
+  const reloadFromDisk = useCallback(() => {
+    initializedWfRef.current = null
+    setDiskConflict(null)
+    qc.invalidateQueries({ queryKey: ['workflow', workflowId] })
+  }, [qc, workflowId])
 
   // ── Auto-save : délai configurable dans Settings ─────────────────────────
   useEffect(() => {
     if (!canAutoSave.current) return
+    if (diskConflict) return                 // attendre le choix de l'utilisateur
     if (!workflowId || !projectId) return
     if (nodes.length === 0 && edges.length === 0) return
     const { autosave_enabled, autosave_delay } = loadSettings()
     if (!autosave_enabled) return
-    const timer = setTimeout(() => { saveMut.mutate() }, autosave_delay)
+    const timer = setTimeout(() => { saveMut.mutate(undefined) }, autosave_delay)
     return () => clearTimeout(timer)
   }, [nodes, edges])
 
@@ -1289,11 +1317,19 @@ function WorkflowEditorInner() {
       })
       const yaml = workflowToYAMLString(wf)
       const jobCanvases = Object.fromEntries(jobCanvasRef.current)
-      await api.workflows.update(workflowId, projectId, {
-        layout:       { nodes, edges, job_canvases: jobCanvases, job_names: Object.fromEntries(jobNames) },
-        yaml_content: yaml,
-        jobs:         buildJobsPayload(jobCanvases as Record<string, { nodes: Node[]; edges: Edge[] }>, jobNames),
-      })
+      try {
+        const saved = await api.workflows.update(workflowId, projectId, {
+          layout:       { nodes, edges, job_canvases: jobCanvases, job_names: Object.fromEntries(jobNames) },
+          yaml_content: yaml,
+          jobs:         buildJobsPayload(jobCanvases as Record<string, { nodes: Node[]; edges: Edge[] }>, jobNames),
+          base_disk:    baseDiskRef.current,
+        })
+        if (saved?.disk_state) baseDiskRef.current = saved.disk_state
+      } catch (err) {
+        const files = conflictFiles(err)
+        if (files) setDiskConflict(files)
+        throw err
+      }
       return api.runs.start({ workflow_path: wfQuery.data.path })
     },
     onMutate:  ()     => { applyRunStatus(null, true) },
@@ -1594,7 +1630,7 @@ function WorkflowEditorInner() {
       const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
 
       // Ctrl+S — sauvegarde
-      if (ctrl && e.key === 's') { e.preventDefault(); saveMut.mutate(); return }
+      if (ctrl && e.key === 's') { e.preventDefault(); saveMut.mutate(undefined); return }
 
       // Ctrl+Z — undo
       if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return }
@@ -1818,7 +1854,7 @@ function WorkflowEditorInner() {
           {isJobScene ? 'Run Job' : 'Run Workflow'}
         </button>
 
-        <button onClick={() => saveMut.mutate()}
+        <button onClick={() => saveMut.mutate(undefined)}
           disabled={saveMut.isPending || validationErrors.length > 0}
           className="btn-primary text-xs !py-1.5"
           title={saveStatus === 'error' ? 'Save error' : 'Save (Ctrl+S)'}
@@ -1829,6 +1865,57 @@ function WorkflowEditorInner() {
         </button>
 
       </div>{/* /toolbar */}
+
+      {/* ── Fichiers modifiés hors de Studio : conflit à la sauvegarde ──── */}
+      {diskConflict && (
+        <div data-testid="disk-conflict" style={{
+          flexShrink: 0, padding: '8px 16px',
+          background: 'rgba(239,68,68,0.08)',
+          borderBottom: '1px solid rgba(239,68,68,0.4)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: 'var(--error)' }}>
+            <AlertTriangle size={13} />
+            Not saved: these files changed outside Studio (hdrctl, an editor, git) since this workflow was loaded
+            <div style={{ flex: 1 }} />
+            <button className="btn-ghost text-xs !py-1" onClick={reloadFromDisk}
+              title="Discard the unsaved changes made in Studio and rebuild the canvas from the files">
+              Reload from disk
+            </button>
+            <button className="btn-ghost text-xs !py-1" style={{ color: 'var(--error)' }}
+              onClick={() => saveMut.mutate({ force: true })}
+              title="Write Studio's version over the files changed outside Studio">
+              Overwrite with Studio's version
+            </button>
+          </div>
+          {diskConflict.map((m, i) => (
+            <div key={i} style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--error)', marginTop: 3, opacity: 0.9 }}>
+              {m}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Canvas reconstruit depuis le disque au chargement ───────────── */}
+      {!diskConflict && diskReloaded.length > 0 && (
+        <div data-testid="disk-reloaded" style={{
+          flexShrink: 0, padding: '8px 16px',
+          background: 'rgba(59,130,246,0.08)',
+          borderBottom: '1px solid rgba(59,130,246,0.35)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: 'var(--info, #3b82f6)' }}>
+            <AlertTriangle size={13} />
+            Reloaded from disk: these files changed outside Studio since its last save
+            <div style={{ flex: 1 }} />
+            <button onClick={() => setDiskReloaded([])} title="Hide"
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13, padding: 2 }}>✕</button>
+          </div>
+          {diskReloaded.map((m, i) => (
+            <div key={i} style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--info, #3b82f6)', marginTop: 3, opacity: 0.9 }}>
+              {m}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Diagnostics manifests (fichier + ligne) ─────────────────────── */}
       {loadIssues.length > 0 && (

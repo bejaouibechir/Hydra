@@ -62,6 +62,12 @@ class WorkflowUpdate(BaseModel):
     layout: Optional[Dict[str, Any]] = None      # canvas positions XY
     yaml_content: Optional[str] = None            # contenu workflow.yaml sérialisé depuis le canvas
     jobs: Optional[List[JobFilesPayload]] = None  # jobs à matérialiser sur disk (jobs/<name>/*.yaml)
+    # True : écrire même si ces fichiers ont changé hors de Studio (CLI,
+    # éditeur) depuis la dernière sauvegarde. Sinon : 409 et rien n'est écrit.
+    force: Optional[bool] = None
+    # Empreintes des fichiers (disk_state) sur lesquelles le canvas a été
+    # construit : un fichier qui a changé depuis bloque la sauvegarde.
+    base_disk: Optional[Dict[str, str]] = None
 
 
 class WorkflowResponse(BaseModel):
@@ -75,6 +81,15 @@ class WorkflowResponse(BaseModel):
     path: str
     layout: Optional[Dict[str, Any]] = None
     yaml_content: Optional[str] = None            # contenu workflow.yaml (lecture seule, GET détail)
+    # sha256 des fichiers écrits par la dernière sauvegarde Studio
+    # (chemin relatif au projet → empreinte). Persisté dans la méta.
+    disk_hashes: Optional[Dict[str, str]] = None
+    # Calculé au GET : fichiers modifiés hors de Studio depuis cette
+    # sauvegarde (CLI, éditeur, git). Jamais persisté.
+    external_changes: Optional[List[str]] = None
+    # Calculé au GET / PUT : empreinte actuelle des fichiers du workflow, à
+    # renvoyer comme base_disk à la sauvegarde suivante. Jamais persisté.
+    disk_state: Optional[Dict[str, str]] = None
 
 
 # ---------------------------------------------------------------------------

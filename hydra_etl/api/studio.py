@@ -128,9 +128,14 @@ def mount_studio(app: FastAPI) -> bool:
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=str(assets)), name="studio-assets")
 
+    # index.html ne doit jamais être servi depuis le cache du navigateur : il
+    # désigne les fichiers assets/ (noms hachés) du build courant. Sans cela,
+    # après une mise à jour, le navigateur garde l'ancien Studio.
+    no_cache = {"Cache-Control": "no-cache, must-revalidate"}
+
     @app.get("/", include_in_schema=False)
     async def _studio_index() -> FileResponse:
-        return FileResponse(index)
+        return FileResponse(index, headers=no_cache)
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def _studio_spa(full_path: str):
@@ -150,7 +155,7 @@ def mount_studio(app: FastAPI) -> bool:
             raise HTTPException(status_code=404, detail="Not found")
 
         if candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(index)
+            return FileResponse(candidate, headers=no_cache if candidate.name == "index.html" else None)
+        return FileResponse(index, headers=no_cache)
 
     return True

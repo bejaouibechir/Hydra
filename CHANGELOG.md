@@ -28,6 +28,13 @@ and versions follow [Semantic Versioning](https://semver.org/).
     Studio change is written only if auto-save is on, unless both sides changed.
   - Formatting and comments are not changes: Studio compares the content.
   - API: `GET /api/jobs/files` also returns `hashes`, `hash` and `mtime`.
+  - Every manual sync, and every automatic sync that changes something, also
+    posts a notification. The sync button spins while it works.
+- Studio: the buttons of the **Hydra DSL** panel header (sync, copy, close)
+  look clickable: bordered and dark when ready, grey while busy. They were
+  light grey icons that looked disabled.
+- `hdrctl serve`: `index.html` is sent with `Cache-Control: no-cache`, so the
+  browser loads the new Studio after an update instead of a cached one.
 - `hdrctl validate`: the total counts every error shown. It printed
   "0 error(s) detected" when the only errors were in `pipeline.yaml` (broken
   `pipeline.from` / `to`), in strict checks or a missing file.

@@ -91,6 +91,13 @@ class TestBundlePresent:
         assert response.status_code == 200
         assert '<div id="root">' in response.text
 
+    def test_index_is_never_cached(self, bundled):
+        """Après une mise à jour, le navigateur doit charger le nouveau build :
+        index.html (qui désigne les assets hachés) n'est jamais repris du cache."""
+        client, _ = bundled
+        for url in ("/", "/workflows/abc123"):
+            assert "no-cache" in client.get(url).headers.get("cache-control", "")
+
     def test_static_asset_is_served(self, bundled):
         client, _ = bundled
         response = client.get("/assets/app.js")

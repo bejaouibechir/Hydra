@@ -61,6 +61,8 @@ interface YamlCodePanelProps {
   onSync?: () => void
   /** Dernier résultat de synchronisation (affiché dans l'en-tête). */
   syncInfo?: { text: string; tone: 'ok' | 'info' | 'warn' | 'error'; at: number } | null
+  /** Synchronisation en cours (icône qui tourne, bouton grisé). */
+  syncBusy?: boolean
 }
 
 type SyncStatus = 'synced' | 'editing' | 'error'
@@ -146,17 +148,26 @@ function buildSkeleton(
 
 // ── IconBtn ────────────────────────────────────────────────────────────────────
 import React from 'react'
-function IconBtn({ title, onClick, active, children }: {
-  title: string; onClick: () => void; active: boolean; children: React.ReactNode
+/** Bouton d'en-tête : prêt = foncé et cerné ; occupé / indisponible = gris.
+ *  (Les icônes grises sur fond clair donnaient l'impression d'être désactivées.) */
+function IconBtn({ title, onClick, active, disabled = false, children, testId }: {
+  title: string; onClick: () => void; active: boolean; disabled?: boolean
+  children: React.ReactNode; testId?: string
 }) {
+  const [hover, setHover] = useState(false)
   return (
-    <button title={title} onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      width: 24, height: 24, borderRadius: 4,
-      background: active ? 'var(--primary-subtle)' : 'transparent',
-      border: 'none', cursor: 'pointer',
-      color: active ? 'var(--primary)' : 'var(--text-muted)', transition: 'all 0.15s',
-    }}>
+    <button type="button" title={title} aria-label={title} onClick={onClick} disabled={disabled}
+      data-testid={testId}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 26, height: 26, borderRadius: 6, marginLeft: 4,
+        border: `1px solid ${disabled ? 'var(--bg-border)' : active || hover ? 'var(--primary)' : 'var(--text-secondary)'}`,
+        background: disabled ? 'transparent' : active ? 'var(--primary-subtle)' : hover ? 'var(--primary-subtle)' : 'var(--bg-input)',
+        color: disabled ? 'var(--text-muted)' : active || hover ? 'var(--primary)' : 'var(--text-primary)',
+        opacity: disabled ? 0.45 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+      }}>
       {children}
     </button>
   )
@@ -166,7 +177,7 @@ function _hdrSkeleton(name: string): string {
   return `version: "1.0"\njob:\n  name: "${name || 'my_job'}"\n  sources:\n    input:\n      type: csv\n      connection:\n        file: ""\n      extract:\n        table: ""\n  transformations:\n    steps: []\n  destinations:\n    output:\n      type: csv\n      connection:\n        file: ""\n      load:\n        table: ""\n        mode: replace\n  pipeline:\n    name: "${name || 'my_job'}"\n    from: input\n    to: output`
 }
 
-export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mode = 'workflow', onSync, syncInfo }: YamlCodePanelProps) {
+export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mode = 'workflow', onSync, syncInfo, syncBusy = false }: YamlCodePanelProps) {
   const isJobMode = mode === 'job'
 
   // ── État onglets (mode job) ───────────────────────────────────────────────
@@ -400,15 +411,19 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
                 : syncInfo.tone === 'ok' ? 'var(--success)' : 'var(--primary)',
             }}>{syncInfo.text}</span>
         )}
-        <span data-testid="dsl-sync">
+        <span data-testid="dsl-sync" style={{ marginRight: 4 }}>
           <IconBtn
-            title={isJobMode && onSync
-              ? 'Sync with disk (jobs/<name>/*.yaml): the latest change wins, in Studio or outside'
-              : 'Regenerate the YAML from the canvas'}
-            onClick={isJobMode && onSync ? onSync : handleResync} active={false}><RefreshCw size={11} /></IconBtn>
+            title={syncBusy ? 'Syncing with disk…'
+              : isJobMode && onSync
+                ? 'Sync with disk (jobs/<name>/*.yaml): the latest change wins, in Studio or outside'
+                : 'Regenerate the YAML from the canvas'}
+            disabled={syncBusy}
+            onClick={isJobMode && onSync ? onSync : handleResync} active={false}>
+            <RefreshCw size={13} className={syncBusy ? 'animate-spin' : undefined} />
+          </IconBtn>
         </span>
         <IconBtn title={`Copy ${isJobMode ? activeTab : 'YAML'}`} onClick={handleCopy} active={copied}>
-          {copied ? <Check size={11} /> : <Copy size={11} />}
+          {copied ? <Check size={13} /> : <Copy size={13} />}
         </IconBtn>
         <IconBtn title="Close" onClick={onClose} active={false}><X size={13} /></IconBtn>
       </div>

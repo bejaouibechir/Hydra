@@ -315,6 +315,8 @@ function WorkflowEditorInner() {
   const skipAutosaveRef = useRef(false)
   const liveRef = useRef<{ nodes: Node[]; edges: Edge[]; activeJobId: string | null }>({ nodes: [], edges: [], activeJobId: null })
   const [syncInfo, setSyncInfo] = useState<{ text: string; tone: 'ok' | 'info' | 'warn' | 'error'; at: number } | null>(null)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const { add: notifySync } = useNotifications()
 
   // Helpers de scène
   const isJobScene    = sceneMode === 'jobs'
@@ -855,6 +857,12 @@ function WorkflowEditorInner() {
     if (sceneMode !== 'jobs' || !activeJobId || !projectId || !workflowId) return
     if (syncBusyRef.current || saveMut.isPending) return
     syncBusyRef.current = true
+    if (mode === 'manual') setSyncBusy(true)
+    // Résultat : dans l'en-tête du panneau + notification (bouton, ou changement réel en auto)
+    const report = (text: string, tone: 'ok' | 'info' | 'warn' | 'error', toast: boolean) => {
+      setSyncInfo({ text, tone, at: Date.now() })
+      if (toast) notifySync(tone === 'ok' ? 'success' : tone === 'warn' ? 'warning' : tone, 'Sync with disk', text)
+    }
     const jobId   = activeJobId
     const jobName = slugify(jobNames.get(jobId) ?? jobId)
     const hhmmss  = (t: number) => new Date(t).toLocaleTimeString()
@@ -863,7 +871,7 @@ function WorkflowEditorInner() {
       if (liveRef.current.activeJobId !== jobId) return          // job changé entre-temps
       const disk = canvasFromDisk(st, jobName)
       if (!disk) {
-        if (mode === 'manual') setSyncInfo({ text: `No valid YAML in jobs/${jobName}/`, tone: 'error', at: Date.now() })
+        if (mode === 'manual') report(`No valid YAML in jobs/${jobName}/`, 'error', true)
         return
       }
       const cur        = liveRef.current
@@ -883,7 +891,7 @@ function WorkflowEditorInner() {
           syncKnownRef.current.set(jobId, { hash: st.hash, canon: canvasCanon })
           mergeBaseDisk(jobName, st.hashes)
         }
-        if (mode === 'manual') setSyncInfo({ text: 'In sync with disk', tone: 'ok', at: Date.now() })
+        if (mode === 'manual') report(`In sync with disk (jobs/${jobName})`, 'ok', true)
         return
       }
 
@@ -901,14 +909,14 @@ function WorkflowEditorInner() {
         setNodes(nextNodes as Node<FlowNodeData>[])
         setEdges(disk.edges)
         if (isNewShape) fitViewSoon()
-        setSyncInfo({ text: `Loaded from disk (jobs/${jobName}, changed ${hhmmss(st.mtime * 1000)})`, tone: 'info', at: Date.now() })
+        report(`Loaded from disk (jobs/${jobName}, changed ${hhmmss(st.mtime * 1000)})`, 'info', true)
         return
       }
 
       // save_studio
       const diskChanged = !known || known.hash !== st.hash
       if (mode === 'auto' && !diskChanged && !loadSettings().autosave_enabled) {
-        setSyncInfo({ text: 'Unsaved changes in Studio', tone: 'warn', at: Date.now() })
+        report('Unsaved changes in Studio', 'warn', false)
         return
       }
       const canvases = { ...Object.fromEntries(jobCanvasRef.current), [jobId]: { nodes: cur.nodes, edges: cur.edges } }
@@ -926,14 +934,15 @@ function WorkflowEditorInner() {
       const after = await api.jobs.files(projectId, jobName)
       syncKnownRef.current.set(jobId, { hash: after.hash, canon: canvasCanon })
       mergeBaseDisk(jobName, after.hashes)
-      setSyncInfo({ text: `Saved to disk (jobs/${jobName})${diskChanged ? ' — Studio change was newer' : ''}`, tone: 'ok', at: Date.now() })
+      report(`Saved to disk (jobs/${jobName})${diskChanged ? ' — Studio change was newer' : ''}`, 'ok', true)
     } catch (err) {
-      setSyncInfo({ text: `Sync failed: ${err instanceof Error ? err.message : String(err)}`, tone: 'error', at: Date.now() })
+      report(`Sync failed: ${err instanceof Error ? err.message : String(err)}`, 'error', true)
     } finally {
       syncBusyRef.current = false
+      setSyncBusy(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneMode, activeJobId, projectId, workflowId, jobNames, wfSnapshot, pushHistory, setNodes, setEdges, fitViewSoon, mergeBaseDisk])
+  }, [sceneMode, activeJobId, projectId, workflowId, jobNames, wfSnapshot, pushHistory, setNodes, setEdges, fitViewSoon, mergeBaseDisk, notifySync])
 
   const syncRef = useRef(syncActiveJob)
   syncRef.current = syncActiveJob
@@ -1935,9 +1944,10 @@ function WorkflowEditorInner() {
             onClick={() => { void syncActiveJob('manual') }}
             className="btn-secondary text-xs !py-1.5"
             data-testid="sync-disk"
+            disabled={syncBusy}
             title="Sync this job with jobs/<name>/*.yaml — the latest change wins (Studio or outside)"
           >
-            <RefreshCw size={13} />
+            <RefreshCw size={13} className={syncBusy ? 'animate-spin' : undefined} />
             Sync with disk
           </button>
         )}
@@ -2366,6 +2376,7 @@ function WorkflowEditorInner() {
             mode={isJobScene ? 'job' : 'workflow'}
             onSync={isJobScene && activeJobId ? () => { void syncActiveJob('manual') } : undefined}
             syncInfo={syncInfo}
+            syncBusy={syncBusy}
           />
         )}
 

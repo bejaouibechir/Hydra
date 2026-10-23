@@ -222,9 +222,9 @@ class CSVConnector(Connector):
         if base_path_raw is not None:
             base_path = Path(str(base_path_raw)).expanduser().resolve()
             if not base_path.exists():
-                raise ValueError(f"CSVConnector: base_path introuvable: {base_path}")
+                raise ValueError(f"CSVConnector: base_path not found: {base_path}")
             if not base_path.is_dir():
-                raise ValueError(f"CSVConnector: base_path n'est pas un dossier: {base_path}")
+                raise ValueError(f"CSVConnector: base_path is not a folder: {base_path}")
         else:
             # ✅ FALLBACK : Utiliser job_dir si base_path absent
             # Garantit que les chemins relatifs sont résolus correctement
@@ -235,7 +235,7 @@ class CSVConnector(Connector):
         delimiter_raw = config.get("delimiter")
         delimiter = "," if delimiter_raw is None else str(delimiter_raw)
         if len(delimiter) != 1:
-            raise ValueError("CSVConnector: 'delimiter' doit être un seul caractère (ex: ',' ou ';').")
+            raise ValueError("CSVConnector: 'delimiter' must be a single character (e.g. ',' or ';').")
 
         encoding_raw = config.get("encoding")
         encoding = "utf-8" if encoding_raw is None else str(encoding_raw)
@@ -246,7 +246,7 @@ class CSVConnector(Connector):
         quotechar_raw = config.get("quotechar")
         quotechar = '"' if quotechar_raw is None else str(quotechar_raw)
         if len(quotechar) != 1:
-            raise ValueError("CSVConnector: 'quotechar' doit être un seul caractère (ex: '\"').")
+            raise ValueError("CSVConnector: 'quotechar' must be a single character (e.g. '\"').")
 
         lineterminator_raw = config.get("lineterminator")
         lineterminator = "\n" if lineterminator_raw is None else str(lineterminator_raw)
@@ -273,7 +273,7 @@ class CSVConnector(Connector):
         - table est relatif -> résolu via base_path (toujours défini maintenant)
         """
         if not isinstance(table, str) or not table.strip():
-            raise ValueError("CSVConnector: 'table' doit être un chemin non vide (string).")
+            raise ValueError("CSVConnector: 'table' must be a non-empty path (string).")
 
         p = Path(table.strip()).expanduser()
 
@@ -286,7 +286,7 @@ class CSVConnector(Connector):
             return p.resolve()
         except Exception:
             # Certains OS / chemins peuvent lever (ex: caractères invalides).
-            raise ValueError(f"CSVConnector: chemin invalide: {table}")
+            raise ValueError(f"CSVConnector: invalid path: {table}")
 
     # ---------------------------------------------------------------------
     # Contrat Connector
@@ -329,10 +329,10 @@ class CSVConnector(Connector):
                 reference = entete
             elif entete != reference:
                 raise ValueError(
-                    f"CSVConnector [{self.name}]: en-tetes differentes entre fichiers.\n"
-                    f"  Reference ({chemins[0].name}) : {reference}\n"
-                    f"  Fichier   ({chemin.name}) : {entete}\n"
-                    f"  Un motif multi-fichiers exige la meme en-tete partout."
+                    f"CSVConnector [{self.name}]: headers differ between files.\n"
+                    f"  Reference ({chemins[0].name}): {reference}\n"
+                    f"  File      ({chemin.name}): {entete}\n"
+                    f"  A multi-file pattern needs the same header in every file."
                 )
             yield from lots
 
@@ -342,16 +342,16 @@ class CSVConnector(Connector):
             f = csv_path.open("r", encoding=self._settings.encoding, newline="")
         except FileNotFoundError as e:
             raise ValueError(
-                f"CSVConnector [{self.name}]: Fichier introuvable lors de l'ouverture.\n"
-                f"  Chemin : {csv_path}\n"
-                f"  Erreur système : {e}"
+                f"CSVConnector [{self.name}]: file not found when opening it.\n"
+                f"  Path: {csv_path}\n"
+                f"  System error: {e}"
             ) from e
         except Exception as e:
             raise ValueError(
-                f"CSVConnector [{self.name}]: Échec lecture CSV.\n"
-                f"  Chemin : {csv_path}\n"
+                f"CSVConnector [{self.name}]: CSV read failed.\n"
+                f"  Path: {csv_path}\n"
                 f"  base_path : {self._settings.base_path}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
 
         try:
@@ -362,7 +362,7 @@ class CSVConnector(Connector):
             )
             # csv.DictReader exige une ligne d'en-tête.
             if reader.fieldnames is None or len(reader.fieldnames) == 0:
-                raise ValueError(f"CSVConnector: en-tête CSV manquante ou vide: {csv_path}")
+                raise ValueError(f"CSVConnector: CSV header missing or empty: {csv_path}")
             entete = list(reader.fieldnames)
         except ValueError:
             f.close()
@@ -370,10 +370,10 @@ class CSVConnector(Connector):
         except Exception as e:
             f.close()
             raise ValueError(
-                f"CSVConnector [{self.name}]: Échec lecture CSV.\n"
-                f"  Chemin : {csv_path}\n"
+                f"CSVConnector [{self.name}]: CSV read failed.\n"
+                f"  Path: {csv_path}\n"
                 f"  base_path : {self._settings.base_path}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
 
         def lots() -> Iterator[Batch]:
@@ -390,10 +390,10 @@ class CSVConnector(Connector):
                 raise
             except Exception as e:
                 raise ValueError(
-                    f"CSVConnector [{self.name}]: Échec lecture CSV.\n"
-                    f"  Chemin : {csv_path}\n"
+                    f"CSVConnector [{self.name}]: CSV read failed.\n"
+                    f"  Path: {csv_path}\n"
                     f"  base_path : {self._settings.base_path}\n"
-                    f"  Erreur : {type(e).__name__}: {e}"
+                    f"  Error: {type(e).__name__}: {e}"
                 ) from e
             finally:
                 f.close()
@@ -446,10 +446,10 @@ class CSVConnector(Connector):
                 reference = colonnes
             elif colonnes != reference:
                 raise ValueError(
-                    f"CSVConnector [{self.name}]: en-tetes differentes entre fichiers.\n"
-                    f"  Reference ({chemins[0].name}) : {reference}\n"
-                    f"  Fichier   ({chemin.name}) : {colonnes}\n"
-                    f"  Un motif multi-fichiers exige la meme en-tete partout."
+                    f"CSVConnector [{self.name}]: headers differ between files.\n"
+                    f"  Reference ({chemins[0].name}): {reference}\n"
+                    f"  File      ({chemin.name}): {colonnes}\n"
+                    f"  A multi-file pattern needs the same header in every file."
                 )
             yield frame
 
@@ -503,9 +503,9 @@ class CSVConnector(Connector):
 
         # memes controles prealables que pour un fichier unique
         if query is not None and str(query).strip():
-            raise ValueError("CSVConnector: 'query' n'est pas supporte pour CSV. Utilisez 'table' (chemin fichier).")
+            raise ValueError("CSVConnector: 'query' is not supported for CSV. Use 'table' (file path).")
         if not isinstance(batch_size, int) or batch_size < 1:
-            raise ValueError("CSVConnector: 'batch_size' doit etre un entier >= 1.")
+            raise ValueError("CSVConnector: 'batch_size' must be an integer >= 1.")
 
         motif = Path(table.strip()).expanduser()
         if motif.is_absolute():
@@ -519,12 +519,12 @@ class CSVConnector(Connector):
         )
         if not trouves:
             raise ValueError(
-                f"CSVConnector [{self.name}]: aucun fichier ne correspond au motif.\n"
-                f"  Motif demande : {table}\n"
-                f"  Dossier de base : {racine}\n"
-                f"  Conseil : verifiez le motif ou base_path."
+                f"CSVConnector [{self.name}]: no file matches the pattern.\n"
+                f"  Pattern: {table}\n"
+                f"  Base folder: {racine}\n"
+                f"  Hint: check the pattern or base_path."
             )
-        logger.info("CSVConnector [%s]: %d fichier(s) pour le motif %s",
+        logger.info("CSVConnector [%s]: %d file(s) match the pattern %s",
                     self.name, len(trouves), table)
         return [p.resolve() for p in trouves]
 
@@ -565,7 +565,7 @@ class CSVConnector(Connector):
                     quotechar=self._settings.quotechar,
                 )
                 if dict_reader.fieldnames is None or len(dict_reader.fieldnames) == 0:
-                    raise ValueError(f"CSVConnector: en-tête CSV manquante ou vide: {csv_path}")
+                    raise ValueError(f"CSVConnector: CSV header missing or empty: {csv_path}")
 
                 header = list(dict_reader.fieldnames)
                 regular_header = len(set(header)) == len(header)
@@ -606,16 +606,16 @@ class CSVConnector(Connector):
             raise
         except FileNotFoundError as e:
             raise ValueError(
-                f"CSVConnector [{self.name}]: Fichier introuvable lors de l'ouverture.\n"
-                f"  Chemin : {csv_path}\n"
-                f"  Erreur système : {e}"
+                f"CSVConnector [{self.name}]: file not found when opening it.\n"
+                f"  Path: {csv_path}\n"
+                f"  System error: {e}"
             ) from e
         except Exception as e:
             raise ValueError(
-                f"CSVConnector [{self.name}]: Échec lecture CSV.\n"
-                f"  Chemin : {csv_path}\n"
+                f"CSVConnector [{self.name}]: CSV read failed.\n"
+                f"  Path: {csv_path}\n"
                 f"  base_path : {self._settings.base_path}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
 
     def _extract_frames_rust(
@@ -667,7 +667,7 @@ class CSVConnector(Connector):
 
         header = reader.header
         if not header:
-            raise ValueError(f"CSVConnector: en-tête CSV manquante ou vide: {csv_path}")
+            raise ValueError(f"CSVConnector: CSV header missing or empty: {csv_path}")
         regular_header = len(set(header)) == len(header)
         keep = self._kept_columns(header)
 
@@ -723,14 +723,14 @@ class CSVConnector(Connector):
         """Mêmes contrôles et mêmes messages que le début d'extract_batches.
         À garder aligné avec extract_batches (test : tests/test_frame_io_parity.py)."""
         if query is not None and str(query).strip():
-            raise ValueError("CSVConnector: 'query' n'est pas supporté pour CSV. Utilisez 'table' (chemin fichier).")
+            raise ValueError("CSVConnector: 'query' is not supported for CSV. Use 'table' (file path).")
 
         if not isinstance(batch_size, int) or batch_size < 1:
-            raise ValueError("CSVConnector: 'batch_size' doit être un entier >= 1.")
+            raise ValueError("CSVConnector: 'batch_size' must be an integer >= 1.")
 
         if batch_size > 100_000:
             logger.warning(
-                "CSVConnector: batch_size très élevé (%d). Risque de consommation mémoire importante.",
+                "CSVConnector: very large batch_size (%d). Memory use may be high.",
                 batch_size
             )
 
@@ -738,18 +738,18 @@ class CSVConnector(Connector):
 
         if not csv_path.exists():
             raise ValueError(
-                f"CSVConnector [{self.name}]: Fichier source introuvable.\n"
-                f"  Chemin demandé : {table}\n"
-                f"  Chemin résolu : {csv_path}\n"
+                f"CSVConnector [{self.name}]: source file not found.\n"
+                f"  Requested path: {table}\n"
+                f"  Resolved path: {csv_path}\n"
                 f"  base_path effectif : {self._settings.base_path}\n"
                 f"  job_dir : {self._job_dir}\n"
-                f"  CWD actuel : {Path.cwd()}\n"
-                f"  Conseil : Vérifiez que le fichier existe ou que base_path est correct."
+                f"  Current dir: {Path.cwd()}\n"
+                f"  Hint: check that the file exists and that base_path is correct."
             )
         if not csv_path.is_file():
             raise ValueError(
-                f"CSVConnector [{self.name}]: La source n'est pas un fichier (peut-être un dossier ?).\n"
-                f"  Chemin : {csv_path}"
+                f"CSVConnector [{self.name}]: the source is not a file (a folder?).\n"
+                f"  Path: {csv_path}"
             )
         return csv_path
 
@@ -791,14 +791,14 @@ class CSVConnector(Connector):
         """
         if key is not None:
             # On refuse explicitement : pas d'upsert en MVP CSV.
-            raise ValueError("CSVConnector: 'key' (upsert) n'est pas supporté pour CSV en MVP.")
+            raise ValueError("CSVConnector: 'key' (upsert) is not supported for CSV.")
 
         if not isinstance(mode, str) or not mode.strip():
-            raise ValueError("CSVConnector: 'mode' doit être un string non vide ('append' ou 'replace').")
+            raise ValueError("CSVConnector: 'mode' must be a non-empty string ('append' or 'replace').")
 
         mode_norm = mode.strip().lower()
         if mode_norm not in {"append", "replace"}:
-            raise ValueError("CSVConnector: mode non supporté. Utilisez 'append' ou 'replace' (MVP).")
+            raise ValueError("CSVConnector: unsupported mode. Use 'append' or 'replace'.")
 
         csv_path = self._resolve_path(table)
 
@@ -807,10 +807,10 @@ class CSVConnector(Connector):
             csv_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             raise ValueError(
-                f"CSVConnector [{self.name}]: Impossible de créer le dossier destination.\n"
-                f"  Chemin cible : {csv_path}\n"
-                f"  Dossier parent : {csv_path.parent}\n"
-                f"  Erreur système : {e}"
+                f"CSVConnector [{self.name}]: cannot create the destination folder.\n"
+                f"  Target path: {csv_path}\n"
+                f"  Parent folder: {csv_path.parent}\n"
+                f"  System error: {e}"
             )
 
         # On prépare un itérateur sur batches (sans consommer tout en mémoire).
@@ -830,7 +830,7 @@ class CSVConnector(Connector):
         # Déduction des colonnes depuis la 1ère ligne du 1er batch.
         first_row: Row = first_batch[0]
         if not isinstance(first_row, dict) or len(first_row) == 0:
-            raise ValueError("CSVConnector: batch invalide (la première ligne doit être un dict non vide).")
+            raise ValueError("CSVConnector: invalid batch (the first row must be a non-empty dict).")
 
         fieldnames = list(first_row.keys())
 
@@ -874,23 +874,23 @@ class CSVConnector(Connector):
         except FileNotFoundError as e:
             # ✅ CORRECTIF ÉTAPE 7 : Message ultra-détaillé
             raise ValueError(
-                f"CSVConnector [{self.name}]: Impossible de créer/ouvrir le fichier destination.\n"
-                f"  Chemin demandé : {table}\n"
-                f"  Chemin résolu : {csv_path}\n"
-                f"  Dossier parent : {csv_path.parent} (existe: {csv_path.parent.exists()})\n"
+                f"CSVConnector [{self.name}]: cannot create/open the destination file.\n"
+                f"  Requested path: {table}\n"
+                f"  Resolved path: {csv_path}\n"
+                f"  Parent folder: {csv_path.parent} (exists: {csv_path.parent.exists()})\n"
                 f"  base_path effectif : {self._settings.base_path}\n"
                 f"  job_dir : {self._job_dir}\n"
-                f"  CWD actuel : {Path.cwd()}\n"
-                f"  Erreur système : {e}\n"
-                f"  Conseil : Le dossier parent devrait être créé automatiquement. "
-                f"Vérifiez les permissions d'écriture."
+                f"  Current dir: {Path.cwd()}\n"
+                f"  System error: {e}\n"
+                f"  Hint: the parent folder is created automatically; "
+                f"check write permissions."
             ) from e
         except Exception as e:
             raise ValueError(
-                f"CSVConnector [{self.name}]: Échec écriture CSV.\n"
-                f"  Chemin : {csv_path}\n"
+                f"CSVConnector [{self.name}]: CSV write failed.\n"
+                f"  Path: {csv_path}\n"
                 f"  Mode : {mode_norm}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
 
     # ---------------------------------------------------------------------
@@ -987,9 +987,9 @@ class CSVConnector(Connector):
             if written:
                 # Des lignes sont déjà écrites : repasser par Python les dupliquerait.
                 raise ValueError(
-                    f"CSVConnector [{self.name}]: Échec écriture CSV.\n"
-                    f"  Chemin : {csv_path}\n"
-                    f"  Erreur : {e.args[0]}"
+                    f"CSVConnector [{self.name}]: CSV write failed.\n"
+                    f"  Path: {csv_path}\n"
+                    f"  Error: {e.args[0]}"
                 ) from e
             from hydra_etl._backend import _t
             warn_once(f"csv.write:{csv_path}:{e.args[0]}",
@@ -1018,7 +1018,7 @@ class CSVConnector(Connector):
 
         for row in batch:
             if not isinstance(row, dict):
-                raise ValueError("CSVConnector: chaque ligne d'un batch doit être un dict.")
+                raise ValueError("CSVConnector: every row of a batch must be a dict.")
 
             # Validation stricte si activée
             if self._settings.strict_schema:
@@ -1028,15 +1028,15 @@ class CSVConnector(Connector):
 
                 if extra:
                     raise ValueError(
-                        f"CSVConnector: colonnes supplémentaires détectées : {sorted(extra)}. "
-                        f"Colonnes attendues : {sorted(fieldnames)}. "
-                        f"Ligne : {row}"
+                        f"CSVConnector: extra columns found: {sorted(extra)}. "
+                        f"Expected columns: {sorted(fieldnames)}. "
+                        f"Row: {row}"
                     )
                 if missing:
                     raise ValueError(
-                        f"CSVConnector: colonnes manquantes détectées : {sorted(missing)}. "
-                        f"Colonnes attendues : {sorted(fieldnames)}. "
-                        f"Ligne : {row}"
+                        f"CSVConnector: missing columns: {sorted(missing)}. "
+                        f"Expected columns: {sorted(fieldnames)}. "
+                        f"Row: {row}"
                     )
 
             # On garantit que toutes les clés attendues existent (sinon cellule vide).

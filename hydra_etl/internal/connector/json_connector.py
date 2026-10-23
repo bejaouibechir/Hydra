@@ -181,12 +181,12 @@ class JSONConnector(Connector):
             if not path.exists():
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"Fichier de test introuvable: {file_path}"
+                    f"test file not found: {file_path}"
                 )
             if not path.is_file():
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"Chemin n'est pas un fichier: {file_path}"
+                    f"path is not a file: {file_path}"
                 )
         # Pas de fichier dans config → connexion OK (sera fourni à extract_batches)
     
@@ -208,8 +208,8 @@ class JSONConnector(Connector):
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} [{self.name}]: "
-            f"Load operation disponible Sprint 5+. "
-            f"Sprint 4 supporte extract uniquement."
+            f"load is not available. "
+            f"only extract is supported."
         )
     
     # ========================================================================
@@ -246,19 +246,19 @@ class JSONConnector(Connector):
         if json_path:
             raise NotImplementedError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"JSONPath filtering disponible Sprint 5+."
+                f"JSONPath filtering is not available yet."
             )
 
         if not isinstance(flatten_depth, int) or not 0 <= flatten_depth <= 3:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'flatten_depth' doit être entre 0 et 3, reçu: {flatten_depth}"
+                f"'flatten_depth' must be between 0 and 3, got: {flatten_depth}"
             )
 
         if not isinstance(batch_size, int) or batch_size < 1:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'batch_size' doit être >= 1, reçu: {batch_size}"
+                f"'batch_size' must be >= 1, got: {batch_size}"
             )
 
         # Résolution du chemin : table > file > config
@@ -267,7 +267,7 @@ class JSONConnector(Connector):
         if not resolved_file:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Chemin de fichier requis (paramètre 'table' ou 'file')."
+                f"file path required ('table' or 'file')."
             )
 
         # Résolution relative via job_dir (comme CSVConnector)
@@ -321,14 +321,14 @@ class JSONConnector(Connector):
         if not file_path.exists():
             raise FileNotFoundError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Fichier introuvable: {file}\n"
-                f"  Chemin absolu: {file_path.absolute()}"
+                f"file not found: {file}\n"
+                f"  Absolute path: {file_path.absolute()}"
             )
         
         if not file_path.is_file():
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Chemin n'est pas un fichier régulier: {file}"
+                f"path is not a regular file: {file}"
             )
         
         # Détection format par extension
@@ -346,8 +346,8 @@ class JSONConnector(Connector):
             # Extension inconnue → tentative JSON standard avec warning
             warnings.warn(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Extension inconnue '{suffix}' pour fichier '{file_path.name}'. "
-                f"Tentative de lecture comme JSON standard.",
+                f"unknown extension '{suffix}' for file '{file_path.name}'. "
+                f"Reading it as standard JSON.",
                 RuntimeWarning
             )
             yield from self._extract_json(file_path, batch_size, flatten_depth)
@@ -384,23 +384,23 @@ class JSONConnector(Connector):
         except json.JSONDecodeError as e:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"JSON invalide dans '{file_path.name}'.\n"
-                f"  Ligne {e.lineno}, colonne {e.colno}: {e.msg}\n"
-                f"  Vérifiez la syntaxe JSON avec un validateur en ligne."
+                f"invalid JSON in '{file_path.name}'.\n"
+                f"  Line {e.lineno}, column {e.colno}: {e.msg}\n"
+                f"  Check the JSON syntax with a validator."
             ) from e
         
         except UnicodeDecodeError as e:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Encodage invalide dans '{file_path.name}'. "
-                f"Le fichier doit être en UTF-8.\n"
-                f"  Erreur: {e}"
+                f"invalid encoding in '{file_path.name}'. "
+                f"The file must be UTF-8.\n"
+                f"  Error: {e}"
             ) from e
         
         except Exception as e:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Erreur lecture '{file_path.name}': {e}"
+                f"read error '{file_path.name}': {e}"
             ) from e
         
         # Normaliser en liste de records
@@ -418,9 +418,9 @@ class JSONConnector(Connector):
         else:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Format JSON non supporté dans '{file_path.name}'. "
-                f"Attendu: dict ou list, reçu: {type(data).__name__}\n"
-                f"  Le fichier doit contenir un objet {{}} ou un array []."
+                f"unsupported JSON layout in '{file_path.name}'. "
+                f"Expected: dict or list, got: {type(data).__name__}\n"
+                f"  The file must contain an object {{}} or an array []."
             )
         
         # Flatten si demandé
@@ -472,9 +472,9 @@ class JSONConnector(Connector):
                     except json.JSONDecodeError as e:
                         raise ValueError(
                             f"{self.__class__.__name__} [{self.name}]: "
-                            f"JSON invalide dans '{file_path.name}' ligne {line_num}.\n"
-                            f"  Erreur: {e.msg}\n"
-                            f"  Ligne: {line[:100]}..."
+                            f"invalid JSON in '{file_path.name}' line {line_num}.\n"
+                            f"  Error: {e.msg}\n"
+                            f"  Line: {line[:100]}..."
                         ) from e
                     
                     batch.append(record)
@@ -495,9 +495,9 @@ class JSONConnector(Connector):
         except UnicodeDecodeError as e:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Encodage invalide dans '{file_path.name}'. "
-                f"Le fichier doit être en UTF-8.\n"
-                f"  Erreur: {e}"
+                f"invalid encoding in '{file_path.name}'. "
+                f"The file must be UTF-8.\n"
+                f"  Error: {e}"
             ) from e
         
         except Exception as e:
@@ -507,7 +507,7 @@ class JSONConnector(Connector):
             
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Erreur lecture '{file_path.name}': {e}"
+                f"read error '{file_path.name}': {e}"
             ) from e
     
     def _flatten_records(
@@ -565,10 +565,10 @@ class JSONConnector(Connector):
             # Flatten échoué → warning + return original (graceful degradation)
             warnings.warn(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Flatten échoué (depth={flatten_depth}). "
-                f"Données retournées non-flatten.\n"
-                f"  Erreur: {type(e).__name__}: {e}\n"
-                f"  Conseil: Vérifiez la structure des données ou réduisez flatten_depth.",
+                f"flatten failed (depth={flatten_depth}). "
+                f"Data returned without flattening.\n"
+                f"  Error: {type(e).__name__}: {e}\n"
+                f"  Hint: check the data structure or lower flatten_depth.",
                 RuntimeWarning
             )
             return records

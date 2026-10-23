@@ -45,9 +45,9 @@ class MySQLMariaDBConnector(BaseDBConnector):
             import mysql.connector  # type: ignore
         except Exception as e:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: driver manquant. "
-                f"Installez-le avec 'pip install \"hydra-etl[mysql]\"'. "
-                f"Erreur: {type(e).__name__}: {e}"
+                f"{self.__class__.__name__} [{self.name}]: driver missing. "
+                f"Install it with 'pip install \"hydra-etl[mysql]\"'. "
+                f"Error: {type(e).__name__}: {e}"
             ) from e
         
         cfg = self._conn_cfg
@@ -61,11 +61,11 @@ class MySQLMariaDBConnector(BaseDBConnector):
         # Validation
         if not user:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'connection.user' requis"
+                f"{self.__class__.__name__} [{self.name}]: 'connection.user' is required"
             )
         if not database:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'connection.database' requis"
+                f"{self.__class__.__name__} [{self.name}]: 'connection.database' is required"
             )
         
         try:
@@ -86,9 +86,9 @@ class MySQLMariaDBConnector(BaseDBConnector):
             return conn
         except Exception as e:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: échec connexion DB.\n"
+                f"{self.__class__.__name__} [{self.name}]: database connection failed.\n"
                 f"  DSN : {self._build_connection_string()}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
     
     def _build_connection_string(self) -> str:
@@ -125,19 +125,19 @@ class MySQLMariaDBConnector(BaseDBConnector):
         if incremental:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"incremental extraction non supporté (reporté)"
+                f"incremental extraction is not supported yet"
             )
         
         if query and table:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'query' et 'table' mutuellement exclusifs"
+                f"'query' and 'table' are mutually exclusive"
             )
         
         if not query and not table:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'query' ou 'table' requis"
+                f"'query' or 'table' is required"
             )
         
         # Construire requête
@@ -193,7 +193,7 @@ class MySQLMariaDBConnector(BaseDBConnector):
         if not isinstance(table, str) or not table.strip():
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'table' doit être un nom non vide"
+                f"'table' must be a non-empty name"
             )
         table = table.strip()
         
@@ -201,8 +201,8 @@ class MySQLMariaDBConnector(BaseDBConnector):
         if mode not in ("append", "replace", "upsert"):
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"mode '{mode}' non supporté. "
-                f"Supportés: append, replace, upsert"
+                f"mode '{mode}' is not supported. "
+                f"Supported: append, replace, upsert"
             )
         
         # Validation upsert → key requis
@@ -260,10 +260,10 @@ class MySQLMariaDBConnector(BaseDBConnector):
                 pass
             
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: échec chargement.\n"
+                f"{self.__class__.__name__} [{self.name}]: load failed.\n"
                 f"  Table : {table}\n"
                 f"  Mode  : {mode}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
         
         finally:
@@ -286,7 +286,7 @@ class MySQLMariaDBConnector(BaseDBConnector):
         if not ident:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"identifiant SQL vide"
+                f"empty SQL identifier"
             )
         
         # Interdire caractères dangereux
@@ -295,7 +295,7 @@ class MySQLMariaDBConnector(BaseDBConnector):
             if x in ident:
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"identifiant SQL invalide: {identifier!r}"
+                    f"invalid SQL identifier: {identifier!r}"
                 )
         
         return f"`{ident}`"
@@ -310,7 +310,7 @@ class MySQLMariaDBConnector(BaseDBConnector):
         if not isinstance(first, dict) or not first:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"batch invalide (première ligne vide ou non dict)"
+                f"invalid batch (first row empty or not a dict)"
             )
         
         cols = list(first.keys())
@@ -320,7 +320,7 @@ class MySQLMariaDBConnector(BaseDBConnector):
         if not cols:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"aucune colonne détectée dans le batch"
+                f"no column found in the batch"
             )
         
         return cols
@@ -352,7 +352,7 @@ class MySQLMariaDBConnector(BaseDBConnector):
             if not isinstance(row, dict):
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"Row invalide (attendu dict), reçu {type(row).__name__}"
+                    f"invalid row (expected dict), got {type(row).__name__}"
                 )
             tup = tuple(row.get(c, None) for c in columns)
             values.append(tup)
@@ -482,7 +482,7 @@ class MySQLMariaDBConnector(BaseDBConnector):
             if not isinstance(row, dict):
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"Row invalide (attendu dict), reçu {type(row).__name__}"
+                    f"invalid row (expected dict), got {type(row).__name__}"
                 )
             tup = tuple(row.get(c, None) for c in columns)
             values.append(tup)

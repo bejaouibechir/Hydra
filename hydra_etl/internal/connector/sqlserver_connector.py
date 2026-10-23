@@ -225,9 +225,9 @@ class SQLServerConnector(BaseDBConnector):
             import pymssql  # type: ignore
         except Exception as e:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: driver manquant. "
-                f"Installez-le avec 'pip install \"hydra-etl[mssql]\"'. "
-                f"Erreur: {type(e).__name__}: {e}"
+                f"{self.__class__.__name__} [{self.name}]: driver missing. "
+                f"Install it with 'pip install \"hydra-etl[mssql]\"'. "
+                f"Error: {type(e).__name__}: {e}"
             ) from e
 
         cfg = self._conn_cfg
@@ -237,11 +237,11 @@ class SQLServerConnector(BaseDBConnector):
 
         if not user:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'connection.user' requis"
+                f"{self.__class__.__name__} [{self.name}]: 'connection.user' is required"
             )
         if not database:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'connection.database' requis"
+                f"{self.__class__.__name__} [{self.name}]: 'connection.database' is required"
             )
 
         server, port = self._resolve_server()
@@ -272,9 +272,9 @@ class SQLServerConnector(BaseDBConnector):
             return pymssql.connect(**kwargs)
         except Exception as e:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: échec connexion DB.\n"
+                f"{self.__class__.__name__} [{self.name}]: database connection failed.\n"
                 f"  DSN : {self._build_connection_string()}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
                 f"{self._named_instance_hint()}"
             ) from e
 
@@ -290,19 +290,19 @@ class SQLServerConnector(BaseDBConnector):
         host, _ = self._split_instance()
         return (
             f"\n"
-            f"  Instance nommée '{instance}' : Hydra a interrogé le service SQL\n"
-            f"  Browser en UDP sur {host}:{_SQL_BROWSER_PORT} et n'a pas obtenu de\n"
-            f"  réponse. Le service est peut-être arrêté, ou le port 1434 filtré par\n"
-            f"  un pare-feu. Deux issues, au choix :\n"
+            f"  Named instance '{instance}': Hydra asked the SQL Server Browser\n"
+            f"  service over UDP on {host}:{_SQL_BROWSER_PORT} and got no answer.\n"
+            f"  The service may be stopped, or port 1434 blocked by a firewall.\n"
+            f"  Two ways out:\n"
             f"\n"
-            f"  1. Démarrer 'SQL Server Browser' dans SQL Server Configuration Manager.\n"
-            f"  2. Indiquer directement le port TCP de l'instance :\n"
+            f"  1. Start 'SQL Server Browser' in SQL Server Configuration Manager.\n"
+            f"  2. Give the instance's TCP port directly:\n"
             f"\n"
             f"      connection:\n"
             f"        host: {host}\n"
-            f"        port: <port de l'instance>\n"
+            f"        port: <instance port>\n"
             f"\n"
-            f"  Pour le trouver, exécutez dans SSMS, connecté à cette instance :\n"
+            f"  To find it, run in SSMS, connected to this instance:\n"
             f"      SELECT local_tcp_port FROM sys.dm_exec_connections\n"
             f"      WHERE session_id = @@SPID;"
         )
@@ -329,14 +329,14 @@ class SQLServerConnector(BaseDBConnector):
         ident = (name or "").strip()
         if not ident:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: identifiant vide."
+                f"{self.__class__.__name__} [{self.name}]: empty identifier."
             )
         if not _IDENTIFIER_RE.match(ident):
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"identifiant invalide '{name}'. "
-                f"Utilisez uniquement [A-Za-z0-9_] et commencez par une lettre "
-                f"ou un underscore."
+                f"invalid identifier '{name}'. "
+                f"Use only [A-Za-z0-9_] and start with a letter "
+                f"or an underscore."
             )
         return ident
 
@@ -370,17 +370,17 @@ class SQLServerConnector(BaseDBConnector):
         if incremental:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"incremental extraction non supporté (reporté)"
+                f"incremental extraction is not supported yet"
             )
         if query and table:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'query' et 'table' mutuellement exclusifs"
+                f"'query' and 'table' are mutually exclusive"
             )
         if not query and not table:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'query' ou 'table' requis"
+                f"'query' or 'table' is required"
             )
 
         if query:
@@ -422,14 +422,14 @@ class SQLServerConnector(BaseDBConnector):
         if not isinstance(table, str) or not table.strip():
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"'table' doit être un nom non vide"
+                f"'table' must be a non-empty name"
             )
         table = table.strip()
 
         if mode not in ("append", "replace", "upsert"):
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"mode '{mode}' non supporté. Supportés: append, replace, upsert"
+                f"mode '{mode}' is not supported. Supported: append, replace, upsert"
             )
 
         if mode == "upsert":
@@ -493,10 +493,10 @@ class SQLServerConnector(BaseDBConnector):
             except Exception:
                 pass
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: échec chargement.\n"
+                f"{self.__class__.__name__} [{self.name}]: load failed.\n"
                 f"  Table : {table}\n"
                 f"  Mode  : {mode}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
         finally:
             try:
@@ -517,13 +517,13 @@ class SQLServerConnector(BaseDBConnector):
         if not isinstance(first, dict) or not first:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"batch invalide (première ligne vide ou non dict)"
+                f"invalid batch (first row empty or not a dict)"
             )
         cols = [c.strip() for c in first.keys() if isinstance(c, str) and c.strip()]
         if not cols:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"aucune colonne détectée dans le batch"
+                f"no column found in the batch"
             )
         return cols
 
@@ -574,7 +574,7 @@ class SQLServerConnector(BaseDBConnector):
             if not isinstance(row, dict):
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"Row invalide (attendu dict), reçu {type(row).__name__}"
+                    f"invalid row (expected dict), got {type(row).__name__}"
                 )
             values.append(tuple(row.get(c, None) for c in order))
         return values

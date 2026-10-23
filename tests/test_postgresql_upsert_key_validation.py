@@ -83,7 +83,7 @@ def test_contrainte_unique_est_acceptee():
 def test_aucune_contrainte_leve_une_erreur_explicite():
     with pytest.raises(ValueError) as excinfo:
         _validate([], ["record_id"])
-    assert "aucune contrainte" in str(excinfo.value).lower()
+    assert "no primary key/unique constraint" in str(excinfo.value).lower()
 
 
 def test_cle_sans_contrainte_correspondante_nomme_les_contraintes_disponibles():

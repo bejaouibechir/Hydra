@@ -115,9 +115,9 @@ class PostgreSQLConnector(BaseDBConnector):
             import psycopg2.extras  # type: ignore
         except ImportError as e:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: driver manquant. "
-                f"Installez-le avec 'pip install \"hydra-etl[postgres]\"'. "
-                f"Erreur: {e}"
+                f"{self.__class__.__name__} [{self.name}]: driver missing. "
+                f"Install it with 'pip install \"hydra-etl[postgres]\"'. "
+                f"Error: {e}"
             ) from e
         
         cfg = self._conn_cfg
@@ -131,11 +131,11 @@ class PostgreSQLConnector(BaseDBConnector):
         # Validation
         if not user:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'connection.user' est requis."
+                f"{self.__class__.__name__} [{self.name}]: 'connection.user' is required."
             )
         if not database:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'connection.database' est requis."
+                f"{self.__class__.__name__} [{self.name}]: 'connection.database' is required."
             )
         
         try:
@@ -153,9 +153,9 @@ class PostgreSQLConnector(BaseDBConnector):
             return conn
         except Exception as e:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: échec connexion DB.\n"
+                f"{self.__class__.__name__} [{self.name}]: database connection failed.\n"
                 f"  DSN : {self._build_connection_string()}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
     
     def _build_connection_string(self) -> str:
@@ -213,18 +213,18 @@ class PostgreSQLConnector(BaseDBConnector):
         """
         if incremental:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'incremental' non supporté Sprint 2."
+                f"{self.__class__.__name__} [{self.name}]: 'incremental' is not supported yet."
             )
         
         if not query and not table:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"fournir 'query' ou 'table' pour extract_batches."
+                f"'query' or 'table' is required to extract."
             )
         
         if not isinstance(batch_size, int) or batch_size < 1:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'batch_size' doit être >= 1."
+                f"{self.__class__.__name__} [{self.name}]: 'batch_size' must be >= 1."
             )
         
         conn = self._connect()
@@ -263,9 +263,9 @@ class PostgreSQLConnector(BaseDBConnector):
         
         except Exception as e:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: échec extraction.\n"
+                f"{self.__class__.__name__} [{self.name}]: extraction failed.\n"
                 f"  Table/Query : {table or query[:50]}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
         finally:
             try:
@@ -341,7 +341,7 @@ class PostgreSQLConnector(BaseDBConnector):
         # Validation
         if not isinstance(table, str) or not table.strip():
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: 'table' doit être un nom non vide."
+                f"{self.__class__.__name__} [{self.name}]: 'table' must be a non-empty name."
             )
         
         table = table.strip()
@@ -349,15 +349,15 @@ class PostgreSQLConnector(BaseDBConnector):
         
         if mode not in ("append", "replace", "upsert"):
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: mode '{mode}' non supporté. "
-                f"Supportés: append, replace, upsert."
+                f"{self.__class__.__name__} [{self.name}]: mode '{mode}' is not supported. "
+                f"Supported: append, replace, upsert."
             )
         
         if mode == "upsert":
             if not key or not all(isinstance(k, str) and k.strip() for k in key):
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"mode=upsert exige 'key' (liste de colonnes non vides)."
+                    f"mode=upsert requires 'key' (a non-empty list of columns)."
                 )
             # Nettoyer key
             key = [k.strip() for k in key]
@@ -412,7 +412,7 @@ class PostgreSQLConnector(BaseDBConnector):
                         if overlap:
                             raise ValueError(
                                 f"{self.__class__.__name__} [{self.name}]: "
-                                f"update_columns ne peut pas contenir des colonnes key: {overlap}"
+                                f"update_columns cannot contain key columns: {overlap}"
                             )
                 
                 # Construire SQL selon mode
@@ -441,10 +441,10 @@ class PostgreSQLConnector(BaseDBConnector):
                 except Exception as e:
                     conn.rollback()  # ✅ ROLLBACK batch entier
                     raise ValueError(
-                        f"{self.__class__.__name__} [{self.name}]: échec chargement batch.\n"
+                        f"{self.__class__.__name__} [{self.name}]: batch load failed.\n"
                         f"  Table : {schema}.{table_name}\n"
                         f"  Mode  : {mode}\n"
-                        f"  Erreur : {type(e).__name__}: {e}"
+                        f"  Error: {type(e).__name__}: {e}"
                     ) from e
             
             cursor.close()
@@ -459,10 +459,10 @@ class PostgreSQLConnector(BaseDBConnector):
             # Si erreur pas encore ValueError, wrapper
             if not isinstance(e, ValueError):
                 raise ValueError(
-                    f"{self.__class__.__name__} [{self.name}]: échec chargement.\n"
+                    f"{self.__class__.__name__} [{self.name}]: load failed.\n"
                     f"  Table : {schema}.{table_name}\n"
                     f"  Mode  : {mode}\n"
-                    f"  Erreur : {type(e).__name__}: {e}"
+                    f"  Error: {type(e).__name__}: {e}"
                 ) from e
             else:
                 raise
@@ -517,15 +517,15 @@ class PostgreSQLConnector(BaseDBConnector):
         name = name.strip()
         if not name:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: identifiant vide."
+                f"{self.__class__.__name__} [{self.name}]: empty identifier."
             )
         
         # Pattern: lettres, chiffres, underscore. Commence par lettre ou underscore.
         if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"identifiant invalide '{name}'. "
-                f"Utilisez uniquement [a-zA-Z0-9_] et commencez par lettre/underscore."
+                f"invalid identifier '{name}'. "
+                f"Use only [a-zA-Z0-9_] and start with a letter or an underscore."
             )
         
         return name
@@ -567,14 +567,14 @@ class PostgreSQLConnector(BaseDBConnector):
         """
         if not batch:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: batch vide."
+                f"{self.__class__.__name__} [{self.name}]: empty batch."
             )
         
         first = batch[0]
         if not isinstance(first, dict) or not first:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"première ligne du batch invalide (attendu dict non vide)."
+                f"invalid first row in the batch (expected a non-empty dict)."
             )
         
         cols = list(first.keys())
@@ -584,7 +584,7 @@ class PostgreSQLConnector(BaseDBConnector):
         if not cols:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"aucune colonne détectée dans le batch."
+                f"no column found in the batch."
             )
         
         return cols
@@ -654,7 +654,7 @@ class PostgreSQLConnector(BaseDBConnector):
             if not isinstance(row, dict):
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"row invalide (attendu dict), reçu {type(row).__name__}."
+                    f"invalid row (expected dict), got {type(row).__name__}."
                 )
             tup = tuple(row.get(c, None) for c in columns)
             values.append(tup)
@@ -736,7 +736,7 @@ DO UPDATE SET {update_pairs}
             if not isinstance(row, dict):
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
-                    f"row invalide (attendu dict), reçu {type(row).__name__}."
+                    f"invalid row (expected dict), got {type(row).__name__}."
                 )
             tup = tuple(row.get(c, None) for c in columns)
             values.append(tup)
@@ -826,8 +826,8 @@ DO NOTHING
         if not constraints:
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
-                f"Upsert impossible: aucune contrainte PRIMARY KEY/UNIQUE sur {schema}.{table}.\n"
-                f"Action requise:\n"
+                f"upsert impossible: no PRIMARY KEY/UNIQUE constraint on {schema}.{table}.\n"
+                f"Action required:\n"
                 f"  CREATE UNIQUE INDEX idx_{table}_{'_'.join(key)} ON {schema}.{table}({', '.join(key)});"
             )
         
@@ -846,8 +846,8 @@ DO NOTHING
         )
         raise ValueError(
             f"{self.__class__.__name__} [{self.name}]: "
-            f"Aucune contrainte PRIMARY KEY/UNIQUE ne correspond a key={list(key)}.\n"
-            f"Contraintes disponibles sur {schema}.{table}: {available}\n"
-            f"Action requise: CREATE UNIQUE INDEX idx_{table}_{'_'.join(key)} "
+            f"no PRIMARY KEY/UNIQUE constraint matches key={list(key)}.\n"
+            f"Constraints available on {schema}.{table}: {available}\n"
+            f"Action required: CREATE UNIQUE INDEX idx_{table}_{'_'.join(key)} "
             f"ON {schema}.{table}({', '.join(key)});"
         )

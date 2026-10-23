@@ -298,12 +298,12 @@ def test_validate_upsert_params_rejects_blank_key_name(conn):
 
 
 def test_load_rejects_an_unknown_mode(conn):
-    with pytest.raises(ValueError, match="non supporté"):
+    with pytest.raises(ValueError, match="not supported"):
         conn.load_batches([], table="t", mode="merge")
 
 
 def test_load_rejects_an_empty_table_name(conn):
-    with pytest.raises(ValueError, match="non vide"):
+    with pytest.raises(ValueError, match="non-empty"):
         conn.load_batches([], table="   ", mode="append")
 
 
@@ -434,12 +434,12 @@ def test_valid_identifiers_are_accepted(conn):
 # ============================================================
 
 def test_extract_rejects_query_and_table_together(conn):
-    with pytest.raises(ValueError, match="mutuellement exclusifs"):
+    with pytest.raises(ValueError, match="mutually exclusive"):
         list(conn.extract_batches(query="SELECT 1", table="t"))
 
 
 def test_extract_requires_query_or_table(conn):
-    with pytest.raises(ValueError, match="requis"):
+    with pytest.raises(ValueError, match="required"):
         list(conn.extract_batches())
 
 
@@ -586,7 +586,7 @@ def test_create_table_is_skipped_when_disabled(monkeypatch):
 
 def test_connection_is_closed_on_failure(traced):
     c, log = traced
-    with pytest.raises(ValueError, match="échec chargement"):
+    with pytest.raises(ValueError, match="load failed"):
         # 'extra' n'est pas dans les colonnes de cle : l'upsert doit echouer.
         c.load_batches([[{"id": 1}]], table="t", mode="upsert", key=["absent"])
     assert "rollback" in _verbs(log)

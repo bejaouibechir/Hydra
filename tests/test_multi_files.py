@@ -126,14 +126,14 @@ def test_motif_avec_extract_batches(tmp_path: Path):
 def test_entetes_differentes_refusees(tmp_path: Path):
     _fichiers(tmp_path, 2)
     pd.DataFrame({"a": [1], "z": ["autre"]}).to_csv(tmp_path / "part09.csv", index=False)
-    with pytest.raises(ValueError, match="en-tetes differentes"):
+    with pytest.raises(ValueError, match="headers differ"):
         list(_conn(tmp_path).extract_frames(table=str(tmp_path / "part*.csv"), batch_size=10))
     with pytest.raises(ValueError, match="part09.csv"):
         list(_conn(tmp_path).extract_batches(table=str(tmp_path / "part*.csv"), batch_size=10))
 
 
 def test_motif_sans_correspondance(tmp_path: Path):
-    with pytest.raises(ValueError, match="aucun fichier ne correspond au motif"):
+    with pytest.raises(ValueError, match="no file matches the pattern"):
         list(_conn(tmp_path).extract_frames(table=str(tmp_path / "rien*.csv"), batch_size=10))
 
 

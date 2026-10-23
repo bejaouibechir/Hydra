@@ -39,7 +39,7 @@ class BaseDBConnector(Connector):
         # On extrait la section connection (le parser doit la garantir, mais on reste safe).
         connection = config.get("connection")
         if not isinstance(connection, dict):
-            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'connection' doit être un objet (dict).")
+            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'connection' must be a mapping (dict).")
 
         # On conserve une copie défensive.
         self._conn_cfg: Dict[str, Any] = dict(connection)
@@ -97,9 +97,9 @@ class BaseDBConnector(Connector):
         except Exception as e:
             dsn = self._build_connection_string()
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: échec test_connection.\n"
+                f"{self.__class__.__name__} [{self.name}]: connection test failed.\n"
                 f"  DSN : {dsn}\n"
-                f"  Erreur : {type(e).__name__}: {e}"
+                f"  Error: {type(e).__name__}: {e}"
             ) from e
 
     def _execute_query_batches(
@@ -118,9 +118,9 @@ class BaseDBConnector(Connector):
         - Le batch_size est best-effort mais doit rester >= 1.
         """
         if not isinstance(query, str) or not query.strip():
-            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'query' doit être un SQL non vide.")
+            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'query' must be a non-empty SQL string.")
         if not isinstance(batch_size, int) or batch_size < 1:
-            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'batch_size' doit être un entier >= 1.")
+            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'batch_size' must be an integer >= 1.")
 
         cur = conn.cursor()
         try:
@@ -161,7 +161,7 @@ class BaseDBConnector(Connector):
         - Lit cursor.description
         """
         if not isinstance(table, str) or not table.strip():
-            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'table' doit être un nom non vide.")
+            raise ValueError(f"{self.__class__.__name__} [{self.name}]: 'table' must be a non-empty name.")
 
         query = self._build_columns_query(table.strip())
 

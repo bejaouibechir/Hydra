@@ -90,7 +90,7 @@ def test_extract_batches_rejects_missing_file() -> None:
     csv_path = _fixtures_dir() / "does_not_exist.csv"
     c = CSVConnector(name="csv_src", config={})
 
-    with pytest.raises(ValueError, match="introuvable"):
+    with pytest.raises(ValueError, match="not found"):
         _ = list(c.extract_batches(table=str(csv_path), batch_size=2))
 
 
@@ -253,7 +253,7 @@ def test_load_batches_strict_schema_detects_extra_columns(tmp_path: Path) -> Non
         [{"id": "2", "name": "Bob", "age": "30"}],  # Colonne 'age' en trop !
     ]
 
-    with pytest.raises(ValueError, match="colonnes supplémentaires"):
+    with pytest.raises(ValueError, match="extra columns"):
         c.load_batches(batches=batches, table=str(out_csv), mode="replace")
 
 
@@ -271,7 +271,7 @@ def test_load_batches_strict_schema_detects_missing_columns(tmp_path: Path) -> N
         [{"id": "2", "name": "Bob"}],  # Colonne 'active' manquante !
     ]
 
-    with pytest.raises(ValueError, match="colonnes manquantes"):
+    with pytest.raises(ValueError, match="missing columns"):
         c.load_batches(batches=batches, table=str(out_csv), mode="replace")
 
 
@@ -386,7 +386,7 @@ def test_extract_batches_empty_file(tmp_path: Path) -> None:
     c = CSVConnector(name="csv_src", config={})
 
     # Doit lever ValueError car pas d'en-tête
-    with pytest.raises(ValueError, match="en-tête CSV manquante ou vide"):
+    with pytest.raises(ValueError, match="CSV header missing or empty"):
         _ = list(c.extract_batches(table=str(empty_csv), batch_size=10))
 
 

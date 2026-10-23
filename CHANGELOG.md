@@ -29,6 +29,13 @@ and versions follow [Semantic Versioning](https://semver.org/).
   workflow before starting: a broken `pipeline.from` no longer passes as
   "the project is valid".
 
+### Changed
+
+- Connector error and log messages are in English (CSV, JSON, Parquet,
+  PostgreSQL, MySQL/MariaDB, SQL Server), like the rest of the CLI. Example:
+  `CSVConnector [src]: source file not found.` instead of
+  `Fichier source introuvable.`
+
 ## [0.12.2] — 2026-10-22
 
 ### Added

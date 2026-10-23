@@ -87,9 +87,9 @@ class ParquetConnector(Connector):
         super().__init__(name, config)
         self._job_dir = job_dir or config.get("job_dir")
         if not self._job_dir:
-            raise ValueError(f"ParquetConnector [{self.name}]: 'job_dir' requis.")
+            raise ValueError(f"ParquetConnector [{self.name}]: 'job_dir' is required.")
         if not os.path.isdir(self._job_dir):
-            raise ValueError(f"ParquetConnector [{self.name}]: job_dir '{self._job_dir}' inexistant.")
+            raise ValueError(f"ParquetConnector [{self.name}]: job_dir '{self._job_dir}' does not exist.")
         self._projection: Optional[set] = None
 
     def estimate_row_bytes(self, table: Optional[str]) -> Optional[float]:
@@ -133,13 +133,13 @@ class ParquetConnector(Connector):
 
     def test_connection(self) -> None:
         if not os.path.isdir(self._job_dir):
-            raise ValueError(f"ParquetConnector [{self.name}]: job_dir inaccessible.")
+            raise ValueError(f"ParquetConnector [{self.name}]: job_dir is not accessible.")
         extract_cfg = self.config.get("extract", {})
         file_path = extract_cfg.get("file") or extract_cfg.get("table")
         if file_path:
             resolved = self._resolve_path(file_path)
             if not os.path.isfile(resolved):
-                raise ValueError(f"ParquetConnector [{self.name}]: fichier '{resolved}' introuvable.")
+                raise ValueError(f"ParquetConnector [{self.name}]: file '{resolved}' not found.")
 
     def extract_batches(
         self,
@@ -156,10 +156,10 @@ class ParquetConnector(Connector):
             or self.config.get("extract", {}).get("table")
         )
         if not file_path:
-            raise ValueError(f"ParquetConnector [{self.name}]: fichier source manquant.")
+            raise ValueError(f"ParquetConnector [{self.name}]: source file missing.")
         resolved_path = self._resolve_path(file_path)
         if not os.path.isfile(resolved_path):
-            raise ValueError(f"ParquetConnector [{self.name}]: fichier '{resolved_path}' introuvable.")
+            raise ValueError(f"ParquetConnector [{self.name}]: file '{resolved_path}' not found.")
         for record_batch in self._iter_record_batches(table, batch_size):
             batch = record_batch.to_pandas().to_dict(orient="records")
             if batch:
@@ -192,10 +192,10 @@ class ParquetConnector(Connector):
             or self.config.get("extract", {}).get("table")
         )
         if not file_path:
-            raise ValueError(f"ParquetConnector [{self.name}]: fichier source manquant.")
+            raise ValueError(f"ParquetConnector [{self.name}]: source file missing.")
         resolved_path = self._resolve_path(file_path)
         if not os.path.isfile(resolved_path):
-            raise ValueError(f"ParquetConnector [{self.name}]: fichier '{resolved_path}' introuvable.")
+            raise ValueError(f"ParquetConnector [{self.name}]: file '{resolved_path}' not found.")
         try:
             parquet_file = pq.ParquetFile(resolved_path)
             columns = self._projected_columns(parquet_file)
@@ -205,7 +205,7 @@ class ParquetConnector(Connector):
             raise
         except Exception as e:
             raise ValueError(
-                f"ParquetConnector [{self.name}]: echec lecture Parquet. {type(e).__name__}: {e}"
+                f"ParquetConnector [{self.name}]: Parquet read failed. {type(e).__name__}: {e}"
             ) from e
 
     def _projected_columns(self, parquet_file) -> Optional[List[str]]:
@@ -232,10 +232,10 @@ class ParquetConnector(Connector):
         _require_pyarrow()
         mode_norm = mode.strip().lower()
         if mode_norm not in {"append", "replace"}:
-            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' invalide.")
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' is invalid.")
         comp_norm = compression.strip().lower()
         if comp_norm not in self.VALID_COMPRESSIONS:
-            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' invalide.")
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' is invalid.")
         compression_arg = None if comp_norm == "none" else comp_norm
 
         resolved_path = self._resolve_path(table)
@@ -251,7 +251,7 @@ class ParquetConnector(Connector):
         if recopier:
             existant = pq.ParquetFile(resolved_path)
             if set(existant.schema_arrow.names) != set(tables[0].schema.names):
-                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible pour append.")
+                raise ValueError(f"ParquetConnector [{self.name}]: schema incompatible with append.")
 
         cible = Path(resolved_path)
         temporaire = cible.with_name(cible.name + ".hydra-tmp")
@@ -276,7 +276,7 @@ class ParquetConnector(Connector):
                         t = t.cast(schema)
                     except Exception as e:
                         raise ValueError(
-                            f"ParquetConnector [{self.name}]: schema incompatible entre lots. {e}"
+                            f"ParquetConnector [{self.name}]: schema incompatible between batches. {e}"
                         ) from None
                 writer.write_table(t)
             writer.close()
@@ -288,7 +288,7 @@ class ParquetConnector(Connector):
         except Exception as e:
             self._nettoyer(writer, temporaire)
             raise ValueError(
-                f"ParquetConnector [{self.name}]: echec ecriture Parquet. {type(e).__name__}: {e}"
+                f"ParquetConnector [{self.name}]: Parquet write failed. {type(e).__name__}: {e}"
             ) from e
 
     @staticmethod

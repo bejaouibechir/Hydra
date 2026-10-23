@@ -90,7 +90,7 @@ def test_init_job_dir_not_exists(temp_job_dir):
     with pytest.raises(ValueError) as exc:
         ParquetConnector(name="test", config=config)
     
-    assert "n'existe pas" in str(exc.value).lower()
+    assert "does not exist" in str(exc.value).lower()
 
 
 # ============================================================
@@ -138,7 +138,7 @@ def test_connection_file_missing(temp_job_dir):
     with pytest.raises(ValueError) as exc:
         conn.test_connection()
     
-    assert "introuvable" in str(exc.value).lower()
+    assert "not found" in str(exc.value).lower()
 
 
 # ============================================================
@@ -209,7 +209,7 @@ def test_extract_batches_file_not_exists(temp_job_dir):
     with pytest.raises(ValueError) as exc:
         list(conn.extract_batches())
     
-    assert "introuvable" in str(exc.value).lower()
+    assert "not found" in str(exc.value).lower()
 
 
 def test_extract_batches_no_file_specified(temp_job_dir):
@@ -220,7 +220,7 @@ def test_extract_batches_no_file_specified(temp_job_dir):
     with pytest.raises(ValueError) as exc:
         list(conn.extract_batches())
     
-    assert "manquant" in str(exc.value).lower()
+    assert "missing" in str(exc.value).lower()
 
 
 # ============================================================
@@ -300,7 +300,7 @@ def test_load_batches_append_schema_mismatch(temp_job_dir):
     with pytest.raises(ValueError) as exc:
         conn.load_batches(batch2, table="output.parquet", mode="append")
     
-    assert "schéma incompatible" in str(exc.value).lower()
+    assert "schema incompatible" in str(exc.value).lower()
 
 
 # ============================================================
@@ -336,7 +336,7 @@ def test_load_batches_invalid_compression(temp_job_dir):
         conn.load_batches(batches, table="output.parquet", mode="replace", compression="invalid")
     
     assert "compression" in str(exc.value).lower()
-    assert "invalide" in str(exc.value).lower()
+    assert "invalid" in str(exc.value).lower()
 
 
 # ============================================================
@@ -354,7 +354,7 @@ def test_load_batches_invalid_mode(temp_job_dir):
         conn.load_batches(batches, table="output.parquet", mode="upsert")
     
     assert "mode" in str(exc.value).lower()
-    assert "invalide" in str(exc.value).lower()
+    assert "invalid" in str(exc.value).lower()
 
 
 # ============================================================

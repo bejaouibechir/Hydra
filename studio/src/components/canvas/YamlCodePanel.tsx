@@ -7,6 +7,7 @@
  * Mode 'workflow' → éditeur monolithique (inchangé)
  */
 import { useEffect, useRef, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react'
+import { loadSettings } from '@/pages/Settings'
 import type { Node, Edge } from '@xyflow/react'
 import CodeMirror from '@uiw/react-codemirror'
 import { yaml } from '@codemirror/lang-yaml'
@@ -148,25 +149,34 @@ function buildSkeleton(
 
 // ── IconBtn ────────────────────────────────────────────────────────────────────
 import React from 'react'
-/** Bouton d'en-tête : prêt = foncé et cerné ; occupé / indisponible = gris.
- *  (Les icônes grises sur fond clair donnaient l'impression d'être désactivées.) */
-function IconBtn({ title, onClick, active, disabled = false, children, testId }: {
-  title: string; onClick: () => void; active: boolean; disabled?: boolean
+/**
+ * Bouton d'en-tête, trois états visibles (demande de Bechir, 23/10) :
+ *  - ready       : prêt au clic — icône et bordure foncées ; couleur principale au survol ;
+ *  - busy        : action en cours — couleur principale, icône qui tourne, non cliquable ;
+ *  - unavailable : pas prêt (rien à faire) — gris, non cliquable.
+ */
+type BtnState = 'ready' | 'busy' | 'unavailable'
+
+function IconBtn({ title, onClick, state = 'ready', active = false, children, testId }: {
+  title: string; onClick: () => void; state?: BtnState; active?: boolean
   children: React.ReactNode; testId?: string
 }) {
   const [hover, setHover] = useState(false)
+  const ready = state === 'ready'
+  const lit   = state === 'busy' || active || (ready && hover)
   return (
-    <button type="button" title={title} aria-label={title} onClick={onClick} disabled={disabled}
-      data-testid={testId}
+    <button type="button" title={title} aria-label={title} onClick={onClick} disabled={!ready}
+      data-testid={testId} data-state={state}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         width: 26, height: 26, borderRadius: 6, marginLeft: 4,
-        border: `1px solid ${disabled ? 'var(--bg-border)' : active || hover ? 'var(--primary)' : 'var(--text-secondary)'}`,
-        background: disabled ? 'transparent' : active ? 'var(--primary-subtle)' : hover ? 'var(--primary-subtle)' : 'var(--bg-input)',
-        color: disabled ? 'var(--text-muted)' : active || hover ? 'var(--primary)' : 'var(--text-primary)',
-        opacity: disabled ? 0.45 : 1,
-        cursor: disabled ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+        border: `1.5px solid ${state === 'unavailable' ? 'var(--bg-border)' : lit ? 'var(--primary)' : 'var(--text-primary)'}`,
+        background: state === 'unavailable' ? 'transparent' : lit ? 'var(--primary-subtle)' : 'var(--bg-card)',
+        color: state === 'unavailable' ? 'var(--text-muted)' : lit ? 'var(--primary)' : 'var(--text-primary)',
+        opacity: state === 'unavailable' ? 0.5 : 1,
+        cursor: state === 'busy' ? 'progress' : ready ? 'pointer' : 'not-allowed',
+        transition: 'all 0.15s',
       }}>
       {children}
     </button>
@@ -402,6 +412,12 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
           </span>
         )}
         <div style={{ flex: 1 }} />
+        {isJobMode && onSync && !syncInfo && (
+          <span data-testid="dsl-sync-info" style={{ fontSize: 10, fontFamily: 'monospace', marginRight: 4, color: 'var(--text-secondary)' }}
+            title="Interval set in Settings">
+            {(() => { const n = loadSettings().disk_sync_interval; return n > 0 ? `auto-sync every ${n}s` : 'auto-sync off' })()}
+          </span>
+        )}
         {isJobMode && syncInfo && (
           <span data-testid="dsl-sync-info" title={new Date(syncInfo.at).toLocaleTimeString()}
             style={{
@@ -417,15 +433,16 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
               : isJobMode && onSync
                 ? 'Sync with disk (jobs/<name>/*.yaml): the latest change wins, in Studio or outside'
                 : 'Regenerate the YAML from the canvas'}
-            disabled={syncBusy}
-            onClick={isJobMode && onSync ? onSync : handleResync} active={false}>
+            state={syncBusy ? 'busy' : isJobMode && !onSync ? 'unavailable' : 'ready'} testId="dsl-sync-btn"
+            onClick={isJobMode && onSync ? onSync : handleResync}>
             <RefreshCw size={13} className={syncBusy ? 'animate-spin' : undefined} />
           </IconBtn>
         </span>
-        <IconBtn title={`Copy ${isJobMode ? activeTab : 'YAML'}`} onClick={handleCopy} active={copied}>
+        <IconBtn title={`Copy ${isJobMode ? activeTab : 'YAML'}`} onClick={handleCopy} active={copied}
+          state={(isJobMode ? sections[activeTab] : yamlText)?.trim() ? 'ready' : 'unavailable'} testId="dsl-copy-btn">
           {copied ? <Check size={13} /> : <Copy size={13} />}
         </IconBtn>
-        <IconBtn title="Close" onClick={onClose} active={false}><X size={13} /></IconBtn>
+        <IconBtn title="Close" onClick={onClose} testId="dsl-close-btn"><X size={13} /></IconBtn>
       </div>
 
       {/* ── Onglets (mode job uniquement) ── */}

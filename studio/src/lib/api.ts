@@ -143,7 +143,7 @@ export interface SecretsInfo {
 // ── Projects ─────────────────────────────────────────────────────────────────
 
 export const api = {
-  health: () => get<{ message: string }>('/health'),
+  health: () => get<{ message: string; version?: string; studio_build?: string }>('/health'),
 
   projects: {
     list: ()                                  => get<Project[]>('/projects'),

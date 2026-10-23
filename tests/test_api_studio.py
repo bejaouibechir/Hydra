@@ -98,6 +98,15 @@ class TestBundlePresent:
         for url in ("/", "/workflows/abc123"):
             assert "no-cache" in client.get(url).headers.get("cache-control", "")
 
+    def test_health_names_the_served_build(self, bundled):
+        """/api/health annonce le script du build servi : un onglet resté sur un
+        ancien build le compare au sien et propose de recharger."""
+        client, _ = bundled
+        (studio_mod.STUDIO_DIST / "index.html").write_text(
+            INDEX_HTML.replace("</head>", '<script type="module" src="/assets/index-AbC123.js"></script></head>'),
+            encoding="utf-8")
+        assert client.get("/api/health").json()["studio_build"] == "index-AbC123.js"
+
     def test_static_asset_is_served(self, bundled):
         client, _ = bundled
         response = client.get("/assets/app.js")

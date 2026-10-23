@@ -18,7 +18,7 @@ _TEMPLATES = [
     TemplateResponse(
         id="csv_to_csv",
         name="CSV → CSV",
-        description="Lit un fichier CSV, applique une transformation, écrit un CSV.",
+        description="Reads a CSV file, applies a transformation, writes a CSV file.",
         category="ETL",
         yaml_content="""version: "1.0"
 workflow:
@@ -38,7 +38,7 @@ workflow:
     TemplateResponse(
         id="api_to_db",
         name="API → Database",
-        description="Récupère des données depuis une API REST et les charge en base.",
+        description="Fetches data from a REST API and loads it into a database.",
         category="ETL",
         yaml_content="""version: "1.0"
 workflow:
@@ -65,8 +65,8 @@ workflow:
     ),
     TemplateResponse(
         id="parallel_etl",
-        name="ETL Parallèle",
-        description="Deux extractions en parallèle, merge, puis chargement.",
+        name="Parallel ETL",
+        description="Two extractions run in parallel, then a load that waits for both.",
         category="ETL",
         yaml_content="""version: "1.0"
 workflow:

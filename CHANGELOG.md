@@ -31,10 +31,16 @@ and versions follow [Semantic Versioning](https://semver.org/).
   - Every manual sync, and every automatic sync that changes something, also
     posts a notification. The sync button spins while it works.
 - Studio: the buttons of the **Hydra DSL** panel header (sync, copy, close)
-  look clickable: bordered and dark when ready, grey while busy. They were
-  light grey icons that looked disabled.
+  show three states: **ready** (dark icon and border; main colour on hover),
+  **busy** (main colour, spinning icon, not clickable) and **unavailable**
+  (grey, not clickable — e.g. copy with nothing to copy). They were light grey
+  icons that looked disabled. The panel header shows the automatic sync
+  interval (`auto-sync every 5s` / `auto-sync off`) until the first result.
 - `hdrctl serve`: `index.html` is sent with `Cache-Control: no-cache`, so the
   browser loads the new Studio after an update instead of a cached one.
+  `/api/health` returns `studio_build` (the Studio script served); a tab still
+  running an older build shows **New Studio version — reload**.
+- Studio **Templates**: names and descriptions in English (they were in French).
 - `hdrctl validate`: the total counts every error shown. It printed
   "0 error(s) detected" when the only errors were in `pipeline.yaml` (broken
   `pipeline.from` / `to`), in strict checks or a missing file.

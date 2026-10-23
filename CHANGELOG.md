@@ -5,6 +5,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/).
 
 
+## [Unreleased]
+
+### Fixed
+
+- Studio: a job rebuilt from its YAML files and saved again no longer loses
+  what the canvas does not edit. `batch_size` was reset to 1000, fields such as
+  `delimiter` or `encoding` were dropped, and source/destination keys were
+  renamed (`src_csv` → `source_csv__csv`), changing `pipeline.from`/`to`.
+- Studio: the **Hydra DSL** panel of a job has a **Reload from disk** button
+  (re-reads `jobs/<name>/*.yaml` and rebuilds the canvas). Its other button,
+  which only regenerated the YAML from the canvas and looked like a resync, is
+  now labelled as such.
+
 ## [0.12.2] — 2026-10-22
 
 ### Added

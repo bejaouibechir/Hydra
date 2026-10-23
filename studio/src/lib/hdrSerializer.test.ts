@@ -237,3 +237,51 @@ describe('hdrSerializer — import YAML ecrit a la main (job1)', () => {
     expect(dst.load.mode).toBe('replace')
   })
 })
+
+/**
+ * Disque → canvas → disque (Resync from YAML, puis écriture par Studio).
+ * Le canvas ne connaît pas tous les champs : ceux qu'il ignore (batch_size,
+ * delimiter, encoding…) et les noms de clés doivent revenir intacts, sinon un
+ * enregistrement depuis Studio écrase ce que l'utilisateur a mis dans les YAML.
+ */
+describe('hdrSerializer — fidélité disque → canvas → disque', () => {
+  const disk = sectionYamlsToJobModel({
+    sources: 'sources:\n  src_csv:\n    type: csv\n    connection:\n      delimiter: ";"\n    extract:\n      table: data/input.csv\n      batch_size: 7000\n      encoding: latin-1\n',
+    transformations: 'steps: []\n',
+    destinations: 'destinations:\n  dest_csv:\n    type: csv\n    load:\n      table: data/output.csv\n      mode: append\n      header: false\n',
+    pipeline: 'pipeline:\n  from: src_csv\n  to: dest_csv\n',
+  }, 'job1')!
+
+  it('garde batch_size, les champs inconnus et les noms de clés', () => {
+    const { nodes, edges } = jobModelToFlow(disk)
+    const back = flowToJobModel(nodes, edges, 'job1')
+    expect(Object.keys(back.sources)).toEqual(['src_csv'])
+    expect(back.sources.src_csv.extract.batch_size).toBe(7000)
+    expect(back.sources.src_csv.extract.encoding).toBe('latin-1')
+    expect(back.sources.src_csv.connection.delimiter).toBe(';')
+    expect(Object.keys(back.destinations)).toEqual(['dest_csv'])
+    expect(back.destinations.dest_csv.load).toEqual({ table: 'data/output.csv', mode: 'append', header: false })
+    expect(back.pipeline.from).toBe('src_csv')
+    expect(back.pipeline.to).toBe('dest_csv')
+    const y = jobModelToSectionYamls(back)
+    expect(y.sources).toContain('batch_size: 7000')
+    expect(y.sources).not.toContain('_orig')
+    expect(y.sources).not.toContain('_key')
+  })
+
+  it('une valeur changée sur le canvas (chaîne du formulaire) est écrite en nombre', () => {
+    const { nodes, edges } = jobModelToFlow(disk)
+    const src = nodes.find(n => n.data.label === 'src_csv')!
+    src.data = { ...src.data, params: { ...(src.data.params as Record<string, unknown>), batch_size: '250', path: 'data/other.csv' } }
+    const back = flowToJobModel(nodes, edges, 'job1')
+    expect(back.sources.src_csv.extract.batch_size).toBe(250)
+    expect(back.sources.src_csv.extract.table).toBe('data/other.csv')
+  })
+
+  it('un nœud neuf (sans origine) garde le batch_size par défaut', () => {
+    const nodes = [{ id: 'n1abcd', type: 'hydraNode', position: { x: 0, y: 0 },
+      data: { nodeType: 'source_csv', label: 'CSV', params: { path: 'a.csv' } } }] as never
+    const back = flowToJobModel(nodes, [], 'j')
+    expect(Object.values(back.sources)[0].extract.batch_size).toBe(1000)
+  })
+})

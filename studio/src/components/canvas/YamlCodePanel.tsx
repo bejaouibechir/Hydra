@@ -12,7 +12,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { yaml } from '@codemirror/lang-yaml'
 import { oneDark } from '@codemirror/theme-one-dark'
 import {
-  X, Copy, Check, Code2, AlertCircle, RefreshCw,
+  X, Copy, Check, Code2, AlertCircle, RotateCcw, HardDriveDownload,
   Wand2, ExternalLink, Library, Cpu,
 } from 'lucide-react'
 import {
@@ -56,6 +56,9 @@ interface YamlCodePanelProps {
   onClose: () => void
   /** 'job' = Job Builder (.hdr) ; 'workflow' = orchestrateur (défaut) */
   mode?:   'workflow' | 'job'
+  /** Mode job : relire jobs/<nom>/*.yaml sur le disque et reconstruire le canvas
+   *  (les YAML modifiés hors Studio ne sont jamais relus automatiquement). */
+  onReloadFromDisk?: () => void
 }
 
 type SyncStatus = 'synced' | 'editing' | 'error'
@@ -161,7 +164,7 @@ function _hdrSkeleton(name: string): string {
   return `version: "1.0"\njob:\n  name: "${name || 'my_job'}"\n  sources:\n    input:\n      type: csv\n      connection:\n        file: ""\n      extract:\n        table: ""\n  transformations:\n    steps: []\n  destinations:\n    output:\n      type: csv\n      connection:\n        file: ""\n      load:\n        table: ""\n        mode: replace\n  pipeline:\n    name: "${name || 'my_job'}"\n    from: input\n    to: output`
 }
 
-export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mode = 'workflow' }: YamlCodePanelProps) {
+export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mode = 'workflow', onReloadFromDisk }: YamlCodePanelProps) {
   const isJobMode = mode === 'job'
 
   // ── État onglets (mode job) ───────────────────────────────────────────────
@@ -386,7 +389,18 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
           </span>
         )}
         <div style={{ flex: 1 }} />
-        <IconBtn title="Resync from canvas" onClick={handleResync} active={false}><RefreshCw size={11} /></IconBtn>
+        {isJobMode && onReloadFromDisk && (
+          <button type="button" onClick={onReloadFromDisk} data-testid="dsl-reload-disk"
+            title="Reload this job from its YAML files on disk (jobs/<name>/*.yaml) and rebuild the canvas"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4, height: 22, padding: '0 8px', marginRight: 2,
+              fontSize: 10, fontWeight: 600, borderRadius: 5, cursor: 'pointer',
+              border: '1px solid var(--bg-border)', background: 'var(--bg-hover)', color: 'var(--text-primary)',
+            }}>
+            <HardDriveDownload size={11} /> Reload from disk
+          </button>
+        )}
+        <IconBtn title="Discard edits in this panel: regenerate the YAML from the canvas" onClick={handleResync} active={false}><RotateCcw size={11} /></IconBtn>
         <IconBtn title={`Copy ${isJobMode ? activeTab : 'YAML'}`} onClick={handleCopy} active={copied}>
           {copied ? <Check size={11} /> : <Copy size={11} />}
         </IconBtn>

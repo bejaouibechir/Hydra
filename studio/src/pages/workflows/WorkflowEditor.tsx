@@ -2256,6 +2256,7 @@ function WorkflowEditorInner() {
             onApply={(n, e) => { setNodes(n); setEdges(e) }}
             onClose={() => setCodeOpen(false)}
             mode={isJobScene ? 'job' : 'workflow'}
+            onReloadFromDisk={isJobScene && activeJobId ? () => { void resyncJobFromYaml() } : undefined}
           />
         )}
 

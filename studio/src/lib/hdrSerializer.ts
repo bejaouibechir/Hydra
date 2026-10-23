@@ -543,6 +543,53 @@ function _stepToParams(op: string, raw: Record<string, unknown> = {}): Record<st
 /**
  * Construit un HydraJobModel depuis les nœuds/arêtes React Flow du canvas Job.
  */
+// ── Fidélité disque → canvas → disque ─────────────────────────────────────────
+// Un nœud reconstruit depuis les YAML (jobModelToFlow) garde son nom de clé
+// (`_key`) et sa section d'origine (`_orig`, JSON en chaîne : la boîte de
+// configuration convertit les params en chaînes). À l'écriture, les champs que
+// le canvas ne connaît pas (batch_size, delimiter, encoding…) sont repris de
+// l'origine, et les clés (pipeline.from / to) ne sont pas renommées.
+
+function _origOf(cfg: Record<string, unknown>): Record<string, Record<string, unknown>> {
+  const raw = cfg._orig
+  try {
+    const o = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return o && typeof o === 'object' ? o as Record<string, Record<string, unknown>> : {}
+  } catch { return {} }
+}
+
+/** `over` appliqué sur `base` ; une valeur undefined dans `over` retire la clé. */
+function _mergeKeep(base: Record<string, unknown> | undefined, over: Record<string, unknown>): Record<string, unknown> {
+  const r: Record<string, unknown> = { ...(base ?? {}) }
+  for (const [k, v] of Object.entries(over)) {
+    if (v === undefined) delete r[k]
+    else r[k] = v
+  }
+  return r
+}
+
+function _intOf(v: unknown): number | undefined {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string' && /^\s*\d+\s*$/.test(v)) return Number(v)
+  return undefined
+}
+
+const _KEY_RE = /^[A-Za-z0-9_][A-Za-z0-9_.\-]*$/
+
+function _keyFor(cfg: Record<string, unknown>, fallback: string, used: Set<string>): string {
+  const k = typeof cfg._key === 'string' ? cfg._key.trim() : ''
+  const key = k && _KEY_RE.test(k) && !used.has(k) ? k : fallback
+  used.add(key)
+  return key
+}
+
+/** batch_size : valeur du canvas, sinon celle du fichier, sinon 1000 pour un nœud neuf. */
+function _batchSize(cfg: Record<string, unknown>, orig: Record<string, unknown> | undefined): number | undefined {
+  const v = _intOf(cfg.batch_size) ?? _intOf(orig?.batch_size)
+  if (v !== undefined) return v
+  return orig ? undefined : 1000
+}
+
 export function flowToJobModel(
   nodes: Node<FlowNodeData>[],
   edges: Edge[],
@@ -576,29 +623,32 @@ export function flowToJobModel(
   const sources: Record<string, HdrSource> = {}
   let firstSrcKey = 'source_main'
   const srcKeyByNode = new Map<string, string>()
+  const srcUsed = new Set<string>()
   for (const sn of sourceNodes) {
     const connType = NODE_TO_CONNECTOR[sn.data.nodeType as string] ?? 'csv'
     const cfg = (sn.data.params ?? {}) as Record<string, unknown>
+    const orig = _origOf(cfg)
     const isDb = !['csv', 'json', 'parquet', 'web_api'].includes(connType)
-    const key = `source_${connType}_${sn.id.slice(-4)}`
+    const key = _keyFor(cfg, `source_${connType}_${sn.id.slice(-4)}`, srcUsed)
     srcKeyByNode.set(sn.id, key)
     if (sourceNodes[0] === sn) firstSrcKey = key
-    const connection: Record<string, unknown> = isDb ? {
+    const connection: Record<string, unknown> = _mergeKeep(orig.connection, isDb ? {
       host: cfg.host ?? 'localhost', port: cfg.port,
       database: cfg.database ?? '', user: cfg.user ?? '', password: cfg.password ?? '',
     } : connType === 'mongodb' ? { uri: cfg.uri ?? '', database: cfg.database ?? '' }
-      : connType === 'web_api' ? { base_url: cfg.url ?? '', method: cfg.method ?? 'GET' } : {}
+      : connType === 'web_api' ? { base_url: cfg.url ?? '', method: cfg.method ?? 'GET' } : {})
     if (connType === 'sqlserver') {
       // Voir plus haut : pas de port force, sinon SQL Browser ne sert a rien.
       if (cfg.port === undefined || cfg.port === null || cfg.port === '') delete connection.port
       if (cfg.instance) connection.instance = cfg.instance
       if (cfg.schema)   connection.schema   = cfg.schema
     }
-    const extract: Record<string, unknown> = isDb
-      ? { table: cfg.table ?? '', query: cfg.query, batch_size: 1000 }
-      : connType === 'mongodb' ? { collection: cfg.collection ?? '', batch_size: 1000 }
-        : connType === 'web_api' ? { endpoint: cfg.url ?? '', batch_size: 1000 }
-          : { table: cfg.path ?? '', batch_size: 1000 }
+    const batch_size = _batchSize(cfg, orig.extract)
+    const extract: Record<string, unknown> = _mergeKeep(orig.extract, isDb
+      ? { table: cfg.table ?? '', query: cfg.query, batch_size }
+      : connType === 'mongodb' ? { collection: cfg.collection ?? '', batch_size }
+        : connType === 'web_api' ? { endpoint: cfg.url ?? '', batch_size }
+          : { table: cfg.path ?? '', batch_size })
     Object.keys(extract).forEach(k => extract[k] === undefined && delete extract[k])
     sources[key] = { type: connType, connection, extract }
   }
@@ -644,26 +694,30 @@ export function flowToJobModel(
   // Destinations
   const destinations: Record<string, HdrDest> = {}
   let firstDestKey = 'dest_main'
+  const dstUsed = new Set<string>()
   for (const dn of destNodes) {
     const connType = NODE_TO_CONNECTOR[dn.data.nodeType as string] ?? 'csv'
     const cfg = (dn.data.params ?? {}) as Record<string, unknown>
+    const orig = _origOf(cfg)
     const isDb = !['csv', 'json', 'parquet'].includes(connType)
-    const key = `dest_${connType}_${dn.id.slice(-4)}`
+    const key = _keyFor(cfg, `dest_${connType}_${dn.id.slice(-4)}`, dstUsed)
     if (destNodes[0] === dn) firstDestKey = key
-    const connection: Record<string, unknown> = isDb ? {
+    const connection: Record<string, unknown> = _mergeKeep(orig.connection, isDb ? {
       host: cfg.host ?? 'localhost', port: cfg.port,
       database: cfg.database ?? '', user: cfg.user ?? '', password: cfg.password ?? '',
-    } : connType === 'mongodb' ? { uri: cfg.uri ?? '', database: cfg.database ?? '' } : {}
+    } : connType === 'mongodb' ? { uri: cfg.uri ?? '', database: cfg.database ?? '' } : {})
     if (connType === 'sqlserver') {
       // Voir plus haut : pas de port force, sinon SQL Browser ne sert a rien.
       if (cfg.port === undefined || cfg.port === null || cfg.port === '') delete connection.port
       if (cfg.instance) connection.instance = cfg.instance
       if (cfg.schema)   connection.schema   = cfg.schema
     }
-    const load: Record<string, unknown> = isDb
+    const load: Record<string, unknown> = _mergeKeep(orig.load, isDb
       ? { table: cfg.table ?? '', mode: cfg.mode ?? 'replace' }
       : connType === 'mongodb' ? { collection: cfg.collection ?? '', mode: cfg.mode ?? 'replace' }
-        : { table: cfg.path ?? '', mode: cfg.mode ?? 'replace' }
+        : { table: cfg.path ?? '', mode: cfg.mode ?? 'replace' })
+    Object.keys(load).forEach(k => load[k] === undefined && delete load[k])
+    Object.keys(connection).forEach(k => connection[k] === undefined && delete connection[k])
     destinations[key] = { type: connType, connection, load }
   }
   if (Object.keys(destinations).length === 0) {
@@ -750,7 +804,9 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
     const params: Record<string, unknown> = {
       ...src.connection,
       ...src.extract,
-      path: (src.extract.table as string) ?? (src.connection as Record<string, unknown>).uri,
+      path: (src.extract?.table as string) ?? (src.connection as Record<string, unknown> | undefined)?.uri,
+      _key: key,
+      _orig: JSON.stringify({ connection: src.connection ?? {}, extract: src.extract ?? {} }),
     }
     nodes.push({
       id, type: 'hydraNode', position: { x, y: 100 },
@@ -783,7 +839,11 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
     const dst = model.destinations[key]
     const nodeType = CONNECTOR_TO_DEST_NODE[dst.type] ?? 'dest_csv'
     const id = `imported_dst_${key}`
-    const params: Record<string, unknown> = _destToParams(dst)
+    const params: Record<string, unknown> = {
+      ..._destToParams(dst),
+      _key: key,
+      _orig: JSON.stringify({ connection: dst.connection ?? {}, load: dst.load ?? {} }),
+    }
     nodes.push({
       id, type: 'hydraNode', position: { x, y: 100 },
       data: { nodeType, label: key, params } as unknown as FlowNodeData,

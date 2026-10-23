@@ -1159,31 +1159,43 @@ def _run_validate_only(job_dir: Path, verbosity: int, job_files: dict[str, Path]
         for e in errs_trf:
             err_line(f"transformations.yaml : {e}")
 
-    # Cohérence pipeline.from / pipeline.to
-    try:
-        import yaml
-        pipeline = yaml.safe_load(_read_yaml(job_files["pipeline"]))
-        sources  = yaml.safe_load(_read_yaml(job_files["sources"]))
-        dests    = yaml.safe_load(_read_yaml(job_files["destinations"]))
-        pipe     = (pipeline or {}).get("pipeline", {})
-        from_id  = pipe.get("from")
-        to_id    = pipe.get("to")
-        if from_id and from_id not in (sources or {}).get("sources", {}):
-            err_line(t("validate.pipeline_from_missing", from_id=from_id))
-            has_error = True
-        else:
-            ok(f"{c(C.WH, 'pipeline.from'):<36} — {t('validate.resolved', id=from_id)}")
-        if to_id and to_id not in (dests or {}).get("destinations", {}):
-            err_line(t("validate.pipeline_to_missing", to_id=to_id))
-            has_error = True
-        else:
-            ok(f"{c(C.WH, 'pipeline.to'):<36} — {t('validate.resolved', id=to_id)}")
-    except Exception as e:
-        err_line(t("validate.coherence_error", error=e))
-        has_error = True
+    # Cohérence pipeline.from / pipeline.to (même contrôle que `validate`)
+    if job_files["pipeline"].exists():
+        for level, text in _check_pipeline_refs(job_files):
+            if level == "err":
+                err_line(text)
+                has_error = True
+            elif level == "info":
+                info(text)
+            else:
+                ok(text)
 
     return has_error
 
+
+def _check_pipeline_refs(job_files: dict) -> list:
+    """pipeline.yaml et ses renvois : [(niveau, texte)] (cf. workflow/jobcheck.py)."""
+    from hydra_etl.workflow.jobcheck import pipeline_checks
+    out = []
+    for level, code, p in pipeline_checks(job_files):
+        if code == "resolved":
+            text = f"{c(C.WH, p['ref']):<36} — {t('validate.resolved', id=p['id'])}"
+        elif code == "ref_param":
+            text = f"{c(C.WH, p['ref']):<36} — {t('validate.pipeline_ref_param', value=p['value'])}"
+        elif code == "from_missing":
+            text = t("validate.pipeline_from_missing", from_id=p["id"])
+        elif code == "to_missing":
+            text = t("validate.pipeline_to_missing", to_id=p["id"])
+        elif code == "ref_empty":
+            text = t("validate.pipeline_ref_empty", ref=p["ref"])
+        elif code == "invalid":
+            text = t("validate.pipeline_invalid", field=p["field"], error=p["error"])
+        elif code == "section_missing":
+            text = t("validate.pipeline_section_missing")
+        else:
+            text = t("validate.coherence_error", error=p.get("error", ""))
+        out.append((level, text))
+    return out
 
 def _print_job_config(job_dir: Path, job_files: dict[str, Path]) -> None:
     """Affiche un résumé de la config du job (verbosité 1)."""
@@ -1660,6 +1672,13 @@ def cmd_validate(path: str, strict: bool,
     all_ok   = True
     all_errs = []
 
+    def fail(msg: str, where: str = "") -> None:
+        """Affiche une erreur et la compte (le total final doit tout inclure)."""
+        nonlocal all_ok
+        err_line(msg)
+        all_errs.append(f"{where}: {msg}" if where else msg)
+        all_ok = False
+
     checks = [
         ("pipeline.yaml", job_files["pipeline"], None),
         ("sources.yaml", job_files["sources"], _validate_sources_yaml),
@@ -1672,8 +1691,7 @@ def cmd_validate(path: str, strict: bool,
             if fname == "transformations.yaml":
                 info(f"{c(C.WH, fname):<36} — {t('validate.optional_absent')}")
             else:
-                err_line(f"{fname} — {t('validate.missing')}")
-                all_ok = False
+                fail(f"{fname} — {t('validate.missing')}")
             continue
 
         ok(f"{c(C.WH, fname):<36} — {t('validate.present')}")
@@ -1681,35 +1699,21 @@ def cmd_validate(path: str, strict: bool,
         if validator:
             errs = validator(fpath)
             if errs:
-                all_ok = False
+                err_line(fname)
                 for e in errs:
-                    err_line(f"  → {e}")
-                    all_errs.append(f"{fname}: {e}")
+                    fail(f"  → {e}", fname)
             else:
                 ok(f"{c(C.WH, fname):<36} — {t('validate.pydantic_valid')}")
 
-    # Pipeline cohérence
-    try:
-        import yaml
-        pipeline = yaml.safe_load(_read_yaml(job_files["pipeline"]))
-        sources  = yaml.safe_load(_read_yaml(job_files["sources"]))
-        dests    = yaml.safe_load(_read_yaml(job_files["destinations"]))
-        pipe     = pipeline.get("pipeline", {})
-        from_id  = pipe.get("from")
-        to_id    = pipe.get("to")
-        if from_id and from_id not in (sources or {}).get("sources", {}):
-            err_line(t("validate.pipeline_from_missing", from_id=from_id))
-            all_ok = False
-        else:
-            ok(f"{c(C.WH, 'pipeline.from'):<36} — {t('validate.resolved', id=from_id)}")
-        if to_id and to_id not in (dests or {}).get("destinations", {}):
-            err_line(t("validate.pipeline_to_missing", to_id=to_id))
-            all_ok = False
-        else:
-            ok(f"{c(C.WH, 'pipeline.to'):<36} — {t('validate.resolved', id=to_id)}")
-    except Exception as e:
-        err_line(t("validate.coherence_error", error=e))
-        all_ok = False
+    # Pipeline cohérence (pipeline.yaml présent : sinon déjà compté MISSING)
+    if job_files["pipeline"].exists():
+        for level, text in _check_pipeline_refs(job_files):
+            if level == "err":
+                fail(text, "pipeline.yaml")
+            elif level == "info":
+                info(text)
+            else:
+                ok(text)
 
     # Mode strict — vérifications supplémentaires.
     # Les étapes sont lues via TransformParser (source de vérité du DSL) :
@@ -1723,8 +1727,7 @@ def cmd_validate(path: str, strict: bool,
             steps = TransformParser().parse(data or {}).steps
         except Exception as e:
             # Déjà signalé par la validation Pydantic ci-dessus.
-            err_line(t("validate.strict_error", error=e))
-            all_ok = False
+            fail(t("validate.strict_error", error=e), "transformations.yaml")
             steps = []
 
         ops = [s.op for s in steps]
@@ -1745,9 +1748,7 @@ def cmd_validate(path: str, strict: bool,
                 info(f"{c(C.WH, label):<36} — {t('validate.expr_unchecked')}")
             else:
                 msg = t("validate.expr_invalid", step=idx, op=step.op, expr=expr, error=problem)
-                err_line(msg)
-                all_errs.append(f"transformations.yaml: {msg}")
-                all_ok = False
+                fail(msg, "transformations.yaml")
 
     click.echo()
     if all_ok:

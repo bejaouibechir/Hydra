@@ -17,6 +17,17 @@ and versions follow [Semantic Versioning](https://semver.org/).
   (re-reads `jobs/<name>/*.yaml` and rebuilds the canvas). Its other button,
   which only regenerated the YAML from the canvas and looked like a resync, is
   now labelled as such.
+- `hdrctl validate`: the total counts every error shown. It printed
+  "0 error(s) detected" when the only errors were in `pipeline.yaml` (broken
+  `pipeline.from` / `to`), in strict checks or a missing file.
+- `pipeline.yaml` is checked the way the engine reads it: the old nested
+  `job: pipeline:` format, a missing or empty `from` / `to`, and unknown keys
+  (`form:`) are errors; a `${param}` value is reported as resolved at run time.
+  Same check in `hdrctl run <job> --dry-run`.
+- `hdrctl run <project>` (and `--dry-run`, Studio's **Check** / **Run
+  project**) now checks `pipeline.yaml` of every job used by an active
+  workflow before starting: a broken `pipeline.from` no longer passes as
+  "the project is valid".
 
 ## [0.12.2] — 2026-10-22
 

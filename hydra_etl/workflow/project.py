@@ -100,6 +100,7 @@ def prepare_project(root: Path) -> ProjectPlan:
     """Charge et valide tout ce qu'il faut AVANT de lancer quoi que ce soit :
     thread.yaml, fichiers des workflows, manifestes des workflows actifs."""
     from hydra_etl.workflow.parser import load_workflow
+    from hydra_etl.workflow.jobcheck import pipeline_errors
 
     root = Path(root).resolve()
     if not is_project_root(root):
@@ -134,6 +135,11 @@ def prepare_project(root: Path) -> ProjectPlan:
             if not jp.resolve().is_dir():
                 errors.append(f"{WORKFLOWS_DIR}/{path.name}: step '{step.name}' — "
                               f"job folder not found: {step.job}")
+                continue
+            # pipeline.from / to cassés : signalés avant tout lancement
+            for problem in pipeline_errors(jp.resolve()):
+                errors.append(f"{WORKFLOWS_DIR}/{path.name}: step '{step.name}' "
+                              f"({step.job}) — {problem}")
     if errors:
         raise ProjectError(errors)
     return plan

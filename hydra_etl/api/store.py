@@ -890,8 +890,12 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
 
     # Empreintes des fichiers écrits : base de la détection suivante.
     if targets:
-        wf_updated.disk_hashes = {_rel(project_path, p): h for p in targets
-                                  if (h := _sha256(p)) is not None}
+        # Fusion : une sauvegarde partielle (un seul job) garde les empreintes
+        # des autres fichiers, sinon leurs changements externes passeraient inaperçus.
+        merged = {**(wf_updated.disk_hashes or {}),
+                  **{_rel(project_path, p): h for p in targets
+                     if (h := _sha256(p)) is not None}}
+        wf_updated.disk_hashes = {k: v for k, v in merged.items() if (project_path / k).exists()}
         wf_updated.external_changes = None
         _save_wf_meta(project_path, wf_updated)
     wf_updated.disk_state = disk_state(project_path, workflow_id, wf_updated)

@@ -44,6 +44,7 @@ import {
 } from 'lucide-react'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { loadSettings } from '@/pages/Settings'
+import { canonicalFromCanvas, canvasFromDisk, decideSync } from '@/lib/jobSync'
 import { SceneContext } from '@/lib/sceneContext'
 
 // ── React Flow custom node types ─────────────────────────────────────────────
@@ -303,6 +304,18 @@ function WorkflowEditorInner() {
   // Snapshot du canvas workflow (nécessaire pour afficher les tabs quand on est en job mode)
   const [wfSnapshot, setWfSnapshot] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null)
 
+  // ── Synchronisation canvas ↔ disque (jobs/<nom>/*.yaml) ───────────────────
+  // La dernière modification gagne, qu'elle vienne de Studio ou de l'extérieur.
+  // syncKnown : état à la dernière synchro (empreinte disque + forme canonique) ;
+  // lastCanon / lastTouch : dernière forme canonique du canvas et sa date.
+  const syncKnownRef  = useRef(new Map<string, { hash: string; canon: string }>())
+  const lastCanonRef  = useRef(new Map<string, string>())
+  const lastTouchRef  = useRef(new Map<string, number>())
+  const syncBusyRef   = useRef(false)
+  const skipAutosaveRef = useRef(false)
+  const liveRef = useRef<{ nodes: Node[]; edges: Edge[]; activeJobId: string | null }>({ nodes: [], edges: [], activeJobId: null })
+  const [syncInfo, setSyncInfo] = useState<{ text: string; tone: 'ok' | 'info' | 'warn' | 'error'; at: number } | null>(null)
+
   // Helpers de scène
   const isJobScene    = sceneMode === 'jobs'
   const activeJobName = activeJobId ? (jobNames.get(activeJobId) ?? activeJobId) : null
@@ -507,6 +520,9 @@ function WorkflowEditorInner() {
     setLoadIssues([])
     setDiskConflict(null)
     jobCanvasRef.current.clear()
+    syncKnownRef.current.clear()
+    lastCanonRef.current.clear()
+    lastTouchRef.current.clear()
     baseDiskRef.current = wfQuery.data.disk_state ?? undefined
     // Fichiers modifiés hors de Studio (CLI : hdrctl job attach…, éditeur) :
     // le canvas enregistré est périmé → on reconstruit depuis le disque.
@@ -805,49 +821,139 @@ function WorkflowEditorInner() {
     if (projectId) api.jobs.archive(projectId, name).then(r => { if (r?.message) console.info(r.message) }).catch(() => {})
   }, [sceneMode, nodes, wfSnapshot, jobNames, activeJobId, projectId])
 
-  /**
-   * Resynchronise le canvas du job actif depuis ses 4 fichiers YAML sur disque
-   * (jobs/<nom>/sources|transformations|destinations|pipeline.yaml).
-   * Les YAML modifies hors Studio (editeur, hdrctl, git) ne sont jamais relus
-   * automatiquement : le canvas enregistre fait foi tant que cette action n'est
-   * pas declenchee. Ecrase le canvas du job (annulable avec Undo), jamais les fichiers.
-   */
-  const resyncJobFromYaml = useCallback(async () => {
-    if (sceneMode !== 'jobs' || !activeJobId || !projectId) return
-    const jobId   = activeJobId
-    const jobName = jobNames.get(jobId) ?? jobId
-    if (!window.confirm(
-      `Resync job "${jobName}" from its YAML files?\n\n` +
-      `The canvas will be rebuilt from jobs/${jobName}/*.yaml.\n` +
-      `Unsaved changes on this canvas will be replaced (Undo restores them).`
-    )) return
-    try {
-      const files = await api.jobs.files(projectId, jobName)
-      if (!files.sources && !files.destinations && !files.pipeline) {
-        alert(`No YAML found for job "${jobName}" (jobs/${jobName}/).`)
-        return
-      }
-      const model = sectionYamlsToJobModel(
-        { sources: files.sources, transformations: files.transformations,
-          destinations: files.destinations, pipeline: files.pipeline },
-        jobName,
-      )
-      if (!model) {
-        alert(`Invalid YAML in jobs/${jobName}/: the canvas was left unchanged.`)
-        return
-      }
-      const { nodes: n, edges: e } = jobModelToFlow(model)
-      pushHistory(nodes, edges)
-      jobCanvasRef.current.set(jobId, { nodes: n, edges: e })
-      setNodes(n as Node<FlowNodeData>[])
-      setEdges(e)
-      setSelectedNode(null)
-      fitViewSoon()
-      setSaveStatus('idle')
-    } catch (err) {
-      alert(`Resync failed: ${err instanceof Error ? err.message : String(err)}`)
+  // Valeurs courantes pour les callbacks asynchrones (synchro en arrière-plan)
+  liveRef.current = { nodes, edges, activeJobId }
+
+  // Date de la dernière modification du CONTENU du job (pas d'un déplacement
+  // de nœud ni d'une sélection) : sert à départager Studio et le disque.
+  useEffect(() => {
+    if (sceneMode !== 'jobs' || !activeJobId) return
+    const name  = slugify(jobNames.get(activeJobId) ?? activeJobId)
+    const canon = canonicalFromCanvas(nodes, edges, name)
+    if (canon !== lastCanonRef.current.get(activeJobId)) {
+      lastCanonRef.current.set(activeJobId, canon)
+      lastTouchRef.current.set(activeJobId, Date.now())
     }
-  }, [sceneMode, activeJobId, projectId, jobNames, nodes, edges, pushHistory, setNodes, setEdges, fitViewSoon])
+  }, [nodes, edges, sceneMode, activeJobId, jobNames])
+
+  /** Empreintes de base (détection de conflit à l'enregistrement) pour un job. */
+  const mergeBaseDisk = useCallback((jobName: string, hashes: Record<string, string>) => {
+    const next = { ...(baseDiskRef.current ?? {}) }
+    for (const fn of ['sources.yaml', 'transformations.yaml', 'destinations.yaml', 'pipeline.yaml']) {
+      delete next[`jobs/${jobName}/${fn}`]
+    }
+    baseDiskRef.current = { ...next, ...hashes }
+  }, [])
+
+  /**
+   * Synchronise le job actif avec jobs/<nom>/*.yaml : la dernière modification
+   * gagne (Studio ou extérieur). 'manual' = bouton ; 'auto' = intervalle
+   * (Settings) et entrée dans un job. En 'auto', une édition de Studio n'est
+   * écrite que si l'auto-save est actif, sauf conflit (les deux côtés ont changé).
+   */
+  const syncActiveJob = useCallback(async (mode: 'manual' | 'auto') => {
+    if (sceneMode !== 'jobs' || !activeJobId || !projectId || !workflowId) return
+    if (syncBusyRef.current || saveMut.isPending) return
+    syncBusyRef.current = true
+    const jobId   = activeJobId
+    const jobName = slugify(jobNames.get(jobId) ?? jobId)
+    const hhmmss  = (t: number) => new Date(t).toLocaleTimeString()
+    try {
+      const st = await api.jobs.files(projectId, jobName)
+      if (liveRef.current.activeJobId !== jobId) return          // job changé entre-temps
+      const disk = canvasFromDisk(st, jobName)
+      if (!disk) {
+        if (mode === 'manual') setSyncInfo({ text: `No valid YAML in jobs/${jobName}/`, tone: 'error', at: Date.now() })
+        return
+      }
+      const cur        = liveRef.current
+      const canvasCanon = canonicalFromCanvas(cur.nodes, cur.edges, jobName)
+      const diskCanon   = canonicalFromCanvas(disk.nodes, disk.edges, jobName)
+      const known       = syncKnownRef.current.get(jobId)
+      const edited      = known ? canvasCanon !== known.canon : false
+      const decision = decideSync({
+        same:         canvasCanon === diskCanon,
+        diskChanged:  !known || known.hash !== st.hash,
+        studioEditAt: edited ? (lastTouchRef.current.get(jobId) ?? Date.now()) : null,
+        diskMtimeMs:  st.mtime * 1000,
+      })
+
+      if (decision === 'in_sync') {
+        if (canvasCanon === diskCanon) {
+          syncKnownRef.current.set(jobId, { hash: st.hash, canon: canvasCanon })
+          mergeBaseDisk(jobName, st.hashes)
+        }
+        if (mode === 'manual') setSyncInfo({ text: 'In sync with disk', tone: 'ok', at: Date.now() })
+        return
+      }
+
+      if (decision === 'load_disk') {
+        // Garder la position des nœuds qui existent déjà (ids stables)
+        const pos = new Map(cur.nodes.map(n => [n.id, n.position]))
+        const nextNodes = disk.nodes.map(n => pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)
+        const isNewShape = disk.nodes.some(n => !pos.has(n.id))
+        pushHistory(cur.nodes as Node<FlowNodeData>[], cur.edges)
+        skipAutosaveRef.current = true
+        jobCanvasRef.current.set(jobId, { nodes: nextNodes, edges: disk.edges })
+        lastCanonRef.current.set(jobId, diskCanon)
+        syncKnownRef.current.set(jobId, { hash: st.hash, canon: diskCanon })
+        mergeBaseDisk(jobName, st.hashes)
+        setNodes(nextNodes as Node<FlowNodeData>[])
+        setEdges(disk.edges)
+        if (isNewShape) fitViewSoon()
+        setSyncInfo({ text: `Loaded from disk (jobs/${jobName}, changed ${hhmmss(st.mtime * 1000)})`, tone: 'info', at: Date.now() })
+        return
+      }
+
+      // save_studio
+      const diskChanged = !known || known.hash !== st.hash
+      if (mode === 'auto' && !diskChanged && !loadSettings().autosave_enabled) {
+        setSyncInfo({ text: 'Unsaved changes in Studio', tone: 'warn', at: Date.now() })
+        return
+      }
+      const canvases = { ...Object.fromEntries(jobCanvasRef.current), [jobId]: { nodes: cur.nodes, edges: cur.edges } }
+      const y = jobModelToSectionYamls(flowToJobModel(cur.nodes as Node<FlowNodeData>[], cur.edges, jobName))
+      await api.workflows.update(workflowId, projectId, {
+        layout: {
+          nodes:        (wfSnapshot?.nodes ?? []) as Node<FlowNodeData>[],
+          edges:        wfSnapshot?.edges ?? [],
+          job_canvases: canvases,
+          job_names:    Object.fromEntries(jobNames),
+        },
+        jobs:  [{ name: jobName, sources: y.sources, transformations: y.transformations, destinations: y.destinations, pipeline: y.pipeline }],
+        force: true,          // la règle « dernière modification » a tranché
+      })
+      const after = await api.jobs.files(projectId, jobName)
+      syncKnownRef.current.set(jobId, { hash: after.hash, canon: canvasCanon })
+      mergeBaseDisk(jobName, after.hashes)
+      setSyncInfo({ text: `Saved to disk (jobs/${jobName})${diskChanged ? ' — Studio change was newer' : ''}`, tone: 'ok', at: Date.now() })
+    } catch (err) {
+      setSyncInfo({ text: `Sync failed: ${err instanceof Error ? err.message : String(err)}`, tone: 'error', at: Date.now() })
+    } finally {
+      syncBusyRef.current = false
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneMode, activeJobId, projectId, workflowId, jobNames, wfSnapshot, pushHistory, setNodes, setEdges, fitViewSoon, mergeBaseDisk])
+
+  const syncRef = useRef(syncActiveJob)
+  syncRef.current = syncActiveJob
+
+  // Entrée dans un job : synchro immédiate (le canvas enregistré peut être périmé)
+  useEffect(() => {
+    if (sceneMode !== 'jobs' || !activeJobId) return
+    const t = setTimeout(() => { void syncRef.current('auto') }, 400)
+    return () => clearTimeout(t)
+  }, [sceneMode, activeJobId])
+
+  // Rafraîchissement automatique — intervalle réglable dans Settings (0 = arrêt)
+  useEffect(() => {
+    const sec = loadSettings().disk_sync_interval
+    if (!sec || sec <= 0) return
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void syncRef.current('auto')
+    }, sec * 1000)
+    return () => clearInterval(t)
+  }, [workflowId])
 
   /** Ouvre le menu contextuel (Renommer/Archiver/Supprimer) depuis la liste Jobs de la palette. */
   const onJobContextMenu = useCallback((e: React.MouseEvent, jobId: string) => {
@@ -1184,6 +1290,7 @@ function WorkflowEditorInner() {
 
   // ── Auto-save : délai configurable dans Settings ─────────────────────────
   useEffect(() => {
+    if (skipAutosaveRef.current) { skipAutosaveRef.current = false; return }   // canvas relu du disque
     if (!canAutoSave.current) return
     if (diskConflict) return                 // attendre le choix de l'utilisateur
     if (!workflowId || !projectId) return
@@ -1825,12 +1932,13 @@ function WorkflowEditorInner() {
 
         {isJobScene && activeJobId && (
           <button
-            onClick={() => { void resyncJobFromYaml() }}
+            onClick={() => { void syncActiveJob('manual') }}
             className="btn-secondary text-xs !py-1.5"
-            title="Rebuild this job's canvas from its YAML files on disk (jobs/<name>/*.yaml)"
+            data-testid="sync-disk"
+            title="Sync this job with jobs/<name>/*.yaml — the latest change wins (Studio or outside)"
           >
             <RefreshCw size={13} />
-            Resync from YAML
+            Sync with disk
           </button>
         )}
 
@@ -2256,7 +2364,8 @@ function WorkflowEditorInner() {
             onApply={(n, e) => { setNodes(n); setEdges(e) }}
             onClose={() => setCodeOpen(false)}
             mode={isJobScene ? 'job' : 'workflow'}
-            onReloadFromDisk={isJobScene && activeJobId ? () => { void resyncJobFromYaml() } : undefined}
+            onSync={isJobScene && activeJobId ? () => { void syncActiveJob('manual') } : undefined}
+            syncInfo={syncInfo}
           />
         )}
 

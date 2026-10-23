@@ -9,7 +9,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -26,6 +26,10 @@ class JobFilesResponse(BaseModel):
     transformations: str
     destinations: str
     pipeline: str
+    # État disque, pour la synchronisation Studio ↔ fichiers :
+    hashes: Dict[str, str] = {}       # "jobs/<nom>/sources.yaml" → sha256 (fichiers présents)
+    hash: str = ""                    # empreinte des 4 fichiers ensemble
+    mtime: float = 0.0                # dernière modification (epoch, secondes)
 
 
 @router.get("/files", response_model=JobFilesResponse)
@@ -45,12 +49,30 @@ def get_job_files(project_id: str, name: str):
         except Exception:
             return ""
 
+    import hashlib
+    root = Path(proj.path)
+    hashes: Dict[str, str] = {}
+    mtime = 0.0
+    combined = hashlib.sha256()
+    for fname in store._JOB_FILES:
+        f = job_dir / fname
+        h = store._sha256(f)
+        combined.update(f"{fname}:{h or '-'};".encode())
+        if h is not None:
+            hashes[store._rel(root, f)] = h
+            try:
+                mtime = max(mtime, f.stat().st_mtime)
+            except OSError:
+                pass
     return JobFilesResponse(
         name=name,
         sources=_read("sources.yaml"),
         transformations=_read("transformations.yaml"),
         destinations=_read("destinations.yaml"),
         pipeline=_read("pipeline.yaml"),
+        hashes=hashes,
+        hash=combined.hexdigest(),
+        mtime=mtime,
     )
 
 

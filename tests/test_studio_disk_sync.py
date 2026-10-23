@@ -148,3 +148,34 @@ def test_router_returns_409_with_files(studio):
         r.update_workflow(wf.id, WorkflowUpdate(layout=LAYOUT, yaml_content=WF_YAML), project_id=proj.id)
     assert e.value.status_code == 409
     assert e.value.detail["files"] == ["workflows/wf.yaml"]
+
+
+# ── Synchronisation d'un job (bouton Sync / rafraîchissement automatique) ─────
+
+def test_job_files_report_disk_state(studio):
+    """GET /api/jobs/files : empreintes par fichier, empreinte globale, date."""
+    from fastapi.testclient import TestClient
+    import hydra_etl.api.main as main
+    proj, _, root, _ = studio
+    client = TestClient(main.app)
+    d = client.get(f"/api/jobs/files?project_id={proj.id}&name=j").json()
+    assert set(d["hashes"]) == {"jobs/j/sources.yaml", "jobs/j/transformations.yaml",
+                                "jobs/j/destinations.yaml", "jobs/j/pipeline.yaml"}
+    assert d["hash"] and d["mtime"] > 0
+    time.sleep(0.01)
+    (root / "jobs" / "j" / "sources.yaml").write_text("sources: {a: {type: csv}}\n", encoding="utf-8")
+    d2 = client.get(f"/api/jobs/files?project_id={proj.id}&name=j").json()
+    assert d2["hash"] != d["hash"]
+    assert d2["hashes"]["jobs/j/sources.yaml"] != d["hashes"]["jobs/j/sources.yaml"]
+    assert d2["hashes"]["jobs/j/pipeline.yaml"] == d["hashes"]["jobs/j/pipeline.yaml"]
+
+
+def test_partial_job_save_keeps_other_hashes(studio):
+    """Une sauvegarde d'un seul job (Sync) garde l'empreinte du workflow : un
+    changement externe du workflow reste détecté."""
+    proj, wf, root, _ = studio
+    job = dict(JOB, sources="sources: {b: {type: csv}}\n")
+    saved = store.update_workflow(proj.id, wf.id, {"layout": LAYOUT, "jobs": [job], "force": True})
+    assert "workflows/wf.yaml" in saved.disk_hashes
+    (root / "workflows" / "wf.yaml").write_text(WF_YAML + "# edited\n", encoding="utf-8")
+    assert store.get_workflow(proj.id, wf.id).external_changes == ["workflows/wf.yaml"]

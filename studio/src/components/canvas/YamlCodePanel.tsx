@@ -12,7 +12,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { yaml } from '@codemirror/lang-yaml'
 import { oneDark } from '@codemirror/theme-one-dark'
 import {
-  X, Copy, Check, Code2, AlertCircle, RotateCcw, HardDriveDownload,
+  X, Copy, Check, Code2, AlertCircle, RefreshCw,
   Wand2, ExternalLink, Library, Cpu,
 } from 'lucide-react'
 import {
@@ -56,9 +56,11 @@ interface YamlCodePanelProps {
   onClose: () => void
   /** 'job' = Job Builder (.hdr) ; 'workflow' = orchestrateur (défaut) */
   mode?:   'workflow' | 'job'
-  /** Mode job : relire jobs/<nom>/*.yaml sur le disque et reconstruire le canvas
-   *  (les YAML modifiés hors Studio ne sont jamais relus automatiquement). */
-  onReloadFromDisk?: () => void
+  /** Mode job : synchroniser avec jobs/<nom>/*.yaml (la dernière modification
+   *  gagne, Studio ou extérieur). */
+  onSync?: () => void
+  /** Dernier résultat de synchronisation (affiché dans l'en-tête). */
+  syncInfo?: { text: string; tone: 'ok' | 'info' | 'warn' | 'error'; at: number } | null
 }
 
 type SyncStatus = 'synced' | 'editing' | 'error'
@@ -164,7 +166,7 @@ function _hdrSkeleton(name: string): string {
   return `version: "1.0"\njob:\n  name: "${name || 'my_job'}"\n  sources:\n    input:\n      type: csv\n      connection:\n        file: ""\n      extract:\n        table: ""\n  transformations:\n    steps: []\n  destinations:\n    output:\n      type: csv\n      connection:\n        file: ""\n      load:\n        table: ""\n        mode: replace\n  pipeline:\n    name: "${name || 'my_job'}"\n    from: input\n    to: output`
 }
 
-export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mode = 'workflow', onReloadFromDisk }: YamlCodePanelProps) {
+export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mode = 'workflow', onSync, syncInfo }: YamlCodePanelProps) {
   const isJobMode = mode === 'job'
 
   // ── État onglets (mode job) ───────────────────────────────────────────────
@@ -389,18 +391,22 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
           </span>
         )}
         <div style={{ flex: 1 }} />
-        {isJobMode && onReloadFromDisk && (
-          <button type="button" onClick={onReloadFromDisk} data-testid="dsl-reload-disk"
-            title="Reload this job from its YAML files on disk (jobs/<name>/*.yaml) and rebuild the canvas"
+        {isJobMode && syncInfo && (
+          <span data-testid="dsl-sync-info" title={new Date(syncInfo.at).toLocaleTimeString()}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4, height: 22, padding: '0 8px', marginRight: 2,
-              fontSize: 10, fontWeight: 600, borderRadius: 5, cursor: 'pointer',
-              border: '1px solid var(--bg-border)', background: 'var(--bg-hover)', color: 'var(--text-primary)',
-            }}>
-            <HardDriveDownload size={11} /> Reload from disk
-          </button>
+              fontSize: 10, fontFamily: 'monospace', marginRight: 4, maxWidth: 230,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              color: syncInfo.tone === 'error' ? 'var(--error)' : syncInfo.tone === 'warn' ? 'var(--warning)'
+                : syncInfo.tone === 'ok' ? 'var(--success)' : 'var(--primary)',
+            }}>{syncInfo.text}</span>
         )}
-        <IconBtn title="Discard edits in this panel: regenerate the YAML from the canvas" onClick={handleResync} active={false}><RotateCcw size={11} /></IconBtn>
+        <span data-testid="dsl-sync">
+          <IconBtn
+            title={isJobMode && onSync
+              ? 'Sync with disk (jobs/<name>/*.yaml): the latest change wins, in Studio or outside'
+              : 'Regenerate the YAML from the canvas'}
+            onClick={isJobMode && onSync ? onSync : handleResync} active={false}><RefreshCw size={11} /></IconBtn>
+        </span>
         <IconBtn title={`Copy ${isJobMode ? activeTab : 'YAML'}`} onClick={handleCopy} active={copied}>
           {copied ? <Check size={11} /> : <Copy size={11} />}
         </IconBtn>

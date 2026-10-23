@@ -102,6 +102,13 @@ export interface JobScaffoldRequest {
   dest_type: string; dest_path: string; dest_mode?: string
 }
 export interface JobScaffoldResponse { job_path: string; created: boolean }
+/** Les 4 YAML d'un job lus sur le disque, avec leur état (synchronisation). */
+export interface JobFilesState extends JobFilesPayload {
+  hashes: Record<string, string>   // "jobs/<nom>/sources.yaml" → sha256
+  hash: string                     // empreinte des 4 fichiers ensemble
+  mtime: number                    // dernière modification (epoch, secondes)
+}
+
 export interface JobFilesPayload {
   name: string          // slug → dossier jobs/<name>/
   sources: string       // sources.yaml
@@ -225,7 +232,7 @@ export const api = {
 
   jobs: {
     files: (projectId: string, name: string) =>
-      get<JobFilesPayload>(`/jobs/files?project_id=${projectId}&name=${encodeURIComponent(name)}`),
+      get<JobFilesState>(`/jobs/files?project_id=${projectId}&name=${encodeURIComponent(name)}`),
     delete: (projectId: string, name: string) =>
       post<{ ok: boolean; message: string }>('/jobs/delete', { project_id: projectId, name }),
     archive: (projectId: string, name: string) =>

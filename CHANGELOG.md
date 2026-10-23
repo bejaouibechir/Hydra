@@ -13,10 +13,21 @@ and versions follow [Semantic Versioning](https://semver.org/).
   what the canvas does not edit. `batch_size` was reset to 1000, fields such as
   `delimiter` or `encoding` were dropped, and source/destination keys were
   renamed (`src_csv` → `source_csv__csv`), changing `pipeline.from`/`to`.
-- Studio: the **Hydra DSL** panel of a job has a **Reload from disk** button
-  (re-reads `jobs/<name>/*.yaml` and rebuilds the canvas). Its other button,
-  which only regenerated the YAML from the canvas and looked like a resync, is
-  now labelled as such.
+- Studio keeps a job and its files `jobs/<name>/*.yaml` in sync, both ways:
+  **the latest change wins**, made in Studio or outside (editor, Notepad,
+  `hdrctl`, git). Before, a file changed outside Studio was not seen while the
+  editor was open, and the sync button of the **Hydra DSL** panel only
+  regenerated the YAML from the canvas.
+  - The sync button (same icon, in the Hydra DSL panel; **Sync with disk** in
+    the toolbar) compares the canvas and the files: only the disk changed →
+    the canvas is rebuilt from it (node positions kept); only Studio changed →
+    the files are written; both changed → the most recent change wins. The
+    result is shown next to the button.
+  - Automatic sync of the open job every few seconds, set in **Settings**
+    (default 5 s, 0 = off), and when a job is opened. In automatic mode a
+    Studio change is written only if auto-save is on, unless both sides changed.
+  - Formatting and comments are not changes: Studio compares the content.
+  - API: `GET /api/jobs/files` also returns `hashes`, `hash` and `mtime`.
 - `hdrctl validate`: the total counts every error shown. It printed
   "0 error(s) detected" when the only errors were in `pipeline.yaml` (broken
   `pipeline.from` / `to`), in strict checks or a missing file.

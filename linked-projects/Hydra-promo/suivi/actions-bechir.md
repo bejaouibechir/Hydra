@@ -272,7 +272,87 @@ par 5 scénarios qui font découvrir `hdrctl` lui-même (install, `validate` vs 
 
 ⚠️ Ces quatre points conditionnent le lancement. Pas de Show HN ni de Product Hunt avant les 3 pilotes, la démo et la page benchmark.
 
-## INDICATEURS — relevés le 17/10/2026 (API GitHub + PyPI, depuis le PC)
+## Où sont les textes et les commandes (préparés le 19/10)
+
+| # | Tâche | Fichier |
+|---|---|---|
+| 1 · 5 · 8 | Indexation · nettoyage du dépôt du site · Discussions et C# Corner | `suivi/instructions-2026-10-19.md` |
+| 2 | Liens UTM du post LinkedIn | `contenus/posts/linkedin-03-liens-utm.md` |
+| 3 | Versions dev.to et Hashnode, canonique et UTM inclus | `contenus/articles/en-03-yaml-vs-scripts-devto.md` · `-hashnode.md` |
+| 6 | Refonte de la PR awesome-mcp-servers #14699 | `contenus/annuaires/pr-14699-refonte.md` |
+| 7 | Notes et commandes des releases 0.11.3 et 0.11.4 | `contenus/github/releases-0.11.3-0.11.4.md` |
+| 4 | Relevé à 14 jours | tâche planifiée pour le **02/11 09:00 UTC** — vérifier que le dossier `Hydra-promo` y est rattaché |
+
+⚠️ **Deux fichiers parasites dans des dépôts publics** : `.claude/skills/brand-motion-design/` + `brand-motion-design-skill` (dépôt du site) et `ctemptest.txt` (dépôt produit). Commandes dans les fichiers ci-dessus.
+
+📋 `CLAUDE.md` §5 liste les pages `/migrate/*` comme à faire : **elles existent** (airflow, dbt, airbyte, dagster, databricks, prefect). La feuille de route est en retard sur la réalité.
+
+## Nouveau — après la publication de l'article (19/10)
+
+**Rendre l'article utile — c'est maintenant que ça se joue :**
+
+- [ ] **Indexation** ▶️ Search Console → Inspection d'URL → `https://hydraetl.com/blog/why-yaml-pipelines-beat-ad-hoc-scripts` → Demander l'indexation. **Et faire enfin celle du 18456**, jamais soumise depuis le 26/09. Puis **Bing Webmaster Tools** pour les deux (ChatGPT s'appuie sur Bing). Sans ça l'article n'existe ni pour Google ni pour les IA.
+- [ ] **Vérifier l'UTM du lien LinkedIn** ▶️ le lien posté doit porter `?utm_source=linkedin&utm_medium=social&utm_campaign=yaml-vs-scripts`. S'il est nu, le relevé à 14 jours ne distinguera rien. Si le post est déjà publié sans UTM : le mettre dans le 1er commentaire plutôt que de rééditer le post.
+- [ ] **Version dev.to + Hashnode avec `canonical_url`** ▶️ coût nul, aucun risque de duplication, et c'est le seul moyen d'aller chercher un public hors du site pendant que l'indexation se fait. L'article n°1 l'avait eu, celui-ci pas encore.
+- [ ] **Relevé à 14 jours : le 2 novembre** ▶️ visiteurs venus de LinkedIn et de dev.to, clics `github-click` et `install-copy`. ⚠️ **Impossible sans le jeton Umami** — c'est la troisième fois que cette mesure est empêchée par ce seul manque.
+
+**Nettoyage à faire tout de suite :**
+
+- [ ] **Retirer `.claude/skills/brand-motion-design/` du dépôt public du site** ▶️ le commit « Adding an articleé » (19/10) y a ajouté 37 fichiers de skill plus un fichier parasite `brand-motion-design-skill` à la racine. `git rm -r --cached` puis `.gitignore`. Un dépôt public qui sert de vitrine ne porte pas l'outillage de son auteur.
+
+**Toujours ouvert, par rendement :**
+
+- [ ] **`awesome-mcp-servers` #14699** ▶️ conflit de fusion, **toujours inchangé au 24/10** : aucune activité depuis le 21/09 (33 jours), alors que le dépôt fusionne chaque jour (#17395 le 23/10 ; numérotation passée de ~16 100 le 15/10 à ~17 400 le 23/10). Refaire la branche depuis `main` à jour. Reste l'action au meilleur rendement du projet.
+- [ ] **Releases GitHub manquantes** ▶️ **cinq** au 24/10 : v0.11.3, v0.11.4, v0.12.0, v0.12.1, v0.12.2. Les tags existent, les releases non ; l'onglet s'arrête à v0.11.2 (26/09) pendant que PyPI sert la 0.12.2.
+- [ ] **Activer Discussions** ▶️ un clic, en attente depuis le 19/09.
+- [ ] **Profil C# Corner — champ « site web »** ▶️ toujours ouvert. 119 articles couverts d'un coup.
+
+**Fait (vérifié le 19/10) :**
+
+- [x] **Article n°3 publié** — « Declarative ETL: Why YAML Pipelines Beat Ad-Hoc Scripts », en ligne, deploy #15 vert.
+- [x] **Réponse publiée sur `minimdm` #74** (18/10 16:35) — action n°2 du rapport du 17/10.
+- [x] **0.11.4 sur PyPI** (17/10) avec le correctif `upsert` PostgreSQL — la validation ne reconnaissait **aucune** contrainte valide. Cf. journal du 19/10.
+
+## INDICATEURS — relevés le 24/10/2026 (API GitHub + PyPI, depuis le PC)
+
+> Mis à jour à chaque rapport hebdomadaire. **Objectifs à 6 mois (`CLAUDE.md` §3) :
+> +500 étoiles · 5 000 visiteurs/mois · 250 abonnés · 5 contributeurs externes · 5 demandes.**
+
+| Indicateur | 22/09 | 17/10 | 24/10 | Écart 7 j | Objectif |
+|---|---|---|---|---|---|
+| Étoiles `Hydra` | 2 | 4 | **4** | 0 | 500 |
+| Forks | 1 | 1 (2 listés) | 1 | 0 | — |
+| Watchers | — | 0 | **0** | 0 | — |
+| Issues ouvertes | 7 | 7 | 7 (0 externe, 0 commentaire) | 0 | — |
+| PR externes ouvertes | 0 | 0 | **0** | 0 | — |
+| Contributeurs externes | 0 | 0 | **0** | 0 | 5 |
+| PyPI | 0.11.1 | 0.11.3 (27/09) | **0.12.2** (22/10 18:34 UTC) | **+4 publications** | — |
+| Dernier commit `Hydra` | — | 28/09 | **22/10 18:29** | **20 commits** | — |
+| Releases GitHub | — | s'arrête à v0.11.2 | **s'arrête à v0.11.2** | 0 — **5 tags sans release** | — |
+| CI / release | — | ci #26 ✅ | ci #36 ✅, release #18 ✅ | tous verts | — |
+| Déploiement site | — | #14 (28/09) | **#19 ✅** (22/10) | 5 déploiements | — |
+| Articles sur `/blog` | 2 | 2 | **3** | +1 | — |
+| PR awesome fusionnées | 1 | 2 sur 4 | **2 sur 4** | 0 | 4 |
+| `has_discussions` | false | false | **false** | 0 | — |
+| Téléchargements PyPI | — | non mesurable | **non mesurable** (pypistats bloqué au proxy) | — | — |
+| Trafic site | — | non mesurable | **non mesurable** (pas de jeton Umami) | — | 5 000/mois |
+| Indexation | — | `hydraetl.com` absent de sa propre marque | **non vérifiable** (pas d'accès Search Console) | — | — |
+
+> **Le fait de la semaine, en une ligne :** 20 commits, 4 versions publiées, 5 déploiements — et
+> 0 étoile, 0 fork, 0 watcher, 0 issue externe de plus. Le code avance, l'adoption non. Cohérent
+> avec le diagnostic du 19/09 : le frein n'est pas technique.
+
+## Nouveau — issu du rapport du 24/10
+
+- [ ] **Pousser 0.12.3 puis son tag** ▶️ **action n°1 de la semaine.** Prête en local, `origin/main` = `ef5da41`. Elle débloque le tournage des vidéos 2 et 4 de l'Academy. `git push origin main` puis `git push origin v0.12.3` (depuis une invite Windows, pas depuis la VM).
+- [ ] **Créer les cinq releases GitHub manquantes** ▶️ v0.11.3, v0.11.4, v0.12.0, v0.12.1, v0.12.2. Les tags existent tous, l'onglet Releases affiche **v0.11.2 du 26/09** pendant que PyPI sert la 0.12.2. Celui qui arrive par les Releases voit un projet arrêté depuis un mois, l'inverse exact de la réalité. Textes disponibles dans `contenus/github/releases-0.11.3-0.11.4.md` pour les deux premières.
+- [ ] **Revenir sur `planemarlin/minimdm` #74** ▶️ le mainteneur a répondu le 19/10 et **corrigé deux erreurs de notre YAML** : la clé primaire est **`_id`**, pas `record_id` (qui n'existe pas dans les tables), et les enregistrements `retired` / supprimés en douceur n'atteignent pas la cible. `lij55` a annoncé le 20/10 qu'il allait essayer Hydra ETL, et le mainteneur invite explicitement à revenir dire ce qui a marché. ⛔ **Rien à publier pour l'instant : NON TESTÉ.** Le YAML corrigé doit d'abord être exécuté contre un **vrai miniMDM**, pas contre un schéma imité. Fil périssable (4 jours de silence).
+- [ ] **`awesome-data-engineering` #371 — l'état a changé** 📋 la PR est maintenant `mergeable: true`, `clean` (le contrôle en échec du 17/10 a disparu). 35 jours, 0 commentaire, dépôt dormant (dernière fusion le 06/09). Une relance polie d'une ligne devient défendable ; à toi de juger si ça vaut le geste.
+- [ ] **Retirer `Claude outputs/` du dépôt public du site** ▶️ nouveau, jamais signalé : le dossier est à la racine du dépôt, à côté de `.claude/` et de `brand-motion-design-skill`. Même traitement : `git rm -r --cached` puis `.gitignore`.
+- [ ] **Retirer `c:temptest.txt` du dépôt `Hydra`** ▶️ toujours à la racine, depuis la 0.11.4.
+- [ ] **Règle renforcée** 📋 « tout YAML cité publiquement doit avoir été exécuté » devient **exécuté contre le système réel dont on parle**. La correction du mainteneur de miniMDM l'a prouvé : le moteur avait bien été testé, le schéma de la cible avait été imaginé.
+
+## INDICATEURS — archive du 17/10/2026
 
 > Tableau créé le 17/10 : il n'existait pas, donc aucune comparaison semaine/semaine n'était
 > possible avant. Mis à jour à chaque rapport hebdomadaire. **Objectifs à 6 mois (`CLAUDE.md` §3) :
@@ -297,12 +377,12 @@ par 5 scénarios qui font découvrir `hdrctl` lui-même (install, `validate` vs 
 ## Nouveau — issu du rapport du 17/10
 
 - [ ] **Résoudre le conflit de `awesome-mcp-servers` #14699** ▶️ **action n°1 de la semaine.** Vérifié par l'API : `mergeable: false`, `mergeable_state: dirty`, `rebaseable: false`, sur un diff de **+1 ligne**. Le dépôt fusionne activement (#16114 le 15/10, #16032 le 09/10) : **ce n'est pas le mainteneur qui tarde, c'est la PR qui est inerte.** Ne pas relancer dans le fil — refaire la branche depuis `main` à jour, replacer la ligne avec son badge Glama, forcer la mise à jour de la branche de la PR. Liste à ~95 000 étoiles.
-- [ ] **Publier la réponse sur `planemarlin/minimdm` #74** ▶️ fil ouvert, mainteneur actif le 16/10, qui demande lui-même *« which tool would do the loading into your warehouse? »*. Texte EN prêt dans `suivi/veille-forums.md`. **Périssable** : la valeur tombe dès que le fil refroidit. Divulguer « I'm the author of Hydra ETL ».
-- [ ] **Créer la release GitHub `v0.11.3`** ▶️ le tag existe et `release #11` a réussi (27/09), mais l'onglet Releases s'arrête à **v0.11.2** alors que PyPI sert la 0.11.3. Celui qui arrive par les Releases voit une version périmée.
+- [x] **Publier la réponse sur `planemarlin/minimdm` #74** — **publiée le 18/10 16:35.** Suite constatée le 24/10 : **le mainteneur a répondu le 19/10** (angle validé, lien avec Hydra ETL salué) **en corrigeant deux erreurs du YAML** (`_id` et non `record_id` ; `retired` / soft-delete non propagés), et `lij55` a annoncé un essai le 20/10. Il y a donc une suite à donner — voir « Nouveau — issu du rapport du 24/10 ».
+- [ ] **Créer la release GitHub `v0.11.3`** ▶️ *élargi le 24/10 : cinq versions sont concernées, voir « Nouveau — issu du rapport du 24/10 ».*
 - [ ] **Activer Discussions** ▶️ toujours `has_discussions: false`. Action d'un clic, en attente depuis le 19/09.
 - [x] ~~**PR awesome-duckdb #353**~~ — **FUSIONNÉE le 21/09**, vérifié le 17/10 : l'entrée est en ligne (README ligne 319). Elle était encore suivie comme en attente.
 - [x] ~~**PR externe #9**~~ — **cette PR n'existe pas.** Le dépôt `Hydra` n'a jamais eu que #1 et #2, toutes deux de Bechir et fusionnées. Ligne de suivi supprimée, rien à faire.
-- [ ] **`awesome-data-engineering` #371** 📋 **ne rien faire pour l'instant.** 28 jours de silence, mais le dépôt est dormant : dernière fusion le 06/09, et les PR #387 à #391 (11 au 16/10) sont toutes ouvertes. Il fusionne par lots. Re-vérifier vers le 17/11.
+- [ ] **`awesome-data-engineering` #371** 📋 ~~ne rien faire pour l'instant~~ — **revu le 24/10 : la PR est passée de `unstable` à `clean`.** 35 jours, 0 commentaire, dépôt toujours dormant (dernière fusion le 06/09). Relance polie désormais défendable, rendement faible. Voir « Nouveau — issu du rapport du 24/10 ».
 
 ## Suivi
 

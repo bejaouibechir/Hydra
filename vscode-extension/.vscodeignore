@@ -6,3 +6,5 @@ examples/**
 node_modules/**
 **/*.vsix
 **/.DS_Store
+build_vsix.py
+images/icon@256.png

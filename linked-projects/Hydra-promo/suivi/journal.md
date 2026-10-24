@@ -47,6 +47,204 @@
 
 ---
 
+## 24 octobre 2026 — rapport hebdomadaire
+
+> Relevés le 24/10 vers 08h20 UTC, depuis le PC (`device_bash` + `curl`) sur l'API GitHub et PyPI.
+> `hydraetl.com` est **injoignable depuis le PC** (403 au proxy sur CONNECT) : vérifié depuis le
+> cloud à la place. `pypistats.org` toujours bloqué des deux côtés.
+
+### Les chiffres
+
+| Indicateur | 17/10 | 24/10 | Écart |
+|---|---|---|---|
+| Étoiles `Hydra` | 4 | **4** | 0 |
+| Forks | 1 | 1 | 0 |
+| Watchers (`subscribers`) | 0 | 0 | 0 |
+| Issues ouvertes | 7 | 7 (toutes de Bechir, 0 commentaire) | 0 |
+| PR externes ouvertes | 0 | 0 | 0 |
+| Contributeurs externes | 0 | 0 | 0 |
+| PyPI `hydra-etl` | 0.11.3 (27/09) | **0.12.2** (22/10 18:34 UTC) | **+4 publications** : 0.11.4 (17/10), 0.12.0 (22/10 12:52), 0.12.1 (16:43), 0.12.2 (18:34) |
+| Dernier commit `Hydra` | 28/09 | **22/10 18:29** | **20 commits depuis le 17/10** |
+| CI `Hydra` | ci #26 ✅ | ci #36 ✅ (22/10) | tous verts ; `release #15` échouée sur v0.12.0, #16/#17/#18 vertes |
+| Releases GitHub | s'arrête à **v0.11.2** | s'arrête à **v0.11.2** | 0 — **5 tags sans release** (v0.11.3 → v0.12.2) |
+| Déploiement site | #14 (28/09) | **#19 ✅** (22/10) | 5 déploiements verts |
+| Articles sur `/blog` | 2 | **3** | +1 (article du 19/10 en ligne) |
+| PR awesome fusionnées | 2 sur 4 | 2 sur 4 | 0 |
+| `has_discussions` | false | **false** | 0 (ouvert depuis le 19/09) |
+| Téléchargements PyPI | non mesurable | **non mesurable** (pypistats bloqué au proxy) | — |
+| Trafic site | non mesurable | **non mesurable** (pas de jeton Umami) | — |
+| Indexation | non vérifiable | **non vérifiable** (pas d'accès Search Console) | — |
+
+**Lecture honnête : la semaine a été très productive côté code et nulle côté adoption.** 20 commits,
+4 versions publiées, 5 déploiements du site — et 0 étoile, 0 fork, 0 watcher, 0 issue externe de plus.
+C'est cohérent avec le diagnostic du 19/09 (le frein n'est pas technique) et avec la phase 1 : rien
+de ce qui a été fait cette semaine n'était destiné à produire de l'adoption cette semaine.
+
+### Ce qui a bougé
+
+1. **Réforme CLI publiée en trois versions le 22/10** : layout projet, `thread.yaml`,
+   `hdrctl job add|attach|detach|list`, `hdrctl workflow add|remove|list`, `hdrctl run <projet>`,
+   secrets dans `.hydra/secrets` (0.12.1), Studio aligné — anti-écrasement par empreintes sha256 et
+   409, onglet Secrets, ordre d'exécution, boucles Define/Preview, cartes réordonnables (0.12.2).
+2. **Site** : page **Hydra Academy** par parcours + vidéo d'appel `cli2` dans le hero (20-21/10),
+   SQL Server listé dans les connecteurs et dans `llms.txt`, badge SaaSHub déplacé dans l'en-tête.
+   Playlist YouTube « Hydra CLI » (5 vidéos) en ligne.
+3. **`planemarlin/minimdm` #74 — le seul mouvement extérieur, et le plus important du mois.**
+   Réponse de Bechir publiée le 18/10 16:35 ; le **mainteneur a répondu le 19/10 17:12**, saluant le
+   point sur l'idempotence et la divulgation du lien avec Hydra ETL — **et corrigeant deux erreurs du
+   YAML** : la clé primaire est `_id`, pas `record_id` (`record_id` est un champ de la charge du
+   webhook, il n'existe pas dans les tables, donc le job aurait échoué) ; et les enregistrements
+   `retired` ou supprimés en douceur n'atteignent pas la cible. Puis **`lij55` le 20/10 : « I will
+   try the hook and Hydra ETL and check whether it could solve my problem »** — première personne
+   extérieure qui annonce un essai. Le mainteneur invite explicitement à revenir dire ce qui a
+   fonctionné (20/10 18:05). Aucune suite depuis.
+   > **Leçon à ajouter à la règle du 17/10.** « Tout YAML cité publiquement doit avoir été exécuté »
+   > a été respecté sur le moteur (PostgreSQL réel) mais pas sur **le schéma du système cité** : le
+   > jeu de test avait été façonné à la main, pas tiré d'un vrai miniMDM. La règle devient :
+   > **exécuté contre le système réel dont on parle**, pas contre une imitation de son schéma.
+4. **0.12.3 prête en local, non poussée** (tag local `v0.12.3`, `origin/main` = `ef5da41`) :
+   comptage d'erreurs de `hdrctl validate` corrigé, contrôle de `pipeline.yaml`, fidélité
+   disque → canvas → disque d'un job, synchro Studio ↔ disque, messages de connecteurs en anglais.
+
+### Ce qui bloque
+
+1. **0.12.3 non poussée** — bloque le tournage des vidéos 2 et 4 (point explicite de
+   `hydra-academy-videos.md`). C'est le seul blocage dont tout le reste de l'Academy dépend.
+2. **Cinq tags sans release GitHub** : v0.11.3, v0.11.4, v0.12.0, v0.12.1, v0.12.2. L'onglet
+   Releases affiche **v0.11.2 du 26/09** quand PyPI sert la 0.12.2. Signalé le 17/10 avec 2 versions
+   de retard, aggravé à 5 en une semaine. Quiconque arrive par les Releases voit un projet immobile
+   depuis un mois — l'exact inverse de la réalité.
+3. **`awesome-mcp-servers` #14699 — inchangée, 33 jours sans activité** (dernier message : Bechir,
+   21/09 17:15). Le conflit relevé le 17/10 (`mergeable: false`, `dirty`) **n'est pas résolu** ;
+   GitHub n'a pas recalculé l'état ce run (`mergeable: unknown`), donc l'état exact du conflit n'est
+   pas vérifié aujourd'hui, mais rien n'a changé sur la PR. Le dépôt, lui, fusionne quotidiennement
+   (#17395 fusionnée le 23/10 ; la numérotation est passée de ~16 100 le 15/10 à ~17 400 le 23/10).
+   **Ce n'est pas une attente chez un tiers : c'est un rebase à faire.** Action n°1 du rapport
+   précédent, non faite.
+4. **`awesome-data-engineering` #371 — 35 jours, 0 commentaire, mais l'état a changé** :
+   `mergeable: true`, `mergeable_state: clean`, alors que le 17/10 le contrôle était en échec
+   (`unstable`). Dépôt dormant : dernière fusion le 06/09, soit 48 jours. Une relance polie devient
+   défendable maintenant que la PR est propre (texte prêt ci-dessous) ; c'est à Bechir d'en décider,
+   le rendement reste faible.
+5. **`minimdm` #74 : 4 jours sans suite**, alors que le mainteneur a invité à revenir et qu'un
+   utilisateur a annoncé un essai. Périssable : un fil GitHub refroidit en une semaine.
+6. **Fichiers parasites toujours dans des dépôts publics** : `c:temptest.txt` à la racine de
+   `Hydra` ; `.claude/`, `brand-motion-design-skill` et **`Claude outputs/`** (celui-ci jamais
+   signalé jusqu'ici) à la racine du dépôt du site.
+7. **`Discussions` toujours désactivé** (`has_discussions: false`) — un clic, ouvert depuis le 19/09.
+8. **Actions à coût nul en retard depuis le 26-27/09, soit 28 jours** : champ « site web » du profil
+   C# Corner · indexation du 18456 et de l'article du 19/10 · post LinkedIn n°2 · **jeton Umami et
+   accès Search Console**. Troisième rapport de suite aveugle sur le trafic, les installations et
+   l'indexation : les trois seules mesures qui diraient quelque chose de l'usage.
+
+### Recommandation d'article
+
+**« Your webhook tells you when, not whether: idempotent loads for event-driven pipelines »** —
+**le même sujet que le 17/10, mais la justification a changé de nature.**
+
+*Pourquoi maintenant, sur des faits de cette semaine :* le fil #74 n'est plus un besoin supposé.
+Le mainteneur a validé l'angle par écrit (« Your point about idempotency is a good one »), a donné
+le schéma réel (`_id`, `_state`, `_deleted_at`), a nommé lui-même le cas qui fait mal (un
+enregistrement retiré n'atteint pas la cible), et **a demandé un retour d'expérience**. Un tiers a
+annoncé un essai. C'est le premier matériau de phase 2 réellement produit : des mots d'utilisateur,
+un schéma vérifiable, une objection formulée par quelqu'un d'autre que nous.
+
+*Ce qu'il faut mesurer ou tester avant d'écrire une ligne :*
+
+1. **Installer un vrai miniMDM** et travailler sur ses tables, pas sur une imitation. C'est la
+   correction du mainteneur qui l'impose : notre YAML précédent aurait échoué à l'exécution.
+2. **Trois passes avec `key: [_id]`** : chargement, rejeu sans doublon, `UPDATE` amont propagé.
+   Relever les compteurs à chaque passe.
+3. **Le cas retiré / supprimé en douceur** : vérifier noir sur blanc que `mode: upsert` ne supprime
+   pas en cible, et écrire ce qu'il faut faire à la place (filigrane + filtre d'état).
+4. **Le rattrapage par filigrane** : `_updated_at` maximal réellement commité, rejoué trois fois,
+   résultat identique. Chiffrer lignes/seconde et le coût d'un rejeu complet contre un rejeu filtré.
+5. **Contre la 0.12.2 ou 0.12.3 publiée sur PyPI**, pas contre l'arbre de travail local.
+
+*Règle rappelée, et renforcée :* **aucun article n'est publié sans que chaque commande ait été
+exécutée** — et désormais exécutée **contre le système réel dont l'article parle**.
+
+*Tenu en réserve, pour quand ce premier sera écrit :* « quand l'éditeur visuel réécrit vos YAML » —
+la fidélité disque → canvas → disque corrigée en 0.12.3 (`batch_size` forcé à 1000, `delimiter` et
+`encoding` perdus, clés renommées) touche directement le pilier n°1, « un pipeline se relit en pull
+request ». Personne n'écrit sur ce sujet. Mais il vient après, et il demandera son propre protocole.
+
+### Les 3 actions les plus rentables de la semaine
+
+1. **Pousser 0.12.3, puis créer les cinq releases GitHub manquantes.** Le push débloque les vidéos
+   2 et 4 ; les releases suppriment l'impression d'un projet arrêté le 26/09. Deux gestes, aucun
+   contenu à écrire.
+2. **Rebaser `awesome-mcp-servers` #14699.** Une ligne, un dépôt qui fusionne chaque jour,
+   ~95 000 étoiles. Inchangé depuis le 19/09 ; c'était déjà l'action n°1 le 17/10.
+3. **Revenir sur `minimdm` #74 avec le YAML corrigé et exécuté contre un vrai miniMDM**, en
+   répondant à l'invitation du mainteneur et à `lij55`. C'est la seule conversation extérieure
+   vivante du projet, et elle a une date de péremption.
+
+### Ce que ce rapport ne sait pas
+
+Trafic, téléchargements, indexation réelle. Trois jetons manquants, troisième semaine. Tant qu'ils
+manquent, ce rapport compare des étoiles et des dates de commit — ce qui ne dit rien de l'usage.
+
+---
+
+## 22 octobre 2026 — badge SaaSHub
+
+- Fiche SaaSHub approuvée (https://www.saashub.com/hydra-etl). Badge ajouté :
+  - `Hydra` : README, ligne des badges (hauteur 20 px) — commit `05031b3`, poussé sur `main`.
+  - `hydra-site` : footer de l'accueil + URL ajoutée au `sameAs` JSON-LD — commit `74fcf99`, poussé ; Build & Deploy vert.
+  - Le commit en attente `2d81638` (SQL Server dans la liste des connecteurs + `llms.txt`) est parti avec, accord de Bechir.
+- Piège : le dépôt `Hydra` était sur la branche `cli-reform` (sans commit propre, partie de `main`). Le commit a été fait dessus puis `main` avancé par `update-ref` ; les deux branches pointent sur `05031b3`, le travail non commité de Bechir est intact.
+- Piège : git dans la VM laisse des `.lock` dans `.git` tant que la suppression n'est pas autorisée — autorisation demandée et verrous nettoyés.
+- Push : jeton lu dans `C:\Users\DELL\.hydra\gh_token` (dossier connecté à la demande), passé en `http.extraheader`, jamais écrit dans la config.
+- Sur demande de Bechir (badge trop peu visible en pied de page) : badge déplacé dans l'en-tête de toutes les pages, à la place du bouton « Build your first job » (conservé dans le menu mobile) — commit `f320830`, déployé. Masqué sous 1400 px comme l'ancien bouton. Événement Umami `saashub-click`.
+- Rappel CLAUDE.md : SaaSHub reste un annuaire « garder la fiche exacte, ne pas investir davantage ».
+
+---
+
+## 18 octobre 2026 — 0.11.4 publiée, scénario validé contre PyPI
+
+**0.11.4 est sur PyPI** (17/10 18:42 UTC). Parcours de release : `release` #12 bloquée par le
+contrôle de spec DSL (le bump de version la désynchronise — **tout bump exige
+`python tools/spec_export.py` et un commit des schémas**), #13 a publié sur PyPI mais le job
+container a échoué, #14 passe.
+
+### Image Docker — cause et correctif
+
+`npm ci` sous émulation qemu arm64 plantait (`illegal instruction`), et le job tournait 6 h avant
+annulation. Correctif : `FROM --platform=$BUILDPLATFORM` sur l'étape `studio-builder` — le Studio
+est du JavaScript, son résultat ne dépend pas de l'architecture cible, donc il se construit en
+natif sur le runner. Ajouté aussi `skip-existing: true` sur la publication PyPI (sans quoi rejouer
+un tag rend la release rouge alors que le paquet est publié) et `timeout-minutes: 45` sur le job
+container.
+
+### Scénario exécuté contre le paquet publié
+
+Environnement neuf, `pip install "hydra-etl[postgres]==0.11.4"` depuis PyPI, PostgreSQL 16.15 réel.
+Source : 5 fiches (2 actives, 1 draft, 1 retired, 1 soft-deleted). Trois passes : 2 lignes chargées,
+rejouée sans doublon, `UPDATE` amont propagé. `hdrctl validate` vert, `${ENV:LAST_RUN}` substitué
+dans la chaîne SQL, `.env` du dossier job chargé.
+
+### Découvert en testant
+
+- **`hdrctl init` a changé de forme en 0.11.4** : il crée un projet (`.hydra/`, `jobs/job1/`,
+  `workflows/`) et non plus un dossier de job. Ce changement était déjà dans `main` avant cette
+  release. Tout contenu public citant `hdrctl init` avec l'ancienne sortie est à revoir.
+- `pip install hydra-etl` seul ne suffit pas pour PostgreSQL : il faut l'extra `[postgres]`.
+- `SELECT *` casse le chargement quand le schéma source diffère de la cible.
+
+### Décidé
+
+**Réponse à `minimdm#74` débloquée.** Texte définitif dans
+`contenus/github/minimdm-74-reponse.md`. Il assume le bug de la 0.11.3 et indique `>= 0.11.4`.
+
+### Reste ouvert
+
+Créer la GitHub Release v0.11.4 à la main (`release.yml` n'en crée aucune — d'où les releases
+arrêtées à 0.11.2 alors que PyPI est à 0.11.4). Relire les contenus qui citent `hdrctl init`.
+Décider du sort des tests E2E désactivés et de la suite rouge sur `main`.
+
+---
+
 ## 17 octobre 2026 — test réel du brouillon de veille : bug bloquant trouvé dans la 0.11.3
 
 **Déclencheur :** Bechir a demandé de ne rien publier sans certitude. Le YAML du brouillon
@@ -99,6 +297,107 @@ Relire le correctif et le test, committer, ouvrir l'issue, publier la 0.11.4. Pu
 des tests E2E désactivés (job CI avec services PostgreSQL, ou vraies assertions). Question laissée
 de côté : `_validate_upsert_key()` exige une correspondance **exacte** entre `key` et une contrainte,
 ce qui refuse une PK composite plus large ou un index unique partiel que `ON CONFLICT` accepterait.
+
+---
+
+## 19 octobre 2026 (suite) — les 8 tâches de l'après-publication préparées
+
+Tout ce qui ne demande pas les comptes de Bechir est produit. Cinq fichiers, un relevé planifié.
+
+| # | Tâche | Produit | Qui exécute |
+|---|---|---|---|
+| 1 | Indexation | `suivi/instructions-2026-10-19.md` | Bechir (Search Console, Bing) |
+| 2 | UTM LinkedIn | `contenus/posts/linkedin-03-liens-utm.md` | Bechir (commentaire) |
+| 3 | dev.to + Hashnode | `contenus/articles/en-03-yaml-vs-scripts-{devto,hashnode}.md` | Bechir (publication) |
+| 4 | Relevé à 14 jours | **tâche planifiée créée** pour le 02/11 09:00 UTC | automatique |
+| 5 | Nettoyage dépôt site | `suivi/instructions-2026-10-19.md` | Bechir (git) |
+| 6 | PR #14699 | `contenus/annuaires/pr-14699-refonte.md` | Bechir (push) |
+| 7 | Releases 0.11.3 / 0.11.4 | `contenus/github/releases-0.11.3-0.11.4.md` | Bechir (`gh`) |
+| 8 | Discussions + C# Corner | `suivi/instructions-2026-10-19.md` | Bechir (clics) |
+
+### Ce que la préparation a fait apparaître, et qui n'était pas dans le plan
+
+**Le style de `awesome-mcp-servers` a changé sous nos pieds.** Mesuré sur les 41 entrées de la
+section « Data Platforms » du README actuel : description de **141 caractères en médiane**, 250 au
+maximum, et **zéro entrée contenant encore « Install: »** — le mainteneur les a retirées. Notre
+ligne du 19/09 fait ~300 caractères et porte un `Install:`. Repousser la même ligne après rebase
+aurait rouvert un tour de relecture. Elle a été réécrite à ~155 caractères, sans `Install:`, en
+gardant le badge Glama et le seul vrai différenciateur : **le refus par le validateur**.
+
+**L'emplacement, lui, tient toujours** : les deux voisins alphabétiques `aywengo/kafka-schema-reg-mcp`
+(l.1315) et `bintocher/mcp-superset` (l.1316) sont encore consécutifs. Le script d'insertion a été
+**exécuté sur une copie du README réel** : exactement 1 ligne ajoutée, position 1316, émojis
+corrects. Il n'est pas livré « à essayer ».
+
+**Le slash final est la forme canonique du site.** `BaseLayout.astro` construit `canonical` depuis
+`Astro.url.pathname`, et le sitemap écrit `/blog/<slug>/`. Les versions dev.to et Hashnode ont donc
+`canonical_url` **avec** le slash, et les 10 liens internes ont été réécrits en absolu avec le slash
+et l'UTM. À noter : `en-01-one-million-rows-devto.md` porte un canonique **sans** slash — écart
+mineur, antérieur, à corriger si cet article est republié.
+
+**Les 7 pages de destination existent.** Vérifié dans l'arbre du dépôt du site : `cli/03`, `cli/04`,
+`cli/07`, `dsl/interpolation`, `migrate/airflow`, `migrate/dbt`, `playground`. Aucun lien mort dans
+les versions syndiquées. Au passage : **les pages `/migrate/*` sont construites** (airflow, dbt,
+airbyte, dagster, databricks, prefect) alors que `CLAUDE.md` §5 les liste encore à faire — la
+feuille de route est en retard sur la réalité, à reprendre.
+
+**Le sitemap contient déjà le nouvel article** (`sitemap-0.xml`, vérifié), donc la demande
+d'indexation ne tombera pas sur une URL inconnue de Google.
+
+**Deux fichiers parasites dans des dépôts publics**, même famille : les 37 fichiers
+`.claude/skills/brand-motion-design/` plus `brand-motion-design-skill` dans le dépôt du site
+(commit du 19/10), et **`ctemptest.txt`** à la racine du dépôt produit (depuis la 0.11.4). Commandes
+de retrait fournies pour les deux.
+
+### Réserve sur la tâche planifiée du 02/11
+
+Elle est rattachée à cet ordinateur, mais le résultat de création ne liste **aucun dossier** joint
+(`folders_state: NONE`). C'est précisément ce qui a fait échouer le run du 10/10. **À vérifier dans
+les réglages de la tâche** que `Hydra-promo` y est bien rattaché, sinon le relevé sera aveugle sur
+le contexte local.
+
+---
+
+## 19 octobre 2026 — article n°3 publié, 0.11.4, et le correctif upsert
+
+### Vérifié (API, 19/10)
+
+| Fait | Détail |
+|---|---|
+| **Article n°3 en ligne** | « Declarative ETL: Why YAML Pipelines Beat Ad-Hoc Scripts », `/blog/why-yaml-pipelines-beat-ad-hoc-scripts`, daté du 19/10. Deploy #15 ✅ 10:18 UTC. Lie playground, CLI, Studio, DSL, guide, migrate, extension VS Code et le dépôt |
+| **Relayé sur LinkedIn** | annoncé par Bechir, non vérifiable par l'agent (pas d'accès LinkedIn) |
+| **0.11.4 sur PyPI** | 17/10 18:42 UTC. Tags v0.11.3 **et** v0.11.4 présents |
+| **minimdm #74** | **réponse publiée par Bechir le 18/10 16:35** — action n°2 du rapport du 17/10 : faite |
+| Étoiles / forks / watchers | 4 / 1 / 0 — inchangés depuis le 17/10 |
+
+### Le correctif upsert donne raison au protocole de vérification
+
+`fix(postgresql): upsert key validation fails on every table` (17/10) : `_validate_upsert_key()`
+**ne pouvait reconnaître aucune contrainte valide** — `array_agg` sur `key_column_usage.column_name`
+revenait en texte brut `'{col}'`, donc la comparaison d'ensembles comparait des caractères ; et la
+ligne `RealDictCursor` était dépaquetée comme un tuple, ce qui liait les *clés* et faisait lever
+`KeyError: 0` en masquant le vrai diagnostic.
+
+**C'est exactement le risque signalé le 17/10** : `mode: upsert` était documenté au README (l.181)
+et cassé, comme `${SECRET:}` avant lui. Le point 1 du protocole de l'article « idempotent loads »
+est donc levé — mais la leçon se confirme deux fois de suite : **une fonctionnalité documentée
+n'est pas une fonctionnalité vérifiée.** Reste à rejouer la double passe et le rattrapage par
+filigrane avant d'écrire quoi que ce soit.
+
+### Nouvelle dette, créée par le commit du 19/10
+
+Le commit « Adding an articleé » du dépôt **public** du site ajoute, en plus de l'article,
+**37 fichiers `.claude/skills/brand-motion-design/`** et un fichier parasite
+`brand-motion-design-skill` à la racine. Un skill d'outillage n'a rien à faire dans le dépôt
+public du site. À retirer.
+
+### Toujours ouvert depuis le rapport du 17/10
+
+- `awesome-mcp-servers` #14699 : **inchangée depuis le 21/09**, conflit non résolu.
+- **Aucune release GitHub pour v0.11.3 ni v0.11.4** : l'onglet s'arrête à v0.11.2, soit deux
+  versions de retard sur PyPI.
+- `Discussions` toujours désactivé (`has_discussions: false`).
+- Indexation : ni le 18456 ni l'article du 19/10 n'ont été soumis.
 
 ---
 

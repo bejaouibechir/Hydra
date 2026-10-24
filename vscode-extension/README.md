@@ -40,6 +40,18 @@ on, dropdown menus on fixed-value fields.
 
 ## Install
 
+### From Open VSX
+
+The extension is published on [Open VSX](https://open-vsx.org/extension/hydraetl/hydra-etl)
+as `hydraetl.hydra-etl`. In VSCodium, code-server, Gitpod, Killercoda or any
+editor using Open VSX, search for "HYDRA ETL" in the Extensions panel, or:
+
+```
+code --install-extension hydraetl.hydra-etl
+```
+
+### From a `.vsix`
+
 No compilation: the extension is purely declarative — no TypeScript, no
 `npm install`.
 
@@ -60,7 +72,7 @@ cd vscode-extension
 python build_vsix.py
 ```
 
-This produces `hydra-etl-0.1.2.vsix`. The script needs neither Node, npm nor
+This produces `hydra-etl-0.1.4.vsix`. The script needs neither Node, npm nor
 `vsce`: a `.vsix` is a ZIP archive, and `build_vsix.py` assembles it with the
 Python standard library.
 
@@ -72,7 +84,7 @@ Python standard library.
 ### 3. Install
 
 ```powershell
-code --install-extension hydra-etl-0.1.2.vsix
+code --install-extension hydra-etl-0.1.4.vsix
 ```
 
 Without the command line: `Ctrl+Shift+X` → `...` menu at the top of the panel →
@@ -86,12 +98,12 @@ Then reload VS Code: `Ctrl+Shift+P` → **Developer: Reload Window**.
 ### 4. Confirm it is active
 
 `Ctrl+Shift+X`, search for "HYDRA ETL". It should appear under the identifier
-`Bechir Bejaoui.hydra-etl`. The identifier contains a space, so quote it in a shell.
+`hydraetl.hydra-etl`.
 
 ### Uninstall
 
 ```powershell
-code --uninstall-extension "Bechir Bejaoui.hydra-etl"
+code --uninstall-extension hydraetl.hydra-etl
 ```
 
 ---

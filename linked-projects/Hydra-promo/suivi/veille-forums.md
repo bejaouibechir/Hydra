@@ -6,6 +6,219 @@
 
 ---
 
+## Semaine du 24 octobre 2026 — **0 nouvelle discussion retenue, 1 suivi à publier**
+
+**Résultat : aucune discussion nouvelle ne qualifie cette semaine.** Ce n'est pas un défaut
+d'accès — le balayage a tourné, et plus largement que les semaines précédentes (voir le tableau
+des sources). C'est le gisement qui est vide : sur les quatre terrains atteignables, aucun besoin
+réel exprimé dans la fenêtre de 10 jours auquel Hydra ETL réponde mieux qu'une autre piste.
+
+**Mais la semaine n'est pas vide pour autant.** Deux choses sont arrivées sur le fil déjà traité
+`minimdm#74`, et elles valent plus que trois discussions neuves : **l'auteur de l'issue dit qu'il
+va essayer Hydra ETL**, et le mainteneur a relevé **deux erreurs techniques** dans le commentaire
+publié. Un suivi court et testé est prêt ci-dessous. Et un concurrent très proche est apparu.
+
+### État des sources (progrès réel : l'API Stack Exchange est exploitable)
+
+| Source | État cette semaine | Verdict |
+|---|---|---|
+| **API Stack Exchange** (`api.stackexchange.com`, via `fetch` dans le navigateur intégré) | **Fonctionne, sans CAPTCHA** | **Nouveau. C'est la bonne porte d'entrée pour Stack Overflow** — et elle donne aussi dba, datascience, softwareengineering. Plus besoin de passer par `/search` |
+| **GitHub** (recherche web dans le navigateur intégré) | Fonctionne (issues + discussions, `created:>=`) | Toujours la source la plus riche, mais la recherche plein texte ne respecte pas les guillemets : les phrases exactes remontent du bruit |
+| **Hacker News** (API Algolia) | Fonctionne **depuis le navigateur intégré uniquement** | Le proxy du conteneur cloud refuse désormais `hn.algolia.com` (`connect_rejected`). À faire depuis le navigateur |
+| Reddit (r/dataengineering, r/Python) | Refusé (proxy cloud *et* `fetch` depuis le navigateur : CORS) | Structurel. Ne plus réessayer |
+| discuss.python.org (API de recherche) | Fonctionne | **Tari** : 0 résultat pour etl, csv+database, data pipeline, parquet depuis le 10/10 |
+| API GitHub inter-dépôts (`gh api search/issues`) | `403` — session liée à ses seuls dépôts | Inchangé |
+
+**Stack Overflow reste confirmé mort sur les tags data**, cette fois mesuré par l'API et non à l'œil :
+dernière question `[etl]` **13 août**, `[airflow]` **8 septembre**, `[data-engineering]` **18 juin**,
+`[duckdb]` **10 août**. Zéro question dans la fenêtre sur sept tags. Le balayage mensuel décidé la
+semaine dernière est le bon réglage ; il coûte maintenant un seul appel d'API.
+
+---
+
+### 1 — Suivi · GitHub `planemarlin/minimdm` #74 (fil déjà traité le 18/10)
+
+- **Lien :** <https://github.com/planemarlin/minimdm/issues/74> — **toujours ouvert**
+- **Ce qui s'est passé :** Bechir a publié le 18/10. Le commentaire a reçu un 👍, le mainteneur a
+  remercié « *and for disclosing your connection to Hydra ETL* », et surtout **`@lij55`, l'auteur de
+  l'issue, a répondu : « I will try the hook and Hydra ETL and check whether it could solve my
+  problem! »** Il précise son contexte : Debezium pour le temps réel MySQL → PostgreSQL, dbt en ELT.
+  Le mainteneur a conclu en demandant à `@lij55` de revenir dire ce qu'il a retenu.
+- **Pourquoi c'est le point le plus important de la semaine :** c'est le premier essai annoncé par un
+  utilisateur extérieur venant de la veille. Le verrou de `CLAUDE.md` demande **3 pilotes avec cas
+  réel** ; voilà un candidat qui s'est déclaré de lui-même, sur un besoin précis et documenté.
+- **Les deux corrections du mainteneur, toutes deux justes :**
+  1. **La clé primaire est `_id`, pas `record_id`.** `record_id` est le nom du champ dans la charge
+     utile du webhook, pas une colonne des tables. Le `SELECT record_id, …` et le `key: [record_id]`
+     publiés **échoueraient** contre une vraie base miniMDM.
+  2. **Le filtre `_state = 'active' AND _deleted_at IS NULL` perd les rétractations.** Une fiche
+     retirée ou supprimée cesse simplement d'apparaître dans le résultat : la ligne reste dans
+     l'entrepôt comme si elle était toujours golden. C'est un vrai défaut de la réponse publiée,
+     pas une nuance.
+- **Hydra ETL est-il pertinent pour le suivi ? → oui, mais à dose minimale.** Le mainteneur a écrit
+  noir sur blanc que miniMDM ne recommande pas d'outils tiers. Le suivi doit donc être d'abord une
+  **réponse technique à sa correction** ; Hydra ETL n'y apparaît que comme « et voici le changement
+  d'une ligne dans le chargeur », sans nouvelle plaidoirie.
+
+**Brouillon de suivi (EN) — un seul commentaire, à publier sur l'issue :**
+
+> @planemarlin is right on both counts, and the second one is the half that matters: an incremental
+> load filtered on `_state = 'active' AND _deleted_at IS NULL` can never retract anything. A record
+> retired yesterday just stops appearing in the result set, so the warehouse row survives as if it
+> were still golden. My query had that hole.
+>
+> The fix is to stop filtering on state and carry the state instead — take every row whose
+> `_updated_at` moved, with "is it golden" as a computed column, and upsert on `_id`:
+>
+> ```sql
+> SELECT _id, sku, name, price,
+>        (_state = 'active' AND _deleted_at IS NULL) AS is_golden
+> FROM <schema>.<object>
+> WHERE _updated_at > '<last committed _updated_at>';
+> ```
+>
+> Retiring and soft-deleting both bump `_updated_at`, so each arrives as an update that flips
+> `is_golden` to false — a tombstone your models can filter on, instead of a row that silently rots.
+> Deleting the target row works as well; keeping the flag just lets you tell "retired" from
+> "never seen".
+>
+> In the loader that is a one-line change (same disclosure as above): the query goes in
+> `sources.yaml`, the destination side keeps `mode: upsert` and `key: [_id]`. Re-run on 0.12.2
+> against a PostgreSQL 16 source holding active, draft, retired and soft-deleted rows: the first
+> pass loads all five rows with the right flags, a second pass over the same window changes
+> nothing, and after retiring one record and soft-deleting another upstream the incremental pass
+> reads 3 rows and flips both flags to false.
+>
+> @lij55 — with Debezium already in place, you may not need a separate loader for this at all. The
+> miniMDM tables are ordinary PostgreSQL tables, so CDC gives you the state columns too and the
+> `is_golden` derivation can live in dbt. The batch path is the simpler one if you want the golden
+> records on a schedule rather than within seconds; the CDC path is the one that fits what you
+> already run.
+
+> ### ✅ TESTÉ — 24/10/2026
+>
+> **Version :** `hydra-etl[postgres]==0.12.2` (dernière sur PyPI ; 0.12.0 → 0.12.2 sont sorties
+> depuis la 0.11.4 utilisée le 18/10), installée dans un venv neuf. **Attention : la version
+> indiquée dans le commentaire publié le 18/10 était 0.11.4 — le suivi dit 0.12.2.**
+>
+> **Base réelle :** PostgreSQL 16.15. Source `minimdm_sim`, schéma `mdm`, table `product` avec les
+> colonnes internes (`_id`, `_state`, `_deleted_at`, `_updated_at`) et 5 fiches : 2 actives,
+> 1 brouillon, 1 retirée, 1 supprimée en douceur. Cible `analytics.product`, clé primaire `_id`,
+> colonne `is_golden`.
+>
+> **Manifestes exactement ceux du brouillon :** `extract.query` avec la colonne calculée et
+> `WHERE _updated_at > '${ENV:LAST_RUN}'` ; destination `mode: upsert`, `key: [_id]`.
+>
+> **Commandes et résultats observés :**
+>
+> | Étape | Commande | Résultat |
+> |---|---|---|
+> | Validation | `hdrctl validate <job>` | ✅ *DSL valid — no errors detected* |
+> | Passe 1 (fenêtre complète) | `hdrctl run <job>` | ✅ 5 lues / 5 écrites — `is_golden` = t,t,f,f,f (actives vraies, brouillon/retirée/supprimée à faux) |
+> | Passe 2 (même fenêtre) | `hdrctl run <job>` | ✅ 5/5, toujours **5 lignes** en cible : pas de doublon, l'upsert sur `_id` est idempotent |
+> | Amont modifié | SKU-1 retirée, SKU-2 supprimée en douceur, SKU-3 promue active | — |
+> | Passe 3 (fenêtre incrémentale) | `hdrctl run <job>` | ✅ **3 lues / 3 écrites** ; `is_golden` passe à faux pour SKU-1 et SKU-2, à vrai pour SKU-3. **La rétractation se propage.** |
+>
+> **Où le test a tourné :** l'exécution réelle est dans le conteneur cloud, parce que la VM Linux de
+> l'ordinateur de Bechir **n'a pas de PostgreSQL et ne peut pas en installer** (`sudo` refusé, pas de
+> Docker, et son réseau ne sort que vers PyPI). Sur sa machine, ce qui a pu être vérifié l'a été :
+> `pip install "hydra-etl[postgres]==0.12.2"` dans un venv neuf (Python 3.10.12) et
+> `hdrctl validate` sur **les mêmes manifestes** → *DSL valid*. L'extrait publié est celui qui a été
+> exécuté, au mot près.
+>
+> **Observation pour la feuille de route produit** (pas pour le commentaire) : il n'existe pas de
+> `mode: delete` ni de notion de tombstone côté destination. La rétractation ne se propage que si
+> l'utilisateur la transforme lui-même en colonne, comme ici. Pour un chargement incrémental depuis
+> une source qui retire des enregistrements, c'est un manque réel.
+
+**Risque et ton :**
+- **Le mainteneur a posé une limite explicite** : « miniMDM doesn't recommend or endorse specific
+  third-party tools unless they are named in our docs ». Le suivi la respecte : il corrige d'abord
+  l'erreur technique, ne redéfend pas l'outil, et **oriente `@lij55` vers Debezium + dbt** quand
+  c'est effectivement mieux adapté à son besoin temps réel. C'est ce qui rend le commentaire
+  publiable.
+- **Un seul commentaire, et c'est le dernier sur ce fil.** Au-delà, la présence devient de
+  l'occupation de terrain.
+- **Reconnaître l'erreur franchement** (« My query had that hole ») : c'est le passage qui construit
+  la crédibilité, pas celui qui la coûte.
+- La divulgation d'affiliation est déjà faite dans le fil, le suivi y renvoie (« same disclosure as
+  above ») au lieu de la répéter mécaniquement.
+- **Ne pas relancer `@lij55` sur l'essai.** S'il revient, c'est une occasion de pilote ; le pousser
+  le ferait fuir.
+
+---
+
+### 2 — À verser dans `suivi/etude-concurrents.md` : `agentl`, apparu il y a 11 jours
+
+<https://github.com/arimayuji/agentl> · site `agentl.com.br` · PyPI `agentl-etl` · MIT · bêta v0.10
+· 1 ★ au 24/10 (donc sans traction pour l'instant).
+
+Ce n'est pas une discussion, c'est le concurrent le plus proche vu à ce jour, et le relever vaut
+mieux que de le découvrir dans six mois : *« Agentic ETL for Python. Declare pipelines in YAML where
+each step is a connector, a function or an LLM agent »*. Recoupements : YAML déclaratif, Python,
+serveur MCP, CSV/Excel/PDF/SQL/Postgres/S3, étapes de contrôle avant livraison, bancs d'essai
+publiés « y compris là où ça perd », `llms.txt` et copie Markdown de chaque page de doc.
+
+**Ce qui distingue encore Hydra ETL :** la promesse d'`hdrctl validate` — vérifier les manifestes
+**sans toucher une donnée** — n'est pas celle d'agentl, qui met en avant des contrôles *pendant*
+l'exécution et une revue par agent avant livraison. Ses différenciateurs sont le cache par
+enregistrement et le budget d'appels au modèle : c'est un produit **LLM d'abord**, là où Hydra ETL
+est déterministe d'abord. Son angle IA est précisément celui que `CLAUDE.md` a écarté le 22/09.
+**Rien à changer dans le positionnement**, mais la phrase « ETL déclaratif en YAML » n'est plus
+distinctive à elle seule : c'est « validé avant exécution » qui porte, comme décidé.
+
+À faire, côté Bechir ou au prochain relevé : ajouter agentl au tableau de `etude-concurrents.md`.
+
+---
+
+### Examiné puis écarté
+
+- **Apache Hop · discussion « Best way to deploy an Hop project to a customer? »** (15/10, 2 réponses)
+  — <https://github.com/apache/hop/discussions> · Un débutant ETL demande comment livrer son projet
+  Hop à un client. Écarté : le besoin est le déploiement de Hop, pas un autre outil ; et une mention
+  d'Hydra ETL dans le forum d'un concurrent serait du placement, quelle que soit sa formulation.
+- **dba.stackexchange #350889 · « Sync data tables between tables in different Postgres schema »**
+  (20/10, 1 réponse) — <https://dba.stackexchange.com/questions/350889>
+  Vrai besoin, bien posé : synchroniser deux tables PostgreSQL « instantanément » sans le code
+  actuel (déclencheur + table de logs + POST toutes les 10 s). **Hydra ETL n'est pas la bonne
+  réponse** : il demande « instantly », donc réplication logique ou `postgres_fdw` — ce que dit déjà
+  la réponse existante. Proposer un chargement par lots serait une réponse moins bonne que celle qui
+  est là. Ne pas y aller.
+- **duckdb/duckdb · « Select from many JSON-files: OOM error »** (23/10) — bug mémoire de DuckDB 2.0,
+  pas un besoin d'outil. Hydra ETL hériterait du même problème.
+- **datazip-inc/olake #1348** (24/10) — rapport de bug dans un outil voisin (MySQL → Parquet).
+  Aucun besoin exprimé.
+- **arimayuji/agentl · « Welcome to agentl Discussions »** (13/10, 0 commentaire) — annonce d'un
+  concurrent. Motif habituel : pas une question, et y répondre serait d'auteur à auteur.
+- **Hacker News** — 9 fils thématiquement proches dans la fenêtre (ETL, CSV, Airflow, cron), **tous
+  à 0 ou 1 commentaire et tous des auto-publications**. Aucune question. Dont
+  « Best Open Source ETL Tools Reviewed in 2026 » (15/10, 1 point, 0 commentaire) : appât à clics
+  sans audience.
+- **Stack Overflow, dba, datascience, softwareengineering** — balayage par API sur 14 à 16 jours :
+  en dehors de la question dba ci-dessus, rien qui touche au chargement de fichiers vers une base.
+
+### Recommandation
+
+**Publier le suivi sur `minimdm#74`, et rien d'autre.** C'est le seul brouillon de la semaine, il est
+✅ TESTÉ, il corrige une erreur réelle dans un commentaire déjà public — ce qui en fait moins une
+option qu'une dette à régler — et il entretient le seul fil où un utilisateur extérieur a dit vouloir
+essayer Hydra ETL.
+
+**Ne rien poster ailleurs.** Aucune des discussions examinées ne mérite une réponse, et la seule qui
+exprime un vrai besoin (dba.SE) appelle une réponse où Hydra ETL n'a pas sa place.
+
+**Deux points qui ne sont pas de la veille mais qui en sortent :**
+1. `@lij55` est **le candidat pilote le plus avancé** à ce jour. S'il revient sur le fil, c'est là que
+   se joue le verrou des 3 pilotes.
+2. La **propagation des rétractations** (tombstone / `mode: delete`) est un manque produit identifié
+   par un tiers, pas par nous. À verser dans la feuille de route v1.0.
+
+**Pour la semaine prochaine :** interroger Stack Overflow et Hacker News **par API depuis le
+navigateur intégré** (c'est fait, c'est rapide, ça coûte un appel chacun) et garder le temps du run
+pour GitHub, qui est le seul terrain où des besoins apparaissent encore. Reddit reste hors d'atteinte.
+
+---
+
 ## Semaine du 17 octobre 2026 — **1 discussion retenue**
 
 **Résultat : 1 discussion, 1 brouillon.** La veille a pu tourner cette semaine : le navigateur
@@ -102,17 +315,17 @@ d'auteurs à 1 point (détail en fin de section).
 > I'm the only maintainer, so for a scheduled nightly sync it's a reasonable bet, for a critical path
 > you'd want to pin a version.
 
-> ## ⛔ PUBLICATION SUSPENDUE — 17/10, après test réel
+> ## ✅ PUBLICATION DÉBLOQUÉE — 18/10
 >
-> Le brouillon ci-dessous **ne doit pas être posté en l'état**. Testé bout en bout contre un
-> PostgreSQL 16 réel : **`mode: upsert` est cassé dans la 0.11.3 publiée** (`KeyError: 0`, sur
-> n'importe quelle table, même avec la PRIMARY KEY attendue). Or l'upsert est exactement
-> l'argument que porte le commentaire. Deux autres défauts dans le brouillon : `SELECT *` fait
-> échouer le chargement, et `pip install hydra-etl` n'installe pas le driver PostgreSQL.
+> La 0.11.4 est sur PyPI (17/10 18:42 UTC) et corrige l'upsert PostgreSQL. Le scénario a été
+> **exécuté** le 18/10 contre `hydra-etl[postgres]==0.11.4` téléchargée depuis PyPI dans un
+> environnement neuf, face à un PostgreSQL 16.15 réel : 2 fiches golden sur 5 chargées, trois
+> passes sans doublon, mise à jour amont propagée.
 >
-> Diagnostic, correctif (3 lignes) et mesures : `ressources/patchs/0.11.3-upsert-postgres-RAPPORT.md`.
-> **Reprendre la publication seulement après une 0.11.4 publiée sur PyPI**, et en citant
-> `pip install "hydra-etl[postgres]"`.
+> **Le texte définitif est dans `contenus/github/minimdm-74-reponse.md`** et remplace le brouillon
+> ci-dessous. Trois corrections qui venaient du test : l'extra `[postgres]` (sans lui le job échoue
+> d'emblée), les colonnes listées explicitement (`SELECT *` casse le chargement), et plus aucune
+> mention de `hdrctl init` — en 0.11.4 il crée un projet et non un dossier de job.
 
 **Risque et ton :**
 - **Autopromotion dans le dépôt d'un tiers.** C'est le point sensible. Il est atténué ici parce que

@@ -11,7 +11,7 @@ Usage:
     python build_vsix.py
 
 Then:
-    code --install-extension "hydra-etl-0.1.2.vsix"
+    code --install-extension "hydra-etl-0.1.4.vsix"
 """
 from __future__ import annotations
 

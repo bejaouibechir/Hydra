@@ -2,8 +2,8 @@
   "name": "hydra-etl",
   "displayName": "HYDRA ETL",
   "description": "Autocompletion, validation and snippets for HYDRA ETL manifests — jobs and workflows.",
-  "version": "0.1.3",
-  "publisher": "Bechir Bejaoui",
+  "version": "0.1.4",
+  "publisher": "hydraetl",
   "author": {
     "name": "Bechir Bejaoui"
   },
@@ -75,7 +75,9 @@
           "workflow.yaml",
           "workflow.yml",
           "**/workflow.yaml",
-          "**/workflow.yml"
+          "**/workflow.yml",
+          "**/workflows/*.yaml",
+          "**/workflows/*.yml"
         ],
         "url": "./schemas/workflow.schema.json"
       }

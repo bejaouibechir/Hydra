@@ -39,6 +39,7 @@ from hydra_etl.internal.connector.frame_batch import FrameBatch
 from hydra_etl.internal.connector.load_session import (
     LoadSession, cleanup_orphans, replace_file, temp_path_for,
 )
+from hydra_etl.internal.connector.undo import FileUndo, backup_path_for
 from hydra_etl.internal.connector.interface import Connector, Batch, ConnectorCapabilities
 
 logger = logging.getLogger(__name__)
@@ -226,9 +227,11 @@ class ParquetConnector(Connector):
     # tout ou rien par nature (Parquet ne s'écrit pas en place).
     atomic_load_modes = frozenset({"append", "replace"})
     atomic_default_modes = frozenset({"append", "replace"})
+    undo_load_modes = frozenset({"append", "replace"})      # rollback d'un workflow (undo.py)
 
     def begin_load(self, *, table: str, mode: str = "append", key: Optional[List[str]] = None,
-                   atomic: bool = False, compression: str = "snappy") -> "_ParquetLoadSession":
+                   atomic: bool = False, compression: str = "snappy",
+                   undo: bool = False) -> "_ParquetLoadSession":
         """Session de chargement d'un job : un seul ParquetWriter pour tous les lots
         (au lieu de recopier le fichier à chaque lot)."""
         _require_pyarrow()
@@ -238,7 +241,7 @@ class ParquetConnector(Connector):
         comp_norm = compression.strip().lower()
         if comp_norm not in self.VALID_COMPRESSIONS:
             raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' is invalid.")
-        return _ParquetLoadSession(self, table=table, mode=mode_norm, atomic=atomic,
+        return _ParquetLoadSession(self, table=table, mode=mode_norm, atomic=atomic, undo=undo,
                                    compression=None if comp_norm == "none" else comp_norm)
 
     def load_batches(
@@ -349,7 +352,7 @@ class _ParquetLoadSession(LoadSession):
     (copie de l'existant en append), un seul writer, puis remplacement."""
 
     def __init__(self, connector: "ParquetConnector", *, table: str, mode: str,
-                 atomic: bool, compression: Optional[str]) -> None:
+                 atomic: bool, compression: Optional[str], undo: bool = False) -> None:
         path = Path(connector._resolve_path(table))
         super().__init__(target=str(path), table=table, mode=mode, atomic=atomic)
         self._c = connector
@@ -360,6 +363,8 @@ class _ParquetLoadSession(LoadSession):
         self.tmp = temp_path_for(path)
         self.writer = None
         self.schema = None
+        self._undo = undo
+        self._existed = path.exists()
 
     def _stage(self, batch: Any) -> None:
         t = self._c._to_table(batch)
@@ -399,7 +404,19 @@ class _ParquetLoadSession(LoadSession):
             return
         self.writer.close()
         self.writer = None
-        replace_file(self.tmp, self.path)
+        backup = None
+        if self._undo and self.path.exists():
+            backup = backup_path_for(self.path)
+            os.replace(self.path, backup)               # ancien fichier gardé jusqu'à la fin du workflow
+        try:
+            replace_file(self.tmp, self.path)
+        except BaseException:
+            if backup is not None:
+                os.replace(backup, self.path)
+            raise
+        if self._undo:
+            self.undo_record = FileUndo(target=str(self.path), mode=self.mode, existed=self._existed,
+                                        backup=str(backup) if backup else None).seal()
 
     def _abort(self) -> None:
         ParquetConnector._nettoyer(self.writer, self.tmp)

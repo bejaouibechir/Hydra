@@ -92,8 +92,14 @@ def validate_workflow(path: Union[str, Path]) -> tuple[bool, str]:
         wf = load_workflow(path)
         # Vérification supplémentaire : cycles
         from hydra_etl.workflow.runner import WorkflowRunner
-        runner = WorkflowRunner(wf)
+        runner = WorkflowRunner(wf, base_dir=Path(path).resolve().parent)
         runner._build_execution_groups()  # lève ValueError si cycle
+        # rollback: true : chaque step doit pouvoir être défait
+        from hydra_etl.workflow.rollback import rollback_problems
+        problems = rollback_problems(wf, Path(path).resolve().parent)
+        if problems:
+            return False, ("rollback: true, but some steps cannot be undone:\n  - "
+                           + "\n  - ".join(problems))
         return True, ""
     except Exception as e:
         return False, str(e)

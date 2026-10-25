@@ -408,7 +408,35 @@ def reference_markdown(manifests, operations, actions, connectors) -> str:
         "> de faute de frappe.",
         "",
     ]
+    lines += rollback_markdown()
     return "\n".join(lines)
+
+
+def rollback_markdown() -> list:
+    """Tout ou rien (load.atomic) et annulation (rollback / undo), tirés du code."""
+    from hydra_etl.workflow.models import SIDE_EFFECT_ACTIONS
+    from hydra_etl.workflow.rollback import UNDOABLE
+    rows = sorted(UNDOABLE.items())
+    lines = [
+        "## Tout ou rien et annulation",
+        "",
+        "- `destinations.yaml` → `load.atomic` : rien n'est visible avant la fin du job,",
+        "  un échec laisse la destination intacte. Par défaut : oui pour `replace` et pour",
+        "  CSV / Parquet, non pour `append` / `upsert` en base (`atomic: true` pour l'activer).",
+        "- `workflow.yaml` → `rollback: true` : si le workflow échoue, les steps déjà faits",
+        "  sont défaits, du dernier au premier. Vérifié avant le run.",
+        "- Step `type: action` → `undo:` : `none`, ou `{action, params}` (même forme qu'un",
+        "  step). Exigé avec `rollback: true` pour : "
+        + ", ".join(f"`{a}`" for a in sorted(SIDE_EFFECT_ACTIONS)) + ".",
+        "- Annulation inachevée : `hdrctl workflow undo <workflow>`.",
+        "",
+        "| Destination | Modes annulables |",
+        "|---|---|",
+    ]
+    lines += [f"| `{t}` | {', '.join(f'`{m}`' for m in sorted(modes))} |" for t, modes in rows]
+    lines += ["", "> En base, `append` annulable exige `load.key` : seules des clés neuves",
+              "> sont ajoutées, pour être retirées exactement.", ""]
+    return lines
 
 
 # --------------------------------------------------------------------------

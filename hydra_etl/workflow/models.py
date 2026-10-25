@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -48,6 +48,11 @@ ACTION_PARAMS: Dict[str, "tuple[frozenset, frozenset]"] = {
 }
 
 WORKFLOW_ACTIONS = frozenset(ACTION_PARAMS)
+
+# Actions qui agissent hors de Hydra : avec `rollback: true`, chacune déclare
+# comment la défaire (`undo:` une action, ou `undo: none`). Les autres (log,
+# delay, condition, set_param, assign_param) n'ont rien à défaire.
+SIDE_EFFECT_ACTIONS = frozenset({"webhook", "email", "bash", "powershell", "ssh", "python"})
 
 
 def _suggest(word: str, candidates) -> str:
@@ -139,6 +144,20 @@ class RetryPolicy(BaseModel):
     backoff: Literal["fixed", "exponential"] = "fixed"
 
 
+class UndoAction(BaseModel):
+    """`undo:` d'un step action — l'action qui défait ce qu'il a fait, lancée
+    si le workflow (en `rollback: true`) échoue après lui."""
+    model_config = ConfigDict(extra="forbid")
+    action: str
+    params: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_unknown_keys(cls, data: Any) -> Any:
+        _reject_unknown_keys(data, cls.model_fields, "undo")
+        return data
+
+
 class WorkflowStep(BaseModel):
     """Un step du workflow — soit un job Hydra, soit une action."""
     name: str
@@ -157,6 +176,9 @@ class WorkflowStep(BaseModel):
     enabled: bool = True    # False → step ignoré à l'exécution
     retry: Optional[RetryPolicy] = None   # re-tentatives (via Retry-scope)
     when: Optional[str] = None            # garde conditionnelle : step exécuté seulement si l'expression est vraie
+    # Action seulement : comment défaire ce step si le workflow (rollback: true)
+    # échoue après lui — une action, ou "none" (rien à défaire / accepté).
+    undo: Optional[Union[Literal["none"], UndoAction]] = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -186,6 +208,15 @@ class WorkflowStep(BaseModel):
             if self.action not in WORKFLOW_ACTIONS:
                 raise ValueError(_unknown_action_message(self.name, self.action))
             _check_action_params(self.name, self.action, self.params)
+        if self.undo is not None:
+            if self.type == "job":
+                raise ValueError(
+                    f"Step '{self.name}': 'undo' applies to type=action; a job is undone "
+                    f"automatically (rollback: true on the workflow)")
+            if isinstance(self.undo, UndoAction):
+                if self.undo.action not in WORKFLOW_ACTIONS:
+                    raise ValueError(_unknown_action_message(f"{self.name} (undo)", self.undo.action))
+                _check_action_params(f"{self.name} (undo)", self.undo.action, self.undo.params)
         return self
 
 
@@ -195,6 +226,9 @@ class WorkflowDef(BaseModel):
     name: str
     description: Optional[str] = None
     trigger: Trigger = Field(default_factory=Trigger)
+    # Si le workflow échoue : défaire les steps déjà faits, du dernier au premier
+    # (jobs : automatiquement ; actions : leur `undo:`). Voir workflow/rollback.py.
+    rollback: bool = False
     steps: List[WorkflowStep]
 
     model_config = ConfigDict(extra="forbid")
@@ -229,6 +263,7 @@ class StepResult:
     logs: List[str] = field(default_factory=list)   # lignes de log capturées
     output: List[str] = field(default_factory=list)  # stdout/stderr d'une action script
     skipped: bool = False
+    undo_of: Optional[str] = None      # step d'annulation (rollback) : step qu'il défait
 
     def __str__(self) -> str:
         status = "⏭" if self.skipped else ("✅" if self.success else "❌")
@@ -246,6 +281,9 @@ class WorkflowResult:
     duration: float
     steps: List[StepResult] = field(default_factory=list)
     error: Optional[str] = None
+    # rollback: true et échec : {"status": done | failed | nothing,
+    # "steps": [{"step", "status", "message"}], "journal": chemin ou None}
+    rollback: Optional[Dict[str, Any]] = None
 
     def __str__(self) -> str:
         status = "✅ SUCCESS" if self.success else "❌ FAILED"
@@ -261,6 +299,7 @@ class WorkflowResult:
             "success": self.success,
             "duration": self.duration,
             "error": self.error,
+            "rollback": self.rollback,
             "steps": [
                 {
                     "step_name": s.step_name,
@@ -269,6 +308,7 @@ class WorkflowResult:
                     "error": s.error,
                     "logs": s.logs,
                     "skipped": s.skipped,
+                    "undo_of": s.undo_of,
                     "rows_in":  s.job_result.rows_in  if s.job_result else None,
                     "rows_out": s.job_result.rows_out if s.job_result else None,
                     "output_sample":  s.job_result.output_sample  if s.job_result else None,

@@ -459,6 +459,41 @@ class SQLServerConnector(BaseDBConnector):
                                                  columns=ctx["columns"], batch=batch)
             cur.executemany(sql, values)
 
+    # ── Annulation (rollback d'un workflow, voir undo.py) ──────────
+    def _q_table(self, table: str) -> str:
+        schema, name = self._parse_table(table)
+        return self._quote_identifier(schema, name)
+
+    def _q_col(self, column: str) -> str:
+        return self._quote_column(column)
+
+    def _bak_ref(self, table: str, bak: str) -> str:
+        schema, _ = self._parse_table(table)
+        return f"{schema}.{bak}"
+
+    def _table_exists(self, cur, table: str) -> bool:
+        schema, name = self._parse_table(table)
+        cur.execute("SELECT OBJECT_ID(%s, 'U')", (f"{schema}.{name}",))
+        row = cur.fetchone()
+        return bool(row and row[0] is not None)
+
+    def _backup_table_sql(self, src_q: str, bak_q: str) -> str:
+        return f"SELECT * INTO {bak_q} FROM {src_q}"
+
+    def _empty_table_sql(self, q: str) -> str:
+        return f"TRUNCATE TABLE {q}"
+
+    def _identity_insert(self, cur, q: str, table: str, on: bool) -> None:
+        if on:
+            schema, name = self._parse_table(table)
+            cur.execute("SELECT OBJECTPROPERTY(OBJECT_ID(%s), 'TableHasIdentity')", (f"{schema}.{name}",))
+            row = cur.fetchone()
+            self._identity_on = bool(row and row[0] == 1)
+        if getattr(self, "_identity_on", False):
+            cur.execute(f"SET IDENTITY_INSERT {q} {'ON' if on else 'OFF'}")
+        if not on:
+            self._identity_on = False
+
     # ============================================================
     # Helpers
     # ============================================================

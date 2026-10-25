@@ -144,6 +144,8 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
         if r.result is not None:
             for sr in r.result.steps:
                 state = "SKIPPED" if sr.skipped else ("OK" if sr.success else "FAILED")
+                if getattr(sr, "undo_of", None):        # rollback: true
+                    state = "UNDONE" if sr.success else "UNDO FAILED"
                 logs.append(f"{state} {sr.step_name}" + (f": {sr.error}" if sr.error else ""))
                 logs.extend(f"  {ln}" for ln in (getattr(sr, "output", None) or []))
         if r.status == INACTIVE:

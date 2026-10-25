@@ -70,6 +70,7 @@ class LoadSession:
         self.rows_staged = 0
         self.batches_committed = 0        # lots déjà visibles (sans tout ou rien)
         self.state = "open"               # open | published | aborted
+        self.undo_record = None           # undo.UndoRecord (rollback du workflow)
         self._lock = _lock_for(target)
         if not self._lock.acquire(blocking=False):
             logger.info("Waiting for another job writing to %s", target)
@@ -177,10 +178,18 @@ def resolve_atomic(connector: Any, mode: str, requested: Optional[bool]) -> Tupl
 
 
 def open_load_session(connector: Any, *, table: str, mode: str, key: Optional[List[str]],
-                      atomic: bool) -> LoadSession:
-    """Session de chargement du connecteur, ou chargement lot par lot s'il n'en a pas."""
+                      atomic: bool, undo: bool = False) -> LoadSession:
+    """Session de chargement du connecteur, ou chargement lot par lot s'il n'en a pas.
+    undo=True : garder de quoi annuler après publication (rollback du workflow)."""
+    if undo and mode not in frozenset(getattr(connector, "undo_load_modes", frozenset()) or ()):
+        from hydra_etl.internal.connector.undo import UndoUnavailable
+        raise UndoUnavailable(
+            f"destination '{getattr(connector, 'name', '?')}': {type(connector).__name__} cannot "
+            f"undo a '{mode}' load, so the workflow cannot use rollback: true")
     begin = getattr(connector, "begin_load", None)
     if callable(begin):
+        if undo:
+            return begin(table=table, mode=mode, key=key, atomic=atomic, undo=True)
         return begin(table=table, mode=mode, key=key, atomic=atomic)
     if atomic:
         raise AtomicLoadError(f"{type(connector).__name__}: all-or-nothing load is not available")

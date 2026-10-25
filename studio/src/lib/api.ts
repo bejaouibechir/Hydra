@@ -81,6 +81,7 @@ export interface StepResult {
   output_sample?: Record<string, unknown>[]
   output_columns?: string[]
   fallback?: FallbackDecision             // run de projet : décision du fallback
+  undo_of?: string | null                 // rollback: true — ce step défait le step nommé
 }
 export interface Environment {
   id: string; name: string; project_id: string; vars: Record<string, string>

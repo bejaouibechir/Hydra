@@ -122,3 +122,78 @@ def test_mysql_without_atomic_keeps_the_written_batches(my):
     c, rows = my
     s = _fail_after_one_batch(c, "replace", False)
     assert rows() == [(2, "new")] and s.partial_write
+
+
+# ── Annulation après publication (rollback: true, étape 5a) ─────────────────
+from hydra_etl.internal.connector.undo import UndoConflict, UndoUnavailable  # noqa: E402
+
+
+def _publish(c, mode, rows, key=None, table="atomic_t"):
+    s = c.begin_load(table=table, mode=mode, key=key, atomic=True, undo=True)
+    s.stage(rows)
+    s.publish()
+    return s.undo_record
+
+
+@pytest.mark.parametrize("db", ["pg", "my"])
+def test_undo_replace_append_upsert(db, request):
+    c, rows = request.getfixturevalue(db)
+    rec = _publish(c, "replace", [{"id": 5, "v": "new"}])
+    assert rows() == [(5, "new")] and rec.backup_table
+    assert "restored" in rec.undo(c)
+    assert rows() == [(1, "old")]
+    assert not c._table_exists(c._connect().cursor(), rec.backup_table)
+
+    rec = _publish(c, "append", [{"id": 2, "v": "a"}, {"id": 3, "v": "b"}], key=["id"])
+    assert rows() == [(1, "old"), (2, "a"), (3, "b")]
+    rec.undo(c)
+    assert rows() == [(1, "old")]
+
+    rec = _publish(c, "upsert", [{"id": 1, "v": "upd"}, {"id": 4, "v": "ins"}], key=["id"])
+    assert rows() == [(1, "upd"), (4, "ins")]
+    rec.undo(c)
+    assert rows() == [(1, "old")]
+
+
+@pytest.mark.parametrize("db", ["pg", "my"])
+def test_undo_refuses_when_someone_else_wrote(db, request):
+    c, rows = request.getfixturevalue(db)
+    rec = _publish(c, "replace", [{"id": 5, "v": "new"}])
+    s = c.begin_load(table="atomic_t", mode="append", atomic=True)
+    s.stage([{"id": 6, "v": "other"}])
+    s.publish()
+    with pytest.raises(UndoConflict, match="changed after this run"):
+        rec.undo(c)
+    assert rows() == [(5, "new"), (6, "other")]
+    rec.discard(c)
+
+
+@pytest.mark.parametrize("db", ["pg", "my"])
+def test_append_with_undo_needs_new_keys(db, request):
+    c, rows = request.getfixturevalue(db)
+    with pytest.raises(UndoUnavailable, match="needs load.key"):
+        c.begin_load(table="atomic_t", mode="append", atomic=True, undo=True)
+    s = c.begin_load(table="atomic_t", mode="append", key=["id"], atomic=True, undo=True)
+    with pytest.raises(ValueError, match="have a key already"):
+        s.stage([{"id": 1, "v": "dup"}])
+    s.abort()
+    assert rows() == [(1, "old")]
+
+
+def test_pg_undo_of_a_created_table_and_identity_columns(pg):
+    c, rows = pg
+    conn = c._connect()
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS atomic_new; DROP TABLE IF EXISTS atomic_id;"
+                "CREATE TABLE atomic_id (id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY, v text);"
+                "INSERT INTO atomic_id (v) VALUES ('old');")
+    conn.commit()
+    rec = _publish(c, "replace", [{"id": 1, "v": "x"}], table="atomic_new")
+    assert rec.created
+    rec.undo(c)
+    assert not c._table_exists(cur, "atomic_new")
+    rec = _publish(c, "replace", [{"v": "new"}], table="atomic_id")
+    rec.undo(c)
+    cur.execute("SELECT id, v FROM atomic_id")
+    assert [(r["id"], r["v"]) for r in cur.fetchall()] == [(1, "old")]
+    conn.close()

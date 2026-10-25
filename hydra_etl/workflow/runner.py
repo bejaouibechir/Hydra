@@ -135,6 +135,8 @@ class WorkflowRunner:
         self.runtime_params: Dict[str, Any] = dict(params or {})
         self._params_lock = threading.Lock()
         self._project_params_cache: Optional[Dict[str, Any]] = None
+        # rollback: true — steps faits, à défaire si le workflow échoue (rollback.py)
+        self._undo_stack = None
 
     # -------------------------------------------------------------------------
     # Point d'entrée principal
@@ -161,6 +163,24 @@ class WorkflowRunner:
                     pass
 
         logger.info(f"▶ Workflow '{self.workflow.name}' started")
+
+        # Un run précédent arrêté sans finir son annulation : ne rien relancer.
+        from hydra_etl.workflow.rollback import UndoStack, journal_path, rollback_problems
+        journal = journal_path(self.project_root, self.workflow.name)
+        if journal.exists():
+            return WorkflowResult(
+                workflow_name=self.workflow.name, success=False, duration=0.0,
+                error=(f"a previous run of '{self.workflow.name}' stopped before undoing its "
+                       f"changes ({journal}). Finish it with: hdrctl workflow undo "
+                       f"{self.workflow.name} — or delete that file if the data is fine."))
+        if self.workflow.rollback:
+            problems = rollback_problems(self.workflow, self.base_dir)
+            if problems:
+                return WorkflowResult(
+                    workflow_name=self.workflow.name, success=False, duration=0.0,
+                    error="rollback: true, but some steps cannot be undone:\n  - "
+                          + "\n  - ".join(problems))
+            self._undo_stack = UndoStack(journal, self.workflow.name)
 
         try:
             groups = self._build_execution_groups()
@@ -234,13 +254,13 @@ class WorkflowRunner:
                                 f"✗ Workflow '{self.workflow.name}' failed "
                                 f"at step '{step.name}': {sr.error}"
                             )
-                            return WorkflowResult(
+                            return self._finish(WorkflowResult(
                                 workflow_name=self.workflow.name,
                                 success=False,
                                 duration=duration,
                                 steps=list(step_results.values()),
                                 error=f"Step '{step.name}' failed: {sr.error}",
-                            )
+                            ), start)
                         elif step.on_failure == "skip":
                             self._mark_dependents_skipped(step.name, groups, skipped)
                         # on_failure == "continue" → on passe à la suite sans rien faire
@@ -254,23 +274,70 @@ class WorkflowRunner:
             status = "✅ completed" if all_success else "⚠ completed with errors"
             logger.info(f"{status} — workflow '{self.workflow.name}' ({duration:.2f}s)")
 
-            return WorkflowResult(
+            return self._finish(WorkflowResult(
                 workflow_name=self.workflow.name,
                 success=all_success,
                 duration=duration,
                 steps=list(step_results.values()),
-            )
+            ), start)
 
         except Exception as e:
             duration = time.monotonic() - start
             logger.exception(f"✗ Workflow '{self.workflow.name}' unexpected exception")
-            return WorkflowResult(
+            return self._finish(WorkflowResult(
                 workflow_name=self.workflow.name,
                 success=False,
                 duration=duration,
                 steps=list(step_results.values()),
                 error=f"{e.__class__.__name__}: {e}",
-            )
+            ), start)
+
+    # -------------------------------------------------------------------------
+    # Rollback (rollback: true) — voir workflow/rollback.py
+    # -------------------------------------------------------------------------
+
+    def _finish(self, result: WorkflowResult, start: float) -> WorkflowResult:
+        """Fin du run : workflow réussi → sauvegardes supprimées ; échoué → steps
+        déjà faits défaits du dernier au premier."""
+        stack = self._undo_stack
+        if stack is None:
+            return result
+        connector_for = lambda e: self._connector_for_undo(e)  # noqa: E731
+        if result.success:
+            for w in stack.discard_all(connector_for):
+                logger.warning(w)
+            return result
+        logger.info(f"↩ Workflow '{self.workflow.name}': undoing {len(stack.entries)} step(s)")
+        report = stack.undo_all(self._run_undo_action, connector_for)
+        result.rollback = report
+        for r in report["steps"]:
+            ok = r["status"] == "undone"
+            result.steps.append(StepResult(
+                step_name=f"undo {r['step']}", success=ok, duration=0.0,
+                error=None if ok else r["message"], undo_of=r["step"],
+                output=[r["message"]] if ok else [],
+                logs=[f"{'INFO' if ok else 'ERROR'} [undo {r['step']}] {r['message']}"]))
+        if report["status"] == "failed":
+            result.error = (f"{result.error}; rollback stopped: {report['steps'][-1]['message']}. "
+                            f"Finish it with: hdrctl workflow undo {self.workflow.name}")
+        elif report["status"] == "done":
+            result.error = f"{result.error} (changes undone)"
+        result.duration = time.monotonic() - start
+        return result
+
+    def _connector_for_undo(self, entry: Dict[str, Any]) -> Any:
+        from hydra_etl.workflow.rollback import connector_from_entry
+        with self._params_lock:
+            params = dict(self.runtime_params)
+        return connector_from_entry(entry, root=self.project_root, env=self.env, params=params)
+
+    def _run_undo_action(self, step_name: str, spec: Dict[str, Any]) -> "tuple[bool, str]":
+        """Lance l'action `undo:` d'un step ; (réussi, message)."""
+        undo_step = WorkflowStep(name=f"undo {step_name}", type="action",
+                                 action=spec.get("action"), params=spec.get("params") or {})
+        sr = self._execute_step_once(undo_step)
+        msg = sr.error or f"{spec.get('action')} done"
+        return sr.success, msg
 
     # -------------------------------------------------------------------------
     # Tri topologique
@@ -485,7 +552,7 @@ class WorkflowRunner:
             runtime_snapshot = dict(self.runtime_params)
         executor = JobExecutor(
             job_dir=job_path, root_dir=self.project_root, env=self.env,
-            params=runtime_snapshot,
+            params=runtime_snapshot, undo=self._undo_stack is not None,
         )
         # Détails internes du job (env, connecteurs, scripts...) -> log du step
         capture = _JobLogCapture(step_log, threading.get_ident())
@@ -500,6 +567,10 @@ class WorkflowRunner:
             root_logger.removeHandler(capture)
             root_logger.setLevel(prev_level)
         duration = time.monotonic() - start
+
+        # rollback: true — chargement publié (ou partiel) : à défaire si le workflow échoue
+        if self._undo_stack is not None and getattr(job_result, "undo", None) is not None:
+            self._undo_stack.push_job(step.name, job_result.undo, job_result.undo_connector)
 
         if job_result.success:
             step_log.info(
@@ -559,7 +630,11 @@ class WorkflowRunner:
                 duration=time.monotonic() - start, error=error,
             )
 
-        return handler_fn(step, params, start, step_log)
+        result = handler_fn(step, params, start, step_log)
+        if (self._undo_stack is not None and result.success
+                and step.undo is not None and step.undo != "none"):
+            self._undo_stack.push_action(step.name, step.undo)
+        return result
 
     def _resolve_action_params(self, params: dict) -> dict:
         """Résout les placeholders {{ param:NAME }} / {{ env:NAME }} dans les

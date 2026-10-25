@@ -230,6 +230,19 @@ class MySQLMariaDBConnector(BaseDBConnector):
             )
         cur.executemany(sql, values)
 
+    # ── Annulation (rollback d'un workflow, voir undo.py) ──────────
+    def _q_table(self, table: str) -> str:
+        return self._q(table)
+
+    def _q_col(self, column: str) -> str:
+        return self._q(column)
+
+    def _table_exists(self, cur, table: str) -> bool:
+        cur.execute("SELECT COUNT(*) FROM information_schema.tables "
+                    "WHERE table_schema = DATABASE() AND table_name = %s", (table,))
+        row = cur.fetchone()
+        return bool(row and (row[0] if not isinstance(row, dict) else list(row.values())[0]))
+
     # ============================================================
     # Helpers SQL - Version Sprint 1 avec upsert
     # ============================================================

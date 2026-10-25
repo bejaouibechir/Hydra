@@ -4,6 +4,7 @@ workflow:
   trigger:
     type: schedule
     cron: "0 8 * * *"
+  rollback: true        # on failure, undo the steps already done (last first)
   steps:
     - name: "extract"
       type: job
@@ -40,3 +41,14 @@ workflow:
         message: "Workflow daily_sales_etl finished."
       depends_on: ["load"]
       on_failure: skip
+
+    - name: "export_copy"
+      type: action
+      action: bash
+      params:
+        command: "cp outputs/sales.csv /mnt/share/sales.csv"
+      undo:                 # reverses the copy if a later step fails
+        action: bash
+        params:
+          command: "rm -f /mnt/share/sales.csv"
+      depends_on: ["notify"]

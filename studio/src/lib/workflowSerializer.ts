@@ -19,7 +19,11 @@ export interface WorkflowStep {
   enabled?: boolean   // false → step ignoré à l'exécution
   retry?: RetryPolicy  // re-tentatives (via Retry-scope)
   when?: string        // garde conditionnelle : step exécuté seulement si l'expression est vraie
+  undo?: StepUndo      // action : comment la défaire si le workflow (rollback: true) échoue
 }
+
+/** `undo:` d'un step action : une action qui défait ce qu'il a fait, ou 'none'. */
+export type StepUndo = 'none' | { action: string; params?: Record<string, unknown> }
 
 export interface RetryPolicy {
   max: number                          // re-tentatives après le 1er échec
@@ -35,6 +39,7 @@ export interface WorkflowYAML {
       type: 'manual' | 'schedule' | 'webhook'
       cron?: string
     }
+    rollback?: boolean  // échec → défaire les steps déjà faits, du dernier au premier
     steps: WorkflowStep[]
   }
 }
@@ -54,6 +59,7 @@ export interface FlowNodeData extends Record<string, unknown> {
                           // présent uniquement sur les nœuds nodeType==='container'
   collapsed?: boolean     // conteneur replié (réservé — collapse post-socle)
   retry?: RetryPolicy     // config Retry-scope (sur le conteneur) recopiée aux enfants
+  undo?: StepUndo         // action : `undo:` (rollback du workflow)
 }
 
 /** Nœud de regroupement visuel (Sequence Container & futurs types).
@@ -81,7 +87,7 @@ export const isProxyEdge = (e: { id?: string }): boolean =>
 export function flowToWorkflow(
   allNodes: Node<FlowNodeData>[],
   allEdges: Edge[],
-  meta: { name: string; triggerType: 'manual' | 'schedule' | 'webhook'; cron?: string }
+  meta: { name: string; triggerType: 'manual' | 'schedule' | 'webhook'; cron?: string; rollback?: boolean }
 ): WorkflowYAML {
   // Error-scope : recopier la politique on_failure du conteneur sur ses enfants
   // (héritage résolu ICI ; l'override explicite d'un enfant reste prioritaire).
@@ -118,7 +124,8 @@ export function flowToWorkflow(
   if (nodes.length === 0) {
     return {
       version: '1.0',
-      workflow: { name: meta.name, trigger: { type: meta.triggerType, cron: meta.cron }, steps: [] },
+      workflow: { name: meta.name, trigger: { type: meta.triggerType, cron: meta.cron },
+                  ...(meta.rollback ? { rollback: true } : {}), steps: [] },
     }
   }
 
@@ -190,6 +197,10 @@ export function flowToWorkflow(
       step.when = String(data.when).trim()
     }
 
+    if (step.type === 'action' && data.undo) {
+      step.undo = data.undo as StepUndo
+    }
+
     return step
   })
 
@@ -198,6 +209,7 @@ export function flowToWorkflow(
     workflow: {
       name: meta.name,
       trigger: { type: meta.triggerType, cron: meta.cron },
+      ...(meta.rollback ? { rollback: true } : {}),
       steps,
     },
   }
@@ -226,12 +238,22 @@ export function workflowToYAMLString(wf: WorkflowYAML): string {
     }
     if (step.enabled === false) s.enabled = false
     if (step.when) s.when = step.when
+    if (step.undo === 'none') s.undo = 'none'
+    else if (step.undo && step.undo.action) {
+      const u: Record<string, unknown> = { action: step.undo.action }
+      if (step.undo.params && Object.keys(step.undo.params).length > 0) u.params = step.undo.params
+      s.undo = u
+    }
     return s
   })
 
   const doc = {
     version: wf.version,
-    workflow: { name: wf.workflow.name, trigger, steps },
+    workflow: {
+      name: wf.workflow.name, trigger,
+      ...(wf.workflow.rollback ? { rollback: true } : {}),
+      steps,
+    },
   }
 
   // js-yaml : sérialisation TYPÉE et sans perte — nombres, booléens, listes, objets
@@ -289,6 +311,12 @@ export function parseWorkflowYAML(text: string): WorkflowYAML | null {
       }
       if (r.enabled === false) step.enabled = false
       if (r.when !== undefined && r.when !== null && String(r.when).trim()) step.when = String(r.when)
+      if (r.undo === 'none') step.undo = 'none'
+      else if (r.undo && typeof r.undo === 'object' && (r.undo as Record<string, unknown>).action) {
+        const u = r.undo as Record<string, unknown>
+        step.undo = { action: String(u.action),
+          ...(u.params && typeof u.params === 'object' ? { params: u.params as Record<string, unknown> } : {}) }
+      }
       if (r.retry && typeof r.retry === 'object') {
         const rt = r.retry as Record<string, unknown>
         const max = Number(rt.max ?? 0)
@@ -311,6 +339,7 @@ export function parseWorkflowYAML(text: string): WorkflowYAML | null {
           type: trigType,
           cron: trigRaw.cron !== undefined ? String(trigRaw.cron) : undefined,
         },
+        ...(wf.rollback === true ? { rollback: true } : {}),
         steps,
       },
     }
@@ -328,7 +357,7 @@ export function parseWorkflowYAML(text: string): WorkflowYAML | null {
 export function workflowToFlow(wf: WorkflowYAML): {
   nodes: Node<FlowNodeData>[]
   edges: Edge[]
-  meta: { name: string; triggerType: string; cron?: string }
+  meta: { name: string; triggerType: string; cron?: string; rollback?: boolean }
 } {
   const steps = wf.workflow.steps
   const NODE_W = 200, NODE_H = 80, GAP_X = 280, GAP_Y = 120
@@ -380,6 +409,7 @@ export function workflowToFlow(wf: WorkflowYAML): {
         onFailure: step.on_failure,
         enabled:   step.enabled !== false,
         when:      step.when,
+        ...(step.undo ? { undo: step.undo } : {}),
       },
     }
   })
@@ -399,6 +429,7 @@ export function workflowToFlow(wf: WorkflowYAML): {
   return {
     nodes,
     edges,
-    meta: { name: wf.workflow.name, triggerType: wf.workflow.trigger.type, cron: wf.workflow.trigger.cron },
+    meta: { name: wf.workflow.name, triggerType: wf.workflow.trigger.type, cron: wf.workflow.trigger.cron,
+            rollback: wf.workflow.rollback === true },
   }
 }

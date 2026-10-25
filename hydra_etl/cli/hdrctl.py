@@ -999,6 +999,13 @@ def _print_workflow_steps(wf, result, indent: str = "  ") -> None:
     reported = set()
     for sr in result.steps:
         reported.add(sr.step_name)
+        if getattr(sr, "undo_of", None):          # rollback: true — step défait
+            if sr.success:
+                click.echo(f"{indent}{c(C.CY, '↩')}  {t('workflow.run.step_undone', name=sr.undo_of)}")
+                _echo_step_output(sr)
+            else:
+                click.echo(f"{indent}{c(C.RD, '✗')}  {t('workflow.run.step_undo_failed', name=sr.undo_of, error=sr.error)}")
+            continue
         if sr.skipped:
             click.echo(f"{indent}{c(C.YL, '⏭')}  {t('workflow.run.step_skip', name=sr.step_name)}")
         elif sr.success:
@@ -1928,6 +1935,45 @@ def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[s
     else:
         error_box(t("workflow.run.failure", name=wf.name, duration=f"{result.duration:.1f}", error=result.error))
         sys.exit(1)
+
+
+@cmd_workflow.command("undo", help=t("help.workflow.undo.docstring"))
+@_lang_option
+@click.argument("path", metavar="NAME|PATH")
+@click.option("--project", "project", default=None, metavar="PATH", help=t("help.workflow.project"))
+def cmd_workflow_undo(path: str, project: Optional[str]) -> None:
+    """Termine l'annulation d'un workflow (journal .hydra/undo/<nom>.json)."""
+    from hydra_etl.workflow.parser import load_workflow
+    from hydra_etl.workflow.rollback import UndoStack, journal_path
+    from hydra_etl.workflow.runner import WorkflowRunner
+
+    wf_path = _resolve_workflow_arg(path, project)
+    if not wf_path.exists():
+        error_box(t("workflow.file_not_found", path=str(wf_path)))
+        sys.exit(1)
+    try:
+        wf = load_workflow(wf_path)
+    except ValueError as e:
+        error_box(t("workflow.validate.failure", error=str(e)))
+        sys.exit(1)
+    runner = WorkflowRunner(wf, base_dir=wf_path.parent)
+    journal = journal_path(runner.project_root, wf.name)
+    if not journal.exists():
+        info(t("workflow.undo.nothing", name=wf.name))
+        return
+    report = UndoStack.load(journal).undo_all(runner._run_undo_action, runner._connector_for_undo)
+    for r in report["steps"]:
+        if r["status"] == "undone":
+            click.echo(f"  {c(C.CY, '↩')}  {t('workflow.run.step_undone', name=r['step'])}")
+            click.echo(f"     {c(C.DM, '│')} {r['message']}")
+        else:
+            click.echo(f"  {c(C.RD, '✗')}  {t('workflow.run.step_undo_failed', name=r['step'], error=r['message'])}")
+    if report["status"] == "failed":
+        last = report["steps"][-1]
+        error_box(t("workflow.undo.failed", name=wf.name, step=last["step"], error=last["message"],
+                    journal=report["journal"]))
+        sys.exit(1)
+    success_box(t("workflow.undo.done", name=wf.name, count=len(report["steps"])))
 
 
 @cmd_workflow.command("validate", help=t("help.workflow.validate.docstring"))

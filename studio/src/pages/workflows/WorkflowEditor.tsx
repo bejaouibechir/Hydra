@@ -40,7 +40,7 @@ import {
   Save, Play, ChevronLeft, AlertTriangle, CheckCircle2, GitBranch,
   ChevronDown, ChevronUp, Terminal, Circle, Code2, Upload,
   Undo2, Redo2, Trash2, FolderOpen, Package, MoreHorizontal,
-  Pencil, Copy, ArrowLeft, Archive, Boxes, RefreshCw,
+  Pencil, Copy, ArrowLeft, Archive, Boxes, RefreshCw, RotateCcw,
 } from 'lucide-react'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { loadSettings } from '@/pages/Settings'
@@ -285,6 +285,11 @@ function WorkflowEditorInner() {
   const [lastRun, setLastRun]     = useState<Run | null>(null)
   // YAML code panel
   const [codeOpen, setCodeOpen]   = useState(false)
+  // rollback: true du workflow (échec → steps déjà faits défaits, du dernier au premier).
+  // Ref lue par les sauvegardes (closures des mutations), état pour l'affichage.
+  const [rollback, setRollbackState] = useState(false)
+  const rollbackRef = useRef(false)
+  const setRollback = useCallback((v: boolean) => { rollbackRef.current = v; setRollbackState(v) }, [])
   // Panneau Output (latéral droit)
   const [viewerOpen, setViewerOpen] = useState(false)
   const [viewer, setViewer] = useState<{ loading: boolean; error: string | null; cols: string[]; rows: Record<string, unknown>[] }>({ loading: false, error: null, cols: [], rows: [] })
@@ -518,6 +523,7 @@ function WorkflowEditorInner() {
     // éditions → évite les sauts involontaires Workflow ↔ Job config.
     if (initializedWfRef.current === (workflowId ?? '')) return
     initializedWfRef.current = workflowId ?? ''
+    setRollback(parseWorkflowYAML(wfQuery.data.yaml_content ?? '')?.workflow.rollback === true)
     canAutoSave.current = false
     setLoadIssues([])
     setDiskConflict(null)
@@ -1260,6 +1266,7 @@ function WorkflowEditorInner() {
         name:        wfQuery.data?.name ?? 'workflow',
         triggerType: (wfQuery.data?.trigger_type ?? 'manual') as 'manual' | 'schedule' | 'webhook',
         cron:        wfQuery.data?.cron,
+        rollback:    rollbackRef.current,
       })
       return api.workflows.update(workflowId, projectId, {
         layout: {
@@ -1431,6 +1438,7 @@ function WorkflowEditorInner() {
         name:        wfQuery.data?.name ?? 'workflow',
         triggerType: (wfQuery.data?.trigger_type ?? 'manual') as 'manual' | 'schedule' | 'webhook',
         cron:        wfQuery.data?.cron,
+        rollback:    rollbackRef.current,
       })
       const yaml = workflowToYAMLString(wf)
       const jobCanvases = Object.fromEntries(jobCanvasRef.current)
@@ -1952,6 +1960,21 @@ function WorkflowEditorInner() {
           </button>
         )}
 
+        {!isJobScene && (
+          <button
+            onClick={() => { setRollback(!rollbackRef.current); saveMut.mutate(undefined) }}
+            className="btn-secondary text-xs !py-1.5"
+            data-testid="wf-rollback"
+            aria-pressed={rollback}
+            title={'rollback: true — if the workflow fails, undo the steps already done, the last one first '
+              + '(jobs: automatically; actions: their "Undo" setting)'}
+            style={rollback ? { background: 'var(--primary-subtle)', color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
+          >
+            <RotateCcw size={13} />
+            Rollback {rollback ? 'on' : 'off'}
+          </button>
+        )}
+
         <button
           onClick={() => setCodeOpen(v => !v)}
           className="btn-secondary text-xs !py-1.5"
@@ -2370,8 +2393,12 @@ function WorkflowEditorInner() {
               name: wfQuery.data?.name ?? 'workflow',
               triggerType: (wfQuery.data?.trigger_type ?? 'manual') as 'manual' | 'schedule' | 'webhook',
               cron: wfQuery.data?.cron,
+              rollback,
             }}
-            onApply={(n, e) => { setNodes(n); setEdges(e) }}
+            onApply={(n, e, m) => {
+              setNodes(n); setEdges(e)
+              if (m && m.rollback !== undefined && m.rollback !== rollbackRef.current) setRollback(m.rollback)
+            }}
             onClose={() => setCodeOpen(false)}
             mode={isJobScene ? 'job' : 'workflow'}
             onSync={isJobScene && activeJobId ? () => { void syncActiveJob('manual') } : undefined}

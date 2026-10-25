@@ -97,16 +97,20 @@ class Connector(ABC):
     # sait publier d'un coup, et modes en tout ou rien par défaut.
     atomic_load_modes: FrozenSet[str] = frozenset()
     atomic_default_modes: FrozenSet[str] = frozenset()
+    # Modes dont le chargement publié peut être annulé (rollback d'un workflow, undo.py).
+    undo_load_modes: FrozenSet[str] = frozenset()
 
     def begin_load(self, *, table: str, mode: str = "append",
-                   key: Optional[List[str]] = None, atomic: bool = False) -> Any:
+                   key: Optional[List[str]] = None, atomic: bool = False,
+                   undo: bool = False) -> Any:
         """Ouvre la session de chargement d'un job : stage(lot)… puis
         publish() ou abort(). Par défaut : un load_batches() par lot, jamais
         en tout ou rien (les connecteurs qui savent mieux faire surchargent)."""
         from hydra_etl.internal.connector.load_session import AtomicLoadError, LegacyLoadSession
-        if atomic:
+        if atomic or undo:
             raise AtomicLoadError(
-                f"{self.__class__.__name__} [{self.name}]: all-or-nothing load is not available")
+                f"{self.__class__.__name__} [{self.name}]: "
+                + ("all-or-nothing load" if atomic else "undoing a load") + " is not available")
         return LegacyLoadSession(self, table=table, mode=mode, key=key)
 
     def __init__(self, name: str, config: Dict[str, Any]) -> None:

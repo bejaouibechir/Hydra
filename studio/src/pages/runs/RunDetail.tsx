@@ -8,7 +8,7 @@ import LiveBadge from '@/components/ui/LiveBadge'
 import LogViewer from '@/components/ui/LogViewer'
 import {
   ChevronLeft, CheckCircle2, XCircle, Clock,
-  AlertTriangle, ChevronDown, ChevronRight, SkipForward, LifeBuoy,
+  AlertTriangle, ChevronDown, ChevronRight, SkipForward, LifeBuoy, RotateCcw,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -161,7 +161,11 @@ function StepCard({ step, index, defaultOpen = false }: {
 
         {/* Name */}
         <span className="flex-1 font-medium text-sm text-left truncate" style={{ color: 'var(--text-primary)' }}>
-          {step.step_name}
+          {step.undo_of
+            ? <span data-testid="undo-step" className="inline-flex items-center gap-1.5">
+                <RotateCcw size={13} style={{ color: 'var(--info)' }} /> Undo: {step.undo_of}
+              </span>
+            : step.step_name}
         </span>
 
         {step.fallback && <FallbackBadge d={step.fallback} />}

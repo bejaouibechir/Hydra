@@ -9,6 +9,28 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Workflow rollback** (fallback step 5a): `rollback: true` in
+  `workflow.yaml` — if the workflow fails, the steps already done are undone,
+  the last one first. Jobs automatically: previous file kept next to the new
+  one until the end of the run (CSV / Parquet), CSV append back to its size,
+  replaced table restored from a `hydra_bak_…` copy, rows added by `append` /
+  `upsert` removed and rows changed by `upsert` restored (PostgreSQL,
+  MySQL / MariaDB, SQL Server). Actions: `undo:` (an action, or `none`),
+  required for `webhook`, `email`, `bash`, `powershell`, `ssh`, `python`.
+- Checked before the run (`workflow validate`, `run --dry-run`, Check):
+  undoable destination and mode, `load.key` for a database `append`, `undo:`
+  on actions that act outside Hydra. With rollback, a database `append` only
+  adds new keys, so that they can be removed exactly.
+- A destination changed by someone else since the run wrote it is not undone
+  (row count / file size and date): the rollback stops. The rest stays in
+  `.hydra/undo/<workflow>.json`; the workflow refuses to run until
+  `hdrctl workflow undo <workflow>` (new) finishes it. Successful run: the
+  backups are removed.
+- Studio: **Rollback on/off** in the workflow toolbar, **Undo** section in
+  the settings of an action, undone steps in the run page; the Hydra DSL
+  panel shows `rollback` and `undo`. VS Code schema, spec (DSL reference:
+  "Tout ou rien et annulation"), `DSL_GRAMMAR_TREE.md`.
+
 - **All-or-nothing load per job** (fallback step 4): a job writes its
   destination through one load session (`begin → stage → publish | abort`,
   common to every connector); nothing is visible before the end of the job

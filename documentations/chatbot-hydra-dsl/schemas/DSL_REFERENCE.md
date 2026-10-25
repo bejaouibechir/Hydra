@@ -61,3 +61,28 @@ Version du produit : **0.13.0**
 > Toute autre action est refusée : `hdrctl workflow validate` échoue
 > et `hdrctl workflow run` ne démarre pas, avec une suggestion en cas
 > de faute de frappe.
+
+## Tout ou rien et annulation
+
+- `destinations.yaml` → `load.atomic` : rien n'est visible avant la fin du job,
+  un échec laisse la destination intacte. Par défaut : oui pour `replace` et pour
+  CSV / Parquet, non pour `append` / `upsert` en base (`atomic: true` pour l'activer).
+- `workflow.yaml` → `rollback: true` : si le workflow échoue, les steps déjà faits
+  sont défaits, du dernier au premier. Vérifié avant le run.
+- Step `type: action` → `undo:` : `none`, ou `{action, params}` (même forme qu'un
+  step). Exigé avec `rollback: true` pour : `bash`, `email`, `powershell`, `python`, `ssh`, `webhook`.
+- Annulation inachevée : `hdrctl workflow undo <workflow>`.
+
+| Destination | Modes annulables |
+|---|---|
+| `csv` | `append`, `replace` |
+| `mariadb` | `append`, `replace`, `upsert` |
+| `mssql` | `append`, `replace`, `upsert` |
+| `mysql` | `append`, `replace`, `upsert` |
+| `parquet` | `append`, `replace` |
+| `postgres` | `append`, `replace`, `upsert` |
+| `postgresql` | `append`, `replace`, `upsert` |
+| `sqlserver` | `append`, `replace`, `upsert` |
+
+> En base, `append` annulable exige `load.key` : seules des clés neuves
+> sont ajoutées, pour être retirées exactement.

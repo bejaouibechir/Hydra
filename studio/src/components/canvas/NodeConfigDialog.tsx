@@ -290,6 +290,71 @@ interface Props {
   onOpenSecrets?: () => void     // ouvre l'onglet Secrets du volet bas
 }
 
+// ── Undo d'une action (rollback: true du workflow) ───────────────────────────
+
+/** Actions qui agissent hors de Hydra : avec rollback: true, elles déclarent
+ *  comment les défaire (même liste que SIDE_EFFECT_ACTIONS côté Python). */
+export const UNDO_ACTIONS = new Set(['webhook', 'email', 'bash', 'powershell', 'ssh', 'python'])
+
+const UNDO_CHOICES = ['bash', 'powershell', 'python', 'webhook', 'ssh', 'email', 'log']
+
+/** Champs du formulaire d'une action d'annulation (ceux de l'action, python : script). */
+export function undoFields(action: string): FieldDef[] {
+  if (action === 'python') return [
+    { key: 'script', label: 'Python script', type: 'textarea', placeholder: "import os; os.remove('flag.txt')" },
+    { key: 'file_path', label: 'or .py file', type: 'text', placeholder: 'scripts/undo.py' },
+  ]
+  return (CONFIG_FIELDS[`action_${action}`] ?? []).filter(f => !f.browseType || f.type === 'text')
+}
+
+/** Valeur de `undo` enregistrée sur le nœud (undefined = non réglé). */
+export function undoValue(kind: string, params: Record<string, string>): FlowNodeData['undo'] {
+  if (kind === 'unset') return undefined
+  if (kind === 'none') return 'none'
+  const p = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== undefined))
+  return { action: kind, ...(Object.keys(p).length ? { params: p } : {}) }
+}
+
+function UndoEditor({ kind, params, onKind, onParam }: {
+  kind: string; params: Record<string, string>
+  onKind: (k: string) => void; onParam: (k: string, v: string) => void
+}) {
+  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }
+  const inp: React.CSSProperties = { display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box', background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }
+  return (
+    <div data-testid="undo-editor" style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 10, border: '1px dashed var(--bg-border)' }}>
+      <label style={{ display: 'block' }}>
+        <span style={lbl}>Undo (if the workflow rolls back)</span>
+        <select value={kind} onChange={e => onKind(e.target.value)} style={inp} aria-label="Undo action">
+          <option value="unset">Not set (required when the workflow has rollback on)</option>
+          <option value="none">Nothing to undo</option>
+          {UNDO_CHOICES.map(a => <option key={a} value={a}>Run an action: {a}</option>)}
+        </select>
+      </label>
+      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+        With rollback on, a failed workflow undoes the steps already done, the last one first. This action
+        acts outside Hydra: say how to reverse it (e.g. delete the file it created).
+      </span>
+      {kind !== 'unset' && kind !== 'none' && undoFields(kind).map(f => (
+        <label key={f.key} style={{ display: 'block', marginTop: 8 }}>
+          <span style={lbl}>{f.label}</span>
+          {f.type === 'textarea'
+            ? <textarea rows={3} value={params[f.key] ?? ''} placeholder={f.placeholder}
+                onChange={e => onParam(f.key, e.target.value)} style={{ ...inp, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }} />
+            : f.type === 'select'
+              ? <select value={params[f.key] ?? ''} onChange={e => onParam(f.key, e.target.value)} style={inp}>
+                  <option value="">(default)</option>
+                  {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              : <input type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : 'text'}
+                  value={params[f.key] ?? ''} placeholder={f.placeholder}
+                  onChange={e => onParam(f.key, e.target.value)} style={inp} />}
+        </label>
+      ))}
+    </div>
+  )
+}
+
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 export default function NodeConfigDialog({ node, onClose, onSave, joinSources = [], projectId, onOpenSecrets }: Props) {
@@ -305,6 +370,14 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
   const [jobPath,   setJobPath]   = useState(d.jobPath  ?? '')
   const [onFailure, setOnFailure] = useState<'fail' | 'skip' | 'continue'>(d.onFailure ?? 'fail')
   const [whenExpr,  setWhenExpr]  = useState(d.when ?? '')
+  // `undo:` (rollback: true du workflow) : 'unset' | 'none' | type d'action
+  const initUndo = d.undo as FlowNodeData['undo']
+  const [undoKind, setUndoKind] = useState<string>(
+    !initUndo ? 'unset' : initUndo === 'none' ? 'none' : initUndo.action)
+  const [undoParams, setUndoParams] = useState<Record<string, string>>(
+    initUndo && initUndo !== 'none'
+      ? Object.fromEntries(Object.entries(initUndo.params ?? {}).map(([k, v]) => [k, String(v ?? '')]))
+      : {})
   const [params,    setParams]    = useState<Record<string, string>>(
     Object.fromEntries(
       Object.entries((d.params as Record<string, unknown>) ?? {}).map(([k, v]) => [k, String(v ?? '')])
@@ -349,7 +422,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, stepName, jobPath, onFailure, whenExpr, params])
+  }, [onClose, stepName, jobPath, onFailure, whenExpr, params, undoKind, undoParams])
 
   const handleSave = () => {
     let finalParams = params
@@ -362,6 +435,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
       onFailure,
       when:      whenExpr.trim() || undefined,
       params:    Object.keys(finalParams).length ? finalParams : undefined,
+      undo:      undoValue(undoKind, undoParams),
     })
     onClose()
   }
@@ -1065,6 +1139,12 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
               onApply={(ex) => { setParam('expr', ex); setShowExprBuilder(false) }}
               onClose={() => setShowExprBuilder(false)}
             />
+          )}
+
+          {/* Undo (rollback: true du workflow) — actions qui agissent hors de Hydra */}
+          {UNDO_ACTIONS.has(d.nodeType.replace('action_', '')) && d.nodeType.startsWith('action_') && (
+            <UndoEditor kind={undoKind} params={undoParams} onKind={k => { setUndoKind(k); setUndoParams({}) }}
+              onParam={(k, v) => setUndoParams(p => ({ ...p, [k]: v }))} />
           )}
 
           {/* Node ID */}

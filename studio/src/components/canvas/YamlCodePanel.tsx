@@ -52,8 +52,9 @@ const EMPTY_SECTIONS: JobSectionYamls = {
 interface YamlCodePanelProps {
   nodes:   Node<FlowNodeData>[]
   edges:   Edge[]
-  meta:    { name: string; triggerType: 'manual' | 'schedule' | 'webhook'; cron?: string }
-  onApply: (nodes: Node<FlowNodeData>[], edges: Edge[]) => void
+  meta:    { name: string; triggerType: 'manual' | 'schedule' | 'webhook'; cron?: string; rollback?: boolean }
+  /** meta : réglages du workflow lus dans le YAML édité (rollback) */
+  onApply: (nodes: Node<FlowNodeData>[], edges: Edge[], meta?: { rollback?: boolean }) => void
   onClose: () => void
   /** 'job' = Job Builder (.hdr) ; 'workflow' = orchestrateur (défaut) */
   mode?:   'workflow' | 'job'
@@ -296,7 +297,7 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
     if (isJobMode || userEditing.current) return
     setYamlText(generateYaml()); setStatus('synced'); setErrorMsg(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, meta.name, meta.triggerType, meta.cron])
+  }, [nodes, edges, meta.name, meta.triggerType, meta.cron, meta.rollback])
 
   useEffect(() => { if (!isJobMode) setYamlText(generateYaml()) }, []) // eslint-disable-line
 
@@ -312,7 +313,7 @@ export default function YamlCodePanel({ nodes, edges, meta, onApply, onClose, mo
         const wf = parseWorkflowYAML(value)
         if (!wf) throw new Error('Invalid YAML structure')
         const { nodes: n, edges: e } = workflowToFlow(wf)
-        onApply(n as Node<FlowNodeData>[], e)
+        onApply(n as Node<FlowNodeData>[], e, { rollback: wf.workflow.rollback === true })
         setStatus('synced'); setErrorMsg(null)
       } catch (e) {
         setStatus('error'); setErrorMsg((e as Error).message)

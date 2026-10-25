@@ -358,6 +358,44 @@ hdrctl workflow remove daily_sales     # deletes the file and its thread entry; 
 hdrctl run .                           # every workflow, in the order of thread.yaml
 ```
 
+**Rollback.** With `rollback: true`, a workflow that fails undoes the steps it has already
+done, the last one first. Jobs are undone automatically: the previous file comes back (it is
+kept next to the new one until the end of the run), a replaced table gets its previous content
+back (a copy `hydra_bak_…` taken before the load), the rows added by `append` / `upsert` are
+removed and the rows changed by `upsert` get their old values. Actions that act outside Hydra
+(`webhook`, `email`, `bash`, `powershell`, `ssh`, `python`) say how to reverse them:
+
+```yaml
+workflow:
+  name: daily_sales
+  rollback: true
+  steps:
+    - name: load
+      type: job
+      job: ../jobs/load_sales        # database append: load.key is required
+    - name: publish
+      type: action
+      action: bash
+      params: { command: "cp outputs/sales.csv /mnt/share/" }
+      undo:
+        action: bash
+        params: { command: "rm -f /mnt/share/sales.csv" }
+      depends_on: [load]
+    - name: notify
+      type: action
+      action: email
+      params: { to: team@example.com }
+      undo: none                     # nothing to reverse
+      depends_on: [publish]
+```
+
+Everything is checked before the run (`hdrctl workflow validate`, `hdrctl run --dry-run`,
+Studio's **Check**). A destination that changed since the run wrote it (another program
+wrote there) is not undone: the rollback stops instead of erasing that work. A rollback that
+stops (or a crash) leaves `.hydra/undo/<workflow>.json`; the workflow then refuses to run until
+`hdrctl workflow undo <workflow>` finishes it. In Studio: **Rollback on/off** in the workflow
+toolbar, **Undo** in the settings of an action, undone steps marked in the run page.
+
 Jobs are added to a workflow as a chain: each step runs after the previous one.
 
 ```bash

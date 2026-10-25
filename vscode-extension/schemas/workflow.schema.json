@@ -189,6 +189,11 @@
           "description": "Free-form description of the workflow."
         },
         "trigger": { "$ref": "#/definitions/trigger" },
+        "rollback": {
+          "type": "boolean",
+          "default": false,
+          "description": "If the workflow fails, undo the steps already done, the last one first: jobs are undone automatically (previous file or table content, added rows removed); actions that act outside Hydra (webhook, email, bash, powershell, ssh, python) need 'undo'. Checked before the run: a database append needs load.key. An unfinished undo is completed with 'hdrctl workflow undo <name>'."
+        },
         "steps": {
           "type": "array",
           "minItems": 1,
@@ -321,12 +326,28 @@
           "description": "Conditional guard: the step runs only when the expression is true.",
           "examples": ["{{ param:env }} == 'prod'"]
         },
-        "retry": { "$ref": "#/definitions/retryPolicy" }
+        "retry": { "$ref": "#/definitions/retryPolicy" },
+        "undo": {
+          "description": "type=action only. How to reverse this action when the workflow (rollback: true) fails after it: an action, or 'none' (nothing to reverse).",
+          "oneOf": [
+            { "const": "none" },
+            {
+              "type": "object",
+              "required": ["action"],
+              "additionalProperties": false,
+              "properties": {
+                "action": { "type": "string", "description": "Action that reverses the step (same actions and params as a step).", "examples": ["bash", "python", "webhook"] },
+                "params": { "type": "object", "description": "Parameters of the undo action." }
+              }
+            }
+          ],
+          "examples": ["none", { "action": "bash", "params": { "command": "rm -f exports/today.csv" } }]
+        }
       },
       "allOf": [
         {
           "if": { "properties": { "type": { "const": "job" } }, "required": ["type"] },
-          "then": { "required": ["job"] }
+          "then": { "required": ["job"], "not": { "required": ["undo"] } }
         },
         {
           "if": { "properties": { "type": { "const": "action" } }, "required": ["type"] },

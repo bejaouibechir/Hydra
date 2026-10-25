@@ -84,6 +84,10 @@ class JobResult:
     # dans la destination (chargement lot par lot, sans tout ou rien).
     atomic: Optional[bool] = None
     partial_write: bool = False
+    # Workflow en rollback: true : de quoi annuler ce chargement publié
+    # (connector/undo.py) et le connecteur qui sait le faire. Hors to_dict().
+    undo: Optional[Any] = None
+    undo_connector: Optional[Any] = None
     
     def __str__(self) -> str:
         """Représentation lisible du résultat."""

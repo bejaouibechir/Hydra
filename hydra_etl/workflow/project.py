@@ -143,6 +143,10 @@ def prepare_project(root: Path) -> ProjectPlan:
             for problem in pipeline_errors(jp.resolve()):
                 errors.append(f"{WORKFLOWS_DIR}/{path.name}: step '{step.name}' "
                               f"({step.job}) — {problem}")
+        # rollback: true : tout doit pouvoir être défait
+        from hydra_etl.workflow.rollback import rollback_problems
+        errors.extend(f"{WORKFLOWS_DIR}/{path.name}: rollback — {p}"
+                      for p in rollback_problems(wf, path.parent))
         return wf
 
     for name in plan.active_names:

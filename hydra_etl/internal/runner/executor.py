@@ -72,8 +72,13 @@ class JobExecutor:
         params: Optional[Dict[str, Any]] = None,
         env: Optional[str] = None,
         profile: Optional[bool] = None,
+        undo: bool = False,
     ) -> None:
-        """Initialise l'executor."""
+        """Initialise l'executor.
+
+        undo=True (workflow en `rollback: true`) : le chargement garde de quoi
+        être annulé après publication (JobResult.undo, voir connector/undo.py)."""
+        self._undo = bool(undo)
         self.job_dir = Path(job_dir).resolve()
         self.root_dir = root_dir or self.job_dir.parent
         # path_base : dossier de référence pour la résolution des chemins relatifs
@@ -266,7 +271,8 @@ class JobExecutor:
                     if session is None:
                         session = open_load_session(
                             dest_connector, table=load_table, mode=load_mode,
-                            key=load_key if load_mode == "upsert" else None, atomic=atomic)
+                            key=load_key if (load_mode == "upsert" or self._undo) else None,
+                            atomic=atomic, undo=self._undo)
                     session.stage(out_batch)
 
                 first_batch_written = True
@@ -377,6 +383,8 @@ class JobExecutor:
                 output_columns=output_cols,
                 profile=profile_data,
                 atomic=atomic if session is not None else None,
+                undo=self._undo_of(session, dest_id),
+                undo_connector=dest_connector if session is not None else None,
             )
 
         except BaseException as exc:
@@ -412,7 +420,17 @@ class JobExecutor:
                 profile=profile_data,
                 atomic=session.atomic if session is not None else None,
                 partial_write=bool(session is not None and session.partial_write),
+                undo=self._undo_of(session, locals().get("dest_id")),
+                undo_connector=locals().get("dest_connector") if session is not None else None,
             )
+
+    def _undo_of(self, session: Any, dest_id: Optional[str]) -> Any:
+        """Enregistrement d'annulation de la session, complété pour le journal."""
+        rec = getattr(session, "undo_record", None) if session is not None else None
+        if rec is not None:
+            rec.job_dir = str(self.job_dir)
+            rec.dest_id = str(dest_id or "")
+        return rec
 
     @staticmethod
     def _columnar(connector: Any, capability: str, table: Optional[str]) -> bool:

@@ -129,7 +129,7 @@
   "workflow.list.none_found": "No se encontró ningún workflow.",
   "workflow.list.summary": "{count} workflow(s) encontrado(s)",
   "workflow.file_not_found": "Archivo workflow no encontrado: {path}",
-  "help.workflow.docstring": "\b\nGestiona los workflows de un proyecto Hydra.\nUn proyecto es un conjunto de workflows; un workflow es un conjunto de jobs y acciones.\nEl orden en que hdrctl run los inicia está en workflows/thread.yaml.\n\b\nEjemplos:\n  hdrctl workflow add daily_sales\n  hdrctl workflow list\n  hdrctl workflow run daily_sales\n  hdrctl workflow remove daily_sales",
+  "help.workflow.docstring": "\b\nGestiona los workflows de un proyecto Hydra.\nUn proyecto es un conjunto de workflows; un workflow es un conjunto de jobs y acciones.\nEl orden en que hdrctl run los inicia está en workflows/thread.yaml.\n\b\nEjemplos:\n  hdrctl workflow add daily_sales\n  hdrctl workflow list\n  hdrctl workflow run daily_sales\n  hdrctl workflow remove daily_sales\n  hdrctl workflow undo daily_sales",
   "help.workflow.run.docstring": "\b\nEjecuta un workflow, ahora (se ignora su trigger).\nNAME es un workflow del proyecto actual (workflows/NAME.yaml); PATH es un archivo.\n\b\nEjemplos:\n  hdrctl workflow run daily_sales\n  hdrctl workflow run workflows/daily_sales.yaml\n  hdrctl run .   # todos los workflows del proyecto",
   "help.workflow.validate.docstring": "\b\nComprueba un manifiesto de workflow sin ejecutarlo.\nNAME es un workflow del proyecto actual (workflows/NAME.yaml); PATH es un archivo.\n\b\nEjemplos:\n  hdrctl workflow validate daily_sales\n  hdrctl workflow validate workflows/daily_sales.yaml",
   "help.workflow.list.docstring": "\b\nLista los workflows en el orden del thread.\nLista los workflows de un proyecto en el orden de workflows/thread.yaml:\netapa y modo, activo o inactivo, número de steps. También muestra los workflows\nque no están en thread.yaml y las entradas del thread sin archivo.\n\b\nEjemplos:\n  hdrctl workflow list\n  hdrctl workflow list C:\\data\\my_project",
@@ -231,5 +231,11 @@
   "run.project.fallback_kept": "{name}: alternativa no necesaria — {reason}",
   "run.project.probe_error": "{name}: la verificación de la alternativa falló ({error}); se mantiene {name}",
   "run.project.in_place_of": "(alternativa, en lugar de {name})",
-  "run.use_fallback_job": "--use-fallback se aplica a un proyecto (hdrctl run <proyecto>), no a un solo job: {path}"
+  "run.use_fallback_job": "--use-fallback se aplica a un proyecto (hdrctl run <proyecto>), no a un solo job: {path}",
+  "help.workflow.undo.docstring": "\b\nTermina de deshacer un workflow (rollback: true).\nUna ejecución de un workflow con rollback: true que se detuvo antes de\ndeshacer sus cambios (caída, una anulación fallida) deja\n.hydra/undo/<NAME>.json; el workflow no vuelve a ejecutarse hasta terminar.\nEste comando deshace los pasos restantes, del último al primero.\n\b\nEjemplos:\n  hdrctl workflow undo daily_sales\n  hdrctl workflow undo daily_sales --project C:\\data\\my_project",
+  "workflow.undo.nothing": "Nada que deshacer para '{name}'.",
+  "workflow.undo.done": "Workflow '{name}': {count} paso(s) deshecho(s).",
+  "workflow.undo.failed": "Workflow '{name}': la anulación se detuvo en '{step}': {error}. El resto se guarda en {journal}.",
+  "workflow.run.step_undone": "Paso '{name}' deshecho",
+  "workflow.run.step_undo_failed": "Paso '{name}' no deshecho: {error}"
 }

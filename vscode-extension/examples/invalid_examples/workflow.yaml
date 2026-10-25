@@ -31,3 +31,9 @@ workflow:
       # ERROR 5 — 'retry' is not a valid on_failure value.
       # Valid values are fail, skip, continue.
       # To retry a step, use the separate 'retry:' block.
+
+    - name: "undo_on_a_job"
+      type: job
+      job: "./jobs/example"
+      undo: none
+      # ERROR 6 — 'undo' applies to actions; a job is undone automatically.

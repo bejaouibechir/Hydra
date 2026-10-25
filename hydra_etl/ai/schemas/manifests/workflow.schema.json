@@ -57,6 +57,34 @@
       "title": "Trigger",
       "type": "object"
     },
+    "UndoAction": {
+      "additionalProperties": false,
+      "description": "`undo:` d'un step action — l'action qui défait ce qu'il a fait, lancée\nsi le workflow (en `rollback: true`) échoue après lui.",
+      "properties": {
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "UndoAction",
+      "type": "object"
+    },
     "WorkflowStep": {
       "additionalProperties": false,
       "description": "Un step du workflow — soit un job Hydra, soit une action.",
@@ -143,6 +171,22 @@
           "title": "Type",
           "type": "string"
         },
+        "undo": {
+          "anyOf": [
+            {
+              "const": "none",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/UndoAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Undo"
+        },
         "when": {
           "anyOf": [
             {
@@ -184,6 +228,11 @@
     "name": {
       "title": "Name",
       "type": "string"
+    },
+    "rollback": {
+      "default": false,
+      "title": "Rollback",
+      "type": "boolean"
     },
     "steps": {
       "items": {

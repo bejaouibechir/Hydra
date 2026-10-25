@@ -110,3 +110,29 @@ describe('flowToWorkflow — canvas → steps', () => {
     expect(wf.workflow.steps[0].on_failure).toBe('skip')            // hérité
   })
 })
+
+describe('rollback: true et undo: (étape 5a)', () => {
+  it('aller-retour YAML ↔ canvas sans perte', async () => {
+    const { parseWorkflowYAML, workflowToFlow, flowToWorkflow, workflowToYAMLString } = await import('./workflowSerializer')
+    const yaml = [
+      'workflow:', '  name: w', '  trigger: {type: manual}', '  rollback: true', '  steps:',
+      '    - {name: load, type: job, job: ../jobs/a}',
+      '    - name: touch', '      type: action', '      action: bash', '      params: {command: touch f}',
+      '      undo: {action: bash, params: {command: rm f}}', '      depends_on: [load]',
+      '    - {name: mail, type: action, action: email, params: {to: a@b.c}, undo: none, depends_on: [touch]}',
+    ].join('\n')
+    const wf = parseWorkflowYAML(yaml)!
+    expect(wf.workflow.rollback).toBe(true)
+    expect(wf.workflow.steps[1].undo).toEqual({ action: 'bash', params: { command: 'rm f' } })
+    expect(wf.workflow.steps[2].undo).toBe('none')
+    const flow = workflowToFlow(wf)
+    expect(flow.meta.rollback).toBe(true)
+    const back = workflowToYAMLString(flowToWorkflow(flow.nodes, flow.edges,
+      { name: 'w', triggerType: 'manual', rollback: flow.meta.rollback }))
+    expect(back).toContain('rollback: true')
+    expect(back).toContain('undo:\n        action: bash')
+    expect(back).toContain('undo: none')
+    const off = workflowToYAMLString(flowToWorkflow(flow.nodes, flow.edges, { name: 'w', triggerType: 'manual' }))
+    expect(off).not.toContain('rollback')
+  })
+})

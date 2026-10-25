@@ -129,7 +129,7 @@
   "workflow.list.none_found": "No workflow found.",
   "workflow.list.summary": "{count} workflow(s) found",
   "workflow.file_not_found": "Workflow file not found: {path}",
-  "help.workflow.docstring": "\b\nManage the workflows of a Hydra project.\nA project is a set of workflows; a workflow is a set of jobs and actions.\nThe order in which hdrctl run starts them is in workflows/thread.yaml.\n\b\nExamples:\n  hdrctl workflow add daily_sales\n  hdrctl workflow list\n  hdrctl workflow run daily_sales\n  hdrctl workflow remove daily_sales",
+  "help.workflow.docstring": "\b\nManage the workflows of a Hydra project.\nA project is a set of workflows; a workflow is a set of jobs and actions.\nThe order in which hdrctl run starts them is in workflows/thread.yaml.\n\b\nExamples:\n  hdrctl workflow add daily_sales\n  hdrctl workflow list\n  hdrctl workflow run daily_sales\n  hdrctl workflow remove daily_sales\n  hdrctl workflow undo daily_sales",
   "help.workflow.run.docstring": "\b\nRun one workflow, now (its trigger is ignored).\nNAME is a workflow of the current project (workflows/NAME.yaml); PATH is a file.\n\b\nExamples:\n  hdrctl workflow run daily_sales\n  hdrctl workflow run workflows/daily_sales.yaml\n  hdrctl run .   # every workflow of the project",
   "help.workflow.validate.docstring": "\b\nCheck a workflow manifest without running it.\nNAME is a workflow of the current project (workflows/NAME.yaml); PATH is a file.\n\b\nExamples:\n  hdrctl workflow validate daily_sales\n  hdrctl workflow validate workflows/daily_sales.yaml",
   "help.workflow.list.docstring": "\b\nList the workflows in thread order.\nList the workflows of a project in the order of workflows/thread.yaml:\nstage and mode, active or inactive, number of steps. Workflows that are not\nin thread.yaml, and thread entries without a file, are shown too.\n\b\nExamples:\n  hdrctl workflow list\n  hdrctl workflow list C:\\data\\my_project",
@@ -231,5 +231,11 @@
   "run.project.fallback_kept": "{name}: fallback not needed — {reason}",
   "run.project.probe_error": "{name}: fallback check failed ({error}); keeping {name}",
   "run.project.in_place_of": "(fallback, in place of {name})",
-  "run.use_fallback_job": "--use-fallback applies to a project (hdrctl run <project>), not to a single job: {path}"
+  "run.use_fallback_job": "--use-fallback applies to a project (hdrctl run <project>), not to a single job: {path}",
+  "help.workflow.undo.docstring": "\b\nFinish undoing a workflow (rollback: true).\nA run of a workflow with rollback: true that stopped before undoing its\nchanges (crash, an undo that failed) leaves .hydra/undo/<NAME>.json; the\nworkflow refuses to run until it is finished. This command undoes the\nremaining steps, the last one first.\n\b\nExamples:\n  hdrctl workflow undo daily_sales\n  hdrctl workflow undo daily_sales --project C:\\data\\my_project",
+  "workflow.undo.nothing": "Nothing to undo for '{name}'.",
+  "workflow.undo.done": "Workflow '{name}': {count} step(s) undone.",
+  "workflow.undo.failed": "Workflow '{name}': undo stopped at '{step}': {error}. The rest is kept in {journal}.",
+  "workflow.run.step_undone": "Step '{name}' undone",
+  "workflow.run.step_undo_failed": "Step '{name}' not undone: {error}"
 }

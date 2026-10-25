@@ -15,3 +15,14 @@ describe('conditionPart (assistant de condition)', () => {
     expect(conditionPart('previous.rows', 'attr', '', false, '<', '100')).toBe('previous.rows < 100')
   })
 })
+
+describe('undo d\'une action (NodeConfigDialog)', () => {
+  it('valeur enregistrée et champs', async () => {
+    const { undoValue, undoFields } = await import('../canvas/NodeConfigDialog')
+    expect(undoValue('unset', {})).toBeUndefined()
+    expect(undoValue('none', { x: '1' })).toBe('none')
+    expect(undoValue('bash', { command: 'rm f', timeout: '' })).toEqual({ action: 'bash', params: { command: 'rm f' } })
+    expect(undoFields('bash').map(f => f.key)).toContain('command')
+    expect(undoFields('python').map(f => f.key)).toEqual(['script', 'file_path'])
+  })
+})

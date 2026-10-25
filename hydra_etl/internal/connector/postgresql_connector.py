@@ -389,6 +389,33 @@ class PostgreSQLConnector(BaseDBConnector):
             )
         cur.executemany(sql, values)
 
+    # ── Annulation (rollback d'un workflow, voir undo.py) ──────────
+    def _q_table(self, table: str) -> str:
+        schema, name = self._parse_table(table)
+        return self._quote_identifier(schema, name)
+
+    def _q_col(self, column: str) -> str:
+        return self._quote_column(column)
+
+    def _bak_ref(self, table: str, bak: str) -> str:
+        schema, _ = self._parse_table(table)
+        return f"{schema}.{bak}"
+
+    def _table_exists(self, cur, table: str) -> bool:
+        schema, name = self._parse_table(table)
+        cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                    "WHERE table_schema = %s AND table_name = %s)", (schema, name))
+        return bool(cur.fetchone()["exists"])
+
+    def _backup_table_sql(self, src_q: str, bak_q: str) -> str:
+        return f"CREATE TABLE {bak_q} AS TABLE {src_q}"
+
+    def _empty_table_sql(self, q: str) -> str:
+        return f"TRUNCATE TABLE {q}"
+
+    def _insert_override(self) -> str:
+        return "OVERRIDING SYSTEM VALUE "
+
     # ============================================================
     # Helpers SQL
     # ============================================================

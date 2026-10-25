@@ -30,6 +30,7 @@ from hydra_etl.internal.connector.frame_batch import FrameBatch
 from hydra_etl.internal.connector.load_session import (
     LoadSession, cleanup_orphans, replace_file, temp_path_for,
 )
+from hydra_etl.internal.connector.undo import FileUndo, backup_path_for
 from hydra_etl._backend import dual, warn_once
 
 logger = logging.getLogger(__name__)
@@ -761,15 +762,15 @@ class CSVConnector(Connector):
     # la cible ; append revient à la taille d'origine en cas d'échec.
     atomic_load_modes = frozenset({"append", "replace"})
     atomic_default_modes = frozenset({"append", "replace"})
+    undo_load_modes = frozenset({"append", "replace"})      # rollback d'un workflow (undo.py)
 
-    def begin_load(self, *, table: str, mode: str = "append",
-                   key: Optional[List[str]] = None, atomic: bool = False) -> "_CSVLoadSession":
-        """Session de chargement d'un job : un seul fichier ouvert pour tous les lots."""
-        if key is not None:
-            raise ValueError("CSVConnector: 'key' (upsert) is not supported for CSV.")
+    def begin_load(self, *, table: str, mode: str = "append", key: Optional[List[str]] = None,
+                   atomic: bool = False, undo: bool = False) -> "_CSVLoadSession":
+        """Session de chargement d'un job : un seul fichier ouvert pour tous les lots.
+        `key` ne sert qu'à upsert, que CSV ne fait pas : ignorée ici."""
         if not isinstance(mode, str) or mode.strip().lower() not in {"append", "replace"}:
             raise ValueError("CSVConnector: unsupported mode. Use 'append' or 'replace'.")
-        return _CSVLoadSession(self, table=table, mode=mode.strip().lower(), atomic=atomic)
+        return _CSVLoadSession(self, table=table, mode=mode.strip().lower(), atomic=atomic, undo=undo)
 
     @dual("csv.write", rust="_load_batches_rust")
     def load_batches(
@@ -1070,8 +1071,10 @@ class _CSVLoadSession(LoadSession):
       (supprime le fichier s'il n'existait pas) en tout ou rien.
     Aucune ligne produite : la cible n'est pas touchée (comme avant)."""
 
-    def __init__(self, connector: "CSVConnector", *, table: str, mode: str, atomic: bool) -> None:
+    def __init__(self, connector: "CSVConnector", *, table: str, mode: str, atomic: bool,
+                 undo: bool = False) -> None:
         path = connector._resolve_path(table)
+        self._undo = undo
         super().__init__(target=str(path), table=table, mode=mode, atomic=atomic)
         self._c = connector
         self.path = path
@@ -1086,9 +1089,10 @@ class _CSVLoadSession(LoadSession):
                 f"  System error: {e}"
             )
         cleanup_orphans(path)
-        self.write_path = temp_path_for(path) if (mode == "replace" and atomic) else path
+        # replace annulable : toujours via un temporaire (l'ancien fichier est gardé)
+        self.write_path = temp_path_for(path) if (mode == "replace" and (atomic or undo)) else path
         self._orig_size: Optional[int] = None
-        if mode == "append" and atomic and path.exists():
+        if mode == "append" and (atomic or undo) and path.exists():
             self._orig_size = path.stat().st_size
         self._existed = path.exists()
         self._f = None
@@ -1190,8 +1194,23 @@ class _CSVLoadSession(LoadSession):
             except OSError:
                 pass
         self._close()
+        backup = None
         if self.write_path != self.path and self._started:
-            replace_file(self.write_path, self.path)
+            if self._undo and self.path.exists():
+                backup = backup_path_for(self.path)
+                os.replace(self.path, backup)          # ancien fichier gardé jusqu'à la fin du workflow
+            try:
+                replace_file(self.write_path, self.path)
+            except BaseException:
+                if backup is not None:
+                    os.replace(backup, self.path)
+                raise
+        if self._undo and self._started:
+            self.undo_record = FileUndo(
+                target=str(self.path), mode=self.mode, existed=self._existed,
+                backup=str(backup) if backup else None,
+                orig_size=self._orig_size if self.mode == "append" else None,
+            ).seal()
 
     def _abort(self) -> None:
         self._close()
@@ -1200,6 +1219,10 @@ class _CSVLoadSession(LoadSession):
                 self.write_path.unlink()
             except FileNotFoundError:
                 pass
+        elif self._undo and not self.atomic and self.mode == "append" and self._started:
+            # lots déjà ajoutés : le rollback du workflow reviendra à la taille d'origine
+            self.undo_record = FileUndo(target=str(self.path), mode="append", existed=self._existed,
+                                        orig_size=self._orig_size, partial=True).seal()
         elif self.atomic and self.mode == "append":
             if self._orig_size is not None:
                 os.truncate(self.path, self._orig_size)

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Workflow } from '@/lib/api'
-import { Plus, GitBranch, Trash2, ArrowRight, ChevronLeft, Upload, Clock, Webhook, GripVertical } from 'lucide-react'
+import { Plus, GitBranch, Trash2, ArrowRight, ChevronLeft, Upload, Clock, Webhook, GripVertical, LifeBuoy } from 'lucide-react'
 import { swap } from '@/lib/cardOrder'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useRunsList } from '@/hooks/useRunPolling'
@@ -253,6 +253,15 @@ export default function ProjectDetail() {
 
   const project   = useQuery({ queryKey: ['project', projectId],   queryFn: () => api.projects.get(projectId!) })
   const workflows = useQuery({ queryKey: ['workflows', projectId], queryFn: () => api.workflows.list(projectId!) })
+  // thread.yaml enregistré (même cache que ThreadEditor) : remplaçants des fallbacks
+  const thread = useQuery({ queryKey: ['thread', projectId], queryFn: () => api.projects.thread(projectId!),
+    enabled: (workflows.data?.length ?? 0) > 0 })
+  const fallbackOf: Record<string, string[]> = {}
+  for (const st of thread.data?.thread.thread ?? [])
+    for (const w of st.workflows)
+      for (const alt of w.fallback?.use ?? []) (fallbackOf[alt] ??= []).push(w.name)
+  const fileName = (wf: Workflow) =>
+    (wf.path ?? '').replace(/\\/g, '/').split('/').pop()?.replace(/\.ya?ml$/i, '') || wf.name
 
   // Glisser-déposer des cartes : déposer une carte sur une autre échange leurs
   // places. Ordre purement visuel (.hydra/card-order.json), sans effet sur
@@ -430,6 +439,13 @@ export default function ProjectDetail() {
                           {wf.cron && <span className="font-mono"> · {wf.cron}</span>}
                           {jobCount != null && <span> · {jobCount} job{jobCount > 1 ? 's' : ''}</span>}
                         </p>
+                        {fallbackOf[fileName(wf)] && (
+                          <p data-testid={`wf-fallback-of-${wf.name}`} className="text-xs inline-flex items-center gap-1"
+                            style={{ color: 'var(--warning)', margin: 0 }}
+                            title="Not in the execution order: runs only in place of this workflow (thread.yaml → fallback)">
+                            <LifeBuoy size={11} /> fallback of {fallbackOf[fileName(wf)].join(', ')}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <button

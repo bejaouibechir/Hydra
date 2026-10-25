@@ -62,7 +62,7 @@ export function forSave(stages: ThreadStage[]): ThreadStage[] {
     .filter(st => st.workflows.length > 0)
     .map(st => {
       const d = typeof st.delay_after === 'string' ? st.delay_after.trim() : st.delay_after
-      const out: ThreadStage = { mode: st.mode, workflows: st.workflows }
+      const out: ThreadStage = { mode: st.mode, workflows: st.workflows.map(fallbackForSave) }
       if (d !== undefined && d !== null && d !== '' && d !== 0) out.delay_after = d
       return out
     })
@@ -75,6 +75,47 @@ export function namesIn(stages: ThreadStage[]): string[] {
 /** Remplaçants cités par les fallbacks : ils ne vont pas dans le thread. */
 export function fallbackNamesIn(stages: ThreadStage[]): string[] {
   return [...new Set(stages.flatMap(st => st.workflows.flatMap(w => w.fallback?.use ?? [])))]
+}
+
+/** Fallback prêt à l'envoi : valeurs par défaut retirées (comme thread.yaml). */
+function fallbackForSave(w: ThreadWorkflow): ThreadWorkflow {
+  if (!w.fallback) { const { fallback: _f, ...rest } = w; return rest }
+  const fb = w.fallback
+  const out: ThreadFallback = { use: [...fb.use] }
+  const when = (fb.when ?? '').trim()
+  if (when) out.when = when
+  if (fb.on_failure) out.on_failure = true
+  if (fb.on_probe_error === 'replace') out.on_probe_error = 'replace'
+  return { ...w, fallback: out }
+}
+
+/** Remplaçants possibles pour `name` : les workflows du projet sauf lui-même,
+ *  ceux déjà choisis, et ceux du thread qui ont eux-mêmes un fallback
+ *  (profondeur 1). Un workflow du thread choisi en sortira (setFallback). */
+export function fallbackCandidates(stages: ThreadStage[], onDisk: string[], name: string): string[] {
+  const own = stages.flatMap(s => s.workflows).find(w => w.name === name)?.fallback?.use ?? []
+  const withFallback = new Set(stages.flatMap(s => s.workflows).filter(w => w.fallback).map(w => w.name))
+  return onDisk.filter(n => n !== name && !own.includes(n) && !withFallback.has(n))
+}
+
+/** Pose (ou retire, fb = null) le fallback de `name`. Les remplaçants qui
+ *  étaient dans le thread en sortent : ils ne tournent qu'à la place de `name`. */
+export function setFallback(stages: ThreadStage[], name: string, fb: ThreadFallback | null): ThreadStage[] {
+  const alts = new Set(fb?.use ?? [])
+  return clone(stages).map(st => ({
+    ...st,
+    workflows: st.workflows
+      .filter(w => !alts.has(w.name))
+      .map(w => (w.name === name ? { ...w, fallback: fb ? { ...fb, use: [...fb.use] } : null } : w)),
+  }))
+}
+
+/** Erreur visible tout de suite (le reste est vérifié par l'API) ; null si valide. */
+export function fallbackError(fb: ThreadFallback | null | undefined): string | null {
+  if (!fb) return null
+  if (fb.use.length === 0) return 'choose at least one replacement workflow'
+  if (!(fb.when ?? '').trim() && !fb.on_failure) return 'set a condition, or tick "after a failure"'
+  return null
 }
 
 const DELAY_RE = /^\s*\d+(\.\d+)?\s*(ms|s|m|h)?\s*$/i

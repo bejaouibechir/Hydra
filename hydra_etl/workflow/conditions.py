@@ -42,6 +42,23 @@ ATTRIBUTES = {
     "previous.rows",     # lignes écrites par le workflow précédent
 }
 
+# aide affichée par Studio : (type d'argument, description) — mêmes clés que FUNCTIONS
+FUNCTION_HELP: Dict[str, Tuple[str, str]] = {
+    "source_available":      ("source", "the source answers (connection test, or the file is there)"),
+    "destination_available": ("destination", "the destination answers (or its folder is writable)"),
+    "file_exists":           ("path", "the file exists (path relative to the project)"),
+    "file_size":             ("path", "size of the file, e.g. file_size('in.csv') < 1MB"),
+    "file_age":              ("path", "time since the last change, e.g. file_age('in.csv') > 24h"),
+    "url_ok":                ("url", "the URL answers with HTTP 2xx/3xx"),
+    "secret_defined":        ("secret", "the secret is set (.hydra/secrets or environment)"),
+    "db.load":               ("database", "active queries on a database source or destination"),
+}
+
+ATTRIBUTE_HELP: Dict[str, str] = {
+    "previous.status": "status of the previous workflow: 'success', 'failed', 'skipped', 'inactive', 'none'",
+    "previous.rows":   "rows written by the previous workflow",
+}
+
 # réservés au mécanisme `adapt` (plus tard) : refusés avec un message clair
 RESERVED = ("estimate", "resources", "volume", "deadline")
 

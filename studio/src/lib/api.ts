@@ -80,6 +80,7 @@ export interface StepResult {
   rows_out?: number
   output_sample?: Record<string, unknown>[]
   output_columns?: string[]
+  fallback?: FallbackDecision             // run de projet : décision du fallback
 }
 export interface Environment {
   id: string; name: string; project_id: string; vars: Record<string, string>
@@ -132,6 +133,26 @@ export interface ThreadInfo {
   missing: string[]            // noms du thread sans fichier
 }
 
+/** Aide à l'écriture de `fallback.when` (GET /projects/{id}/conditions). */
+export interface ConditionHelp {
+  functions: { name: string; arg: 'source' | 'destination' | 'path' | 'url' | 'secret' | 'database'; returns: 'bool' | 'bytes' | 'seconds' | 'number'; help: string }[]
+  attributes: Record<string, string>      // previous.status, previous.rows
+  sources: string[]                       // déclarées dans les jobs du projet
+  destinations: string[]
+  secrets: string[]                       // noms seulement
+}
+
+export interface CheckResult { ok: boolean; errors: string[]; active: string[]; warnings?: string[] }
+
+/** Décision du fallback d'un workflow du thread, jointe au step du run. */
+export interface FallbackDecision {
+  workflow: string                        // workflow du thread
+  action: 'switched' | 'kept' | 'probe_error'
+  use: string                             // remplaçant (lancé si switched)
+  trigger: 'when' | 'forced' | 'probe_error' | null
+  reason: string
+}
+
 /** Secrets du projet (.hydra/secrets) : noms seulement, jamais les valeurs. */
 export interface SecretsInfo {
   file: string                 // chemin affiché (relatif au projet si possible)
@@ -158,7 +179,11 @@ export const api = {
     saveThread: (id: string, thread: ThreadStage[], loops: ThreadLoop[] = []) =>
       put<ThreadInfo>(`/projects/${id}/thread`, { thread, loops }),
     /** Vérifie le projet comme `hdrctl run --dry-run`. */
-    check:  (id: string)                      => post<{ ok: boolean; errors: string[]; active: string[] }>(`/projects/${id}/check`, {}),
+    check:  (id: string)                      => post<CheckResult>(`/projects/${id}/check`, {}),
+    /** Fonctions des conditions de fallback et noms déclarés dans le projet. */
+    conditions: (id: string)                  => get<ConditionHelp>(`/projects/${id}/conditions`),
+    checkCondition: (id: string, when: string) =>
+      post<{ ok: boolean; error?: string | null }>(`/projects/${id}/conditions/check`, { when }),
     /** Ordre des cartes de workflows (visuel seulement, .hydra/project.json). */
     saveCardOrder: (id: string, order: string[]) => put<{ order: string[] }>(`/projects/${id}/card-order`, { order }),
   },

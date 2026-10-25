@@ -46,3 +46,38 @@ describe('fallback (thread.yaml)', () => {
     expect(fallbackNamesIn(stages)).toEqual(['a_backup'])
   })
 })
+
+describe('fallback — édition (Studio, étape 3)', () => {
+  const T = (): ThreadStage[] => [
+    { mode: 'sequential', workflows: [{ name: 'a', active: true }, { name: 'b', active: true }] },
+    { mode: 'parallel', workflows: [{ name: 'c', active: true, fallback: { use: ['c_alt'], when: 'file_exists(\'x\')' } }] },
+  ]
+  it('candidats : ni lui-même, ni déjà choisi, ni un workflow qui a son propre fallback', async () => {
+    const { fallbackCandidates } = await import('./thread')
+    expect(fallbackCandidates(T(), ['a', 'b', 'c', 'c_alt', 'd'], 'a')).toEqual(['b', 'c_alt', 'd'])
+    expect(fallbackCandidates(T(), ['a', 'b', 'c', 'c_alt', 'd'], 'c')).toEqual(['a', 'b', 'd'])
+  })
+  it('setFallback : un remplaçant du thread en sort ; null retire le fallback', async () => {
+    const { setFallback, fallbackNamesIn } = await import('./thread')
+    const s = setFallback(T(), 'a', { use: ['b'], when: "not source_available('db')" })
+    expect(namesIn(s)).toEqual(['a', 'c'])
+    expect(s[0].workflows[0].fallback?.use).toEqual(['b'])
+    expect(fallbackNamesIn(s)).toEqual(['b', 'c_alt'])
+    expect(setFallback(s, 'a', null)[0].workflows[0].fallback).toBeNull()
+  })
+  it('fallbackError : remplaçant et déclencheur obligatoires', async () => {
+    const { fallbackError } = await import('./thread')
+    expect(fallbackError(null)).toBeNull()
+    expect(fallbackError({ use: [], when: 'x' })).toMatch(/replacement/)
+    expect(fallbackError({ use: ['b'], when: '  ' })).toMatch(/condition/)
+    expect(fallbackError({ use: ['b'], when: '', on_failure: true })).toBeNull()
+  })
+  it('forSave : valeurs par défaut retirées, fallback null supprimé', () => {
+    const out = forSave([{ mode: 'sequential', workflows: [
+      { name: 'a', active: true, fallback: { use: ['b'], when: ' file_exists(\'x\') ', on_failure: false, on_probe_error: 'keep' } },
+      { name: 'c', active: true, fallback: null },
+    ] }])
+    expect(out[0].workflows[0].fallback).toEqual({ use: ['b'], when: "file_exists('x')" })
+    expect('fallback' in out[0].workflows[1]).toBe(false)
+  })
+})

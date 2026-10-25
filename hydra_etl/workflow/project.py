@@ -225,27 +225,37 @@ def _destination_warnings(root: Path, plan: "ProjectPlan", w: ThreadWorkflow) ->
     return out
 
 
-def _condition_name_errors(root: Path, plan: "ProjectPlan", w: ThreadWorkflow) -> List[str]:
-    """Les sources / destinations citées par `when` doivent être déclarées dans
-    un job du workflow (ou, à défaut, du projet)."""
+def project_job_dirs(root: Path) -> List[Path]:
+    """Dossiers jobs/* du projet."""
+    return sorted(d for d in (Path(root) / "jobs").glob("*") if d.is_dir())
+
+
+def declared_names(jobs: List[Path], kind: str) -> List[str]:
+    """Noms déclarés dans les `<kind>.yaml` (sources / destinations) de ces jobs."""
+    return sorted({k for jd in jobs for k in _yaml_section(jd / f"{kind}.yaml", kind)})
+
+
+def condition_name_errors(when: str, wf_jobs: List[Path], all_jobs: List[Path]) -> List[str]:
+    """Les sources / destinations citées par une condition doivent être
+    déclarées dans un job du workflow (ou, à défaut, du projet)."""
     from hydra_etl.workflow.conditions import condition_sources
-    if not (w.fallback and w.fallback.when):
-        return []
-    wf_jobs = _workflow_jobs(root, plan.workflows.get(w.name))
-    all_jobs = [d for d in (Path(root) / "jobs").glob("*") if d.is_dir()]
-
-    def declared(kind: str, jobs: List[Path]) -> set:
-        return {k for jd in jobs for k in _yaml_section(jd / f"{kind}.yaml", kind)}
-
     out = []
-    for fn, arg in condition_sources(w.fallback.when):
+    for fn, arg in condition_sources(when):
         if fn in ("source_available", "destination_available", "db.load"):
             kinds = {"source_available": ["sources"], "destination_available": ["destinations"],
                      "db.load": ["sources", "destinations"]}[fn]
-            if not any(arg in declared(k, wf_jobs) or arg in declared(k, all_jobs) for k in kinds):
+            if not any(arg in declared_names(wf_jobs, k) or arg in declared_names(all_jobs, k)
+                       for k in kinds):
                 what = " or ".join(f"{k}.yaml" for k in kinds)
                 out.append(f"{fn}('{arg}'): '{arg}' is not declared in any job's {what}")
     return out
+
+
+def _condition_name_errors(root: Path, plan: "ProjectPlan", w: ThreadWorkflow) -> List[str]:
+    if not (w.fallback and w.fallback.when):
+        return []
+    return condition_name_errors(w.fallback.when, _workflow_jobs(root, plan.workflows.get(w.name)),
+                                 project_job_dirs(root))
 
 
 def _rows_written(run: Any) -> int:

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { layoutThread, NODE_W } from './threadLayout'
+import { layoutThread, NODE_H, NODE_W } from './threadLayout'
 import { loopErrors, pruneLoops, threadUnits, type ThreadStage } from './thread'
 
 const stages: ThreadStage[] = [
@@ -43,5 +43,27 @@ describe('layoutThread', () => {
   it('thread vide', () => {
     const l = layoutThread([])
     expect(l.nodes).toEqual([]); expect(l.edges).toEqual([])
+  })
+})
+
+describe('layoutThread — fallback', () => {
+  const fb: ThreadStage[] = [
+    { mode: 'sequential', workflows: [{ name: 'a', active: true, fallback: { use: ['a1', 'a2'], when: "not source_available('crm')" } }] },
+    { mode: 'parallel', workflows: [{ name: 'b', active: true, fallback: { use: ['b1'], on_failure: true } }, { name: 'c', active: true }] },
+  ]
+  it('remplaçants sous leur workflow, même colonne, condition sur le trait', () => {
+    const l = layoutThread(fb)
+    const n = (id: string) => l.nodes.find(x => x.id === id)!
+    expect(n('a>a1').fallbackOf).toBe('a')
+    expect(n('a>a1').col).toBe(n('a').col)
+    expect(n('a>a1').y).toBeGreaterThan(n('a').y + NODE_H)
+    expect(n('a>a2').y).toBeGreaterThan(n('a>a1').y)
+    expect(n('c').y).toBeGreaterThan(n('b>b1').y)              // parallèle : c sous le remplaçant de b
+    expect(l.fallbacks.filter(f => f.of === 'a')).toHaveLength(2)
+    expect(l.fallbacks[0].label).toMatch(/^if not source_avail/)
+    expect(l.fallbacks.find(f => f.of === 'b')!.label).toBe('on failure')
+    // flèches d'arrivée et jonctions : seulement les workflows du thread
+    expect(l.edges).toHaveLength(1 + 2)
+    expect(l.height).toBeGreaterThan(Math.max(...l.nodes.map(x => x.y + x.h)))
   })
 })

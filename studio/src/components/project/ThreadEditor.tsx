@@ -5,18 +5,20 @@
  * Onglet Define : étapes lancées l'une après l'autre ; dans une étape, les
  * workflows tournent l'un après l'autre (sequential) ou en même temps
  * (parallel) ; délai après une étape ; workflows actifs ou sautés ; boucles
- * (rejouer une portion du thread N fois). Onglet Preview : le schéma.
+ * (rejouer une portion du thread N fois) ; fallback d'un workflow (remplaçant
+ * lancé à sa place si une condition est vraie). Onglet Preview : le schéma.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, CheckCircle2, Layers, Play, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
-import { api } from '@/lib/api'
+import { ArrowDown, ArrowUp, CheckCircle2, Layers, LifeBuoy, Play, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
+import { api, type CheckResult } from '@/lib/api'
 import {
-  appendWorkflow, fallbackNamesIn, forSave, isValidDelay, loopErrors, loopsForSave, moveWorkflow, namesIn,
-  pruneLoops, removeWorkflow, type ThreadLoop, type ThreadStage,
+  appendWorkflow, fallbackCandidates, fallbackError, fallbackNamesIn, forSave, isValidDelay, loopErrors,
+  loopsForSave, moveWorkflow, namesIn, pruneLoops, removeWorkflow, setFallback, type ThreadLoop, type ThreadStage,
 } from '@/lib/thread'
 import ThreadPreview from '@/components/project/ThreadPreview'
+import FallbackEditor from '@/components/project/FallbackEditor'
 import Spinner from '@/components/ui/Spinner'
 
 interface Props {
@@ -34,7 +36,8 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
   const [stages, setStages] = useState<ThreadStage[]>([])
   const [loops, setLoops] = useState<ThreadLoop[]>([])
   const [dirty, setDirty] = useState(false)
-  const [check, setCheck] = useState<{ ok: boolean; errors: string[]; active: string[] } | null>(null)
+  const [check, setCheck] = useState<CheckResult | null>(null)
+  const [openFb, setOpenFb] = useState<string | null>(null)     // fallback en cours d'édition
 
   useEffect(() => {
     if (q.data && !dirty) {
@@ -56,7 +59,8 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
     [onDisk, inThread, fallbacks])
   const delaysOk = stages.every(s => isValidDelay(s.delay_after ?? ''))
   const lErrors = loopErrors(stages, loops)
-  const valid = delaysOk && lErrors.every(e => e === null)
+  const fbOk = stages.every(s => s.workflows.every(w => fallbackError(w.fallback) === null))
+  const valid = delaysOk && lErrors.every(e => e === null) && fbOk
 
   const save = useMutation({
     mutationFn: () => api.projects.saveThread(projectId, forSave(stages), loopsForSave(loops)),
@@ -115,12 +119,15 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
 
       {tab === 'preview' ? (
         <ThreadPreview stages={stages} loops={loops} missing={missing}
+          onFallback={name => { setTab('define'); setOpenFb(name) }}
           onOpen={name => { const id = workflowIds[name]; if (id) navigate(`/workflows/${id}?projectId=${projectId}`) }} />
       ) : (
         <>
           <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '0 0 10px' }}>
             Stages run one after the other. In a stage, workflows run one after the other (sequential) or at the
             same time (parallel). Untick a workflow to skip it. A failed workflow stops the project.
+            <LifeBuoy size={11} style={{ display: 'inline', margin: '0 2px' }} /> Fallback: another workflow runs
+            in its place when a condition is true just before it starts.
             {q.data?.implicit && <> No thread.yaml yet: workflows run in alphabetical order until you save.</>}
           </p>
 
@@ -144,7 +151,8 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
               </div>
               {st.workflows.length === 0 && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Empty stage (dropped on save).</div>}
               {st.workflows.map((w, wi) => (
-                <div key={w.name} className="flex items-center gap-2 text-xs" style={{ padding: '3px 0' }}>
+                <div key={w.name}>
+                <div className="flex items-center gap-2 text-xs" style={{ padding: '3px 0' }}>
                   <input type="checkbox" checked={w.active} title={w.active ? 'Active' : 'Skipped'}
                     aria-label={`${w.name} active`}
                     onChange={e => edit(stages.map((s, i) => i !== si ? s : {
@@ -152,10 +160,30 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
                     }))} />
                   <span style={{ fontFamily: 'monospace', color: w.active ? 'var(--text-primary)' : 'var(--text-muted)', textDecoration: w.active ? 'none' : 'line-through' }}>{w.name}</span>
                   {missing.has(w.name) && <span style={{ color: 'var(--error)' }}><AlertTriangle size={11} style={{ display: 'inline' }} /> file missing</span>}
+                  {w.fallback && openFb !== w.name && (
+                    <span data-testid={`fallback-summary-${w.name}`} style={{ color: fallbackError(w.fallback) ? 'var(--error)' : 'var(--warning)', fontFamily: 'monospace' }}
+                      title={w.fallback.when ? `if ${w.fallback.when}` : 'after a failure'}>
+                      ↪ {w.fallback.use.join(', ') || '?'}
+                      {w.fallback.when ? <span style={{ color: 'var(--text-muted)' }}> if {w.fallback.when.length > 40 ? w.fallback.when.slice(0, 39) + '…' : w.fallback.when}</span> : null}
+                    </span>
+                  )}
                   <div style={{ flex: 1 }} />
+                  <button style={{ ...iconBtn, ...(w.fallback ? { color: 'var(--warning)', borderColor: 'var(--warning)' } : {}) }}
+                    title={w.fallback ? 'Edit the fallback' : 'Add a fallback: another workflow that runs in its place'}
+                    aria-label={`${w.name} fallback`}
+                    onClick={() => {
+                      if (!w.fallback) edit(setFallback(stages, w.name, { use: [], when: '' }))
+                      setOpenFb(o => (o === w.name ? null : w.name))
+                    }}><LifeBuoy size={12} /></button>
                   <button style={iconBtn} title="Move up" onClick={() => edit(moveWorkflow(stages, si, wi, -1))}><ArrowUp size={12} /></button>
                   <button style={iconBtn} title="Move down" onClick={() => edit(moveWorkflow(stages, si, wi, 1))}><ArrowDown size={12} /></button>
                   <button style={iconBtn} title="Remove from the thread (the workflow is kept)" onClick={() => edit(removeWorkflow(stages, si, wi))}><X size={12} /></button>
+                </div>
+                {w.fallback && openFb === w.name && (
+                  <FallbackEditor projectId={projectId} name={w.name} fallback={w.fallback}
+                    candidates={fallbackCandidates(stages, onDisk, w.name)} inThread={inThread}
+                    onChange={fb => { edit(setFallback(stages, w.name, fb)); if (!fb) setOpenFb(null) }} />
+                )}
                 </div>
               ))}
             </div>
@@ -165,6 +193,9 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
             <button className="btn-ghost text-xs !py-1" onClick={() => edit([...stages, { mode: 'parallel', workflows: [] }])}>
               <Plus size={12} /> Add stage
             </button>
+            {fallbacks.length > 0 && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}
+              title="Fallback workflows run only in place of the workflow that declares them">
+              Fallbacks: <span style={{ fontFamily: 'monospace', color: 'var(--warning)' }}>{fallbacks.join(', ')}</span></span>}
             {notInThread.length > 0 && <span style={{ color: 'var(--text-muted)' }}>Not in the thread (not run):</span>}
             {notInThread.map(n => (
               <button key={n} className="btn-ghost text-xs !py-1" title="Add at the end" onClick={() => edit(appendWorkflow(stages, n))}
@@ -219,6 +250,9 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
           {check.ok
             ? <>✓ Ready: {check.active.length ? check.active.join(' → ') : 'no active workflow'}{loops.length ? ` (+ ${loops.length} loop${loops.length > 1 ? 's' : ''})` : ''}</>
             : check.errors.map((e, i) => <div key={i} style={{ fontFamily: 'monospace' }}>✗ {e}</div>)}
+          {(check.warnings ?? []).map((w, i) => (
+            <div key={`w${i}`} data-testid="check-warning" style={{ fontFamily: 'monospace', color: 'var(--warning)' }}>⚠ {w}</div>
+          ))}
         </div>
       )}
       {err && <p className="text-xs" style={{ marginTop: 8, color: 'var(--error)' }}>{err.message}</p>}

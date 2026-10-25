@@ -2,7 +2,9 @@
  * ThreadPreview — schéma de workflows/thread.yaml (vue seule).
  * Blocs = workflows (grisés et pointillés s'ils sont inactifs, rouges si le
  * fichier manque) ; losange = délai entre deux étapes ; flèche de retour =
- * boucle (×N, losange si pause). Clic sur un bloc : ouvrir le workflow.
+ * boucle (×N, losange si pause) ; bloc orange pointillé sous un workflow =
+ * remplaçant de son fallback, trait pointillé = condition. Clic sur un bloc :
+ * ouvrir le workflow ; clic sur une condition : l'éditer (onglet Define).
  */
 import { layoutThread, NODE_H, NODE_W } from '@/lib/threadLayout'
 import type { ThreadLoop, ThreadStage } from '@/lib/thread'
@@ -12,6 +14,7 @@ interface Props {
   loops: ThreadLoop[]
   missing?: Set<string>
   onOpen?: (name: string) => void
+  onFallback?: (name: string) => void     // éditer le fallback de ce workflow
 }
 
 const Diamond = ({ x, y, label, title }: { x: number; y: number; label: string; title: string }) => (
@@ -23,7 +26,7 @@ const Diamond = ({ x, y, label, title }: { x: number; y: number; label: string; 
   </g>
 )
 
-export default function ThreadPreview({ stages, loops, missing = new Set(), onOpen }: Props) {
+export default function ThreadPreview({ stages, loops, missing = new Set(), onOpen, onFallback }: Props) {
   const l = layoutThread(stages, loops)
   if (l.nodes.length === 0) {
     return <p className="text-xs" style={{ color: 'var(--text-muted)', padding: 12 }}>No workflow in the thread yet.</p>
@@ -45,8 +48,8 @@ export default function ThreadPreview({ stages, loops, missing = new Set(), onOp
           <path key={i} d={e.d} fill="none" stroke="var(--text-muted)" strokeWidth={1.4} />
         ))}
         {/* flèches d'arrivée sur chaque bloc */}
-        {l.nodes.filter(n => n.col > 0).map(n => (
-          <path key={`in-${n.name}`} d={`M ${n.x - 12} ${n.y + NODE_H / 2} H ${n.x}`} stroke="var(--text-muted)"
+        {l.nodes.filter(n => n.col > 0 && !n.fallbackOf).map(n => (
+          <path key={`in-${n.id}`} d={`M ${n.x - 12} ${n.y + NODE_H / 2} H ${n.x}`} stroke="var(--text-muted)"
             strokeWidth={1.4} markerEnd="url(#tp-arrow)" />
         ))}
         {l.junctions.map((j, i) => j.delay
@@ -66,10 +69,33 @@ export default function ThreadPreview({ stages, loops, missing = new Set(), onOp
           </g>
         ))}
 
-        {l.nodes.map(n => {
+        {l.fallbacks.map((f, i) => (
+          <g key={`fb-${i}`} data-testid={`preview-fallback-${f.of}`} onClick={() => onFallback?.(f.of)}
+            style={{ cursor: onFallback ? 'pointer' : 'default' }}>
+            <title>{f.title}</title>
+            <path d={f.d} fill="none" stroke="var(--warning)" strokeWidth={1.5} strokeDasharray="4 3" />
+            {f.label && <text x={f.labelX} y={f.labelY} fontSize={10} fontFamily="monospace" fill="var(--warning)">{f.label}</text>}
+          </g>
+        ))}
+
+        {l.nodes.filter(n => n.fallbackOf).map(n => (
+          <g key={n.id} data-testid={`preview-node-${n.id}`} onClick={() => onOpen?.(n.name)}
+            style={{ cursor: onOpen ? 'pointer' : 'default' }}>
+            <title>{missing.has(n.name) ? `${n.name}: file missing` : `Fallback of ${n.fallbackOf}: open ${n.name}`}</title>
+            <rect x={n.x} y={n.y} width={NODE_W - 12} height={n.h} rx={8} fill="var(--bg-card)"
+              stroke={missing.has(n.name) ? 'var(--error)' : 'var(--warning)'} strokeWidth={1.3} strokeDasharray="5 3"
+              opacity={n.active ? 1 : 0.55} />
+            <text x={n.x + (NODE_W - 12) / 2} y={n.y + n.h / 2 + 4} textAnchor="middle" fontSize={12}
+              fontFamily="monospace" fill="var(--text-secondary)">
+              ↪ {n.name.length > 15 ? n.name.slice(0, 14) + '…' : n.name}
+            </text>
+          </g>
+        ))}
+
+        {l.nodes.filter(n => !n.fallbackOf).map(n => {
           const miss = missing.has(n.name)
           return (
-            <g key={n.name} data-testid={`preview-node-${n.name}`} onClick={() => onOpen?.(n.name)}
+            <g key={n.id} data-testid={`preview-node-${n.name}`} onClick={() => onOpen?.(n.name)}
               style={{ cursor: onOpen ? 'pointer' : 'default' }}>
               <title>{miss ? `${n.name}: file missing` : n.active ? `Open ${n.name}` : `${n.name} (inactive, skipped)`}</title>
               <rect x={n.x} y={n.y} width={NODE_W} height={NODE_H} rx={10}
@@ -86,7 +112,8 @@ export default function ThreadPreview({ stages, loops, missing = new Set(), onOp
       </svg>
       <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '6px 0 0' }}>
         Left to right: stages in order; stacked blocks run in parallel; ◇ = wait before the next stage;
-        dashed blue arrow = loop. Click a block to open the workflow.
+        dashed blue arrow = loop; dashed orange block below a workflow = its fallback (runs in its place when
+        the condition is true). Click a block to open the workflow, a condition to edit it.
       </p>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { StepResult } from '@/lib/api'
+import { StepResult, type FallbackDecision } from '@/lib/api'
 import { useRunDetail, isRunActive } from '@/hooks/useRunPolling'
 import StatusBadge from '@/components/ui/StatusBadge'
 import Spinner from '@/components/ui/Spinner'
@@ -8,7 +8,7 @@ import LiveBadge from '@/components/ui/LiveBadge'
 import LogViewer from '@/components/ui/LogViewer'
 import {
   ChevronLeft, CheckCircle2, XCircle, Clock,
-  AlertTriangle, ChevronDown, ChevronRight, SkipForward,
+  AlertTriangle, ChevronDown, ChevronRight, SkipForward, LifeBuoy,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -93,6 +93,45 @@ function TimelineBar({ steps, totalDuration }: { steps: StepResult[]; totalDurat
   )
 }
 
+// ── Fallback (run de projet) ─────────────────────────────────────────────────
+
+const TRIGGER_TEXT: Record<string, string> = {
+  when: 'condition true', forced: 'forced', probe_error: 'check failed',
+}
+
+/** Badge court dans l'en-tête du step. */
+function FallbackBadge({ d }: { d: FallbackDecision }) {
+  const switched = d.action === 'switched'
+  const color = d.action === 'kept' ? 'var(--text-muted)' : 'var(--warning)'
+  const text = switched ? `fallback · ${TRIGGER_TEXT[d.trigger ?? ''] ?? d.trigger}`
+    : d.action === 'kept' ? 'fallback not needed' : 'check failed · kept'
+  return (
+    <span data-testid="fallback-badge" className="text-xs px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1"
+      style={{ border: `1px dashed ${color}`, color }} title={d.reason}>
+      <LifeBuoy size={11} /> {text}
+    </span>
+  )
+}
+
+/** Décision détaillée, affichée quand le step est ouvert. */
+function FallbackBanner({ d }: { d: FallbackDecision }) {
+  const head = d.action === 'switched'
+    ? <><b>{d.use}</b> ran in place of <b>{d.workflow}</b> ({TRIGGER_TEXT[d.trigger ?? ''] ?? d.trigger})</>
+    : d.action === 'kept'
+      ? <><b>{d.workflow}</b> ran: its fallback <b>{d.use}</b> was not needed</>
+      : <><b>{d.workflow}</b> kept: the fallback check could not answer</>
+  return (
+    <div data-testid="fallback-banner" className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+      style={{ border: '1px dashed var(--warning)', color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>
+      <LifeBuoy size={12} className="mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+      <div>
+        <div>{head}</div>
+        <div className="font-mono" style={{ color: 'var(--text-muted)', marginTop: 2 }}>{d.reason}</div>
+      </div>
+    </div>
+  )
+}
+
 // ── StepCard ─────────────────────────────────────────────────────────────────
 
 function StepCard({ step, index, defaultOpen = false }: {
@@ -125,6 +164,8 @@ function StepCard({ step, index, defaultOpen = false }: {
           {step.step_name}
         </span>
 
+        {step.fallback && <FallbackBadge d={step.fallback} />}
+
         {/* Duration */}
         <span className="text-xs font-mono shrink-0" style={{ color: 'var(--text-muted)' }}>
           {fmtDuration(step.duration)}
@@ -146,6 +187,8 @@ function StepCard({ step, index, defaultOpen = false }: {
       {/* Expanded content */}
       {open && (
         <div className="px-4 pb-4 pt-2 space-y-3" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--bg-border)' }}>
+          {step.fallback && <FallbackBanner d={step.fallback} />}
+
           {/* Skipped banner */}
           {step.skipped && (
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"

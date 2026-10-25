@@ -45,6 +45,20 @@ and versions follow [Semantic Versioning](https://semver.org/).
   `<backup> — fallback of <workflow>`, with the decision first in its log;
   checks that kept the workflow and failed checks are logged too.
 
+- Studio (step 3): **Define** edits the fallback of each workflow (life-buoy
+  button): backups (a workflow taken from the thread leaves it), `when`
+  checked as you type, with a helper that inserts a function and a source,
+  destination or secret of the project, "also after a failure" (saved, not
+  applied yet) and `on_probe_error`. **Preview** draws backups as dashed
+  blocks under their workflow, with the condition on the link. **Check**
+  shows warnings. The run page shows the decision of each fallback (switched,
+  not needed, check failed) and its reason; project cards show
+  `fallback of …`.
+- API: `GET /api/projects/{id}/conditions` (functions, sources,
+  destinations and secret names for `when`) and
+  `POST /api/projects/{id}/conditions/check`; project run steps carry a
+  `fallback` object (`workflow`, `action`, `use`, `trigger`, `reason`).
+
 ### Changed
 
 - Studio keeps the fallbacks of `thread.yaml` when it saves the execution

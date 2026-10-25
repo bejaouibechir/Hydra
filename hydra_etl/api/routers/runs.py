@@ -131,6 +131,7 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
         return
     steps: list = []
     notes: dict = {}        # workflow (du thread) -> lignes de journal (fallback)
+    decisions: dict = {}    # workflow (du thread) -> décision du fallback, pour Studio
 
     def _save(status: str, **extra) -> None:
         store.save_run(RunResponse(
@@ -150,22 +151,33 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
         if r.status == NOT_RUN:
             logs.append("not run: a previous workflow failed")
         logs[:0] = notes.pop(r.replaces or r.name, [])
+        decision = decisions.pop(r.replaces or r.name, None)
         label = f"{r.name} (pass {r.iteration}/{r.iterations})" if r.iterations > 1 else r.name
         if r.replaces:
             label = f"{label} — fallback of {r.replaces}"
-        return {"step_name": label, "success": r.status not in (FAILED,),
-                "duration": r.duration, "error": r.error, "logs": logs,
-                "skipped": r.status in (INACTIVE, NOT_RUN)}
+        out = {"step_name": label, "success": r.status not in (FAILED,),
+               "duration": r.duration, "error": r.error, "logs": logs,
+               "skipped": r.status in (INACTIVE, NOT_RUN)}
+        if decision:
+            # {"workflow", "action": switched|kept|probe_error, "use", "trigger", "reason"}
+            out["fallback"] = decision
+        return out
 
     def on_event(kind, data) -> None:
         if kind == "fallback":
             notes.setdefault(data["name"], []).append(
                 f"FALLBACK {data['name']} -> {data['use']} ({data['trigger']}): {data['reason']}")
+            decisions[data["name"]] = {"workflow": data["name"], "action": "switched", "use": data["use"],
+                                       "trigger": data["trigger"], "reason": data["reason"]}
         elif kind == "fallback_kept":
             notes.setdefault(data["name"], []).append(f"fallback not needed: {data['reason']}")
+            decisions[data["name"]] = {"workflow": data["name"], "action": "kept", "use": data["use"],
+                                       "trigger": None, "reason": data["reason"]}
         elif kind == "probe_error":
             notes.setdefault(data["name"], []).append(
                 f"WARNING fallback check failed, workflow kept: {data['error']}")
+            decisions[data["name"]] = {"workflow": data["name"], "action": "probe_error", "use": data["use"],
+                                       "trigger": None, "reason": data["error"]}
         if kind in ("end", "inactive", "not_run"):
             steps.append(_step(data))
             _save("running")

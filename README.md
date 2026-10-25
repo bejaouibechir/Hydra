@@ -160,6 +160,11 @@ recovery. *`on_failure` (switch after a failure) comes in a later step.*
 
 In Studio, the project page edits the same file
 (**Execution order** → **Define**), draws it (**Preview**) and has a **Run project** button.
+The life-buoy button of a workflow edits its fallback: backup workflows (one taken from the
+thread leaves it), the `when` condition, checked as you type, with a helper that inserts a
+function and a source or destination of the project, and `on_probe_error`. **Preview** draws
+each backup as a dashed block under its workflow, with the condition on the link; **Check**
+shows the warnings; the run page tells which workflow ran, the backup or not, and why.
 `hdrctl run <project>` checks the thread, every active workflow and the job folders they use
 before starting anything, then runs the stages in order. A failed workflow stops the project;
 in a parallel stage the workflows already started finish first. Without `thread.yaml`, every

@@ -248,6 +248,15 @@ def _condition_name_errors(root: Path, plan: "ProjectPlan", w: ThreadWorkflow) -
     return out
 
 
+def _rows_written(run: Any) -> int:
+    """Lignes écrites par les jobs d'un workflow exécuté (pour previous.rows)."""
+    total = 0
+    for st in getattr(getattr(run, "result", None), "steps", None) or []:
+        jr = getattr(st, "job_result", None)
+        total += int(getattr(jr, "rows_out", 0) or 0)
+    return total
+
+
 # Statuts d'un workflow dans un run de projet
 SUCCESS, FAILED, INACTIVE, NOT_RUN = "success", "failed", "inactive", "not_run"
 
@@ -262,6 +271,8 @@ class WorkflowRun:
     error: Optional[str] = None
     iteration: int = 1          # passage dans une boucle (1 hors boucle)
     iterations: int = 1         # nombre total de passages prévus
+    replaces: Optional[str] = None          # fallback : workflow du thread remplacé
+    fallback_reason: Optional[str] = None   # pourquoi (condition, forcé, sonde en erreur)
 
 
 @dataclass
@@ -290,12 +301,62 @@ EventCallback = Callable[[str, Any], None]
 class ProjectRunner:
     def __init__(self, plan: ProjectPlan, env: Optional[str] = None,
                  params: Optional[Dict[str, Any]] = None,
-                 sleep: Callable[[float], None] = time.sleep) -> None:
+                 sleep: Callable[[float], None] = time.sleep,
+                 force_fallback: Optional[List[str]] = None,
+                 probe_timeout: Optional[float] = None) -> None:
         self.plan = plan
         self.env = env
         self.params = dict(params or {})
         self._sleep = sleep
         self._lock = threading.Lock()
+        # --use-fallback : bascule forcée (répéter un scénario de secours)
+        self.force_fallback = set(force_fallback or [])
+        self.probe_timeout = probe_timeout
+        self._wf_by_name = {w.name: w for st in plan.thread.thread for w in st.workflows}
+        unknown = sorted(n for n in self.force_fallback
+                         if not (self._wf_by_name.get(n) and self._wf_by_name[n].fallback))
+        if unknown:
+            raise ProjectError([f"--use-fallback {n}: workflow '{n}' has no fallback in "
+                                f"{WORKFLOWS_DIR}/{THREAD_FILE}" for n in unknown])
+
+    def _decide(self, name: str, previous: Any, stage: int, it: int, its: int,
+                on_event: Optional[EventCallback]) -> "Tuple[str, Optional[str]]":
+        """Juste avant le lancement : (workflow à lancer, raison du fallback ou None).
+        Sondes de `fallback.when`, bascule forcée, politique on_probe_error."""
+        w = self._wf_by_name.get(name)
+        fb = w.fallback if w else None
+        if fb is None:
+            return name, None
+        alt = next((a for a in fb.use if a in self.plan.workflows), None)
+        if alt is None:                        # remplaçant non chargé (ne doit pas arriver)
+            return name, None
+        info = {"name": name, "use": alt, "stage": stage, "iteration": it, "iterations": its}
+        if name in self.force_fallback:
+            reason = "forced (--use-fallback)"
+            self._emit(on_event, "fallback", {**info, "trigger": "forced", "reason": reason})
+            return alt, reason
+        if not fb.when:
+            return name, None
+        from hydra_etl.workflow.probes import ProbeContext, ProbeError, evaluate
+        ctx = ProbeContext(root=self.plan.root, env=self.env, params=dict(self.params),
+                           workflow_jobs=_workflow_jobs(self.plan.root, self.plan.workflows.get(name)),
+                           previous=previous)
+        if self.probe_timeout:
+            ctx.timeout = self.probe_timeout
+        try:
+            ev = evaluate(fb.when, ctx)
+        except ProbeError as e:
+            if fb.on_probe_error == "replace":
+                reason = f"check failed: {e}"
+                self._emit(on_event, "fallback", {**info, "trigger": "probe_error", "reason": reason})
+                return alt, reason
+            self._emit(on_event, "probe_error", {**info, "error": str(e), "action": "keep"})
+            return name, None
+        if ev.value:
+            self._emit(on_event, "fallback", {**info, "trigger": "when", "reason": ev.reason})
+            return alt, ev.reason
+        self._emit(on_event, "fallback_kept", {**info, "reason": ev.reason})
+        return name, None
 
     def _emit(self, on_event: Optional[EventCallback], kind: str, data: Any) -> None:
         if on_event is None:
@@ -307,11 +368,13 @@ class ProjectRunner:
                 pass
 
     def _run_one(self, name: str, stage: int, on_event: Optional[EventCallback],
-                 iteration: int = 1, iterations: int = 1) -> WorkflowRun:
+                 iteration: int = 1, iterations: int = 1,
+                 replaces: Optional[str] = None, reason: Optional[str] = None) -> WorkflowRun:
         from hydra_etl.workflow.runner import WorkflowRunner
 
         self._emit(on_event, "start", {"name": name, "stage": stage,
-                                       "iteration": iteration, "iterations": iterations})
+                                       "iteration": iteration, "iterations": iterations,
+                                       "replaces": replaces})
         wf = self.plan.workflows[name]
         path = workflow_file(self.plan.root, name)
         t0 = time.monotonic()
@@ -328,6 +391,7 @@ class ProjectRunner:
             run = WorkflowRun(name=name, stage=stage, status=FAILED,
                               duration=time.monotonic() - t0, error=f"{type(e).__name__}: {e}",
                               iteration=iteration, iterations=iterations)
+        run.replaces, run.fallback_reason = replaces, reason
         self._emit(on_event, "end", run)
         return run
 
@@ -352,6 +416,8 @@ class ProjectRunner:
                     return lp.times - remaining, lp.times
             return 1, 1
 
+        from hydra_etl.workflow.probes import Previous
+        previous = Previous()                  # pour previous.status / previous.rows
         runs: List[WorkflowRun] = []
         stopped = False
         last_stage = -1
@@ -377,12 +443,28 @@ class ProjectRunner:
                     r = WorkflowRun(n, stage_no, INACTIVE, iteration=it, iterations=its)
                     runs.append(r)
                     self._emit(on_event, "inactive", r)
-            if u.parallel and len(todo) > 1:
-                with ThreadPoolExecutor(max_workers=len(todo)) as pool:
-                    done = list(pool.map(lambda n: self._run_one(n, stage_no, on_event, it, its), todo))
+            # Fallback : décidé juste avant le lancement, workflow par workflow ;
+            # le remplaçant prend la même place (étape, boucle, passage).
+            plan_unit = [(n, *self._decide(n, previous, stage_no, it, its, on_event)) for n in todo]
+
+            def launch(item):
+                orig, actual, reason = item
+                r = self._run_one(actual, stage_no, on_event, it, its, replaces=orig if reason else None,
+                                  reason=reason)
+                return r
+            if u.parallel and len(plan_unit) > 1:
+                with ThreadPoolExecutor(max_workers=len(plan_unit)) as pool:
+                    done = list(pool.map(launch, plan_unit))
             else:
-                done = [self._run_one(n, stage_no, on_event, it, its) for n in todo]
+                done = [launch(x) for x in plan_unit]
             runs.extend(done)
+            if done:
+                from hydra_etl.workflow.probes import Previous
+                previous = Previous(status=FAILED if any(r.status == FAILED for r in done) else SUCCESS,
+                                    rows=sum(_rows_written(r) for r in done))
+            elif u.names:
+                from hydra_etl.workflow.probes import Previous
+                previous = Previous(status=INACTIVE, rows=0)
             stopped = any(r.status == FAILED for r in done)
             if stopped:
                 pc += 1

@@ -811,13 +811,16 @@ def cli(ctx: click.Context) -> None:
 @click.option("--profile", "profile", is_flag=True, default=False, help=t("help.run.profile"))
 @click.option("--secrets-file", "secrets_file", default=None, metavar="FILE",
               help=t("help.run.secrets_file"))
+@click.option("--use-fallback", "use_fallback", multiple=True, metavar="WORKFLOW",
+              help=t("help.run.use_fallback"))
 def cmd_run(path: str, verbosity: int, dry_run: bool,
             sources_file: Optional[str], destinations_file: Optional[str],
             pipeline_file: Optional[str], transformations_file: Optional[str],
             on_success: Optional[str], on_failure: Optional[str],
             on_finish: Optional[str],
             env_name: Optional[str] = None, param_overrides: tuple = (),
-            profile: bool = False, secrets_file: Optional[str] = None) -> None:
+            profile: bool = False, secrets_file: Optional[str] = None,
+            use_fallback: tuple = ()) -> None:
     """Exécute un pipeline ETL."""
     verbosity = verbosity or 0  # click < 8.2 passes None when no -v flag is given
     print_banner()
@@ -843,13 +846,16 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
                         path=path))
             sys.exit(1)
         code = _run_project(job_dir, verbosity, dry_run, env_name,
-                            _parse_param_overrides(param_overrides))
+                            _parse_param_overrides(param_overrides), list(use_fallback))
         status = "SUCCESS" if code == 0 else "FAILURE"
         if not dry_run:
             fire_hook("on-success", on_success if status == "SUCCESS" else None, verbosity)
             fire_hook("on-failure", on_failure if status == "FAILURE" else None, verbosity)
             fire_hook("on-finish", on_finish, verbosity)
         sys.exit(code)
+    if use_fallback:
+        error_box(t("run.use_fallback_job", path=path))
+        sys.exit(1)
 
     job_files = resolve_job_files(
         job_dir,
@@ -1014,7 +1020,8 @@ def _fmt_seconds(sec: float) -> str:
 
 
 def _run_project(root: Path, verbosity: int, dry_run: bool,
-                 env_name: Optional[str], params: dict) -> int:
+                 env_name: Optional[str], params: dict,
+                 use_fallback: Optional[list] = None) -> int:
     """`hdrctl run <projet>` : valide tout, puis lance les workflows selon
     workflows/thread.yaml. Retourne le code de sortie (0 succès, 1 échec)."""
     from hydra_etl.workflow.project import (
@@ -1023,6 +1030,15 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
 
     try:
         plan = prepare_project(root)
+    except ProjectError as e:
+        error_box(t("run.project.invalid", name=root.name))
+        for msg in e.errors:
+            err_line(f"  — {msg}")
+        return 1
+
+    try:
+        # aussi au --dry-run : --use-fallback doit désigner un workflow avec fallback
+        runner = ProjectRunner(plan, env=env_name, params=params, force_fallback=use_fallback)
     except ProjectError as e:
         error_box(t("run.project.invalid", name=root.name))
         for msg in e.errors:
@@ -1080,10 +1096,18 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
             click.echo(f"  {c(C.YL, '⏭')}  {t('run.project.inactive', name=data.name)}")
         elif kind == "not_run":
             click.echo(f"  {c(C.YL, '⏭')}  {t('run.project.not_run', name=data.name)}")
+        elif kind == "fallback":
+            click.echo(f"  {c(C.CY, '↪')}  {t('run.project.fallback', name=data['name'], use=c(C.CY, data['use']), reason=data['reason'])}")
+        elif kind == "fallback_kept":
+            if verbosity >= 1:
+                click.echo(f"  {c(C.DM, '✓')}  {c(C.DM, t('run.project.fallback_kept', name=data['name'], reason=data['reason']))}")
+        elif kind == "probe_error":
+            click.echo(f"  {c(C.YL, '⚠')}  {t('run.project.probe_error', name=data['name'], error=data['error'])}")
         elif kind == "start":
             it = f"  {c(C.DM, t('run.project.pass', iteration=data['iteration'], iterations=data['iterations']))}" \
                 if data.get("iterations", 1) > 1 else ""
-            click.echo(f"  {c(C.WH, '▶')}  {t('workflow.run.starting', name=c(C.CY, data['name']))}{it}")
+            fb = f"  {c(C.DM, t('run.project.in_place_of', name=data['replaces']))}" if data.get("replaces") else ""
+            click.echo(f"  {c(C.WH, '▶')}  {t('workflow.run.starting', name=c(C.CY, data['name']))}{it}{fb}")
         elif kind == "end":
             if data.result is not None:
                 _print_workflow_steps(plan.workflows[data.name], data.result, indent="     ")
@@ -1099,7 +1123,7 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
             click.echo(f"  {c(C.DM, '⏸')}  {c(C.DM, t('run.project.delay', seconds=_fmt_seconds(data['seconds'])))}")
 
     try:
-        result = ProjectRunner(plan, env=env_name, params=params).run(on_event)
+        result = runner.run(on_event)
     except KeyboardInterrupt:
         click.echo(f"\n\n  {c(C.YL, '⚠  ' + t('run.interrupted'))}")
         return 130

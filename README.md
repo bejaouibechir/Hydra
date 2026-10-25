@@ -147,8 +147,16 @@ that take its place when a condition is true just before the start, or after it 
 with `and`, `or`, `not`, comparisons, durations (`30s`, `24h`) and sizes (`5MB`).
 `hdrctl workflow add load_crm_backup --fallback-for load_crm` creates a backup workflow and
 declares it. `hdrctl run . --dry-run` checks the fallbacks (files, jobs, names used by `when`)
-and warns when a backup writes somewhere else than the workflow it replaces. *The switch itself
-at run time comes in the next steps; for now the fallback is declared and checked.*
+and warns when a backup writes somewhere else than the workflow it replaces.
+
+At run time, `when` is checked **just before** the workflow starts. Each check is quick, reads
+no data and has a time limit (`HYDRA_PROBE_TIMEOUT`, 15 s by default). If the condition is
+true, the first backup runs **in its place** (same stage, same loop pass) and the reason is
+shown: `↪ Fallback: load_crm → load_crm_backup — source_available('crm_db') = false (connection
+refused)`. If a check cannot answer (time limit, missing file for `file_size`…), the planned
+workflow runs (`on_probe_error: keep`, the default) or the backup does (`replace`). An inactive
+workflow is not checked. `hdrctl run . --use-fallback load_crm` forces the switch, to rehearse a
+recovery. *`on_failure` (switch after a failure) comes in a later step.*
 
 In Studio, the project page edits the same file
 (**Execution order** → **Define**), draws it (**Preview**) and has a **Run project** button.

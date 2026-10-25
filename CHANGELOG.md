@@ -29,6 +29,21 @@ and versions follow [Semantic Versioning](https://semver.org/).
   workflow and declares it; `workflow list` shows backups as
   `fallback of …`; `workflow remove` also removes the name from fallbacks.
 - VS Code schema: `fallback` in `thread.yaml`, with examples.
+- Fallback at run time (step 2): `when` is checked just before the
+  workflow starts, by quick **checks** with a time limit
+  (`HYDRA_PROBE_TIMEOUT`, 15 s by default) that read no data. True → the
+  first backup runs in its place (same stage, same loop pass; re-checked on
+  every pass); the CLI shows `↪ Fallback: a → a_backup — <reason>` and the
+  backup as `(fallback, in place of a)`. A check that cannot answer follows
+  `on_probe_error` (`keep` by default, or `replace`). Inactive workflows are
+  not checked. `previous.status` / `previous.rows` describe the workflow (or
+  parallel stage) run just before.
+- `hdrctl run <project> --use-fallback <workflow>` forces a fallback, to
+  rehearse a recovery scenario (refused for a single job, and for a workflow
+  without fallback).
+- Studio / `POST /api/runs` on a project: a backup appears as
+  `<backup> — fallback of <workflow>`, with the decision first in its log;
+  checks that kept the workflow and failed checks are logged too.
 
 ### Changed
 

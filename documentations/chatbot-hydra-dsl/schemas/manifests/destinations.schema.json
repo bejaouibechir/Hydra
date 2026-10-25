@@ -27,6 +27,18 @@
     "LoadConfig": {
       "description": "Configuration de chargement (section load dans destinations.yaml).\n\nChamps:\n- table: Nom de la table/fichier cible\n- mode: Mode de chargement (append|replace|upsert)\n- key: Colonnes clé (obligatoire si mode=upsert)\n- batch_size: Taille des batchs (défaut: 10 000)\n\nValidation stricte:\n- mode upsert → key obligatoire et non vide\n- key peut être clé simple [id] ou composite [region, product_id]\n\nExemples:\n    # Append simple\n    load:\n      table: orders\n      mode: append\n    \n    # Upsert clé simple\n    load:\n      table: users\n      mode: upsert\n      key: [id]\n    \n    # Upsert clé composite\n    load:\n      table: sales\n      mode: upsert\n      key: [region, product_id]",
       "properties": {
+        "atomic": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atomic"
+        },
         "batch_size": {
           "default": 10000,
           "maximum": 100000,

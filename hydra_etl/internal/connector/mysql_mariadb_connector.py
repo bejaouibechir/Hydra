@@ -164,114 +164,72 @@ class MySQLMariaDBConnector(BaseDBConnector):
     # Load - Version Sprint 1 avec upsert
     # ============================================================
     
-    def load_batches(
-        self,
-        batches: Iterable[Batch],
-        *,
-        table: str,
-        mode: str = "append",
-        key: Optional[List[str]] = None,
-    ) -> None:
-        """
-        Charge des batches vers MySQL/MariaDB.
-        
-        Modes supportés (Sprint 1):
-        - append: INSERT simple
-        - replace: TRUNCATE puis INSERT
-        - upsert: INSERT ... ON DUPLICATE KEY UPDATE
-        
-        Args:
-            batches: Iterable de batches (listes de dicts)
-            table: Nom de la table cible
-            mode: Mode de chargement (append|replace|upsert)
-            key: Colonnes de clé (requis si mode=upsert)
-        
-        Raises:
-            ValueError: Si validation échoue ou erreur SQL
-        """
-        # Validation table
+    # ============================================================
+    # Load (session par job : base_db_connector.DBLoadSession)
+    #   append  : INSERT
+    #   replace : TRUNCATE puis INSERT ; en tout ou rien, DELETE dans la
+    #             transaction du job (TRUNCATE valide tout seul en MySQL),
+    #             table transactionnelle (InnoDB) exigée
+    #   upsert  : INSERT ... ON DUPLICATE KEY UPDATE
+    # ============================================================
+
+    _TRANSACTIONAL_ENGINES = ("innodb", "xtradb", "aria", "rocksdb", "ndbcluster", "tokudb")
+
+    def _check_load_args(self, table: str, mode: str, key: Optional[List[str]]):
         if not isinstance(table, str) or not table.strip():
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
                 f"'table' must be a non-empty name"
             )
         table = table.strip()
-        
-        # Validation mode
         if mode not in ("append", "replace", "upsert"):
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
                 f"mode '{mode}' is not supported. "
                 f"Supported: append, replace, upsert"
             )
-        
-        # Validation upsert → key requis
         if mode == "upsert":
             self._validate_upsert_params(table, key)
-        
-        conn = self._connect()
-        try:
-            cur = conn.cursor()
-            
-            # Mode replace : TRUNCATE avant le premier INSERT
-            if mode == "replace":
+        return table, key
+
+    def _load_prepare(self, cur, *, table, mode, key, atomic, commit, **_):
+        if mode == "replace":
+            if atomic:
+                self._require_transactional(cur, table)
+                cur.execute(f"DELETE FROM {self._q(table)}")
+            else:
                 cur.execute(f"TRUNCATE TABLE {self._q(table)}")
-                conn.commit()
-            
-            # Insertion batch par batch
-            first_columns: Optional[List[str]] = None
-            
-            for batch in batches:
-                # Tolérer batch vide
-                if not batch:
-                    continue
-                
-                # Déduire colonnes du premier batch
-                if first_columns is None:
-                    first_columns = self._infer_columns_from_batch(batch)
-                
-                # Construire SQL selon mode
-                if mode == "upsert":
-                    sql, values = self._build_upsert_many_sql(
-                        table=table,
-                        columns=first_columns,
-                        key_columns=key,
-                        batch=batch,
-                    )
-                else:
-                    # append ou replace (après TRUNCATE)
-                    sql, values = self._build_insert_many_sql(
-                        table=table,
-                        columns=first_columns,
-                        batch=batch,
-                    )
-                
-                # Exécuter
-                cur.executemany(sql, values)
-                conn.commit()
-            
-            cur.close()
-        
-        except Exception as e:
-            # Rollback best-effort
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            
+        elif atomic:
+            self._require_transactional(cur, table)
+        return {"table": table, "mode": mode, "key": key, "columns": None}
+
+    def _require_transactional(self, cur, table: str) -> None:
+        """Tout ou rien = une transaction : la table doit la supporter (InnoDB)."""
+        cur.execute(
+            "SELECT ENGINE FROM information_schema.tables "
+            "WHERE table_schema = DATABASE() AND table_name = %s", (table,))
+        row = cur.fetchone()
+        engine = (row[0] if row and not isinstance(row, dict) else (row or {}).get("ENGINE")) if row else None
+        if engine and str(engine).lower() not in self._TRANSACTIONAL_ENGINES:
             raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: load failed.\n"
-                f"  Table : {table}\n"
-                f"  Mode  : {mode}\n"
-                f"  Error: {type(e).__name__}: {e}"
-            ) from e
-        
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
-    
+                f"{self.__class__.__name__} [{self.name}]: table '{table}' uses the {engine} "
+                f"engine, which has no transactions: an all-or-nothing load is impossible. "
+                f"Convert it (ALTER TABLE {table} ENGINE=InnoDB) or set 'atomic: false' in load:."
+            )
+
+    def _load_write(self, cur, ctx, batch, *, commit):
+        if ctx["columns"] is None:
+            ctx["columns"] = self._infer_columns_from_batch(batch)
+        if ctx["mode"] == "upsert":
+            sql, values = self._build_upsert_many_sql(
+                table=ctx["table"], columns=ctx["columns"], key_columns=ctx["key"], batch=batch,
+            )
+        else:
+            sql, values = self._build_insert_many_sql(
+                table=ctx["table"], columns=ctx["columns"], batch=batch,
+            )
+        cur.executemany(sql, values)
+
     # ============================================================
     # Helpers SQL - Version Sprint 1 avec upsert
     # ============================================================

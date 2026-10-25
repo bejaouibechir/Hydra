@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Iterator, List, Optional
+from typing import Any, Dict, FrozenSet, Iterable, Iterator, List, Optional
 
 
 # -------------------------------
@@ -92,6 +92,22 @@ class Connector(ABC):
         suivant dans un thread pendant que le lot courant est transformé.
         """
         return False
+
+    # Tout ou rien (voir load_session.py) : modes que begin_load(atomic=True)
+    # sait publier d'un coup, et modes en tout ou rien par défaut.
+    atomic_load_modes: FrozenSet[str] = frozenset()
+    atomic_default_modes: FrozenSet[str] = frozenset()
+
+    def begin_load(self, *, table: str, mode: str = "append",
+                   key: Optional[List[str]] = None, atomic: bool = False) -> Any:
+        """Ouvre la session de chargement d'un job : stage(lot)… puis
+        publish() ou abort(). Par défaut : un load_batches() par lot, jamais
+        en tout ou rien (les connecteurs qui savent mieux faire surchargent)."""
+        from hydra_etl.internal.connector.load_session import AtomicLoadError, LegacyLoadSession
+        if atomic:
+            raise AtomicLoadError(
+                f"{self.__class__.__name__} [{self.name}]: all-or-nothing load is not available")
+        return LegacyLoadSession(self, table=table, mode=mode, key=key)
 
     def __init__(self, name: str, config: Dict[str, Any]) -> None:
         # name : identifiant stable (ex: "src_orders", "dest_dwh")

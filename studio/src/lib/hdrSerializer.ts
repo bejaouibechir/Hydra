@@ -286,10 +286,11 @@ export function flowToHdr(
     }
 
     const load: Record<string, unknown> = isDb
-      ? { table: cfg.table ?? '', mode: cfg.mode ?? 'replace' }
+      ? { table: cfg.table ?? '', mode: cfg.mode ?? 'replace', ..._atomicLoad(cfg) }
       : connType === 'mongodb'
         ? { collection: cfg.collection ?? '', mode: cfg.mode ?? 'replace' }
         : { table: cfg.path ?? '', mode: cfg.mode ?? 'replace' }
+    Object.keys(load).forEach(k => load[k] === undefined && delete load[k])
 
     destinations[did] = { type: connType, connection, load }
   }
@@ -506,7 +507,16 @@ function _destToParams(dest: HdrDest): Record<string, unknown> {
   // SQL
   return { host: conn.host, port: conn.port, instance: conn.instance, schema: conn.schema,
            database: conn.database, user: conn.user, password: conn.password,
-           table: load.table, mode: load.mode ?? 'replace' }
+           table: load.table, mode: load.mode ?? 'replace',
+           atomic: load.atomic === true ? 'yes' : load.atomic === false ? 'no' : 'default' }
+}
+
+/** load.atomic d'un nœud destination : 'yes' / 'no' → booléen ; 'default' → clé retirée.
+ *  Champ absent du nœud → {} (la valeur du fichier est gardée). */
+function _atomicLoad(cfg: Record<string, unknown>): Record<string, unknown> {
+  if (cfg.atomic === undefined || cfg.atomic === null || cfg.atomic === '') return {}
+  return { atomic: cfg.atomic === 'yes' || cfg.atomic === true ? true
+    : cfg.atomic === 'no' || cfg.atomic === false ? false : undefined }
 }
 
 function _stepToParams(op: string, raw: Record<string, unknown> = {}): Record<string, unknown> {
@@ -713,7 +723,7 @@ export function flowToJobModel(
       if (cfg.schema)   connection.schema   = cfg.schema
     }
     const load: Record<string, unknown> = _mergeKeep(orig.load, isDb
-      ? { table: cfg.table ?? '', mode: cfg.mode ?? 'replace' }
+      ? { table: cfg.table ?? '', mode: cfg.mode ?? 'replace', ..._atomicLoad(cfg) }
       : connType === 'mongodb' ? { collection: cfg.collection ?? '', mode: cfg.mode ?? 'replace' }
         : { table: cfg.path ?? '', mode: cfg.mode ?? 'replace' })
     Object.keys(load).forEach(k => load[k] === undefined && delete load[k])

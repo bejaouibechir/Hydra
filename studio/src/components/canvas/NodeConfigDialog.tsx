@@ -87,6 +87,7 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'password', label: 'Password', type: 'password' },
     { key: 'table',    label: 'Table',       type: 'text',   required: true },
     { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
+    { key: 'atomic',   label: 'All-or-nothing (default: replace only)', type: 'select', options: ['default', 'yes', 'no'] },
   ],
   dest_postgres: [
     { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
@@ -96,6 +97,7 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'password', label: 'Password', type: 'password' },
     { key: 'table',    label: 'Table',       type: 'text',   required: true },
     { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
+    { key: 'atomic',   label: 'All-or-nothing (default: replace only)', type: 'select', options: ['default', 'yes', 'no'] },
   ],
   dest_sqlserver: [
     { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost  or  MACHINE\\SQLEXPRESS', required: true },
@@ -107,6 +109,7 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'password', label: 'Password',    type: 'password' },
     { key: 'table',    label: 'Table',       type: 'text',   required: true },
     { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
+    { key: 'atomic',   label: 'All-or-nothing (default: replace only)', type: 'select', options: ['default', 'yes', 'no'] },
   ],
   dest_mongodb:  [
     { key: 'uri',        label: 'MongoDB URI', type: 'text', required: true },

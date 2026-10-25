@@ -29,6 +29,7 @@ from hydra_etl.internal.config.secrets import SecretResolver
 from hydra_etl.internal.config.parameters import ParameterResolver, build_effective
 from hydra_etl.internal.connector.interface import Connector
 from hydra_etl.internal.connector.frame_batch import FrameBatch, frame_io_enabled
+from hydra_etl.internal.connector.load_session import open_load_session, resolve_atomic
 from hydra_etl.internal.connector.registry import build_connector
 from hydra_etl.internal.engines.frame_copy import copy_on_write
 from hydra_etl.internal.engines.pandas_engine import PandasEngine
@@ -131,6 +132,10 @@ class JobExecutor:
         prof = self._profiler
         rows_in = 0
         rows_out = 0
+        # Chargement de la destination : une session pour tout le job
+        # (begin → stage → publish | abort, voir load_session.py)
+        session = None
+        atomic: Optional[bool] = None
 
         try:
             # 0) Charger YAML avec résolution ${ENV:...}
@@ -173,6 +178,14 @@ class JobExecutor:
                 src_def, connector=source_connector
             )
             load_table, load_mode, load_key = self._dest_load_params(dest_def)
+            # Tout ou rien : par défaut selon le connecteur et le mode,
+            # forcé par load.atomic ; impossible ici = erreur avant toute lecture.
+            atomic, atomic_note = resolve_atomic(
+                dest_connector, load_mode, getattr(getattr(dest_def, "load", None), "atomic", None))
+            if atomic_note:
+                logger.warning(f"Job '{self.job_id}': {atomic_note}")
+            elif atomic:
+                logger.info(f"Job '{self.job_id}': all-or-nothing load ({load_mode}) into {load_table}")
             
             # 4b) Sprint 1: Validation anticipée (fail-fast)
             self._validate_load_params_before_execution(
@@ -224,7 +237,7 @@ class JobExecutor:
             def _emit(out_batch: list) -> None:
                 """Comptage, échantillon, validation et chargement d'un batch de sortie
                 (logique inchangée, extraite de la boucle pour servir aux deux chemins)."""
-                nonlocal rows_out, first_batch_written, effective_mode
+                nonlocal rows_out, first_batch_written, effective_mode, session
 
                 rows_out += len(out_batch)
 
@@ -246,20 +259,17 @@ class JobExecutor:
                         first_batch=out_batch,
                     )
 
-                # Load avec le bon mode et key si upsert
+                # Load : la session ouverte au premier lot reçoit tous les lots
+                # (replace ne vide la destination qu'une fois, en tout ou rien
+                # rien n'est visible avant publish()).
                 with prof.span("load"):
-                    dest_connector.load_batches(
-                        [out_batch],
-                        table=load_table,
-                        mode=effective_mode,
-                        key=load_key if load_mode == "upsert" else None
-                    )
+                    if session is None:
+                        session = open_load_session(
+                            dest_connector, table=load_table, mode=load_mode,
+                            key=load_key if load_mode == "upsert" else None, atomic=atomic)
+                    session.stage(out_batch)
 
-                # Après le premier batch, passer en append (sauf si déjà upsert)
-                if not first_batch_written:
-                    first_batch_written = True
-                    if load_mode == "replace":
-                        effective_mode = "append"
+                first_batch_written = True
 
             # 7) Streaming batch par batch
             extract = source_connector.extract_frames if frames_in else source_connector.extract_batches
@@ -328,6 +338,11 @@ class JobExecutor:
                         out_chunk = _out_batch(df_all.iloc[i:i + chunk])
                     _emit(out_chunk)
 
+            # 9) Publication : tout devient visible d'un coup (tout ou rien)
+            if session is not None:
+                with prof.span("load"):
+                    session.publish()
+
             duration = time.monotonic() - start
 
             profile_data = None
@@ -361,9 +376,16 @@ class JobExecutor:
                 output_sample=safe_sample,
                 output_columns=output_cols,
                 profile=profile_data,
+                atomic=atomic if session is not None else None,
             )
 
-        except Exception as exc:
+        except BaseException as exc:
+            # Échec ou interruption (Ctrl+C) : annuler le chargement en cours.
+            # En tout ou rien, la destination reste comme avant le job.
+            if session is not None:
+                session.abort()
+            if not isinstance(exc, Exception):
+                raise
             duration = time.monotonic() - start
             error_msg = f"{exc.__class__.__name__}: {str(exc)}"
             logger.error(f"Job '{self.job_id}' failed: {error_msg}")
@@ -375,6 +397,12 @@ class JobExecutor:
                 )
                 logger.info("\n" + format_profile(profile_data))
 
+            if session is not None:
+                if session.atomic:
+                    logger.info(f"Job '{self.job_id}': load cancelled, the destination is unchanged")
+                elif session.partial_write:
+                    logger.warning(f"Job '{self.job_id}': the destination keeps the batches written "
+                                   f"before the failure (load without all-or-nothing)")
             return JobResult(
                 success=False,
                 rows_in=rows_in,
@@ -382,6 +410,8 @@ class JobExecutor:
                 duration=duration,
                 error=error_msg,
                 profile=profile_data,
+                atomic=session.atomic if session is not None else None,
+                partial_write=bool(session is not None and session.partial_write),
             )
 
     @staticmethod

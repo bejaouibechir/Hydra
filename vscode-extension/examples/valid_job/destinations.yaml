@@ -13,3 +13,4 @@ destinations:
       mode: upsert
       key: [id]
       batch_size: 5000
+      atomic: true      # all-or-nothing: one transaction for the whole job

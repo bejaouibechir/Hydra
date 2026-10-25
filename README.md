@@ -285,7 +285,26 @@ destinations:
     load:
       table: ./output.csv
       mode: replace          # append | replace | upsert
+      # atomic: true         # all-or-nothing (see below)
 ```
+
+**All-or-nothing load.** A job writes its destination in one go: nothing is visible before the
+end, and a failure (or Ctrl+C) leaves the destination as it was. It is on by default where it
+costs nothing:
+
+| Destination | `replace` | `append` | `upsert` |
+|---|---|---|---|
+| PostgreSQL, SQL Server | one transaction (TRUNCATE inside it) | `atomic: true` | `atomic: true` |
+| MySQL / MariaDB | one transaction (DELETE, InnoDB table) | `atomic: true` | `atomic: true` |
+| CSV | temporary file, then swapped | back to the original size | — |
+| Parquet | temporary file, then swapped | temporary file, then swapped | — |
+
+`atomic: true` makes `append` / `upsert` into a database one transaction too (longer locks, a
+larger database log: fine for medium volumes); `atomic: false` goes back to batch-by-batch
+commits. `atomic: true` where it cannot work (MongoDB, web API, a MyISAM table) is an error,
+never a silent downgrade. In PostgreSQL, readers of a table being replaced wait for the end of
+the job instead of seeing it empty. Temporary files left by a crashed run are removed on the
+next run.
 
 **`pipeline.yaml`**: which source feeds which destination
 

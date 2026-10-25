@@ -36,6 +36,9 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 import pandas as pd
 
 from hydra_etl.internal.connector.frame_batch import FrameBatch
+from hydra_etl.internal.connector.load_session import (
+    LoadSession, cleanup_orphans, replace_file, temp_path_for,
+)
 from hydra_etl.internal.connector.interface import Connector, Batch, ConnectorCapabilities
 
 logger = logging.getLogger(__name__)
@@ -219,6 +222,25 @@ class ParquetConnector(Connector):
 
     # ------------------------------------------------------------------ load
 
+    # Toujours écrit dans un temporaire puis mis à la place de la cible :
+    # tout ou rien par nature (Parquet ne s'écrit pas en place).
+    atomic_load_modes = frozenset({"append", "replace"})
+    atomic_default_modes = frozenset({"append", "replace"})
+
+    def begin_load(self, *, table: str, mode: str = "append", key: Optional[List[str]] = None,
+                   atomic: bool = False, compression: str = "snappy") -> "_ParquetLoadSession":
+        """Session de chargement d'un job : un seul ParquetWriter pour tous les lots
+        (au lieu de recopier le fichier à chaque lot)."""
+        _require_pyarrow()
+        mode_norm = (mode or "").strip().lower()
+        if mode_norm not in {"append", "replace"}:
+            raise ValueError(f"ParquetConnector [{self.name}]: mode '{mode}' is invalid.")
+        comp_norm = compression.strip().lower()
+        if comp_norm not in self.VALID_COMPRESSIONS:
+            raise ValueError(f"ParquetConnector [{self.name}]: compression '{compression}' is invalid.")
+        return _ParquetLoadSession(self, table=table, mode=mode_norm, atomic=atomic,
+                                   compression=None if comp_norm == "none" else comp_norm)
+
     def load_batches(
         self,
         batches: Iterable[Batch],
@@ -320,3 +342,65 @@ class ParquetConnector(Connector):
         if path.is_absolute():
             return str(path.resolve())
         return str(Path(self._job_dir) / path)
+
+
+class _ParquetLoadSession(LoadSession):
+    """Chargement d'un fichier Parquet par un job : temporaire du même dossier
+    (copie de l'existant en append), un seul writer, puis remplacement."""
+
+    def __init__(self, connector: "ParquetConnector", *, table: str, mode: str,
+                 atomic: bool, compression: Optional[str]) -> None:
+        path = Path(connector._resolve_path(table))
+        super().__init__(target=str(path), table=table, mode=mode, atomic=atomic)
+        self._c = connector
+        self.path = path
+        self.compression = compression
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cleanup_orphans(path)
+        self.tmp = temp_path_for(path)
+        self.writer = None
+        self.schema = None
+
+    def _stage(self, batch: Any) -> None:
+        t = self._c._to_table(batch)
+        if t is None:
+            return
+        name = self._c.name
+        try:
+            if self.writer is None:
+                if self.mode == "append" and self.path.is_file():
+                    lecteur = pq.ParquetFile(str(self.path))
+                    if set(lecteur.schema_arrow.names) != set(t.schema.names):
+                        raise ValueError(f"ParquetConnector [{name}]: schema incompatible with append.")
+                    self.schema = lecteur.schema_arrow
+                    self.writer = pq.ParquetWriter(self.tmp, self.schema, compression=self.compression)
+                    for rb in lecteur.iter_batches(batch_size=64 * 1024):
+                        self.writer.write_table(pa.Table.from_batches([rb], schema=self.schema))
+                else:
+                    self.schema = t.schema
+                    self.writer = pq.ParquetWriter(self.tmp, self.schema, compression=self.compression)
+            if not t.schema.equals(self.schema):
+                try:
+                    t = t.cast(self.schema)
+                except Exception as e:
+                    raise ValueError(
+                        f"ParquetConnector [{name}]: schema incompatible between batches. {e}"
+                    ) from None
+            self.writer.write_table(t)
+        except (ImportError, ValueError):
+            raise
+        except Exception as e:
+            raise ValueError(
+                f"ParquetConnector [{name}]: Parquet write failed. {type(e).__name__}: {e}"
+            ) from e
+
+    def _publish(self) -> None:
+        if self.writer is None:
+            return
+        self.writer.close()
+        self.writer = None
+        replace_file(self.tmp, self.path)
+
+    def _abort(self) -> None:
+        ParquetConnector._nettoyer(self.writer, self.tmp)
+        self.writer = None

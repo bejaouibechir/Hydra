@@ -27,6 +27,9 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 from hydra_etl.internal.connector.interface import Batch, Connector, Row
 from hydra_etl.internal.connector.frame_batch import FrameBatch
+from hydra_etl.internal.connector.load_session import (
+    LoadSession, cleanup_orphans, replace_file, temp_path_for,
+)
 from hydra_etl._backend import dual, warn_once
 
 logger = logging.getLogger(__name__)
@@ -753,6 +756,21 @@ class CSVConnector(Connector):
             )
         return csv_path
 
+    # Tout ou rien (load_session.py), par défaut et sans surcoût : replace
+    # écrit un fichier temporaire du même dossier puis le met à la place de
+    # la cible ; append revient à la taille d'origine en cas d'échec.
+    atomic_load_modes = frozenset({"append", "replace"})
+    atomic_default_modes = frozenset({"append", "replace"})
+
+    def begin_load(self, *, table: str, mode: str = "append",
+                   key: Optional[List[str]] = None, atomic: bool = False) -> "_CSVLoadSession":
+        """Session de chargement d'un job : un seul fichier ouvert pour tous les lots."""
+        if key is not None:
+            raise ValueError("CSVConnector: 'key' (upsert) is not supported for CSV.")
+        if not isinstance(mode, str) or mode.strip().lower() not in {"append", "replace"}:
+            raise ValueError("CSVConnector: unsupported mode. Use 'append' or 'replace'.")
+        return _CSVLoadSession(self, table=table, mode=mode.strip().lower(), atomic=atomic)
+
     @dual("csv.write", rust="_load_batches_rust")
     def load_batches(
         self,
@@ -1042,3 +1060,148 @@ class CSVConnector(Connector):
             # On garantit que toutes les clés attendues existent (sinon cellule vide).
             normalized = {k: row.get(k, "") for k in fieldnames}
             writer.writerow(normalized)
+
+class _CSVLoadSession(LoadSession):
+    """Chargement d'un fichier CSV par un job (voir load_session.py).
+
+    - replace : écrit dans un temporaire du même dossier ; publish() le met à
+      la place de la cible (sans tout ou rien : écrit directement la cible) ;
+    - append  : ajoute à la cible ; abort() revient à la taille d'origine
+      (supprime le fichier s'il n'existait pas) en tout ou rien.
+    Aucune ligne produite : la cible n'est pas touchée (comme avant)."""
+
+    def __init__(self, connector: "CSVConnector", *, table: str, mode: str, atomic: bool) -> None:
+        path = connector._resolve_path(table)
+        super().__init__(target=str(path), table=table, mode=mode, atomic=atomic)
+        self._c = connector
+        self.path = path
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            self.abort()
+            raise ValueError(
+                f"CSVConnector [{connector.name}]: cannot create the destination folder.\n"
+                f"  Target path: {path}\n"
+                f"  Parent folder: {path.parent}\n"
+                f"  System error: {e}"
+            )
+        cleanup_orphans(path)
+        self.write_path = temp_path_for(path) if (mode == "replace" and atomic) else path
+        self._orig_size: Optional[int] = None
+        if mode == "append" and atomic and path.exists():
+            self._orig_size = path.stat().st_size
+        self._existed = path.exists()
+        self._f = None
+        self._writer = None
+        self._fieldnames: List[str] = []
+        self._started = False             # quelque chose a été écrit dans write_path
+
+    def _need_header(self) -> bool:
+        if self._started:
+            return False
+        if self.mode == "replace":
+            return True
+        return not self.write_path.exists() or self.write_path.stat().st_size == 0
+
+    def _open(self, first_batch: Batch) -> None:
+        if not self._fieldnames:
+            first_row = first_batch[0]
+            if not isinstance(first_row, dict) or len(first_row) == 0:
+                raise ValueError("CSVConnector: invalid batch (the first row must be a non-empty dict).")
+            self._fieldnames = list(first_row.keys())
+        st = self._c._settings
+        need_header = self._need_header()
+        file_mode = "w" if (self.mode == "replace" and not self._started) else "a"
+        self._f = self.write_path.open(file_mode, encoding=st.encoding, newline=st.newline)
+        self._started = True
+        self._writer = csv.DictWriter(
+            self._f, fieldnames=self._fieldnames, delimiter=st.delimiter,
+            quotechar=st.quotechar, lineterminator=st.lineterminator, extrasaction="ignore",
+        )
+        if need_header:
+            self._writer.writeheader()
+
+    def _stage_rust(self, batch: Batch) -> bool:
+        """Écrivain natif (« csv.write ») pour un gros FrameBatch, mêmes octets
+        que le chemin Python ; False = laisser faire Python."""
+        c = self._c
+        if not (isinstance(batch, FrameBatch) and len(batch) >= c.rust_min_write_rows
+                and c._native_active("csv.write") and c._rust_writable(batch.frame)):
+            return False
+        fieldnames = [str(x) for x in batch.columns]
+        if self._fieldnames and fieldnames != self._fieldnames:
+            return False
+        import pyarrow as pa
+        import hydra_native
+        st = c._settings
+        header = fieldnames if self._need_header() else None
+        append = self._started or self.mode == "append"
+        if self._f is not None:
+            self._f.flush()
+        try:
+            hydra_native.write_csv(
+                str(self.write_path), pa.RecordBatch.from_pandas(batch.frame, preserve_index=False),
+                append=append, header=header, delimiter=st.delimiter,
+                quotechar=st.quotechar, lineterminator=st.lineterminator,
+            )
+        except hydra_native.CsvFallback as e:
+            if self._started:
+                raise ValueError(f"CSVConnector [{c.name}]: CSV write failed.\n"
+                                 f"  Path: {self.path}\n  Error: {e.args[0]}") from e
+            from hydra_etl._backend import _t
+            warn_once(f"csv.write:{self.path}:{e.args[0]}",
+                      _t("backend.rust_fallback", path=str(self.path), reason=str(e.args[0])))
+            return False
+        self._started = True
+        self._fieldnames = fieldnames
+        return True
+
+    def _stage(self, batch: Batch) -> None:
+        try:
+            if self._stage_rust(batch):
+                return
+            if self._f is None:
+                self._open(batch)
+            self._c._write_one_batch(self._writer, batch, self._fieldnames)
+            if not self.atomic:
+                self._f.flush()
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(
+                f"CSVConnector [{self._c.name}]: CSV write failed.\n"
+                f"  Path: {self.path}\n"
+                f"  Mode : {self.mode}\n"
+                f"  Error: {type(e).__name__}: {e}"
+            ) from e
+
+    def _close(self) -> None:
+        if self._f is not None:
+            try:
+                self._f.close()
+            finally:
+                self._f = None
+
+    def _publish(self) -> None:
+        if self._f is not None:
+            self._f.flush()
+            try:
+                os.fsync(self._f.fileno())
+            except OSError:
+                pass
+        self._close()
+        if self.write_path != self.path and self._started:
+            replace_file(self.write_path, self.path)
+
+    def _abort(self) -> None:
+        self._close()
+        if self.write_path != self.path:
+            try:
+                self.write_path.unlink()
+            except FileNotFoundError:
+                pass
+        elif self.atomic and self.mode == "append":
+            if self._orig_size is not None:
+                os.truncate(self.path, self._orig_size)
+            elif not self._existed and self.path.exists():
+                self.path.unlink()

@@ -43,3 +43,23 @@ describe('forme canonique', () => {
     expect(canvasFromDisk({ sources: '', transformations: '', destinations: '', pipeline: '' }, 'j')).toBeNull()
   })
 })
+
+describe('load.atomic (tout ou rien) d\'une destination base', () => {
+  const pg = (extra: string) => ({
+    sources: 'sources:\n  src_csv:\n    type: csv\n    extract:\n      table: data/input.csv\n      batch_size: 7000\n',
+    transformations: 'steps: []\n',
+    destinations: 'destinations:\n  dest_pg:\n    type: postgresql\n    connection:\n      host: h\n      database: d\n      user: u\n'
+      + '    load:\n      table: t\n      mode: append\n' + extra,
+    pipeline: 'pipeline:\n  from: src_csv\n  to: dest_pg\n',
+  })
+  it('lu du disque, gardé à l\'écriture ; absent = défaut', () => {
+    for (const [extra, want] of [['      atomic: true\n', 'atomic: true'], ['      atomic: false\n', 'atomic: false']] as const) {
+      const d = canvasFromDisk(pg(extra), 'job1')!
+      const dest = d.nodes.find(n => (n.data as { params?: Record<string, unknown> }).params?.atomic !== undefined)!
+      expect((dest.data as { params: Record<string, unknown> }).params.atomic).toBe(extra.includes('true') ? 'yes' : 'no')
+      expect(canonicalFromCanvas(d.nodes, d.edges, 'job1')).toContain(want)
+    }
+    const d = canvasFromDisk(pg(''), 'job1')!
+    expect(canonicalFromCanvas(d.nodes, d.edges, 'job1')).not.toContain('atomic')
+  })
+})

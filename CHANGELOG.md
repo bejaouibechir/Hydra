@@ -7,6 +7,34 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **All-or-nothing load per job** (fallback step 4): a job writes its
+  destination through one load session (`begin → stage → publish | abort`,
+  common to every connector); nothing is visible before the end of the job
+  and a failure or Ctrl+C leaves the destination as it was. On by default
+  for `replace` (PostgreSQL / SQL Server: TRUNCATE inside one transaction;
+  MySQL / MariaDB: DELETE inside one transaction, InnoDB table required;
+  CSV / Parquet: temporary file in the same folder, then swapped) and for
+  CSV / Parquet `append` (CSV goes back to its original size).
+- `load.atomic` in `destinations.yaml`: `true` makes `append` / `upsert`
+  into a database one transaction; `false` restores batch-by-batch
+  commits. `true` on a connector or mode that cannot do it is an error
+  before anything is read. Studio: "All-or-nothing" field on database
+  destinations. VS Code schema and spec updated.
+- Two jobs of the same run writing the same destination take turns; temporary
+  files left by a crashed run are removed on the next run.
+- `JobResult.atomic` and `JobResult.partial_write` (a failure left rows
+  written), for the fallback after a failure (next step).
+
+### Changed
+
+- A job keeps one connection / one open file for all its batches (it opened
+  one per batch). Parquet no longer copies the whole file again for every
+  batch.
+- Without all-or-nothing, a failed job logs that the destination keeps the
+  batches written before the failure.
+
 ## [0.13.0] — 2026-10-25
 
 ### Added

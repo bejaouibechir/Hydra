@@ -13,7 +13,8 @@ Fonctionnalités Sprint 2:
 - Upsert: ON CONFLICT (key) DO UPDATE avec validation stricte
 - Validation pré-flight: vérification contrainte unique réelle
 - Schema support: public par défaut, notation schema.table acceptée
-- Transaction: 1 batch = 1 transaction, rollback si échec
+- Transaction: 1 batch = 1 transaction, rollback si échec ; en tout ou rien
+  (load.atomic, défaut pour replace) : une transaction pour tout le job
 
 Règles critiques:
 1. Schema explicite (défaut "public")
@@ -312,167 +313,82 @@ class PostgreSQLConnector(BaseDBConnector):
     # Load
     # ============================================================
     
-    def load_batches(
-        self,
-        batches: Iterable[Batch],
-        *,
-        table: str,
-        mode: str = "append",
-        key: Optional[List[str]] = None,
-        update_columns: Optional[List[str]] = None,
-    ) -> None:
-        """
-        Charge des batches vers PostgreSQL.
-        
-        Args:
-            batches: Itérable de batches (list[dict])
-            table: Nom table (peut être "schema.table")
-            mode: "append" | "replace" | "upsert"
-            key: Colonnes clés pour upsert (requis si mode=upsert)
-            update_columns: Colonnes à updater (défaut: toutes sauf key)
-        
-        Raises:
-            ValueError: Si validation échoue ou erreur SQL
-        
-        Transaction:
-            - 1 batch = 1 transaction
-            - Rollback si échec, job s'arrête
-        """
-        # Validation
+    # ============================================================
+    # Load (session par job : base_db_connector.DBLoadSession)
+    # ============================================================
+
+    _wrap_load_value_errors = False
+
+    def _check_load_args(self, table: str, mode: str, key: Optional[List[str]]):
         if not isinstance(table, str) or not table.strip():
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: 'table' must be a non-empty name."
             )
-        
         table = table.strip()
-        schema, table_name = self._parse_table(table)
-        
+        self._parse_table(table)
         if mode not in ("append", "replace", "upsert"):
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: mode '{mode}' is not supported. "
                 f"Supported: append, replace, upsert."
             )
-        
         if mode == "upsert":
             if not key or not all(isinstance(k, str) and k.strip() for k in key):
                 raise ValueError(
                     f"{self.__class__.__name__} [{self.name}]: "
                     f"mode=upsert requires 'key' (a non-empty list of columns)."
                 )
-            # Nettoyer key
             key = [k.strip() for k in key]
-        
-        conn = self._connect()
-        try:
-            cursor = conn.cursor()
-            
-            # Replace: TRUNCATE si la table existe, création différée sinon
-            _replace_needs_create = False
-            if mode == "replace":
-                cursor.execute(
-                    "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
-                    "WHERE table_schema = %s AND table_name = %s)",
-                    (schema, table_name),
-                )
-                if cursor.fetchone()["exists"]:
-                    cursor.execute(f'TRUNCATE TABLE {self._quote_identifier(schema, table_name)}')
-                    conn.commit()
-                else:
-                    _replace_needs_create = True  # table absente → créer au 1er batch
-            
-            # Upsert: validation pré-flight contrainte unique
-            if mode == "upsert":
-                self._validate_upsert_key(
-                    cursor=cursor,
-                    schema=schema,
-                    table=table_name,
-                    key=key
-                )
-            
-            # Traitement des batches
-            first_columns: Optional[List[str]] = None
-            
-            for batch in batches:
-                if not batch:
-                    continue
-                
-                # Détecter colonnes du premier batch
-                if first_columns is None:
-                    first_columns = self._infer_columns_from_batch(batch)
+        return table, key
 
-                    # Replace sans table existante → auto-créer depuis le 1er batch
-                    if _replace_needs_create:
-                        self._auto_create_table(cursor, schema, table_name, first_columns, batch)
-                        conn.commit()
-                        _replace_needs_create = False
-
-                    # Validation update_columns si fourni
-                    if mode == "upsert" and update_columns is not None:
-                        overlap = set(update_columns) & set(key)
-                        if overlap:
-                            raise ValueError(
-                                f"{self.__class__.__name__} [{self.name}]: "
-                                f"update_columns cannot contain key columns: {overlap}"
-                            )
-                
-                # Construire SQL selon mode
-                if mode == "upsert":
-                    sql, values = self._build_upsert_sql(
-                        schema=schema,
-                        table=table_name,
-                        columns=first_columns,
-                        key=key,
-                        batch=batch,
-                        update_columns=update_columns,
-                    )
-                else:
-                    # append ou replace (après truncate)
-                    sql, values = self._build_insert_sql(
-                        schema=schema,
-                        table=table_name,
-                        columns=first_columns,
-                        batch=batch,
-                    )
-                
-                # Exécution avec transaction par batch
-                try:
-                    cursor.executemany(sql, values)
-                    conn.commit()  # ✅ COMMIT si batch OK
-                except Exception as e:
-                    conn.rollback()  # ✅ ROLLBACK batch entier
-                    raise ValueError(
-                        f"{self.__class__.__name__} [{self.name}]: batch load failed.\n"
-                        f"  Table : {schema}.{table_name}\n"
-                        f"  Mode  : {mode}\n"
-                        f"  Error: {type(e).__name__}: {e}"
-                    ) from e
-            
-            cursor.close()
-        
-        except Exception as e:
-            # Rollback best-effort
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            
-            # Si erreur pas encore ValueError, wrapper
-            if not isinstance(e, ValueError):
-                raise ValueError(
-                    f"{self.__class__.__name__} [{self.name}]: load failed.\n"
-                    f"  Table : {schema}.{table_name}\n"
-                    f"  Mode  : {mode}\n"
-                    f"  Error: {type(e).__name__}: {e}"
-                ) from e
+    def _load_prepare(self, cur, *, table, mode, key, atomic, commit, update_columns=None, **_):
+        """replace : TRUNCATE si la table existe (annulable : en tout ou rien,
+        dans la transaction du job), création au 1er lot sinon. upsert :
+        vérification de la contrainte unique."""
+        schema, table_name = self._parse_table(table)
+        ctx = {"schema": schema, "table": table_name, "mode": mode, "key": key,
+               "update_columns": update_columns, "columns": None, "create": False}
+        if mode == "replace":
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = %s AND table_name = %s)",
+                (schema, table_name),
+            )
+            if cur.fetchone()["exists"]:
+                cur.execute(f'TRUNCATE TABLE {self._quote_identifier(schema, table_name)}')
             else:
-                raise
-        
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
-    
+                ctx["create"] = True          # table absente → créer au 1er lot
+        if mode == "upsert":
+            self._validate_upsert_key(cursor=cur, schema=schema, table=table_name, key=key)
+        return ctx
+
+    def _load_write(self, cur, ctx, batch, *, commit):
+        schema, table_name, mode = ctx["schema"], ctx["table"], ctx["mode"]
+        if ctx["columns"] is None:
+            ctx["columns"] = self._infer_columns_from_batch(batch)
+            if ctx["create"]:
+                # DDL transactionnel en PostgreSQL : annulé avec le reste en tout ou rien
+                self._auto_create_table(cur, schema, table_name, ctx["columns"], batch)
+                commit()
+                ctx["create"] = False
+            uc = ctx["update_columns"]
+            if mode == "upsert" and uc is not None:
+                overlap = set(uc) & set(ctx["key"])
+                if overlap:
+                    raise ValueError(
+                        f"{self.__class__.__name__} [{self.name}]: "
+                        f"update_columns cannot contain key columns: {overlap}"
+                    )
+        if mode == "upsert":
+            sql, values = self._build_upsert_sql(
+                schema=schema, table=table_name, columns=ctx["columns"], key=ctx["key"],
+                batch=batch, update_columns=ctx["update_columns"],
+            )
+        else:
+            sql, values = self._build_insert_sql(
+                schema=schema, table=table_name, columns=ctx["columns"], batch=batch,
+            )
+        cur.executemany(sql, values)
+
     # ============================================================
     # Helpers SQL
     # ============================================================

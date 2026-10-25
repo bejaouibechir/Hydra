@@ -404,105 +404,60 @@ class SQLServerConnector(BaseDBConnector):
     # Load
     # ============================================================
 
-    def load_batches(
-        self,
-        batches: Iterable[Batch],
-        *,
-        table: str,
-        mode: str = "append",
-        key: Optional[List[str]] = None,
-    ) -> None:
-        """Charge des batches vers SQL Server.
+    # ============================================================
+    # Load (session par job : base_db_connector.DBLoadSession)
+    #   append  : INSERT
+    #   replace : TRUNCATE puis INSERT (TRUNCATE est annulable en SQL Server :
+    #             en tout ou rien, il fait partie de la transaction du job)
+    #   upsert  : UPDATE puis INSERT ... WHERE NOT EXISTS, par lot
+    # ============================================================
 
-        - ``append``  : INSERT
-        - ``replace`` : TRUNCATE puis INSERT
-        - ``upsert``  : UPDATE puis INSERT ... WHERE NOT EXISTS, par batch,
-          dans une transaction
-        """
+    def _check_load_args(self, table: str, mode: str, key: Optional[List[str]]):
         if not isinstance(table, str) or not table.strip():
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
                 f"'table' must be a non-empty name"
             )
         table = table.strip()
-
         if mode not in ("append", "replace", "upsert"):
             raise ValueError(
                 f"{self.__class__.__name__} [{self.name}]: "
                 f"mode '{mode}' is not supported. Supported: append, replace, upsert"
             )
-
         if mode == "upsert":
             self._validate_upsert_params(table, key)
+        return table, key
 
+    def _load_prepare(self, cur, *, table, mode, key, atomic, commit, **_):
         schema, name = self._parse_table(table)
-        quoted = self._quote_identifier(schema, name)
+        return {"schema": schema, "table": name, "quoted": self._quote_identifier(schema, name),
+                "mode": mode, "key": key, "columns": None}
 
-        conn = self._connect()
-        try:
-            cur = conn.cursor()
-            first_columns: Optional[List[str]] = None
-            truncated = False
-
-            for batch in batches:
-                if not batch:
-                    continue
-
-                if first_columns is None:
-                    first_columns = self._infer_columns_from_batch(batch)
-                    if self._auto_create_enabled():
-                        self._auto_create_table(
-                            cursor=cur,
-                            schema=schema,
-                            table=name,
-                            columns=first_columns,
-                            batch=batch,
-                        )
-                        conn.commit()
-                    # TRUNCATE après création éventuelle, avant le premier INSERT.
-                    if mode == "replace" and not truncated:
-                        cur.execute(f"TRUNCATE TABLE {quoted}")
-                        conn.commit()
-                        truncated = True
-
-                if mode == "upsert":
-                    upd_sql, upd_vals = self._build_update_sql(
-                        schema=schema, table=name,
-                        columns=first_columns, key_columns=key, batch=batch,
-                    )
-                    ins_sql, ins_vals = self._build_insert_if_absent_sql(
-                        schema=schema, table=name,
-                        columns=first_columns, key_columns=key, batch=batch,
-                    )
-                    cur.executemany(upd_sql, upd_vals)
-                    cur.executemany(ins_sql, ins_vals)
-                else:
-                    sql, values = self._build_insert_sql(
-                        schema=schema, table=name,
-                        columns=first_columns, batch=batch,
-                    )
-                    cur.executemany(sql, values)
-
-                conn.commit()
-
-            cur.close()
-
-        except Exception as e:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            raise ValueError(
-                f"{self.__class__.__name__} [{self.name}]: load failed.\n"
-                f"  Table : {table}\n"
-                f"  Mode  : {mode}\n"
-                f"  Error: {type(e).__name__}: {e}"
-            ) from e
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
+    def _load_write(self, cur, ctx, batch, *, commit):
+        schema, name, mode = ctx["schema"], ctx["table"], ctx["mode"]
+        if ctx["columns"] is None:
+            ctx["columns"] = self._infer_columns_from_batch(batch)
+            if self._auto_create_enabled():
+                self._auto_create_table(cursor=cur, schema=schema, table=name,
+                                        columns=ctx["columns"], batch=batch)
+                commit()
+            # TRUNCATE après création éventuelle, avant le premier INSERT.
+            if mode == "replace":
+                cur.execute(f"TRUNCATE TABLE {ctx['quoted']}")
+                commit()
+        if mode == "upsert":
+            upd_sql, upd_vals = self._build_update_sql(
+                schema=schema, table=name, columns=ctx["columns"], key_columns=ctx["key"], batch=batch,
+            )
+            ins_sql, ins_vals = self._build_insert_if_absent_sql(
+                schema=schema, table=name, columns=ctx["columns"], key_columns=ctx["key"], batch=batch,
+            )
+            cur.executemany(upd_sql, upd_vals)
+            cur.executemany(ins_sql, ins_vals)
+        else:
+            sql, values = self._build_insert_sql(schema=schema, table=name,
+                                                 columns=ctx["columns"], batch=batch)
+            cur.executemany(sql, values)
 
     # ============================================================
     # Helpers

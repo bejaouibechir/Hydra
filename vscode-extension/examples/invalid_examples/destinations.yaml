@@ -35,3 +35,11 @@ destinations:
       mode: overwrite
       # ERROR 4 — 'overwrite' is not a valid mode.
       # Valid values are append, replace, upsert.
+
+  dst_atomic_not_boolean:
+    type: postgresql
+    load:
+      table: orders
+      mode: append
+      atomic: "yes"
+      # ERROR 5 — 'atomic' is true or false.

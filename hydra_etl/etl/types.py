@@ -79,6 +79,11 @@ class JobResult:
     # Profil d'exécution (temps par étape), rempli seulement si --profile
     # / HYDRA_PROFILE=1. None sinon.
     profile: Optional[Dict[str, Any]] = None
+    # Chargement en tout ou rien (load_session.py) : True / False, None si le
+    # job n'a rien chargé. partial_write : l'échec a laissé des lignes écrites
+    # dans la destination (chargement lot par lot, sans tout ou rien).
+    atomic: Optional[bool] = None
+    partial_write: bool = False
     
     def __str__(self) -> str:
         """Représentation lisible du résultat."""
@@ -107,6 +112,8 @@ class JobResult:
             "output_sample": self.output_sample,
             "output_columns": self.output_columns,
             "profile": self.profile,
+            "atomic": self.atomic,
+            "partial_write": self.partial_write,
         }
 
 

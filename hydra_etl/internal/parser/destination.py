@@ -73,6 +73,11 @@ class LoadConfig(BaseModel):
     mode: LoadMode = Field(default=LoadMode.APPEND)
     key: Optional[List[str]] = Field(default=None, min_length=1)
     batch_size: int = Field(default=10_000, ge=10, le=100_000)
+    # Tout ou rien (rien n'est visible avant la fin du job ; un échec laisse
+    # la destination intacte). None = défaut du connecteur : oui pour replace
+    # et pour les fichiers, non pour append/upsert en base (une transaction
+    # longue : verrous, journal de la base).
+    atomic: Optional[bool] = None
 
     @model_validator(mode="after")
     def _resolve_table(self) -> "LoadConfig":

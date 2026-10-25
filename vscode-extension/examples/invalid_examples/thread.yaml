@@ -1,11 +1,18 @@
 # Expected errors: unknown mode, bad delay, empty stage, unknown key "enabled",
-# loop without "times", loop with times 0
+# loop without "times", loop with times 0,
+# fallback without 'use', fallback without a trigger, unknown fallback key
 thread:
   - mode: random
     delay_after: 2x
     workflows:
       - name: workflow1
         enabled: true
+        fallback:
+          when: "not source_available('crm_db')"
+      - name: workflow3
+        fallback:
+          use: [workflow3_backup]
+          retry: 2
   - workflows: []
 loops:
   - from: workflow1

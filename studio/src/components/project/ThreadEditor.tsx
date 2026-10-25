@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, CheckCircle2, Layers, Play, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
 import { api } from '@/lib/api'
 import {
-  appendWorkflow, forSave, isValidDelay, loopErrors, loopsForSave, moveWorkflow, namesIn,
+  appendWorkflow, fallbackNamesIn, forSave, isValidDelay, loopErrors, loopsForSave, moveWorkflow, namesIn,
   pruneLoops, removeWorkflow, type ThreadLoop, type ThreadStage,
 } from '@/lib/thread'
 import ThreadPreview from '@/components/project/ThreadPreview'
@@ -50,7 +50,10 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
   const missing = new Set(q.data?.missing ?? [])
   const onDisk = q.data?.workflows ?? []
   const inThread = namesIn(stages)
-  const notInThread = useMemo(() => onDisk.filter(n => !inThread.includes(n)), [onDisk, inThread])
+  const fallbacks = fallbackNamesIn(stages)
+  // Les remplaçants (fallback) ne s'ajoutent pas au thread : ils y tourneraient deux fois.
+  const notInThread = useMemo(() => onDisk.filter(n => !inThread.includes(n) && !fallbacks.includes(n)),
+    [onDisk, inThread, fallbacks])
   const delaysOk = stages.every(s => isValidDelay(s.delay_after ?? ''))
   const lErrors = loopErrors(stages, loops)
   const valid = delaysOk && lErrors.every(e => e === null)

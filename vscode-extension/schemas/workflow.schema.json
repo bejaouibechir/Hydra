@@ -90,6 +90,45 @@
           "type": "boolean",
           "default": true,
           "description": "false: hdrctl run skips this workflow without removing it (debugging)."
+        },
+        "fallback": { "$ref": "#/definitions/threadFallback" }
+      }
+    },
+
+    "threadFallback": {
+      "type": "object",
+      "description": "Backup workflow(s) for this workflow. The fallbacks are workflows/<name>.yaml files that are NOT in the thread; one takes this workflow's place when 'when' is true just before the start, or after a failure if 'on_failure' is true.",
+      "required": ["use"],
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["when"] },
+        { "required": ["on_failure"], "properties": { "on_failure": { "const": true } } }
+      ],
+      "properties": {
+        "use": {
+          "description": "Fallback workflow(s), tried in order. A name or a list of names.",
+          "oneOf": [
+            { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$" },
+            { "type": "array", "minItems": 1, "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$" } }
+          ],
+          "examples": [["load_crm_backup"]]
+        },
+        "when": {
+          "type": "string",
+          "description": "Condition checked just before the start. Functions: source_available('name'), destination_available('name'), file_exists('path'), file_size('path'), file_age('path'), url_ok('url'), secret_defined('name'), db.load('name'); values: previous.status, previous.rows; operators: and, or, not, ==, !=, <, <=, >, >=; durations 30s, 5m, 24h, 7d; sizes 10KB, 5MB, 1GB.",
+          "examples": ["not source_available('crm_db')", "file_age('data/orders.csv') > 24h"]
+        },
+        "on_failure": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: also switch to the fallback after this workflow fails (only if it published nothing)."
+        },
+        "on_probe_error": {
+          "type": "string",
+          "enum": ["keep", "replace"],
+          "default": "keep",
+          "description": "If a check of 'when' fails or times out: keep the planned workflow (default) or switch to the fallback."
         }
       }
     },

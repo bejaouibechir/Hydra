@@ -89,7 +89,8 @@ class ProjectPlan:
     root: Path
     thread: ThreadDef
     implicit: bool
-    workflows: Dict[str, Any] = field(default_factory=dict)   # nom -> WorkflowDef (actifs)
+    workflows: Dict[str, Any] = field(default_factory=dict)   # nom -> WorkflowDef (actifs + remplaçants)
+    warnings: List[str] = field(default_factory=list)          # à signaler sans bloquer (ex. fallback)
 
     @property
     def active_names(self) -> List[str]:
@@ -119,13 +120,15 @@ def prepare_project(root: Path) -> ProjectPlan:
     plan = ProjectPlan(root=root, thread=thread, implicit=implicit)
     if errors:
         raise ProjectError(errors)
-    for name in plan.active_names:
+
+    def check_workflow(name: str) -> Optional[Any]:
+        """Charge workflows/<name>.yaml et vérifie ses jobs ; erreurs dans `errors`."""
         path = workflow_file(root, name)
         try:
             wf = plan.workflows[name] = load_workflow(path)
         except Exception as e:  # noqa: BLE001 — message du parseur, déjà lisible
             errors.append(f"{WORKFLOWS_DIR}/{path.name}: {e}")
-            continue
+            return None
         for step in wf.steps:
             if step.type != "job" or not step.enabled or not step.job:
                 continue
@@ -140,9 +143,109 @@ def prepare_project(root: Path) -> ProjectPlan:
             for problem in pipeline_errors(jp.resolve()):
                 errors.append(f"{WORKFLOWS_DIR}/{path.name}: step '{step.name}' "
                               f"({step.job}) — {problem}")
+        return wf
+
+    for name in plan.active_names:
+        check_workflow(name)
+
+    # Fallbacks des workflows actifs : remplaçants présents et valides, noms
+    # cités par la condition déclarés, même destinations (avertissement).
+    for stage in thread.thread:
+        for w in stage.workflows:
+            if not w.active or not w.fallback:
+                continue
+            where = f"{WORKFLOWS_DIR}/{THREAD_FILE}: workflow '{w.name}' fallback"
+            for alt in w.fallback.use:
+                if not workflow_file(root, alt).is_file():
+                    errors.append(f"{where}: '{alt}' has no file {WORKFLOWS_DIR}/{alt}.yaml")
+                    continue
+                if alt not in plan.workflows:
+                    check_workflow(alt)
+            errors.extend(f"{where}: {p}" for p in _condition_name_errors(root, plan, w))
+            plan.warnings.extend(f"{where}: {m}" for m in _destination_warnings(root, plan, w))
     if errors:
         raise ProjectError(errors)
     return plan
+
+
+def _workflow_jobs(root: Path, wf: Any) -> List[Path]:
+    """Dossiers des jobs actifs d'un workflow chargé."""
+    out = []
+    for step in getattr(wf, "steps", []) or []:
+        if step.type == "job" and step.enabled and step.job:
+            jp = Path(step.job)
+            if not jp.is_absolute():
+                jp = Path(root) / WORKFLOWS_DIR / jp
+            if jp.resolve().is_dir():
+                out.append(jp.resolve())
+    return out
+
+
+def _yaml_section(path: Path, key: str) -> Dict[str, Any]:
+    import yaml
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8-sig")) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+    sec = doc.get(key) if isinstance(doc, dict) else None
+    return sec if isinstance(sec, dict) else {}
+
+
+def _job_destinations(job_dir: Path) -> List[str]:
+    """Destination réellement écrite par un job : « type:table »."""
+    import yaml
+    try:
+        pipe = yaml.safe_load((job_dir / "pipeline.yaml").read_text(encoding="utf-8-sig")) or {}
+    except Exception:  # noqa: BLE001
+        return []
+    p = pipe.get("pipeline") if isinstance(pipe, dict) else None
+    if not isinstance(p, dict) and isinstance(pipe, dict) and isinstance(pipe.get("job"), dict):
+        p = pipe["job"].get("pipeline")
+    to = p.get("to") if isinstance(p, dict) else None
+    d = _yaml_section(job_dir / "destinations.yaml", "destinations").get(to)
+    if not isinstance(d, dict):
+        return []
+    load = d.get("load") if isinstance(d.get("load"), dict) else {}
+    target = load.get("table") or load.get("file") or load.get("collection") or to
+    return [f"{d.get('type', '?')}:{target}"]
+
+
+def _destination_warnings(root: Path, plan: "ProjectPlan", w: ThreadWorkflow) -> List[str]:
+    """Un remplaçant devrait écrire au même endroit que le workflow remplacé
+    (même contrat). Différent = avertissement (ex. workflow de quarantaine)."""
+    def dests(name: str) -> List[str]:
+        wf = plan.workflows.get(name)
+        return sorted({d for jd in _workflow_jobs(root, wf) for d in _job_destinations(jd)}) if wf else []
+    base = dests(w.name)
+    out = []
+    for alt in w.fallback.use if w.fallback else []:
+        if alt in plan.workflows and dests(alt) != base:
+            out.append(f"'{alt}' writes to {dests(alt) or 'nothing'} instead of {base or 'nothing'} "
+                       f"(fine for a quarantine workflow; otherwise check it)")
+    return out
+
+
+def _condition_name_errors(root: Path, plan: "ProjectPlan", w: ThreadWorkflow) -> List[str]:
+    """Les sources / destinations citées par `when` doivent être déclarées dans
+    un job du workflow (ou, à défaut, du projet)."""
+    from hydra_etl.workflow.conditions import condition_sources
+    if not (w.fallback and w.fallback.when):
+        return []
+    wf_jobs = _workflow_jobs(root, plan.workflows.get(w.name))
+    all_jobs = [d for d in (Path(root) / "jobs").glob("*") if d.is_dir()]
+
+    def declared(kind: str, jobs: List[Path]) -> set:
+        return {k for jd in jobs for k in _yaml_section(jd / f"{kind}.yaml", kind)}
+
+    out = []
+    for fn, arg in condition_sources(w.fallback.when):
+        if fn in ("source_available", "destination_available", "db.load"):
+            kinds = {"source_available": ["sources"], "destination_available": ["destinations"],
+                     "db.load": ["sources", "destinations"]}[fn]
+            if not any(arg in declared(k, wf_jobs) or arg in declared(k, all_jobs) for k in kinds):
+                what = " or ".join(f"{k}.yaml" for k in kinds)
+                out.append(f"{fn}('{arg}'): '{arg}' is not declared in any job's {what}")
+    return out
 
 
 # Statuts d'un workflow dans un run de projet
@@ -366,10 +469,16 @@ def new_workflow_yaml(name: str) -> str:
     )
 
 
-def add_workflow(root: Path, name: Optional[str] = None) -> Tuple[str, Path, ThreadDef]:
+def add_workflow(root: Path, name: Optional[str] = None,
+                 fallback_for: Optional[str] = None) -> Tuple[str, Path, ThreadDef]:
     """Crée workflows/<name>.yaml (sans step) et l'inscrit en fin de thread.
     Sans nom : `workflow-<8 hex>`. Sans thread.yaml : il est créé avec les
-    workflows existants (ordre alphabétique), puis le nouveau."""
+    workflows existants (ordre alphabétique), puis le nouveau.
+
+    `fallback_for` : le nouveau workflow devient un remplaçant de ce workflow
+    du thread (ajouté à `fallback.use`, pas au thread). Sans fallback existant,
+    il est créé avec `on_failure: true`. Un nom déjà cité comme remplaçant
+    n'est jamais ajouté au thread."""
     import uuid
     from hydra_etl.workflow.thread import add_to_thread
 
@@ -386,9 +495,11 @@ def add_workflow(root: Path, name: Optional[str] = None) -> Tuple[str, Path, Thr
         thread, _ = resolve_thread(root)
     except ValueError as e:
         raise ProjectError([f"{WORKFLOWS_DIR}/{THREAD_FILE}: {e}"]) from None
-    if name in thread.workflow_names():
-        # Référencé dans le thread mais sans fichier : on crée le fichier, le
-        # thread ne change pas.
+    if fallback_for is not None:
+        new_thread = _declare_fallback(thread, fallback_for, name)
+    elif name in thread.workflow_names() or name in thread.fallback_names():
+        # Déjà cité (dans le thread ou comme remplaçant) mais sans fichier :
+        # on crée le fichier, le thread ne change pas.
         new_thread = thread
     else:
         new_thread = add_to_thread(thread, name)
@@ -397,6 +508,30 @@ def add_workflow(root: Path, name: Optional[str] = None) -> Tuple[str, Path, Thr
     path.write_text(new_workflow_yaml(name), encoding="utf-8")
     save_thread(root, new_thread)
     return name, path, new_thread
+
+
+def _declare_fallback(thread: ThreadDef, target: str, name: str) -> ThreadDef:
+    """thread où `name` est ajouté aux remplaçants de `target`."""
+    from hydra_etl.workflow.thread import ThreadFallback
+    target = ThreadWorkflow(name=target).name
+    if target not in thread.workflow_names():
+        raise ProjectError([f"workflow '{target}' is not in {WORKFLOWS_DIR}/{THREAD_FILE}: "
+                            f"a fallback is declared on a workflow of the thread"])
+    stages = []
+    for st in thread.thread:
+        wfs = []
+        for w in st.workflows:
+            if w.name == target:
+                fb = (w.fallback.model_copy(update={"use": [*w.fallback.use, name]})
+                      if w.fallback else ThreadFallback(use=[name], on_failure=True))
+                w = w.model_copy(update={"fallback": fb})
+            wfs.append(w)
+        stages.append(st.model_copy(update={"workflows": wfs}))
+    try:
+        return ThreadDef.model_validate({**thread.model_dump(by_alias=True),
+                                         "thread": [s.model_dump() for s in stages]})
+    except ValueError as e:
+        raise ProjectError([f"{WORKFLOWS_DIR}/{THREAD_FILE}: {e}"]) from None
 
 
 def _forget_in_studio(root: Path, path: Path) -> None:
@@ -445,14 +580,16 @@ def remove_workflow(root: Path, name: str) -> Tuple[Optional[Path], bool]:
         except ValueError as e:
             raise ProjectError([f"{WORKFLOWS_DIR}/{THREAD_FILE}: {e}"]) from None
     in_thread = thread is not None and name in thread.workflow_names()
-    if name not in files and not in_thread:
+    is_fallback = thread is not None and name in thread.fallback_names()
+    if name not in files and not in_thread and not is_fallback:
         raise ProjectError([f"workflow '{name}' not found in {root / WORKFLOWS_DIR}"])
     removed: Optional[Path] = None
     if name in files:
         removed = files[name]
         removed.unlink()
         _forget_in_studio(root, removed)
-    if in_thread:
+    if in_thread or is_fallback:
+        # retire aussi le nom des fallbacks qui le citaient
         save_thread(root, remove_from_thread(thread, name)[0])
     return removed, in_thread
 
@@ -466,6 +603,7 @@ class WorkflowInfo:
     active: Optional[bool] = None
     steps: Optional[int] = None        # None = manifeste illisible
     error: Optional[str] = None
+    fallback_of: List[str] = field(default_factory=list)   # workflows du thread qu'il remplace
 
 
 def list_workflows(root: Path) -> Tuple[List[WorkflowInfo], bool]:
@@ -485,6 +623,15 @@ def list_workflows(root: Path) -> Tuple[List[WorkflowInfo], bool]:
     for name, p in files.items():
         if name not in seen:
             out.append(WorkflowInfo(name, p))
+    # remplaçants cités par un fallback (avec ou sans fichier)
+    by_name = {i.name: i for i in out}
+    for stage in thread.thread:
+        for w in stage.workflows:
+            for alt in (w.fallback.use if w.fallback else []):
+                if alt not in by_name:
+                    by_name[alt] = WorkflowInfo(alt, files.get(alt))
+                    out.append(by_name[alt])
+                by_name[alt].fallback_of.append(w.name)
     for info in out:
         if info.path is None:
             continue

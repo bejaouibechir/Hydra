@@ -5,12 +5,19 @@ thread:
     workflows:
       - name: workflow1
         active: true
+        fallback:
+          use: [workflow1_backup]
+          when: "not source_available('crm_db') or file_age('data/orders.csv') > 24h"
+          on_failure: true
       - name: workflow2
         active: false
   - mode: parallel
     workflows:
       - name: export-a
       - name: export-b
+        fallback:
+          use: export-b-quarantine
+          on_failure: true
 loops:
   - from: export-b
     to: workflow1

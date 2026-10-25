@@ -38,6 +38,7 @@ class CheckResponse(BaseModel):
     ok: bool
     errors: List[str]
     active: List[str]                 # workflows qui seraient lancés, dans l'ordre
+    warnings: List[str] = []          # à signaler sans bloquer (ex. fallback)
 
 
 def _root(project_id: str) -> Path:
@@ -84,4 +85,4 @@ def check_project(project_id: str):
         plan = prepare_project(root)
     except ProjectError as e:
         return CheckResponse(ok=False, errors=e.errors, active=[])
-    return CheckResponse(ok=True, errors=[], active=plan.active_names)
+    return CheckResponse(ok=True, errors=[], active=plan.active_names, warnings=plan.warnings)

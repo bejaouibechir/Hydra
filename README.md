@@ -128,7 +128,29 @@ loops:                        # optional
 ```
 
 A loop can link any two workflows of the thread (`to` comes before `from`, or is the same
-workflow); loops must not overlap. In Studio, the project page edits the same file
+workflow); loops must not overlap.
+
+A workflow can declare a **fallback**: one or more backup workflows, kept outside the thread,
+that take its place when a condition is true just before the start, or after it fails:
+
+```yaml
+      - name: load_crm
+        fallback:
+          use: [load_crm_backup]                    # tried in order
+          when: "not source_available('crm_db')"    # checked just before the start
+          on_failure: true                          # also after a failure
+```
+
+`when` uses a small closed language (never Python `eval`): `source_available('name')`,
+`destination_available('name')`, `file_exists('path')`, `file_size('path')`, `file_age('path')`,
+`url_ok('url')`, `secret_defined('name')`, `db.load('name')`, `previous.status`, `previous.rows`,
+with `and`, `or`, `not`, comparisons, durations (`30s`, `24h`) and sizes (`5MB`).
+`hdrctl workflow add load_crm_backup --fallback-for load_crm` creates a backup workflow and
+declares it. `hdrctl run . --dry-run` checks the fallbacks (files, jobs, names used by `when`)
+and warns when a backup writes somewhere else than the workflow it replaces. *The switch itself
+at run time comes in the next steps; for now the fallback is declared and checked.*
+
+In Studio, the project page edits the same file
 (**Execution order** → **Define**), draws it (**Preview**) and has a **Run project** button.
 `hdrctl run <project>` checks the thread, every active workflow and the job folders they use
 before starting anything, then runs the stages in order. A failed workflow stops the project;

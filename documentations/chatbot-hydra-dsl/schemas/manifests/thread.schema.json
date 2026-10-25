@@ -1,5 +1,50 @@
 {
   "$defs": {
+    "ThreadFallback": {
+      "additionalProperties": false,
+      "description": "Workflow(s) de secours d'un workflow du thread.",
+      "properties": {
+        "on_failure": {
+          "default": false,
+          "title": "On Failure",
+          "type": "boolean"
+        },
+        "on_probe_error": {
+          "default": "keep",
+          "enum": [
+            "keep",
+            "replace"
+          ],
+          "title": "On Probe Error",
+          "type": "string"
+        },
+        "use": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Use",
+          "type": "array"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "use"
+      ],
+      "title": "ThreadFallback",
+      "type": "object"
+    },
     "ThreadLoop": {
       "additionalProperties": false,
       "description": "Boucle : rejouer la portion du thread qui va de `to` à `from`.",
@@ -97,6 +142,17 @@
           "default": true,
           "title": "Active",
           "type": "boolean"
+        },
+        "fallback": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadFallback"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "name": {
           "title": "Name",

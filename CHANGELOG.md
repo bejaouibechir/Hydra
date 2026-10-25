@@ -5,6 +5,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/).
 
 
+## [Unreleased]
+
+### Added
+
+- `thread.yaml`: a workflow can declare a **fallback** — backup workflow(s),
+  kept outside the thread, with `use` (tried in order), `when` (condition
+  checked just before the start), `on_failure` (also after a failure) and
+  `on_probe_error` (`keep` by default). Step 1 of the fallback mechanism: the
+  fallback is declared, saved and checked; the switch at run time comes next.
+- `when` conditions use a closed language analysed by Hydra (never Python
+  `eval`): `source_available`, `destination_available`, `file_exists`,
+  `file_size`, `file_age`, `url_ok`, `secret_defined`, `db.load`,
+  `previous.status`, `previous.rows`, `and` / `or` / `not`, comparisons,
+  durations (`24h`) and sizes (`5MB`). Names reserved for future performance
+  rules (`estimate`, `resources`, `volume`, `deadline`) are refused for now.
+- `hdrctl run <project> --dry-run` (and Studio's **Check**) checks fallbacks:
+  backup files and their jobs, sources / destinations named in `when`; it
+  shows each fallback and warns when a backup writes to other destinations
+  than the workflow it replaces. `POST /api/projects/{id}/check` returns
+  `warnings`.
+- `hdrctl workflow add <name> --fallback-for <workflow>` creates a backup
+  workflow and declares it; `workflow list` shows backups as
+  `fallback of …`; `workflow remove` also removes the name from fallbacks.
+- VS Code schema: `fallback` in `thread.yaml`, with examples.
+
+### Changed
+
+- Studio keeps the fallbacks of `thread.yaml` when it saves the execution
+  order, and no longer offers to add a backup workflow to the thread.
+
 ## [0.12.3] — 2026-10-23
 
 ### Fixed

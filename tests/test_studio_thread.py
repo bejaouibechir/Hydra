@@ -91,7 +91,7 @@ def test_put_thread_rejects_invalid(client, proj, body, fragment):
 def test_check(client, proj):
     p, root = proj
     r = client.post(f"/api/projects/{p.id}/check").json()
-    assert r == {"ok": True, "errors": [], "active": ["workflow1"]}
+    assert r == {"ok": True, "errors": [], "active": ["workflow1"], "warnings": []}
     client.put(f"/api/projects/{p.id}/thread", json={"thread": [{"workflows": [{"name": "a"}]}]})
     (root / "workflows" / "a.yaml").write_text("workflow: {name: a, steps: nope}\n", encoding="utf-8")
     r = client.post(f"/api/projects/{p.id}/check").json()

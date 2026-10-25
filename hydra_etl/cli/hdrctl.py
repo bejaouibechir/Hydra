@@ -1055,9 +1055,19 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
                 steps = ", ".join(st.name for st in wf.steps)
                 detail = f"({len(wf.steps)}: {steps})" if steps else "(0)"
                 click.echo(f"     {c(C.GR, '•')}  {c(C.WH, w.name)}  {c(C.DM, detail)}")
+                if w.fallback:
+                    fb = w.fallback
+                    triggers = []
+                    if fb.when:
+                        triggers.append(t("run.project.plan_fallback_when", when=fb.when))
+                    if fb.on_failure:
+                        triggers.append(t("run.project.plan_fallback_failure"))
+                    click.echo(f"        {c(C.CY, '↪')}  {t('run.project.plan_fallback', use=' → '.join(fb.use), triggers='; '.join(triggers))}")
         for lp in plan.thread.loops:
             pause = f", {t('run.project.loop_pause', seconds=_fmt_seconds(lp.delay_seconds))}" if lp.delay_seconds else ""
             click.echo(f"  {c(C.CY, '↻')}  {t('run.project.plan_loop', start=lp.to, end=lp.from_, times=lp.times)}{pause}")
+        for wmsg in plan.warnings:
+            click.echo(f"  {c(C.YL, '⚠')}  {wmsg}")
         click.echo()
         success_box(t("run.project.dry_run_done"))
         return 0
@@ -1961,19 +1971,26 @@ _project_option = click.option(
 @_lang_option
 @click.argument("name", required=False)
 @_project_option
-def cmd_workflow_add(name: Optional[str], project: Optional[str]) -> None:
-    """Crée un workflow vide et l'inscrit en fin de thread."""
+@click.option("--fallback-for", "fallback_for", default=None, metavar="WORKFLOW",
+              help=t("help.workflow.fallback_for"))
+def cmd_workflow_add(name: Optional[str], project: Optional[str], fallback_for: Optional[str]) -> None:
+    """Crée un workflow vide et l'inscrit en fin de thread (ou comme remplaçant)."""
     from hydra_etl.workflow.project import ProjectError, add_workflow
     root = _project_or_exit(project)
     try:
-        name, path, thread = add_workflow(root, name)
+        name, path, thread = add_workflow(root, name, fallback_for=fallback_for)
     except ProjectError as e:
         _project_error_exit(e)
-    stage = next(i for i, st in enumerate(thread.thread, 1)
-                 if name in [w.name for w in st.workflows])
     rel = path.relative_to(root)
     success_box(t("workflow.add.success", name=name, path=str(rel)))
-    info(t("workflow.add.thread", stage=stage, mode=thread.thread[stage - 1].mode))
+    stage = next((i for i, st in enumerate(thread.thread, 1)
+                  if name in [w.name for w in st.workflows]), None)
+    if stage is not None:
+        info(t("workflow.add.thread", stage=stage, mode=thread.thread[stage - 1].mode))
+    else:
+        targets = [w.name for st in thread.thread for w in st.workflows
+                   if w.fallback and name in w.fallback.use]
+        info(t("workflow.add.fallback", targets=", ".join(targets)))
     here = Path.cwd().resolve() == root
     info(t("workflow.add.next", name=name, project="." if here else str(root)))
     click.echo()
@@ -2041,6 +2058,8 @@ def cmd_workflow_list(path: Optional[str], project: Optional[str]) -> None:
             status = c(C.RD, "✗ " + t("workflow.list.missing"))
         elif it.error:
             status = c(C.RD, "✗ " + t("workflow.list.invalid", error=it.error))
+        elif it.stage is None and it.fallback_of:
+            status = c(C.CY, "↪ " + t("workflow.list.fallback_of", targets=", ".join(it.fallback_of)))
         elif it.stage is None:
             status = c(C.YL, "○ " + t("workflow.list.not_in_thread"))
         elif it.active:

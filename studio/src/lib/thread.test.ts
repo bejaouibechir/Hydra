@@ -34,3 +34,15 @@ describe('thread', () => {
     for (const ko of ['abc', '5d', '-3', '1h30']) expect(isValidDelay(ko)).toBe(false)
   })
 })
+
+describe('fallback (thread.yaml)', () => {
+  it('forSave garde le fallback des workflows', async () => {
+    const { forSave, fallbackNamesIn } = await import('./thread')
+    const stages = [{ mode: 'sequential' as const, workflows: [
+      { name: 'a', active: true, fallback: { use: ['a_backup'], when: "not source_available('db')", on_failure: true } },
+      { name: 'b', active: true },
+    ] }]
+    expect(forSave(stages)[0].workflows[0].fallback).toEqual(stages[0].workflows[0].fallback)
+    expect(fallbackNamesIn(stages)).toEqual(['a_backup'])
+  })
+})

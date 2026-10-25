@@ -4,7 +4,14 @@
  * l'une après l'autre, chacune sequential ou parallel, avec un délai optionnel
  * et des workflows actifs ou non.
  */
-export interface ThreadWorkflow { name: string; active: boolean }
+/** Workflow(s) de secours d'un workflow du thread (thread.yaml → fallback). */
+export interface ThreadFallback {
+  use: string[]                         // remplaçants, essayés dans l'ordre (hors du thread)
+  when?: string | null                  // condition vérifiée juste avant le lancement
+  on_failure?: boolean                  // bascule aussi après un échec
+  on_probe_error?: 'keep' | 'replace'
+}
+export interface ThreadWorkflow { name: string; active: boolean; fallback?: ThreadFallback | null }
 export interface ThreadStage {
   mode: 'sequential' | 'parallel'
   delay_after?: string | number | null
@@ -63,6 +70,11 @@ export function forSave(stages: ThreadStage[]): ThreadStage[] {
 
 export function namesIn(stages: ThreadStage[]): string[] {
   return stages.flatMap(st => st.workflows.map(w => w.name))
+}
+
+/** Remplaçants cités par les fallbacks : ils ne vont pas dans le thread. */
+export function fallbackNamesIn(stages: ThreadStage[]): string[] {
+  return [...new Set(stages.flatMap(st => st.workflows.flatMap(w => w.fallback?.use ?? [])))]
 }
 
 const DELAY_RE = /^\s*\d+(\.\d+)?\s*(ms|s|m|h)?\s*$/i

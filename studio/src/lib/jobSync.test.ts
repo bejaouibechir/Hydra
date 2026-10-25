@@ -63,3 +63,24 @@ describe('load.atomic (tout ou rien) d\'une destination base', () => {
     expect(canonicalFromCanvas(d.nodes, d.edges, 'job1')).not.toContain('atomic')
   })
 })
+
+
+describe('transformations.yaml avec steps à la racine (hdrctl init, CLI)', () => {
+  it('les opérations sont lues et réécrites, jamais perdues', () => {
+    const files = {
+      sources: 'sources:\n  src:\n    type: csv\n    extract:\n      table: ../../Data/orders.csv\n',
+      transformations: 'version: "1.0"\nsteps:\n  - cast:\n      mapping:\n        amount: float\n'
+        + '  - aggregate:\n      by: [customer]\n      agg:\n        total: { func: sum, col: amount }\n',
+      destinations: 'destinations:\n  dst:\n    type: csv\n    load:\n      table: ../../outputs/report.csv\n      mode: replace\n',
+      pipeline: 'pipeline:\n  from: src\n  to: dst\n',
+    }
+    const d = canvasFromDisk(files, 'build_report')!
+    const out = canonicalFromCanvas(d.nodes, d.edges, 'build_report')
+    expect(out).toContain('cast')
+    expect(out).toContain('aggregate')
+    expect(out).toContain('amount: float')
+    expect(out).toMatch(/func: sum/)
+    expect(out).toMatch(/col: amount/)
+    expect(out).toMatch(/customer/)
+  })
+})

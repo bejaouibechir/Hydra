@@ -774,7 +774,11 @@ export function jobModelToSectionYamls(model: HydraJobModel): JobSectionYamls {
 export function sectionYamlsToJobModel(yamls: JobSectionYamls, name: string): HydraJobModel | null {
   try {
     const src  = YAML.load(yamls.sources)  as { sources?: Record<string, HdrSource> }
-    const tf   = YAML.load(yamls.transformations) as { transformations?: { steps: HdrStep[] } }
+    // Deux formes acceptées par le moteur : `transformations: {steps: [...]}`
+    // (écrite par Studio) et `steps: [...]` à la racine (hdrctl init, CLI, à la
+    // main). Ignorer la 2e faisait perdre les transformations à la réécriture.
+    const tf   = YAML.load(yamls.transformations) as
+      { transformations?: { steps?: HdrStep[] }; steps?: HdrStep[] } | null
     const dst  = YAML.load(yamls.destinations) as { destinations?: Record<string, HdrDest> }
     type PipeShape = { name?: string; from: string; to: string; transformations?: string }
     const pip  = YAML.load(yamls.pipeline) as {
@@ -783,7 +787,10 @@ export function sectionYamlsToJobModel(yamls: JobSectionYamls, name: string): Hy
     }
 
     const sources         = src?.sources ?? {}
-    const transformations = tf?.transformations  ?? { steps: [] }
+    const transformations = {
+      steps: (Array.isArray(tf?.transformations?.steps) ? tf!.transformations!.steps
+        : Array.isArray(tf?.steps) ? tf!.steps : []) as HdrStep[],
+    }
     const destinations    = dst?.destinations ?? {}
     const rawPipe         = pip?.pipeline ?? pip?.job?.pipeline
     const pipeline        = rawPipe ?? {

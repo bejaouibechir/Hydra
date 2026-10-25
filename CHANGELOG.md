@@ -57,6 +57,13 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Without all-or-nothing, a failed job logs that the destination keeps the
   batches written before the failure.
 
+### Fixed
+
+- Studio: opening a workflow whose jobs keep their operations as `steps:` at
+  the top of `transformations.yaml` (the form written by `hdrctl init`, the
+  CLI or by hand) lost those operations when the job was written back
+  (`transformations: steps: []`). Both forms are now read.
+
 ## [0.13.0] — 2026-10-25
 
 ### Added

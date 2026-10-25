@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-10-25
+
 ### Added
 
 - `thread.yaml`: a workflow can declare a **fallback** — backup workflow(s),

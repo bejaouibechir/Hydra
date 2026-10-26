@@ -1835,7 +1835,7 @@ function WorkflowEditorInner() {
         style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--bg-border)' }}>
 
         {/* Breadcrumb : Scene 1 → ← wfName / jobName | Scene 2 → ← wfName */}
-        <Link to={`/projects/${projectId}`}
+        <Link to={sp.get('from') === 'settings' ? `/settings/project/${projectId}` : `/projects/${projectId}`}
           className="flex items-center gap-1 text-xs hover:opacity-70 transition-opacity"
           style={{ color: 'var(--text-secondary)', marginRight: 2 }}>
           <ChevronLeft size={14} /> {wfQuery.data?.name ?? 'Workflow'}

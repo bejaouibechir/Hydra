@@ -164,8 +164,9 @@ workflow runs (`on_probe_error: keep`, the default) or the backup does (`replace
 workflow is not checked. `hdrctl run . --use-fallback load_crm` forces the switch, to rehearse a
 recovery. *`on_failure` (switch after a failure) comes in a later step.*
 
-In Studio, the project page edits the same file
-(**Execution order** → **Define**), draws it (**Preview**) and has a **Run project** button.
+In Studio, **Settings › Project settings** (button **Project settings** on the project page)
+edits the same file (**Execution order** → **Define**), draws it (**Preview**) and checks it
+(**Check**); the project page keeps the workflows and a **Run project** button.
 The life-buoy button of a workflow edits its fallback: backup workflows (one taken from the
 thread leaves it), the `when` condition, checked as you type, with a helper that inserts a
 function and a source or destination of the project, and `on_probe_error`. **Preview** draws

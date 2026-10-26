@@ -7,11 +7,13 @@
  * (parallel) ; délai après une étape ; workflows actifs ou sautés ; boucles
  * (rejouer une portion du thread N fois) ; fallback d'un workflow (remplaçant
  * lancé à sa place si une condition est vraie). Onglet Preview : le schéma.
+ * Affiché dans Settings › Project settings ; le lancement (Run project) est
+ * sur la page du projet.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useBlocker, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, CheckCircle2, Layers, LifeBuoy, Play, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
+import { ArrowDown, ArrowUp, CheckCircle2, Layers, LifeBuoy, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
 import { api, type CheckResult } from '@/lib/api'
 import {
   appendWorkflow, fallbackCandidates, fallbackError, fallbackNamesIn, forSave, isValidDelay, loopErrors,
@@ -23,12 +25,12 @@ import Spinner from '@/components/ui/Spinner'
 
 interface Props {
   projectId: string
-  projectPath: string
+  projectPath?: string                 // gardé pour compatibilité (le lancement est sur la page du projet)
   /** nom du workflow (fichier) → id Studio, pour ouvrir un bloc du schéma */
   workflowIds?: Record<string, string>
 }
 
-export default function ThreadEditor({ projectId, projectPath, workflowIds = {} }: Props) {
+export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const q = useQuery({ queryKey: ['thread', projectId], queryFn: () => api.projects.thread(projectId) })
@@ -70,16 +72,21 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
     mutationFn: async () => { if (dirty) await save.mutateAsync(); return api.projects.check(projectId) },
     onSuccess: setCheck,
   })
-  const run = useMutation({
-    mutationFn: async () => {
-      if (dirty) await save.mutateAsync()
-      const c = await api.projects.check(projectId)
-      setCheck(c)
-      if (!c.ok) throw new Error('The project has errors: nothing was started.')
-      return api.runs.start({ workflow_path: projectPath })
-    },
-    onSuccess: r => navigate(`/runs/${r.run_id}`),
-  })
+  // Modifications non enregistrées : confirmation avant de quitter la page
+  // (navigation dans Studio, fermeture ou rechargement de l'onglet).
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    dirty && currentLocation.pathname !== nextLocation.pathname)
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return
+    if (window.confirm('The execution order has unsaved changes. Leave without saving?')) blocker.proceed()
+    else blocker.reset()
+  }, [blocker])
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   const box: React.CSSProperties = { border: '1px solid var(--bg-border)', borderRadius: 10, background: 'var(--bg-card)' }
   const iconBtn: React.CSSProperties = { width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--bg-border)', background: 'var(--bg-hover)', color: 'var(--text-muted)', cursor: 'pointer' }
@@ -88,7 +95,7 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
     padding: '4px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', borderRadius: 7, border: 'none',
     background: active ? 'var(--primary)' : 'transparent', color: active ? '#fff' : 'var(--text-muted)',
   })
-  const err = (save.error || run.error || checkMut.error) as Error | null
+  const err = (save.error || checkMut.error) as Error | null
 
   if (q.isLoading) return <div className="flex justify-center py-6"><Spinner /></div>
   if (q.error) return <p className="text-xs" style={{ color: 'var(--error)' }}>{(q.error as Error).message}</p>
@@ -110,17 +117,12 @@ export default function ThreadEditor({ projectId, projectPath, workflowIds = {} 
         <button className="btn-secondary text-xs !py-1" onClick={() => save.mutate()} disabled={!dirty || save.isPending || !valid}>
           {save.isPending ? <Spinner size="sm" /> : <Save size={13} />} {dirty ? 'Save' : 'Saved'}
         </button>
-        <button className="btn-primary text-xs !py-1" onClick={() => run.mutate()} disabled={run.isPending || !valid}
-          style={{ background: 'var(--success)', borderColor: 'var(--success)' }}
-          title="Run every active workflow in this order (like hdrctl run)">
-          {run.isPending ? <Spinner size="sm" /> : <Play size={13} fill="currentColor" />} Run project
-        </button>
       </div>
 
       {tab === 'preview' ? (
         <ThreadPreview stages={stages} loops={loops} missing={missing}
           onFallback={name => { setTab('define'); setOpenFb(name) }}
-          onOpen={name => { const id = workflowIds[name]; if (id) navigate(`/workflows/${id}?projectId=${projectId}`) }} />
+          onOpen={name => { const id = workflowIds[name]; if (id) navigate(`/workflows/${id}?projectId=${projectId}&from=settings`) }} />
       ) : (
         <>
           <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '0 0 10px' }}>

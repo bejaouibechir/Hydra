@@ -7,6 +7,20 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Studio: **Settings** has two tabs. *Global settings*: the editor
+  preferences, kept in this browser. *Project settings*: the execution order
+  of the current project (Define, Preview, Check, loops, fallbacks), written in
+  `workflows/thread.yaml`, with the project name and path. It opens on the
+  project of the link (`/settings/project/<id>`), else on the last project
+  opened in this browser, else asks for one.
+- Studio project page: the workflows, plus **Project settings** and **Run
+  project** (checks the project first; errors are listed with a link to
+  Project settings).
+- Studio asks before leaving the execution order with unsaved changes.
+- A workflow opened from the Preview returns to Project settings.
+
 ## [0.13.0] — 2026-10-26
 
 ### Added

@@ -1,15 +1,15 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Workflow } from '@/lib/api'
-import { Plus, GitBranch, Trash2, ArrowRight, ChevronLeft, Upload, Clock, Webhook, GripVertical, LifeBuoy } from 'lucide-react'
+import { Plus, GitBranch, Trash2, ArrowRight, ChevronLeft, Upload, Clock, Webhook, GripVertical, LifeBuoy, Play, FolderCog } from 'lucide-react'
 import { swap } from '@/lib/cardOrder'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useRunsList } from '@/hooks/useRunPolling'
 import EmptyState from '@/components/ui/EmptyState'
 import Spinner from '@/components/ui/Spinner'
 import Modal from '@/components/ui/Modal'
-import ThreadEditor from '@/components/project/ThreadEditor'
+import { projectSettingsPath, rememberProject } from '@/lib/lastProject'
 import * as yaml from 'js-yaml'
 import { sectionYamlsToJobModel, jobModelToFlow, type JobSectionYamls } from '@/lib/hdrSerializer'
 import { buildWorkflowLayout, type ImportStep } from '@/lib/workflowImport'
@@ -253,6 +253,20 @@ export default function ProjectDetail() {
 
   const project   = useQuery({ queryKey: ['project', projectId],   queryFn: () => api.projects.get(projectId!) })
   const workflows = useQuery({ queryKey: ['workflows', projectId], queryFn: () => api.workflows.list(projectId!) })
+  // Dernier projet ouvert : repris par Settings › Project settings depuis le menu
+  useEffect(() => { if (project.data) rememberProject(project.data) }, [project.data])
+  // Run project : vérifie le projet (comme Check), puis le lance
+  const [runErrors, setRunErrors] = useState<string[] | null>(null)
+  const runProject = useMutation({
+    mutationFn: async () => {
+      setRunErrors(null)
+      const c = await api.projects.check(projectId!)
+      if (!c.ok) { setRunErrors(c.errors); return null }
+      return api.runs.start({ workflow_path: project.data!.path })
+    },
+    onSuccess: r => { if (r) navigate(`/runs/${r.run_id}`) },
+    onError: e => setRunErrors([(e as Error).message]),
+  })
   // thread.yaml enregistré (même cache que ThreadEditor) : remplaçants des fallbacks
   const thread = useQuery({ queryKey: ['thread', projectId], queryFn: () => api.projects.thread(projectId!),
     enabled: (workflows.data?.length ?? 0) > 0 })
@@ -365,6 +379,16 @@ export default function ProjectDetail() {
             webkitdirectory=""
             mozdirectory=""
           />
+          <Link to={projectSettingsPath(projectId!)} className="btn-secondary" data-testid="project-settings-link"
+            title="Execution order (stages, delays, loops, fallbacks) and Check">
+            <FolderCog size={15} /> Project settings
+          </Link>
+          <button className="btn-primary" onClick={() => runProject.mutate()} data-testid="run-project"
+            disabled={runProject.isPending || (workflows.data?.length ?? 0) === 0}
+            style={{ background: 'var(--success)', borderColor: 'var(--success)' }}
+            title="Check the project, then run every active workflow in the order of workflows/thread.yaml (like hdrctl run)">
+            {runProject.isPending ? <Spinner size="sm" /> : <Play size={15} fill="currentColor" />} Run project
+          </button>
           <button className="btn-secondary" onClick={() => importRef.current?.click()} disabled={importMut.isPending}>
             <Upload size={15} /> {importMut.isPending ? 'Importing…' : 'Import workflow'}
           </button>
@@ -375,13 +399,14 @@ export default function ProjectDetail() {
         {importError && (
           <p className="text-xs mt-1 text-right" style={{ color: 'var(--error)' }}>{importError}</p>
         )}
+        {runErrors && (
+          <div data-testid="run-project-errors" className="text-xs mt-1" style={{ color: 'var(--error)' }}>
+            {runErrors.map((e, i) => <div key={i} style={{ fontFamily: 'monospace' }}>✗ {e}</div>)}
+            <Link to={projectSettingsPath(projectId!)} style={{ color: 'var(--primary)' }}>Open Project settings</Link>
+          </div>
+        )}
       </div>
 
-      {(workflows.data?.length ?? 0) > 0 && (
-        <ThreadEditor projectId={projectId!} projectPath={project.data.path}
-          workflowIds={Object.fromEntries((workflows.data ?? []).map(w => [
-            (w.path ?? '').replace(/\\/g, '/').split('/').pop()?.replace(/\.ya?ml$/i, '') ?? w.name, w.id]))} />
-      )}
 
       {orderError && <p className="text-xs" style={{ color: 'var(--error)', textAlign: 'center', margin: '0 0 10px' }}>{orderError}</p>}
       {workflows.isLoading

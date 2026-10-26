@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { NavLink, Outlet } from 'react-router-dom'
+import { Globe, FolderCog } from 'lucide-react'
 
 export interface AppSettings {
   autosave_enabled: boolean
@@ -27,7 +29,36 @@ export function saveSettings(s: AppSettings) {
   localStorage.setItem('hydra-settings', JSON.stringify(s))
 }
 
+/**
+ * Settings — deux onglets :
+ *  - Global settings : préférences de Studio, gardées dans ce navigateur ;
+ *  - Project settings : réglages du projet courant, écrits dans ses fichiers
+ *    (ordre d'exécution : workflows/thread.yaml).
+ */
 export default function Settings() {
+  const tab = (active: boolean): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8,
+    fontSize: 13, fontWeight: 600, textDecoration: 'none',
+    background: active ? 'var(--primary)' : 'transparent', color: active ? '#fff' : 'var(--text-muted)',
+  })
+  return (
+    <div>
+      <div data-testid="settings-tabs" style={{ display: 'inline-flex', gap: 4, padding: 3, marginBottom: 16,
+        borderRadius: 10, background: 'var(--bg-hover)' }}>
+        <NavLink to="/settings/global" style={({ isActive }) => tab(isActive)}>
+          <Globe size={14} /> Global settings
+        </NavLink>
+        <NavLink to="/settings/project" style={({ isActive }) => tab(isActive)}>
+          <FolderCog size={14} /> Project settings
+        </NavLink>
+      </div>
+      <Outlet />
+    </div>
+  )
+}
+
+/** Onglet Global settings : préférences de l'éditeur (localStorage). */
+export function GlobalSettings() {
   const [rows, setRows] = useState<number>(loadSettings().output_preview_rows)
   const [saved, setSaved] = useState(false)
   const [syncSec, setSyncSec] = useState<number>(loadSettings().disk_sync_interval)
@@ -50,9 +81,9 @@ export default function Settings() {
 
   return (
     <div className="card" style={{ maxWidth: 520 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Settings</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Global settings</h2>
       <p className="text-slate-400 text-sm" style={{ marginBottom: 20 }}>
-        Hydra Studio editor preferences.
+        Hydra Studio editor preferences, for every project. Kept in this browser only.
       </p>
 
       <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>

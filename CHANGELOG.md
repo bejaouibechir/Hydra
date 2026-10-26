@@ -7,73 +7,7 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-
-- `thread.yaml`: `delay_before` on a workflow — wait before starting it.
-  Sequential stage: counted from the end of the previous workflow; parallel
-  stage: from the start of the stage (staggered starts). Same format as
-  `delay_after`. Fallback conditions are checked after the wait; in a
-  parallel stage, a failure cancels the starts still waiting ("not started").
-  Shown by `hdrctl run --dry-run` (`⏱ waits 23s before starting`) and during
-  the run; Studio run logs say `waited … before starting`. VS Code schema and
-  spec updated.
-
-- **Workflow rollback** (fallback step 5a): `rollback: true` in
-  `workflow.yaml` — if the workflow fails, the steps already done are undone,
-  the last one first. Jobs automatically: previous file kept next to the new
-  one until the end of the run (CSV / Parquet), CSV append back to its size,
-  replaced table restored from a `hydra_bak_…` copy, rows added by `append` /
-  `upsert` removed and rows changed by `upsert` restored (PostgreSQL,
-  MySQL / MariaDB, SQL Server). Actions: `undo:` (an action, or `none`),
-  required for `webhook`, `email`, `bash`, `powershell`, `ssh`, `python`.
-- Checked before the run (`workflow validate`, `run --dry-run`, Check):
-  undoable destination and mode, `load.key` for a database `append`, `undo:`
-  on actions that act outside Hydra. With rollback, a database `append` only
-  adds new keys, so that they can be removed exactly.
-- A destination changed by someone else since the run wrote it is not undone
-  (row count / file size and date): the rollback stops. The rest stays in
-  `.hydra/undo/<workflow>.json`; the workflow refuses to run until
-  `hdrctl workflow undo <workflow>` (new) finishes it. Successful run: the
-  backups are removed.
-- Studio: **Rollback on/off** in the workflow toolbar, **Undo** section in
-  the settings of an action, undone steps in the run page; the Hydra DSL
-  panel shows `rollback` and `undo`. VS Code schema, spec (DSL reference:
-  "Tout ou rien et annulation"), `DSL_GRAMMAR_TREE.md`.
-
-- **All-or-nothing load per job** (fallback step 4): a job writes its
-  destination through one load session (`begin → stage → publish | abort`,
-  common to every connector); nothing is visible before the end of the job
-  and a failure or Ctrl+C leaves the destination as it was. On by default
-  for `replace` (PostgreSQL / SQL Server: TRUNCATE inside one transaction;
-  MySQL / MariaDB: DELETE inside one transaction, InnoDB table required;
-  CSV / Parquet: temporary file in the same folder, then swapped) and for
-  CSV / Parquet `append` (CSV goes back to its original size).
-- `load.atomic` in `destinations.yaml`: `true` makes `append` / `upsert`
-  into a database one transaction; `false` restores batch-by-batch
-  commits. `true` on a connector or mode that cannot do it is an error
-  before anything is read. Studio: "All-or-nothing" field on database
-  destinations. VS Code schema and spec updated.
-- Two jobs of the same run writing the same destination take turns; temporary
-  files left by a crashed run are removed on the next run.
-- `JobResult.atomic` and `JobResult.partial_write` (a failure left rows
-  written), for the fallback after a failure (next step).
-
-### Changed
-
-- A job keeps one connection / one open file for all its batches (it opened
-  one per batch). Parquet no longer copies the whole file again for every
-  batch.
-- Without all-or-nothing, a failed job logs that the destination keeps the
-  batches written before the failure.
-
-### Fixed
-
-- Studio: opening a workflow whose jobs keep their operations as `steps:` at
-  the top of `transformations.yaml` (the form written by `hdrctl init`, the
-  CLI or by hand) lost those operations when the job was written back
-  (`transformations: steps: []`). Both forms are now read.
-
-## [0.13.0] — 2026-10-25
+## [0.13.0] — 2026-10-26
 
 ### Added
 
@@ -126,11 +60,71 @@ and versions follow [Semantic Versioning](https://semver.org/).
   destinations and secret names for `when`) and
   `POST /api/projects/{id}/conditions/check`; project run steps carry a
   `fallback` object (`workflow`, `action`, `use`, `trigger`, `reason`).
+- `thread.yaml`: `delay_before` on a workflow — wait before starting it.
+  Sequential stage: counted from the end of the previous workflow; parallel
+  stage: from the start of the stage (staggered starts). Same format as
+  `delay_after`. Fallback conditions are checked after the wait; in a
+  parallel stage, a failure cancels the starts still waiting ("not started").
+  Shown by `hdrctl run --dry-run` (`⏱ waits 23s before starting`) and during
+  the run; Studio run logs say `waited … before starting`. VS Code schema and
+  spec updated.
+
+- **Workflow rollback** (fallback step 5a): `rollback: true` in
+  `workflow.yaml` — if the workflow fails, the steps already done are undone,
+  the last one first. Jobs automatically: previous file kept next to the new
+  one until the end of the run (CSV / Parquet), CSV append back to its size,
+  replaced table restored from a `hydra_bak_…` copy, rows added by `append` /
+  `upsert` removed and rows changed by `upsert` restored (PostgreSQL,
+  MySQL / MariaDB, SQL Server). Actions: `undo:` (an action, or `none`),
+  required for `webhook`, `email`, `bash`, `powershell`, `ssh`, `python`.
+- Checked before the run (`workflow validate`, `run --dry-run`, Check):
+  undoable destination and mode, `load.key` for a database `append`, `undo:`
+  on actions that act outside Hydra. With rollback, a database `append` only
+  adds new keys, so that they can be removed exactly.
+- A destination changed by someone else since the run wrote it is not undone
+  (row count / file size and date): the rollback stops. The rest stays in
+  `.hydra/undo/<workflow>.json`; the workflow refuses to run until
+  `hdrctl workflow undo <workflow>` (new) finishes it. Successful run: the
+  backups are removed.
+- Studio: **Rollback on/off** in the workflow toolbar, **Undo** section in
+  the settings of an action, undone steps in the run page; the Hydra DSL
+  panel shows `rollback` and `undo`. VS Code schema, spec (DSL reference:
+  "Tout ou rien et annulation"), `DSL_GRAMMAR_TREE.md`.
+
+- **All-or-nothing load per job** (fallback step 4): a job writes its
+  destination through one load session (`begin → stage → publish | abort`,
+  common to every connector); nothing is visible before the end of the job
+  and a failure or Ctrl+C leaves the destination as it was. On by default
+  for `replace` (PostgreSQL / SQL Server: TRUNCATE inside one transaction;
+  MySQL / MariaDB: DELETE inside one transaction, InnoDB table required;
+  CSV / Parquet: temporary file in the same folder, then swapped) and for
+  CSV / Parquet `append` (CSV goes back to its original size).
+- `load.atomic` in `destinations.yaml`: `true` makes `append` / `upsert`
+  into a database one transaction; `false` restores batch-by-batch
+  commits. `true` on a connector or mode that cannot do it is an error
+  before anything is read. Studio: "All-or-nothing" field on database
+  destinations. VS Code schema and spec updated.
+- Two jobs of the same run writing the same destination take turns; temporary
+  files left by a crashed run are removed on the next run.
+- `JobResult.atomic` and `JobResult.partial_write` (a failure left rows
+  written), for the fallback after a failure (next step).
 
 ### Changed
 
 - Studio keeps the fallbacks of `thread.yaml` when it saves the execution
   order, and no longer offers to add a backup workflow to the thread.
+- A job keeps one connection / one open file for all its batches (it opened
+  one per batch). Parquet no longer copies the whole file again for every
+  batch.
+- Without all-or-nothing, a failed job logs that the destination keeps the
+  batches written before the failure.
+
+### Fixed
+
+- Studio: opening a workflow whose jobs keep their operations as `steps:` at
+  the top of `transformations.yaml` (the form written by `hdrctl init`, the
+  CLI or by hand) lost those operations when the job was written back
+  (`transformations: steps: []`). Both forms are now read.
 
 ## [0.12.3] — 2026-10-23
 

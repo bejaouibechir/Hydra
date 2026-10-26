@@ -122,7 +122,7 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
       {tab === 'preview' ? (
         <ThreadPreview stages={stages} loops={loops} missing={missing}
           onFallback={name => { setTab('define'); setOpenFb(name) }}
-          onOpen={name => { const id = workflowIds[name]; if (id) navigate(`/workflows/${id}?projectId=${projectId}&from=settings`) }} />
+          onOpen={name => { const id = workflowIds[name]; if (id) navigate(`/workflows/${id}?projectId=${projectId}&from=settings&scene=workflow`) }} />
       ) : (
         <>
           <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '0 0 10px' }}>

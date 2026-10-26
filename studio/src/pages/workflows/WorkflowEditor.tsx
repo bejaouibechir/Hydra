@@ -657,6 +657,12 @@ function WorkflowEditorInner() {
           })
           setJobNames(names)
           setWfSnapshot({ nodes: patchedWfNodes as Node[], edges: initEdges })
+          // Ouvert depuis la Preview de l'ordre d'exécution (?scene=workflow) :
+          // rester sur Workflow configuration.
+          if (sp.get('scene') === 'workflow' && !sp.get('jobId')) {
+            setNodes(patchedWfNodes as Node<FlowNodeData>[])
+            return
+          }
           // Basculer en Scene 1 (Jobs configuration) — deep-link jobId respecté
           const firstId = resolveJobKey(names, sp.get('jobId')) ?? names.keys().next().value!
           const c = jobCanvasRef.current.get(firstId) ?? { nodes: [], edges: [] }
@@ -667,6 +673,13 @@ function WorkflowEditorInner() {
           fitViewSoon(150)
         })
       }
+    } else if (sp.get('scene') === 'workflow' && !sp.get('jobId')) {
+      // Ouvert depuis la Preview de l'ordre d'exécution : Workflow configuration
+      setNodes(wfNodes as Node<FlowNodeData>[])
+      setEdges(wfEdges)
+      setSceneMode('workflow')
+      setActiveJobId(null)
+      if (wfNodes.length > 0) fitViewSoon(150)
     } else {
       // Démarrer en Scene 1 (Jobs configuration) — deep-link ou premier job
       const firstJobId = resolveJobKey(namesMap, sp.get('jobId'))

@@ -19,7 +19,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
   project** (checks the project first; errors are listed with a link to
   Project settings).
 - Studio asks before leaving the execution order with unsaved changes.
-- A workflow opened from the Preview returns to Project settings.
+- A workflow opened from the Preview opens on its Workflow configuration
+  tab, and returns to Project settings.
 
 ## [0.13.0] — 2026-10-26
 

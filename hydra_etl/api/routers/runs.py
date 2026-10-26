@@ -151,7 +151,7 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
         if r.status == INACTIVE:
             logs.append("inactive in workflows/thread.yaml")
         if r.status == NOT_RUN:
-            logs.append("not run: a previous workflow failed")
+            logs.append(r.error if r.error else "not run: a previous workflow failed")
         logs[:0] = notes.pop(r.replaces or r.name, [])
         decision = decisions.pop(r.replaces or r.name, None)
         label = f"{r.name} (pass {r.iteration}/{r.iterations})" if r.iterations > 1 else r.name
@@ -166,6 +166,8 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
         return out
 
     def on_event(kind, data) -> None:
+        if kind == "wait":
+            notes.setdefault(data["name"], []).append(f"waited {data['seconds']:g}s before starting (delay_before)")
         if kind == "fallback":
             notes.setdefault(data["name"], []).append(
                 f"FALLBACK {data['name']} -> {data['use']} ({data['trigger']}): {data['reason']}")

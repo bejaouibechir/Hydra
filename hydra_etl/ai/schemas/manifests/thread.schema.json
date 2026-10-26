@@ -143,6 +143,24 @@
           "title": "Active",
           "type": "boolean"
         },
+        "delay_before": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delay Before"
+        },
         "fallback": {
           "anyOf": [
             {

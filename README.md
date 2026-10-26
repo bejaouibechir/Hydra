@@ -105,7 +105,7 @@ my_project
 
 Six job templates are available with `--template` (`basic`, `csv`, `mysql`, `postgres`, `api`,
 `mongodb`). `workflows/thread.yaml` lists the workflows in stages, each `sequential` or `parallel`,
-with an optional `delay_after` and an `active` flag per workflow:
+with an optional `delay_after`, and per workflow an `active` flag and an optional `delay_before`:
 
 ```yaml
 version: "1.0"
@@ -120,12 +120,18 @@ thread:
     workflows:
       - name: export-a
       - name: export-b
+        delay_before: 23s     # starts 23 s after the stage (staggered start)
 loops:                        # optional
   - from: export-b            # when export-b finishes…
     to: workflow1             # …go back to workflow1
     times: 3                  # 3 passes in total
     delay: 5m                 # optional pause before each repeat
 ```
+
+`delay_before` waits before starting a workflow: in a sequential stage, after the previous
+workflow; in a parallel stage, after the stage starts. Same format as `delay_after` (`500ms`,
+`30s`, `5m`, `1h`, or seconds). Fallback conditions are checked after the wait. In a parallel
+stage, a failed workflow cancels the starts still waiting.
 
 A loop can link any two workflows of the thread (`to` comes before `from`, or is the same
 workflow); loops must not overlap.

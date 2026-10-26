@@ -9,6 +9,15 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `thread.yaml`: `delay_before` on a workflow — wait before starting it.
+  Sequential stage: counted from the end of the previous workflow; parallel
+  stage: from the start of the stage (staggered starts). Same format as
+  `delay_after`. Fallback conditions are checked after the wait; in a
+  parallel stage, a failure cancels the starts still waiting ("not started").
+  Shown by `hdrctl run --dry-run` (`⏱ waits 23s before starting`) and during
+  the run; Studio run logs say `waited … before starting`. VS Code schema and
+  spec updated.
+
 - **Workflow rollback** (fallback step 5a): `rollback: true` in
   `workflow.yaml` — if the workflow fails, the steps already done are undone,
   the last one first. Jobs automatically: previous file kept next to the new

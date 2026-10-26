@@ -237,5 +237,10 @@
   "workflow.undo.done": "Workflow '{name}': {count} paso(s) deshecho(s).",
   "workflow.undo.failed": "Workflow '{name}': la anulación se detuvo en '{step}': {error}. El resto se guarda en {journal}.",
   "workflow.run.step_undone": "Paso '{name}' deshecho",
-  "workflow.run.step_undo_failed": "Paso '{name}' no deshecho: {error}"
+  "workflow.run.step_undo_failed": "Paso '{name}' no deshecho: {error}",
+  "run.project.plan_wait": "espera {seconds} antes de iniciarse ({since})",
+  "run.project.plan_wait_seq": "tras el workflow anterior",
+  "run.project.plan_wait_par": "desde el inicio de la etapa",
+  "run.project.wait": "{name}: espera {seconds} antes de iniciarse",
+  "run.project.cancelled": "{name} — no iniciado (otro workflow de la etapa falló)"
 }

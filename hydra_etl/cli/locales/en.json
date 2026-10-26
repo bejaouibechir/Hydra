@@ -237,5 +237,10 @@
   "workflow.undo.done": "Workflow '{name}': {count} step(s) undone.",
   "workflow.undo.failed": "Workflow '{name}': undo stopped at '{step}': {error}. The rest is kept in {journal}.",
   "workflow.run.step_undone": "Step '{name}' undone",
-  "workflow.run.step_undo_failed": "Step '{name}' not undone: {error}"
+  "workflow.run.step_undo_failed": "Step '{name}' not undone: {error}",
+  "run.project.plan_wait": "waits {seconds} before starting ({since})",
+  "run.project.plan_wait_seq": "after the previous workflow",
+  "run.project.plan_wait_par": "after the stage starts",
+  "run.project.wait": "{name}: waiting {seconds} before starting",
+  "run.project.cancelled": "{name} — not started (another workflow of the stage failed)"
 }

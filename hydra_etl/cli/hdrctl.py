@@ -1078,6 +1078,9 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
                 steps = ", ".join(st.name for st in wf.steps)
                 detail = f"({len(wf.steps)}: {steps})" if steps else "(0)"
                 click.echo(f"     {c(C.GR, '•')}  {c(C.WH, w.name)}  {c(C.DM, detail)}")
+                if w.delay_before_seconds:
+                    since = t("run.project.plan_wait_par" if stage.mode == "parallel" else "run.project.plan_wait_seq")
+                    click.echo(f"        {c(C.DM, '⏱')}  {c(C.DM, t('run.project.plan_wait', seconds=_fmt_seconds(w.delay_before_seconds), since=since))}")
                 if w.fallback:
                     fb = w.fallback
                     triggers = []
@@ -1102,7 +1105,10 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
         elif kind == "inactive":
             click.echo(f"  {c(C.YL, '⏭')}  {t('run.project.inactive', name=data.name)}")
         elif kind == "not_run":
-            click.echo(f"  {c(C.YL, '⏭')}  {t('run.project.not_run', name=data.name)}")
+            key = "run.project.cancelled" if (data.error or "").startswith("not started") else "run.project.not_run"
+            click.echo(f"  {c(C.YL, '⏭')}  {t(key, name=data.name)}")
+        elif kind == "wait":
+            click.echo(f"  {c(C.DM, '⏱')}  {c(C.DM, t('run.project.wait', name=data['name'], seconds=_fmt_seconds(data['seconds'])))}")
         elif kind == "fallback":
             click.echo(f"  {c(C.CY, '↪')}  {t('run.project.fallback', name=data['name'], use=c(C.CY, data['use']), reason=data['reason'])}")
         elif kind == "fallback_kept":

@@ -372,6 +372,14 @@ class ProjectRunner:
         self._emit(on_event, "fallback_kept", {**info, "reason": ev.reason})
         return name, None
 
+    def _wait(self, seconds: float, cancel: threading.Event) -> None:
+        """Attente delay_before, interrompue si un workflow de l'étape échoue.
+        Un `sleep` injecté (tests) est appelé tel quel."""
+        if self._sleep is time.sleep:
+            cancel.wait(seconds)
+        else:
+            self._sleep(seconds)
+
     def _emit(self, on_event: Optional[EventCallback], kind: str, data: Any) -> None:
         if on_event is None:
             return
@@ -457,20 +465,36 @@ class ProjectRunner:
                     r = WorkflowRun(n, stage_no, INACTIVE, iteration=it, iterations=its)
                     runs.append(r)
                     self._emit(on_event, "inactive", r)
-            # Fallback : décidé juste avant le lancement, workflow par workflow ;
-            # le remplaçant prend la même place (étape, boucle, passage).
-            plan_unit = [(n, *self._decide(n, previous, stage_no, it, its, on_event)) for n in todo]
+            # Par workflow : attente delay_before, puis fallback décidé juste avant
+            # le lancement (le remplaçant prend la même place : étape, boucle,
+            # passage). En parallèle, un échec annule les départs encore en attente.
+            cancel = threading.Event()
+            prev_here = previous
 
-            def launch(item):
-                orig, actual, reason = item
-                r = self._run_one(actual, stage_no, on_event, it, its, replaces=orig if reason else None,
-                                  reason=reason)
+            def launch(n):
+                w = self._wf_by_name.get(n)
+                wait = w.delay_before_seconds if w else 0.0
+                if wait > 0:
+                    self._emit(on_event, "wait", {"name": n, "seconds": wait, "stage": stage_no,
+                                                  "parallel": u.parallel, "iteration": it,
+                                                  "iterations": its})
+                    self._wait(wait, cancel)
+                if cancel.is_set():
+                    r = WorkflowRun(n, stage_no, NOT_RUN, iteration=it, iterations=its,
+                                    error="not started: another workflow of the stage failed")
+                    self._emit(on_event, "not_run", r)
+                    return r
+                actual, reason = self._decide(n, prev_here, stage_no, it, its, on_event)
+                r = self._run_one(actual, stage_no, on_event, it, its,
+                                  replaces=n if reason else None, reason=reason)
+                if r.status == FAILED:
+                    cancel.set()
                 return r
-            if u.parallel and len(plan_unit) > 1:
-                with ThreadPoolExecutor(max_workers=len(plan_unit)) as pool:
-                    done = list(pool.map(launch, plan_unit))
+            if u.parallel and len(todo) > 1:
+                with ThreadPoolExecutor(max_workers=len(todo)) as pool:
+                    done = list(pool.map(launch, todo))
             else:
-                done = [launch(x) for x in plan_unit]
+                done = [launch(n) for n in todo]
             runs.extend(done)
             if done:
                 from hydra_etl.workflow.probes import Previous

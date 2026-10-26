@@ -91,6 +91,14 @@
           "default": true,
           "description": "false: hdrctl run skips this workflow without removing it (debugging)."
         },
+        "delay_before": {
+          "description": "Wait before starting this workflow: a number of seconds, or 500ms, 30s, 5m, 1h. Sequential stage: counted from the end of the previous workflow. Parallel stage: from the start of the stage (staggered starts). Fallback conditions are checked after the wait; in a parallel stage, a failure cancels the starts still waiting.",
+          "oneOf": [
+            { "type": "number", "minimum": 0 },
+            { "type": "string", "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+          ],
+          "examples": ["500ms", "23s", 2]
+        },
         "fallback": { "$ref": "#/definitions/threadFallback" }
       }
     },

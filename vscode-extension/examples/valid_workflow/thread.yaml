@@ -14,7 +14,9 @@ thread:
   - mode: parallel
     workflows:
       - name: export-a
+        delay_before: 500ms   # staggered start inside the parallel stage
       - name: export-b
+        delay_before: 23s
         fallback:
           use: export-b-quarantine
           on_failure: true

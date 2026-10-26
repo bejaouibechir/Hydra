@@ -11,10 +11,15 @@ projet. Il est fait d'étapes (stages) exécutées l'une après l'autre :
         workflows:
           - name: workflow1     # = workflows/workflow1.yaml
             active: true        # false : ignoré au run (débogage)
+            delay_before: 10s   # attente avant de lancer ce workflow (optionnel)
 
 - `mode: sequential` : les workflows de l'étape tournent l'un après l'autre ;
   `mode: parallel` : ils tournent en même temps.
-- `delay_after` : secondes (nombre) ou durée `30s`, `5m`, `1h`.
+- `delay_after` : secondes (nombre) ou durée `500ms`, `30s`, `5m`, `1h`.
+- `delay_before` (par workflow) : attendre puis lancer. Séquentiel : compté
+  depuis la fin du workflow précédent ; parallèle : depuis le début de l'étape
+  (départs décalés). Les conditions de fallback sont vérifiées après l'attente.
+  En parallèle, si un workflow échoue, ceux qui attendent encore ne partent pas.
 - `name` désigne le fichier `workflows/<name>.yaml`.
 
 Boucles (facultatives) : rejouer une portion du thread N fois.
@@ -124,7 +129,20 @@ class ThreadWorkflow(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str
     active: bool = True
+    # Attente avant le lancement (séquentiel : après le précédent ; parallèle :
+    # après le début de l'étape). Même format que delay_after.
+    delay_before: Optional[Union[int, float, str]] = None
     fallback: Optional[ThreadFallback] = None
+
+    @field_validator("delay_before")
+    @classmethod
+    def _check_delay_before(cls, v: Any) -> Any:
+        parse_delay(v)
+        return v
+
+    @property
+    def delay_before_seconds(self) -> float:
+        return parse_delay(self.delay_before)
 
     @field_validator("name")
     @classmethod
@@ -322,6 +340,8 @@ def default_thread_yaml(workflow_names: List[str]) -> str:
         "# Stages run one after the other.",
         "#   mode        : sequential (one workflow after the other) | parallel (all at once)",
         "#   delay_after : pause after the stage, in seconds or 30s / 5m / 1h (optional)",
+        "#   delay_before: on a workflow, wait before starting it (sequential: after the",
+        "#                 previous one; parallel: after the stage starts) (optional)",
         "#   active      : false skips the workflow without removing it (debugging)",
         "# Each name refers to workflows/<name>.yaml.",
         "# Optional loops, to replay a part of the thread N times:",
@@ -369,6 +389,8 @@ def render_thread(thread: ThreadDef) -> str:
         for wf in stage.workflows:
             lines.append(f"      - name: {wf.name}")
             lines.append(f"        active: {'true' if wf.active else 'false'}")
+            if wf.delay_before not in (None, "", 0):
+                lines.append(f"        delay_before: {wf.delay_before}")
             if wf.fallback:
                 fb = wf.fallback
                 lines.append("        fallback:")

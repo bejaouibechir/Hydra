@@ -201,3 +201,4 @@ def test_studio_run_logs_the_wait(root, tmp_path, monkeypatch):
         time.sleep(0.1)
     assert run_["status"] == "success"
     assert run_["steps"][0]["logs"][0] == "waited 0.2s before starting (delay_before)"
+    assert run_["steps"][0]["waited"] == 0.2

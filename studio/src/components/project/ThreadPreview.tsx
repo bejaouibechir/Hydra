@@ -92,6 +92,16 @@ export default function ThreadPreview({ stages, loops, missing = new Set(), onOp
           </g>
         ))}
 
+        {l.nodes.filter(n => !n.fallbackOf && n.wait).map(n => (
+          <g key={`wait-${n.id}`} data-testid={`preview-wait-${n.name}`}>
+            <title>{`Waits ${n.wait} before starting`}</title>
+            <circle cx={n.x + 14} cy={n.y - 6} r={8} fill="var(--bg-card)" stroke="var(--warning)" strokeWidth={1.4} />
+            <path d={`M ${n.x + 14} ${n.y - 11} V ${n.y - 6} H ${n.x + 18}`} stroke="var(--warning)" strokeWidth={1.4}
+              fill="none" strokeLinecap="round" />
+            <text x={n.x + 26} y={n.y - 3} fontSize={10} fontFamily="monospace" fill="var(--warning)">{n.wait}</text>
+          </g>
+        ))}
+
         {l.nodes.filter(n => !n.fallbackOf).map(n => {
           const miss = missing.has(n.name)
           return (
@@ -113,7 +123,8 @@ export default function ThreadPreview({ stages, loops, missing = new Set(), onOp
       <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '6px 0 0' }}>
         Left to right: stages in order; stacked blocks run in parallel; ◇ = wait before the next stage;
         dashed blue arrow = loop; dashed orange block below a workflow = its fallback (runs in its place when
-        the condition is true). Click a block to open the workflow, a condition to edit it.
+        the condition is true); clock on a block = wait before it starts. Click a block to open the workflow,
+        a condition to edit it.
       </p>
     </div>
   )

@@ -8,7 +8,8 @@
  * de retour dessinées sous le schéma, avec « ×N » et un losange si elles ont
  * une pause. Les remplaçants d'un fallback sont des blocs pointillés placés
  * sous leur workflow, dans la même colonne, reliés par un trait pointillé
- * portant la condition.
+ * portant la condition. Un workflow avec delay_before porte une petite
+ * horloge et la durée au-dessus de son coin gauche.
  */
 import { threadUnits, unitOf, isValidDelay, type ThreadLoop, type ThreadStage } from './thread'
 
@@ -25,6 +26,7 @@ const LOOP_STEP = 34      // décalage vertical entre deux boucles
 export interface LNode {
   id: string; name: string; x: number; y: number; active: boolean; col: number
   h: number; fallbackOf?: string          // remplaçant : workflow du thread qu'il remplace
+  wait?: string | null                    // delay_before (« 23s ») : horloge devant le bloc
 }
 export interface LFallback { d: string; labelX: number; labelY: number; label: string; title: string; of: string }
 export interface LJunction { x: number; y: number; delay: string | null }
@@ -66,7 +68,8 @@ export function layoutThread(stages: ThreadStage[], loops: ThreadLoop[] = []): L
     let y = cy - mainOnly / 2
     u.names.forEach(n => {
       const x = colX(i)
-      nodes.push({ id: n, name: n, col: i, active: byName.get(n)?.active ?? true, x, y, h: NODE_H })
+      nodes.push({ id: n, name: n, col: i, active: byName.get(n)?.active ?? true, x, y, h: NODE_H,
+        wait: fmtDelay(byName.get(n)?.delay_before) })
       const fb = byName.get(n)?.fallback
       let fy = y + NODE_H + FB_GAP
       alts(n).forEach((a, k) => {

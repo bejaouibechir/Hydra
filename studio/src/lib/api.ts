@@ -82,6 +82,7 @@ export interface StepResult {
   output_columns?: string[]
   fallback?: FallbackDecision             // run de projet : décision du fallback
   undo_of?: string | null                 // rollback: true — ce step défait le step nommé
+  waited?: number                         // run de projet : attente delay_before (secondes)
 }
 export interface Environment {
   id: string; name: string; project_id: string; vars: Record<string, string>

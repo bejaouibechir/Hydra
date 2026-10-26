@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useBlocker, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, CheckCircle2, Layers, LifeBuoy, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
+import { ArrowDown, ArrowUp, CheckCircle2, Clock, Layers, LifeBuoy, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
 import { api, type CheckResult } from '@/lib/api'
 import {
   appendWorkflow, fallbackCandidates, fallbackError, fallbackNamesIn, forSave, isValidDelay, loopErrors,
@@ -59,7 +59,8 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
   // Les remplaçants (fallback) ne s'ajoutent pas au thread : ils y tourneraient deux fois.
   const notInThread = useMemo(() => onDisk.filter(n => !inThread.includes(n) && !fallbacks.includes(n)),
     [onDisk, inThread, fallbacks])
-  const delaysOk = stages.every(s => isValidDelay(s.delay_after ?? ''))
+  const delaysOk = stages.every(s => isValidDelay(s.delay_after ?? '')
+    && s.workflows.every(w => isValidDelay(w.delay_before ?? '')))
   const lErrors = loopErrors(stages, loops)
   const fbOk = stages.every(s => s.workflows.every(w => fallbackError(w.fallback) === null))
   const valid = delaysOk && lErrors.every(e => e === null) && fbOk
@@ -128,6 +129,8 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
           <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '0 0 10px' }}>
             Stages run one after the other. In a stage, workflows run one after the other (sequential) or at the
             same time (parallel). Untick a workflow to skip it. A failed workflow stops the project.
+            <Clock size={11} style={{ display: 'inline', margin: '0 2px' }} /> wait: pause before a workflow starts (sequential:
+            after the previous one; parallel: after the stage starts).
             <LifeBuoy size={11} style={{ display: 'inline', margin: '0 2px' }} /> Fallback: another workflow runs
             in its place when a condition is true just before it starts.
             {q.data?.implicit && <> No thread.yaml yet: workflows run in alphabetical order until you save.</>}
@@ -162,6 +165,19 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
                     }))} />
                   <span style={{ fontFamily: 'monospace', color: w.active ? 'var(--text-primary)' : 'var(--text-muted)', textDecoration: w.active ? 'none' : 'line-through' }}>{w.name}</span>
                   {missing.has(w.name) && <span style={{ color: 'var(--error)' }}><AlertTriangle size={11} style={{ display: 'inline' }} /> file missing</span>}
+                  <span className="inline-flex items-center gap-1" style={{ color: 'var(--text-muted)' }}
+                    title={st.mode === 'parallel'
+                      ? 'Wait before starting this workflow, counted from the start of the stage: 500ms, 30s, 5m, 1h'
+                      : 'Wait before starting this workflow, after the previous one: 500ms, 30s, 5m, 1h'}>
+                    <Clock size={11} /> wait
+                    <input style={{ ...input, width: 58,
+                      borderColor: isValidDelay(w.delay_before ?? '') ? 'var(--bg-border)' : 'var(--error)' }}
+                      value={w.delay_before ?? ''} placeholder="0" aria-label={`${w.name} wait before`}
+                      onChange={e => edit(stages.map((s, i) => i !== si ? s : {
+                        ...s, workflows: s.workflows.map((x, j) => j === wi ? { ...x, delay_before: e.target.value } : x),
+                      }))} />
+                  </span>
+                  {!isValidDelay(w.delay_before ?? '') && <span style={{ color: 'var(--error)' }}>✗ use 500ms, 30s, 5m, 1h</span>}
                   {w.fallback && openFb !== w.name && (
                     <span data-testid={`fallback-summary-${w.name}`} style={{ color: fallbackError(w.fallback) ? 'var(--error)' : 'var(--warning)', fontFamily: 'monospace' }}
                       title={w.fallback.when ? `if ${w.fallback.when}` : 'after a failure'}>

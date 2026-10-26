@@ -8,7 +8,7 @@ import LiveBadge from '@/components/ui/LiveBadge'
 import LogViewer from '@/components/ui/LogViewer'
 import {
   ChevronLeft, CheckCircle2, XCircle, Clock,
-  AlertTriangle, ChevronDown, ChevronRight, SkipForward, LifeBuoy, RotateCcw,
+  AlertTriangle, ChevronDown, ChevronRight, SkipForward, LifeBuoy, RotateCcw, Timer,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -93,6 +93,13 @@ function TimelineBar({ steps, totalDuration }: { steps: StepResult[]; totalDurat
   )
 }
 
+/** Attente delay_before : 0.5 → « 500ms », 23 → « 23s », 300 → « 5m ». */
+export function fmtWait(s: number): string {
+  if (s < 1) return `${Math.round(s * 1000)}ms`
+  if (s < 60 || s % 60) return `${+s.toFixed(3)}s`
+  return s % 3600 ? `${s / 60}m` : `${s / 3600}h`
+}
+
 // ── Fallback (run de projet) ─────────────────────────────────────────────────
 
 const TRIGGER_TEXT: Record<string, string> = {
@@ -168,6 +175,13 @@ function StepCard({ step, index, defaultOpen = false }: {
             : step.step_name}
         </span>
 
+        {step.waited ? (
+          <span data-testid="waited-badge" className="text-xs px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1"
+            style={{ border: '1px dashed var(--warning)', color: 'var(--warning)' }}
+            title="delay_before: waited before starting this workflow">
+            <Timer size={11} /> waited {fmtWait(step.waited)}
+          </span>
+        ) : null}
         {step.fallback && <FallbackBadge d={step.fallback} />}
 
         {/* Duration */}
@@ -197,7 +211,9 @@ function StepCard({ step, index, defaultOpen = false }: {
           {step.skipped && (
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
               style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
-              <SkipForward size={12} /> Step skipped — upstream dependency failed.
+              <SkipForward size={12} /> {step.logs?.find(l => l.startsWith('not started'))
+                ? 'Not started — another workflow of the stage failed.'
+                : 'Step skipped — upstream dependency failed.'}
             </div>
           )}
 

@@ -132,6 +132,7 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
     steps: list = []
     notes: dict = {}        # workflow (du thread) -> lignes de journal (fallback)
     decisions: dict = {}    # workflow (du thread) -> décision du fallback, pour Studio
+    waits: dict = {}        # workflow (du thread) -> secondes d'attente (delay_before)
 
     def _save(status: str, **extra) -> None:
         store.save_run(RunResponse(
@@ -154,6 +155,7 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
             logs.append(r.error if r.error else "not run: a previous workflow failed")
         logs[:0] = notes.pop(r.replaces or r.name, [])
         decision = decisions.pop(r.replaces or r.name, None)
+        waited = waits.pop(r.replaces or r.name, None)
         label = f"{r.name} (pass {r.iteration}/{r.iterations})" if r.iterations > 1 else r.name
         if r.replaces:
             label = f"{label} — fallback of {r.replaces}"
@@ -163,11 +165,14 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
         if decision:
             # {"workflow", "action": switched|kept|probe_error, "use", "trigger", "reason"}
             out["fallback"] = decision
+        if waited:
+            out["waited"] = waited          # delay_before, en secondes
         return out
 
     def on_event(kind, data) -> None:
         if kind == "wait":
             notes.setdefault(data["name"], []).append(f"waited {data['seconds']:g}s before starting (delay_before)")
+            waits[data["name"]] = data["seconds"]
         if kind == "fallback":
             notes.setdefault(data["name"], []).append(
                 f"FALLBACK {data['name']} -> {data['use']} ({data['trigger']}): {data['reason']}")

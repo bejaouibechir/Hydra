@@ -11,7 +11,14 @@ export interface ThreadFallback {
   on_failure?: boolean                  // bascule aussi après un échec
   on_probe_error?: 'keep' | 'replace'
 }
-export interface ThreadWorkflow { name: string; active: boolean; fallback?: ThreadFallback | null }
+export interface ThreadWorkflow {
+  name: string
+  active: boolean
+  /** Attente avant le lancement : séquentiel, après le workflow précédent ;
+   *  parallèle, après le début de l'étape. Même format que delay_after. */
+  delay_before?: string | number | null
+  fallback?: ThreadFallback | null
+}
 export interface ThreadStage {
   mode: 'sequential' | 'parallel'
   delay_after?: string | number | null
@@ -78,7 +85,8 @@ export function fallbackNamesIn(stages: ThreadStage[]): string[] {
 }
 
 /** Fallback prêt à l'envoi : valeurs par défaut retirées (comme thread.yaml). */
-function fallbackForSave(w: ThreadWorkflow): ThreadWorkflow {
+function fallbackForSave(w0: ThreadWorkflow): ThreadWorkflow {
+  const w = delayBeforeForSave(w0)
   if (!w.fallback) { const { fallback: _f, ...rest } = w; return rest }
   const fb = w.fallback
   const out: ThreadFallback = { use: [...fb.use] }
@@ -87,6 +95,13 @@ function fallbackForSave(w: ThreadWorkflow): ThreadWorkflow {
   if (fb.on_failure) out.on_failure = true
   if (fb.on_probe_error === 'replace') out.on_probe_error = 'replace'
   return { ...w, fallback: out }
+}
+
+/** delay_before prêt à l'envoi : vide ou 0 retiré, espaces enlevés. */
+function delayBeforeForSave(w: ThreadWorkflow): ThreadWorkflow {
+  const d = typeof w.delay_before === 'string' ? w.delay_before.trim() : w.delay_before
+  const { delay_before: _d, ...rest } = w
+  return d === undefined || d === null || d === '' || d === 0 || d === '0' ? rest : { ...rest, delay_before: d }
 }
 
 /** Remplaçants possibles pour `name` : les workflows du projet sauf lui-même,

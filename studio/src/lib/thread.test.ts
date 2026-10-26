@@ -81,3 +81,22 @@ describe('fallback — édition (Studio, étape 3)', () => {
     expect('fallback' in out[0].workflows[1]).toBe(false)
   })
 })
+
+describe('delay_before (attente avant le lancement)', () => {
+  it('forSave : gardé nettoyé, vide ou 0 retiré', () => {
+    const out = forSave([{ mode: 'parallel', workflows: [
+      { name: 'a', active: true, delay_before: ' 23s ' },
+      { name: 'b', active: true, delay_before: '' },
+      { name: 'c', active: true, delay_before: 0 },
+      { name: 'd', active: true, delay_before: 2, fallback: { use: ['x'], when: "file_exists('f')" } },
+    ] }])
+    expect(out[0].workflows[0].delay_before).toBe('23s')
+    expect('delay_before' in out[0].workflows[1]).toBe(false)
+    expect('delay_before' in out[0].workflows[2]).toBe(false)
+    expect(out[0].workflows[3]).toMatchObject({ delay_before: 2, fallback: { use: ['x'] } })
+  })
+  it('format validé comme delay_after', () => {
+    for (const v of ['500ms', '30s', '5m', '1h', 2, '']) expect(isValidDelay(v)).toBe(true)
+    for (const v of ['soon', '2x', '-1s']) expect(isValidDelay(v)).toBe(false)
+  })
+})

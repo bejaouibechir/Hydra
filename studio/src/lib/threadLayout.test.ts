@@ -67,3 +67,13 @@ describe('layoutThread — fallback', () => {
     expect(l.height).toBeGreaterThan(Math.max(...l.nodes.map(x => x.y + x.h)))
   })
 })
+
+describe('layoutThread — delay_before', () => {
+  it('horloge sur les workflows qui attendent', () => {
+    const l = layoutThread([{ mode: 'parallel', workflows: [
+      { name: 'a', active: true }, { name: 'b', active: true, delay_before: 23 }, { name: 'c', active: true, delay_before: '500ms' },
+    ] }])
+    const w = (n: string) => l.nodes.find(x => x.name === n)!.wait
+    expect([w('a'), w('b'), w('c')]).toEqual([null, '23s', '500ms'])
+  })
+})

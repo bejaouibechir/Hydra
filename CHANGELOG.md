@@ -7,6 +7,15 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Studio Project settings: a **wait** field on each workflow of the execution
+  order (`delay_before`: `500ms`, `30s`, `5m`, `1h`; empty = no wait), checked
+  before Save. The Preview shows an orange clock and the duration above the
+  block; the run page shows a *waited …* badge on the step, and "Not started —
+  another workflow of the stage failed" for a parallel start cancelled by a
+  failure. The run API returns `waited` (seconds) on each step.
+
 ### Changed
 
 - Studio: **Settings** has two tabs. *Global settings*: the editor

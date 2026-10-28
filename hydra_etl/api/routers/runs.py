@@ -124,7 +124,7 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
     """Exécute un projet entier (workflows/thread.yaml) : un « step » de run par
     workflow, mis à jour au fil de l'exécution pour le suivi en direct."""
     from hydra_etl.workflow.project import (
-        FAILED, INACTIVE, NOT_RUN, ProjectError, ProjectRunner, prepare_project,
+        FAILED, INACTIVE, NOT_RUN, RECOVERED, ProjectError, ProjectRunner, prepare_project,
     )
     base = store.get_run(run_id)
     if not base:
@@ -159,9 +159,13 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
         label = f"{r.name} (pass {r.iteration}/{r.iterations})" if r.iterations > 1 else r.name
         if r.replaces:
             label = f"{label} — fallback of {r.replaces}"
-        out = {"step_name": label, "success": r.status not in (FAILED,),
+        out = {"step_name": label, "success": r.status not in (FAILED, RECOVERED),
                "duration": r.duration, "error": r.error, "logs": logs,
                "skipped": r.status in (INACTIVE, NOT_RUN)}
+        if r.status == RECOVERED:
+            out["recovered_by"] = r.replaced_by     # échec rattrapé par le fallback
+        if r.timed_out:
+            out["timed_out"] = True
         if decision:
             # {"workflow", "action": switched|kept|probe_error, "use", "trigger", "reason"}
             out["fallback"] = decision
@@ -178,6 +182,14 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
                 f"FALLBACK {data['name']} -> {data['use']} ({data['trigger']}): {data['reason']}")
             decisions[data["name"]] = {"workflow": data["name"], "action": "switched", "use": data["use"],
                                        "trigger": data["trigger"], "reason": data["reason"]}
+        elif kind == "fallback_blocked":
+            what = f"fallback {data['use']} not started" if data.get("use") else "no backup workflow left"
+            notes.setdefault(data["name"], []).append(f"FALLBACK BLOCKED {data['name']}: {what} — {data['reason']}")
+            decisions[data["name"]] = {"workflow": data["name"], "action": "blocked", "use": data.get("use"),
+                                       "trigger": "failure", "reason": data["reason"]}
+        elif kind == "timeout":
+            notes.setdefault(data.get("slot") or data["name"], []).append(
+                f"timeout: {data['name']} stopped after {data['seconds']:g}s (timeout in workflows/thread.yaml)")
         elif kind == "fallback_kept":
             notes.setdefault(data["name"], []).append(f"fallback not needed: {data['reason']}")
             decisions[data["name"]] = {"workflow": data["name"], "action": "kept", "use": data["use"],

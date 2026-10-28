@@ -105,7 +105,8 @@ my_project
 
 Six job templates are available with `--template` (`basic`, `csv`, `mysql`, `postgres`, `api`,
 `mongodb`). `workflows/thread.yaml` lists the workflows in stages, each `sequential` or `parallel`,
-with an optional `delay_after`, and per workflow an `active` flag and an optional `delay_before`:
+with an optional `delay_after`, and per workflow an `active` flag, an optional `delay_before` and
+an optional `timeout`:
 
 ```yaml
 version: "1.0"
@@ -114,6 +115,7 @@ thread:
     delay_after: 30s          # optional pause before the next stage
     workflows:
       - name: workflow1
+        timeout: 30m          # optional: beyond it, the workflow fails
       - name: workflow2
         active: false         # skipped, without removing it
   - mode: parallel
@@ -132,6 +134,12 @@ loops:                        # optional
 workflow; in a parallel stage, after the stage starts. Same format as `delay_after` (`500ms`,
 `30s`, `5m`, `1h`, or seconds). Fallback conditions are checked after the wait. In a parallel
 stage, a failed workflow cancels the starts still waiting.
+
+`timeout` is the longest a workflow may run (same format, more than 0). Beyond it, the workflow
+is stopped at the next step or batch — an all-or-nothing load is cancelled, an action already
+started finishes (it has its own `timeout`) — and counts as failed:
+`✗ Workflow 'load_crm' failed (30.0s): timed out after 30s`. It also applies to each backup run
+in its place.
 
 A loop can link any two workflows of the thread (`to` comes before `from`, or is the same
 workflow); loops must not overlap.
@@ -162,7 +170,16 @@ shown: `↪ Fallback: load_crm → load_crm_backup — source_available('crm_db'
 refused)`. If a check cannot answer (time limit, missing file for `file_size`…), the planned
 workflow runs (`on_probe_error: keep`, the default) or the backup does (`replace`). An inactive
 workflow is not checked. `hdrctl run . --use-fallback load_crm` forces the switch, to rehearse a
-recovery. *`on_failure` (switch after a failure) comes in a later step.*
+recovery.
+
+With `on_failure: true`, a workflow that fails (or exceeds its `timeout`) is replaced by its
+first backup **only if it left nothing published**: no load published and no outside action
+done (`webhook`, `email`, `bash`, `python`… except those marked `undo: none`), or everything
+undone by `rollback: true`. The backup then cannot write the same data twice. If the backup
+fails too, the next one in `use` runs. Otherwise the project stops and says why:
+`⛔ load_crm: fallback load_crm_backup not started — step 'load1' had already published its data`.
+`hdrctl run . --dry-run` warns when a workflow with `on_failure` publishes in several steps
+without `rollback: true`.
 
 In Studio, **Settings › Project settings** (button **Project settings** on the project page)
 edits the same file (**Execution order** → **Define**), draws it (**Preview**) and checks it
@@ -171,7 +188,10 @@ The life-buoy button of a workflow edits its fallback: backup workflows (one tak
 thread leaves it), the `when` condition, checked as you type, with a helper that inserts a
 function and a source or destination of the project, and `on_probe_error`. **Preview** draws
 each backup as a dashed block under its workflow, with the condition on the link; **Check**
-shows the warnings; the run page tells which workflow ran, the backup or not, and why.
+shows the warnings; the run page tells which workflow ran, the backup or not, and why: a
+workflow replaced after a failure shows *replaced by …*, a stopped one *timed out*, a blocked
+switch *fallback blocked* with the reason. The **max** field of a workflow line sets its
+`timeout` (⏳ in the Preview).
 The **wait** field of each workflow line sets its `delay_before`; **Preview** shows it as a
 clock above the block and the run page as a *waited …* badge on the step.
 `hdrctl run <project>` checks the thread, every active workflow and the job folders they use

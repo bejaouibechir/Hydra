@@ -13,10 +13,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useBlocker, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, CheckCircle2, Clock, Layers, LifeBuoy, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
+import { ArrowDown, ArrowUp, CheckCircle2, Clock, Hourglass, Layers, LifeBuoy, Plus, Save, X, AlertTriangle, Repeat } from 'lucide-react'
 import { api, type CheckResult } from '@/lib/api'
 import {
-  appendWorkflow, fallbackCandidates, fallbackError, fallbackNamesIn, forSave, isValidDelay, loopErrors,
+  appendWorkflow, fallbackCandidates, fallbackError, fallbackNamesIn, forSave, isValidDelay, isValidTimeout, loopErrors,
   loopsForSave, moveWorkflow, namesIn, pruneLoops, removeWorkflow, setFallback, type ThreadLoop, type ThreadStage,
 } from '@/lib/thread'
 import ThreadPreview from '@/components/project/ThreadPreview'
@@ -60,7 +60,7 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
   const notInThread = useMemo(() => onDisk.filter(n => !inThread.includes(n) && !fallbacks.includes(n)),
     [onDisk, inThread, fallbacks])
   const delaysOk = stages.every(s => isValidDelay(s.delay_after ?? '')
-    && s.workflows.every(w => isValidDelay(w.delay_before ?? '')))
+    && s.workflows.every(w => isValidDelay(w.delay_before ?? '') && isValidTimeout(w.timeout ?? '')))
   const lErrors = loopErrors(stages, loops)
   const fbOk = stages.every(s => s.workflows.every(w => fallbackError(w.fallback) === null))
   const valid = delaysOk && lErrors.every(e => e === null) && fbOk
@@ -131,8 +131,10 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
             same time (parallel). Untick a workflow to skip it. A failed workflow stops the project.
             <Clock size={11} style={{ display: 'inline', margin: '0 2px' }} /> wait: pause before a workflow starts (sequential:
             after the previous one; parallel: after the stage starts).
+            <Hourglass size={11} style={{ display: 'inline', margin: '0 2px' }} /> max: longest time a workflow may run
+            (timeout); beyond it, it fails.
             <LifeBuoy size={11} style={{ display: 'inline', margin: '0 2px' }} /> Fallback: another workflow runs
-            in its place when a condition is true just before it starts.
+            in its place when a condition is true just before it starts, or after a failure that left nothing published.
             {q.data?.implicit && <> No thread.yaml yet: workflows run in alphabetical order until you save.</>}
           </p>
 
@@ -178,6 +180,17 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
                       }))} />
                   </span>
                   {!isValidDelay(w.delay_before ?? '') && <span style={{ color: 'var(--error)' }}>✗ use 500ms, 30s, 5m, 1h</span>}
+                  <span className="inline-flex items-center gap-1" style={{ color: 'var(--text-muted)' }}
+                    title="Maximum duration of this workflow (and of each fallback run in its place): 30s, 5m, 1h. Beyond it the workflow is stopped at the next step or batch and counts as failed. Empty = no limit.">
+                    <Hourglass size={11} /> max
+                    <input style={{ ...input, width: 58,
+                      borderColor: isValidTimeout(w.timeout ?? '') ? 'var(--bg-border)' : 'var(--error)' }}
+                      value={w.timeout ?? ''} placeholder="none" aria-label={`${w.name} timeout`}
+                      onChange={e => edit(stages.map((s, i) => i !== si ? s : {
+                        ...s, workflows: s.workflows.map((x, j) => j === wi ? { ...x, timeout: e.target.value } : x),
+                      }))} />
+                  </span>
+                  {!isValidTimeout(w.timeout ?? '') && <span style={{ color: 'var(--error)' }}>✗ timeout: 30s, 5m, 1h (more than 0)</span>}
                   {w.fallback && openFb !== w.name && (
                     <span data-testid={`fallback-summary-${w.name}`} style={{ color: fallbackError(w.fallback) ? 'var(--error)' : 'var(--warning)', fontFamily: 'monospace' }}
                       title={w.fallback.when ? `if ${w.fallback.when}` : 'after a failure'}>

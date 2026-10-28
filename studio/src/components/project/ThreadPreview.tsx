@@ -102,6 +102,14 @@ export default function ThreadPreview({ stages, loops, missing = new Set(), onOp
           </g>
         ))}
 
+        {l.nodes.filter(n => !n.fallbackOf && n.timeout).map(n => (
+          <g key={`timeout-${n.id}`} data-testid={`preview-timeout-${n.name}`}>
+            <title>{`Stopped and counted as failed after ${n.timeout} (timeout)`}</title>
+            <text x={n.x + NODE_W - 2} y={n.y - 3} textAnchor="end" fontSize={10} fontFamily="monospace"
+              fill="var(--text-muted)">⏳ {n.timeout}</text>
+          </g>
+        ))}
+
         {l.nodes.filter(n => !n.fallbackOf).map(n => {
           const miss = missing.has(n.name)
           return (
@@ -123,7 +131,8 @@ export default function ThreadPreview({ stages, loops, missing = new Set(), onOp
       <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '6px 0 0' }}>
         Left to right: stages in order; stacked blocks run in parallel; ◇ = wait before the next stage;
         dashed blue arrow = loop; dashed orange block below a workflow = its fallback (runs in its place when
-        the condition is true); clock on a block = wait before it starts. Click a block to open the workflow,
+        the condition is true, or after a failure); clock on a block = wait before it starts; ⏳ = maximum
+        duration (timeout). Click a block to open the workflow,
         a condition to edit it.
       </p>
     </div>

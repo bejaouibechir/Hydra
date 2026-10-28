@@ -5,6 +5,7 @@ thread:
     workflows:
       - name: workflow1
         active: true
+        timeout: 30m          # beyond it, the workflow fails
         fallback:
           use: [workflow1_backup]
           when: "not source_available('crm_db') or file_age('data/orders.csv') > 24h"

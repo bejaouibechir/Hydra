@@ -103,10 +103,10 @@ export default function FallbackEditor({ projectId, name, fallback, candidates, 
         set({ when: when.trim() ? `${when.trim()} ${join} ${part}` : part })} />}
 
       <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 6 }}>
-        <label className="inline-flex items-center gap-1" title="Planned: switch when the workflow fails without having written anything. Saved in thread.yaml, not applied by this version yet.">
+        <label className="inline-flex items-center gap-1" title={`If ${name} fails (or exceeds its max time) without leaving anything published — nothing loaded and nothing done outside Hydra ETL, or everything undone by rollback: true — the first replacement runs; if it fails too, the next one. If ${name} had already published data, the project stops and says why.`}>
           <input type="checkbox" checked={!!fallback.on_failure} aria-label={`${name} fallback on failure`}
             onChange={e => set({ on_failure: e.target.checked })} />
-          also after a failure <span style={muted}>(not applied yet)</span>
+          also after a failure <span style={muted}>(only if nothing was published)</span>
         </label>
         <label className="inline-flex items-center gap-1">
           <span style={muted}>if a check cannot answer</span>

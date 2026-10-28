@@ -1023,6 +1023,10 @@ def _print_workflow_steps(wf, result, indent: str = "  ") -> None:
 
 
 def _fmt_seconds(sec: float) -> str:
+    """90 -> 90s, 300 -> 5m, 3600 -> 1h, 0.3 -> 0.3s."""
+    for unit, size in (("h", 3600), ("m", 60)):
+        if sec >= size and sec % size == 0:
+            return f"{sec / size:g}{unit}"
     return f"{sec:g}s"
 
 
@@ -1032,7 +1036,7 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
     """`hdrctl run <projet>` : valide tout, puis lance les workflows selon
     workflows/thread.yaml. Retourne le code de sortie (0 succès, 1 échec)."""
     from hydra_etl.workflow.project import (
-        FAILED, INACTIVE, NOT_RUN, ProjectError, ProjectRunner, prepare_project,
+        FAILED, INACTIVE, NOT_RUN, RECOVERED, ProjectError, ProjectRunner, prepare_project,
     )
 
     try:
@@ -1081,6 +1085,8 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
                 if w.delay_before_seconds:
                     since = t("run.project.plan_wait_par" if stage.mode == "parallel" else "run.project.plan_wait_seq")
                     click.echo(f"        {c(C.DM, '⏱')}  {c(C.DM, t('run.project.plan_wait', seconds=_fmt_seconds(w.delay_before_seconds), since=since))}")
+                if w.timeout_seconds:
+                    click.echo(f"        {c(C.DM, '⏳')}  {c(C.DM, t('run.project.plan_timeout', seconds=_fmt_seconds(w.timeout_seconds)))}")
                 if w.fallback:
                     fb = w.fallback
                     triggers = []
@@ -1111,6 +1117,11 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
             click.echo(f"  {c(C.DM, '⏱')}  {c(C.DM, t('run.project.wait', name=data['name'], seconds=_fmt_seconds(data['seconds'])))}")
         elif kind == "fallback":
             click.echo(f"  {c(C.CY, '↪')}  {t('run.project.fallback', name=data['name'], use=c(C.CY, data['use']), reason=data['reason'])}")
+        elif kind == "timeout":
+            click.echo(f"  {c(C.YL, '⏳')}  {t('run.project.timeout', name=data['name'], seconds=_fmt_seconds(data['seconds']))}")
+        elif kind == "fallback_blocked":
+            key = "run.project.fallback_blocked" if data.get("use") else "run.project.fallback_none_left"
+            click.echo(f"  {c(C.RD, '⛔')}  {t(key, name=data['name'], use=data.get('use') or '', reason=data['reason'])}")
         elif kind == "fallback_kept":
             if verbosity >= 1:
                 click.echo(f"  {c(C.DM, '✓')}  {c(C.DM, t('run.project.fallback_kept', name=data['name'], reason=data['reason']))}")
@@ -1126,6 +1137,8 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
                 _print_workflow_steps(plan.workflows[data.name], data.result, indent="     ")
             if data.status == FAILED:
                 click.echo(f"  {c(C.RD, '✗')}  {t('run.project.wf_failed', name=data.name, duration=f'{data.duration:.1f}', error=data.error or '')}")
+            elif data.status == RECOVERED:
+                click.echo(f"  {c(C.YL, '↯')}  {t('run.project.wf_recovered', name=data.name, duration=f'{data.duration:.1f}', use=c(C.CY, data.replaced_by or ''), error=data.error or '')}")
             else:
                 click.echo(f"  {c(C.GR, '✓')}  {t('run.project.wf_ok', name=data.name, duration=f'{data.duration:.1f}')}")
         elif kind == "loop":
@@ -1143,7 +1156,7 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
 
     click.echo()
     ran = [r for r in result.runs if r.status not in (INACTIVE, NOT_RUN)]
-    ok_count = sum(1 for r in ran if r.status != FAILED)
+    ok_count = sum(1 for r in ran if r.status not in (FAILED, RECOVERED))
     if result.success:
         success_box(t("run.project.success", name=root.name, duration=f"{result.duration:.1f}",
                       ok=ok_count, total=len(ran)))

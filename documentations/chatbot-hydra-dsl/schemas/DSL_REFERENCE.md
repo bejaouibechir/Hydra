@@ -72,6 +72,13 @@ Version du produit : **0.13.0**
 - Step `type: action` → `undo:` : `none`, ou `{action, params}` (même forme qu'un
   step). Exigé avec `rollback: true` pour : `bash`, `email`, `powershell`, `python`, `ssh`, `webhook`.
 - Annulation inachevée : `hdrctl workflow undo <workflow>`.
+- `thread.yaml` → `fallback.on_failure: true` : après un échec (ou un `timeout`
+  dépassé), le remplaçant ne part que si le workflow n'a rien laissé de publié :
+  aucun chargement publié, aucune action externe faite (sauf `undo: none`), ou
+  tout défait par `rollback: true`. Sinon le projet s'arrête avec la raison.
+  Si le remplaçant échoue à son tour, le suivant de `use` est essayé.
+- `thread.yaml` → `timeout` (par workflow) : durée maximale ; arrêt au prochain
+  step ou lot (chargement en tout ou rien annulé), compté comme un échec.
 
 | Destination | Modes annulables |
 |---|---|

@@ -99,6 +99,14 @@
           ],
           "examples": ["500ms", "23s", 2]
         },
+        "timeout": {
+          "description": "Maximum duration of one run of this workflow (and of each fallback run in its place): a number of seconds, or 30s, 5m, 1h (more than 0). Beyond it the workflow is stopped at the next step or batch (an all-or-nothing load is cancelled; an action already started finishes) and counts as failed; with fallback.on_failure, the fallback can then run.",
+          "oneOf": [
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "string", "pattern": "^\\s*(?!0+(\\.0+)?\\s*([mM][sS]|[sSmMhH])?\\s*$)\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+          ],
+          "examples": ["30m", "1h", "90s"]
+        },
         "fallback": { "$ref": "#/definitions/threadFallback" }
       }
     },
@@ -130,7 +138,7 @@
         "on_failure": {
           "type": "boolean",
           "default": false,
-          "description": "true: also switch to the fallback after this workflow fails (only if it published nothing)."
+          "description": "true: also switch to the fallback after this workflow fails or exceeds its timeout, only if it left nothing published (no load published and no outside action done, or everything undone by rollback: true). If the fallback fails too, the next one in 'use' runs. Otherwise the project stops and says why."
         },
         "on_probe_error": {
           "type": "string",

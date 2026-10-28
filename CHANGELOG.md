@@ -15,8 +15,28 @@ and versions follow [Semantic Versioning](https://semver.org/).
   block; the run page shows a *waited …* badge on the step, and "Not started —
   another workflow of the stage failed" for a parallel start cancelled by a
   failure. The run API returns `waited` (seconds) on each step.
+- **Fallback after a failure** (`fallback.on_failure: true`, step 5b): a
+  workflow that fails is replaced by its first backup, only if it left nothing
+  published — no load published and no outside action done (except actions
+  marked `undo: none`), or everything undone by `rollback: true`. If the backup
+  fails too, the next one in `use` runs. Otherwise the project stops with the
+  reason (`⛔ … fallback … not started — step 'load1' had already published its
+  data`). The replaced run is reported as *recovered* (CLI `↯`, Studio badge
+  *replaced by …*); the project succeeds if the backup does.
+- `thread.yaml`: **`timeout`** per workflow (`30s`, `5m`, `1h`, more than 0):
+  beyond it the workflow is stopped at the next step or batch (an
+  all-or-nothing load is cancelled; an action already started finishes) and
+  counts as failed, which can trigger the fallback. Shown by `--dry-run`, in
+  Studio (**max** field, ⏳ in the Preview, *timed out* badge on the run page),
+  in the VS Code schema and in the Hydra DSL reference.
+- `hdrctl run --dry-run` (and Studio's **Check**) warns when a workflow with
+  `on_failure` publishes in several steps without `rollback: true`.
 
 ### Changed
+
+- Studio: the fallback option "also after a failure" is applied (the "not
+  applied yet" note is gone).
+- CLI: durations of whole minutes or hours are shown as `5m`, `1h`.
 
 - Studio: **Settings** has two tabs. *Global settings*: the editor
   preferences, kept in this browser. *Project settings*: the execution order

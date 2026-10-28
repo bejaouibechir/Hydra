@@ -17,6 +17,8 @@ export interface ThreadWorkflow {
   /** Attente avant le lancement : séquentiel, après le workflow précédent ;
    *  parallèle, après le début de l'étape. Même format que delay_after. */
   delay_before?: string | number | null
+  /** Durée maximale d'un passage (et de chaque remplaçant) ; dépassée = échec. */
+  timeout?: string | number | null
   fallback?: ThreadFallback | null
 }
 export interface ThreadStage {
@@ -86,7 +88,7 @@ export function fallbackNamesIn(stages: ThreadStage[]): string[] {
 
 /** Fallback prêt à l'envoi : valeurs par défaut retirées (comme thread.yaml). */
 function fallbackForSave(w0: ThreadWorkflow): ThreadWorkflow {
-  const w = delayBeforeForSave(w0)
+  const w = timeoutForSave(delayBeforeForSave(w0))
   if (!w.fallback) { const { fallback: _f, ...rest } = w; return rest }
   const fb = w.fallback
   const out: ThreadFallback = { use: [...fb.use] }
@@ -102,6 +104,13 @@ function delayBeforeForSave(w: ThreadWorkflow): ThreadWorkflow {
   const d = typeof w.delay_before === 'string' ? w.delay_before.trim() : w.delay_before
   const { delay_before: _d, ...rest } = w
   return d === undefined || d === null || d === '' || d === 0 || d === '0' ? rest : { ...rest, delay_before: d }
+}
+
+/** timeout prêt à l'envoi : vide retiré, espaces enlevés. */
+function timeoutForSave(w: ThreadWorkflow): ThreadWorkflow {
+  const t = typeof w.timeout === 'string' ? w.timeout.trim() : w.timeout
+  const { timeout: _t, ...rest } = w
+  return t === undefined || t === null || t === '' ? rest : { ...rest, timeout: t }
 }
 
 /** Remplaçants possibles pour `name` : les workflows du projet sauf lui-même,
@@ -136,6 +145,14 @@ export function fallbackError(fb: ThreadFallback | null | undefined): string | n
 const DELAY_RE = /^\s*\d+(\.\d+)?\s*(ms|s|m|h)?\s*$/i
 export const isValidDelay = (v: string | number | null | undefined) =>
   v === undefined || v === null || v === '' || typeof v === 'number' || DELAY_RE.test(v)
+
+/** timeout : vide (pas de limite) ou une durée de plus de 0. */
+export const isValidTimeout = (v: string | number | null | undefined) => {
+  if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) return true
+  if (typeof v === 'number') return v > 0
+  const m = DELAY_RE.exec(v)
+  return !!m && parseFloat(v) > 0
+}
 
 // ── Boucles ─────────────────────────────────────────────────────────────────
 /** Boucle : rejouer la portion du thread qui va de `to` à `from`, `times` fois en tout. */

@@ -83,6 +83,8 @@ export interface StepResult {
   fallback?: FallbackDecision             // run de projet : décision du fallback
   undo_of?: string | null                 // rollback: true — ce step défait le step nommé
   waited?: number                         // run de projet : attente delay_before (secondes)
+  recovered_by?: string                   // run de projet : échec rattrapé, remplaçant lancé
+  timed_out?: boolean                     // run de projet : arrêté par timeout
 }
 export interface Environment {
   id: string; name: string; project_id: string; vars: Record<string, string>
@@ -149,9 +151,9 @@ export interface CheckResult { ok: boolean; errors: string[]; active: string[]; 
 /** Décision du fallback d'un workflow du thread, jointe au step du run. */
 export interface FallbackDecision {
   workflow: string                        // workflow du thread
-  action: 'switched' | 'kept' | 'probe_error'
-  use: string                             // remplaçant (lancé si switched)
-  trigger: 'when' | 'forced' | 'probe_error' | null
+  action: 'switched' | 'kept' | 'probe_error' | 'blocked'
+  use: string | null                      // remplaçant (lancé si switched ; null : plus aucun)
+  trigger: 'when' | 'forced' | 'probe_error' | 'failure' | 'timeout' | null
   reason: string
 }
 

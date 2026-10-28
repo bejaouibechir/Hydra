@@ -8,7 +8,7 @@ import LiveBadge from '@/components/ui/LiveBadge'
 import LogViewer from '@/components/ui/LogViewer'
 import {
   ChevronLeft, CheckCircle2, XCircle, Clock,
-  AlertTriangle, ChevronDown, ChevronRight, SkipForward, LifeBuoy, RotateCcw, Timer,
+  AlertTriangle, ChevronDown, ChevronRight, SkipForward, LifeBuoy, RotateCcw, Timer, Hourglass,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -24,9 +24,10 @@ function fmtDate(iso?: string) {
   return new Date(iso).toLocaleString()
 }
 
-function stepStatus(s: StepResult): 'success' | 'failed' | 'skipped' | 'running' {
+function stepStatus(s: StepResult): 'success' | 'failed' | 'skipped' | 'running' | 'recovered' {
   if (s.skipped)  return 'skipped'
   if (s.success)  return 'success'
+  if (s.recovered_by) return 'recovered'
   return 'failed'
 }
 
@@ -35,18 +36,21 @@ const STATUS_ICON = {
   failed:  <XCircle size={15} />,
   skipped: <SkipForward size={15} />,
   running: <Clock size={15} className="animate-spin-slow" />,
+  recovered: <LifeBuoy size={15} />,
 }
 const STATUS_COLOR = {
   success: 'var(--success)',
   failed:  'var(--error)',
   skipped: 'var(--text-muted)',
   running: 'var(--info)',
+  recovered: 'var(--warning)',
 }
 const STATUS_BORDER = {
   success: 'rgba(16,185,129,0.3)',
   failed:  'rgba(239,68,68,0.3)',
   skipped: 'var(--bg-border)',
   running: 'rgba(59,130,246,0.4)',
+  recovered: 'rgba(245,158,11,0.4)',
 }
 
 // ── Timeline bar ──────────────────────────────────────────────────────────────
@@ -104,14 +108,16 @@ export function fmtWait(s: number): string {
 
 const TRIGGER_TEXT: Record<string, string> = {
   when: 'condition true', forced: 'forced', probe_error: 'check failed',
+  failure: 'after a failure', timeout: 'after a timeout',
 }
 
 /** Badge court dans l'en-tête du step. */
 function FallbackBadge({ d }: { d: FallbackDecision }) {
   const switched = d.action === 'switched'
-  const color = d.action === 'kept' ? 'var(--text-muted)' : 'var(--warning)'
+  const color = d.action === 'kept' ? 'var(--text-muted)' : d.action === 'blocked' ? 'var(--error)' : 'var(--warning)'
   const text = switched ? `fallback · ${TRIGGER_TEXT[d.trigger ?? ''] ?? d.trigger}`
-    : d.action === 'kept' ? 'fallback not needed' : 'check failed · kept'
+    : d.action === 'kept' ? 'fallback not needed'
+    : d.action === 'blocked' ? 'fallback blocked' : 'check failed · kept'
   return (
     <span data-testid="fallback-badge" className="text-xs px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1"
       style={{ border: `1px dashed ${color}`, color }} title={d.reason}>
@@ -126,11 +132,16 @@ function FallbackBanner({ d }: { d: FallbackDecision }) {
     ? <><b>{d.use}</b> ran in place of <b>{d.workflow}</b> ({TRIGGER_TEXT[d.trigger ?? ''] ?? d.trigger})</>
     : d.action === 'kept'
       ? <><b>{d.workflow}</b> ran: its fallback <b>{d.use}</b> was not needed</>
-      : <><b>{d.workflow}</b> kept: the fallback check could not answer</>
+      : d.action === 'blocked'
+        ? (d.use
+          ? <>Fallback <b>{d.use}</b> not started: <b>{d.workflow}</b> failed after publishing data</>
+          : <>No backup workflow left for <b>{d.workflow}</b></>)
+        : <><b>{d.workflow}</b> kept: the fallback check could not answer</>
+  const tone = d.action === 'blocked' ? 'var(--error)' : 'var(--warning)'
   return (
     <div data-testid="fallback-banner" className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
-      style={{ border: '1px dashed var(--warning)', color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>
-      <LifeBuoy size={12} className="mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+      style={{ border: `1px dashed ${tone}`, color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>
+      <LifeBuoy size={12} className="mt-0.5 shrink-0" style={{ color: tone }} />
       <div>
         <div>{head}</div>
         <div className="font-mono" style={{ color: 'var(--text-muted)', marginTop: 2 }}>{d.reason}</div>
@@ -183,6 +194,20 @@ function StepCard({ step, index, defaultOpen = false }: {
           </span>
         ) : null}
         {step.fallback && <FallbackBadge d={step.fallback} />}
+        {step.timed_out && (
+          <span data-testid="timeout-badge" className="text-xs px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1"
+            style={{ border: '1px dashed var(--error)', color: 'var(--error)' }}
+            title="Stopped by its timeout (thread.yaml)">
+            <Hourglass size={11} /> timed out
+          </span>
+        )}
+        {step.recovered_by && (
+          <span data-testid="recovered-badge" className="text-xs px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1"
+            style={{ border: '1px dashed var(--warning)', color: 'var(--warning)' }}
+            title="Failed without publishing anything: its fallback ran in its place">
+            <LifeBuoy size={11} /> replaced by {step.recovered_by}
+          </span>
+        )}
 
         {/* Duration */}
         <span className="text-xs font-mono shrink-0" style={{ color: 'var(--text-muted)' }}>

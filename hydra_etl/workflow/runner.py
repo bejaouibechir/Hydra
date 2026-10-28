@@ -115,8 +115,11 @@ class WorkflowRunner:
         *,
         project_root: Optional[Path] = None,
         params: Optional[Dict[str, Any]] = None,
+        stop: Optional[Any] = None,
     ) -> None:
         self.workflow = workflow
+        # timeout du thread (workflow/stop.py) : arrêt au prochain point de contrôle
+        self._stop = stop
         self.base_dir = Path(base_dir).resolve() if base_dir else Path.cwd()
         self.env = env
         # Racine du projet (dossier qui contient `.hydra/`). Un workflow rangé
@@ -186,6 +189,15 @@ class WorkflowRunner:
             groups = self._build_execution_groups()
 
             for group in groups:
+                # timeout du thread : on ne lance pas le groupe suivant
+                if self._stop is not None and self._stop.is_set():
+                    logger.error(f"✗ Workflow '{self.workflow.name}' stopped: {self._stop.reason}")
+                    return self._finish(WorkflowResult(
+                        workflow_name=self.workflow.name, success=False,
+                        duration=time.monotonic() - start,
+                        steps=list(step_results.values()),
+                        error=self._stop.reason or "stopped",
+                    ), start)
                 # Enregistrer les steps skippés avec leur statut
                 for s in group:
                     if s.name in skipped:
@@ -426,7 +438,8 @@ class WorkflowRunner:
         while True:
             sr = self._execute_step_once(step)
             accumulated.extend(sr.logs)
-            if sr.success or attempt >= max_retries:
+            stopped = self._stop is not None and self._stop.is_set()   # timeout : pas de nouvel essai
+            if sr.success or attempt >= max_retries or stopped:
                 if attempt > 0:
                     verb = "succeeded" if sr.success else "gave up"
                     accumulated.append(f"INFO [{step.name}] {verb} after {attempt} retry(ies)")
@@ -553,6 +566,7 @@ class WorkflowRunner:
         executor = JobExecutor(
             job_dir=job_path, root_dir=self.project_root, env=self.env,
             params=runtime_snapshot, undo=self._undo_stack is not None,
+            stop=self._stop,
         )
         # Détails internes du job (env, connecteurs, scripts...) -> log du step
         capture = _JobLogCapture(step_log, threading.get_ident())

@@ -242,5 +242,10 @@
   "run.project.plan_wait_seq": "after the previous workflow",
   "run.project.plan_wait_par": "after the stage starts",
   "run.project.wait": "{name}: waiting {seconds} before starting",
-  "run.project.cancelled": "{name} — not started (another workflow of the stage failed)"
+  "run.project.cancelled": "{name} — not started (another workflow of the stage failed)",
+  "run.project.plan_timeout": "timeout {seconds}: beyond it, the workflow fails",
+  "run.project.timeout": "{name}: timed out after {seconds} — stopping at the next step or batch",
+  "run.project.wf_recovered": "Workflow '{name}' failed ({duration}s), nothing published — replaced by {use}: {error}",
+  "run.project.fallback_blocked": "{name}: fallback {use} not started — {reason}",
+  "run.project.fallback_none_left": "{name}: no backup workflow left — {reason}"
 }

@@ -35,6 +35,7 @@ from hydra_etl.internal.engines.frame_copy import copy_on_write
 from hydra_etl.internal.engines.pandas_engine import PandasEngine
 from hydra_etl.internal.runner import batch_size as batch_size_policy
 from hydra_etl.internal.runner.prefetch import prefetch, should_prefetch
+from hydra_etl.workflow.stop import check as _stop_check
 from hydra_etl.internal.runner.projection import required_columns
 from hydra_etl.internal.runner.profiler import (
     JobProfiler,
@@ -73,12 +74,15 @@ class JobExecutor:
         env: Optional[str] = None,
         profile: Optional[bool] = None,
         undo: bool = False,
+        stop: Optional[Any] = None,
     ) -> None:
         """Initialise l'executor.
 
         undo=True (workflow en `rollback: true`) : le chargement garde de quoi
         être annulé après publication (JobResult.undo, voir connector/undo.py)."""
         self._undo = bool(undo)
+        # timeout du thread (workflow/stop.py) : arrêt entre deux lots
+        self._stop = stop
         self.job_dir = Path(job_dir).resolve()
         self.root_dir = root_dir or self.job_dir.parent
         # path_base : dossier de référence pour la résolution des chemins relatifs
@@ -243,6 +247,7 @@ class JobExecutor:
                 """Comptage, échantillon, validation et chargement d'un batch de sortie
                 (logique inchangée, extraite de la boucle pour servir aux deux chemins)."""
                 nonlocal rows_out, first_batch_written, effective_mode, session
+                _stop_check(self._stop)       # timeout : arrêt avant d'écrire ce lot
 
                 rows_out += len(out_batch)
 
@@ -291,6 +296,7 @@ class JobExecutor:
                 batch_size=extract_batch_size,
                 query=extract_query,
             ), enabled=avance)):
+                _stop_check(self._stop)       # timeout : arrêt entre deux lots lus
                 rows_in += len(batch)
                 out_batch = batch
 
@@ -345,6 +351,7 @@ class JobExecutor:
                     _emit(out_chunk)
 
             # 9) Publication : tout devient visible d'un coup (tout ou rien)
+            _stop_check(self._stop)           # timeout : rien n'est publié
             if session is not None:
                 with prof.span("load"):
                     session.publish()

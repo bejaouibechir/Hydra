@@ -77,3 +77,13 @@ describe('layoutThread — delay_before', () => {
     expect([w('a'), w('b'), w('c')]).toEqual([null, '23s', '500ms'])
   })
 })
+
+describe('layoutThread — timeout', () => {
+  it('sablier sur les workflows limités', () => {
+    const l = layoutThread([{ mode: 'sequential', workflows: [
+      { name: 'a', active: true, timeout: '30m' }, { name: 'b', active: true },
+    ] }])
+    const t = (n: string) => l.nodes.find(x => x.name === n)!.timeout
+    expect([t('a'), t('b')]).toEqual(['30m', null])
+  })
+})

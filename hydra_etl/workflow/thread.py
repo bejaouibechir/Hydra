@@ -12,6 +12,7 @@ projet. Il est fait d'étapes (stages) exécutées l'une après l'autre :
           - name: workflow1     # = workflows/workflow1.yaml
             active: true        # false : ignoré au run (débogage)
             delay_before: 10s   # attente avant de lancer ce workflow (optionnel)
+            timeout: 30m        # durée maximale ; dépassée = échec (optionnel)
 
 - `mode: sequential` : les workflows de l'étape tournent l'un après l'autre ;
   `mode: parallel` : ils tournent en même temps.
@@ -20,6 +21,10 @@ projet. Il est fait d'étapes (stages) exécutées l'une après l'autre :
   depuis la fin du workflow précédent ; parallèle : depuis le début de l'étape
   (départs décalés). Les conditions de fallback sont vérifiées après l'attente.
   En parallèle, si un workflow échoue, ceux qui attendent encore ne partent pas.
+- `timeout` (par workflow) : durée maximale d'un passage (même format). Dépassée,
+  le workflow est arrêté au prochain lot ou au prochain step (un chargement en
+  tout ou rien est annulé ; une action déjà lancée va à son terme) et compte
+  comme un échec. Elle s'applique aussi à chaque remplaçant lancé à sa place.
 - `name` désigne le fichier `workflows/<name>.yaml`.
 
 Boucles (facultatives) : rejouer une portion du thread N fois.
@@ -44,6 +49,11 @@ Fallback (facultatif) : un workflow de secours, déclaré sur le workflow visé.
           when: "not source_available('crm_db')"  # vérifié juste avant le lancement
           on_failure: true                        # aussi après un échec (rien publié)
           on_probe_error: keep                    # sonde en erreur : keep | replace
+
+- `on_failure: true` : si le workflow échoue (ou dépasse `timeout`) SANS rien
+  laisser de publié — aucun chargement publié ni action externe faite, ou tout
+  défait par `rollback: true` — le premier remplaçant est lancé ; s'il échoue à
+  son tour, le suivant, etc. Sinon le projet s'arrête avec la raison.
 
 - Les remplaçants sont des fichiers `workflows/<nom>.yaml` qui ne figurent pas
   dans le thread ; un remplaçant n'a pas de fallback (profondeur 1).
@@ -132,7 +142,23 @@ class ThreadWorkflow(BaseModel):
     # Attente avant le lancement (séquentiel : après le précédent ; parallèle :
     # après le début de l'étape). Même format que delay_after.
     delay_before: Optional[Union[int, float, str]] = None
+    # Durée maximale d'un passage du workflow (et de chaque remplaçant) ;
+    # dépassée = échec. Même format que delay_after.
+    timeout: Optional[Union[int, float, str]] = None
     fallback: Optional[ThreadFallback] = None
+
+    @field_validator("timeout")
+    @classmethod
+    def _check_timeout(cls, v: Any) -> Any:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if parse_delay(v) <= 0:
+            raise ValueError("timeout must be more than 0 (e.g. 30s, 5m, 1h)")
+        return v
+
+    @property
+    def timeout_seconds(self) -> Optional[float]:
+        return parse_delay(self.timeout) if self.timeout is not None else None
 
     @field_validator("delay_before")
     @classmethod
@@ -342,6 +368,7 @@ def default_thread_yaml(workflow_names: List[str]) -> str:
         "#   delay_after : pause after the stage, in seconds or 30s / 5m / 1h (optional)",
         "#   delay_before: on a workflow, wait before starting it (sequential: after the",
         "#                 previous one; parallel: after the stage starts) (optional)",
+        "#   timeout     : on a workflow, maximum duration; beyond it the workflow fails (optional)",
         "#   active      : false skips the workflow without removing it (debugging)",
         "# Each name refers to workflows/<name>.yaml.",
         "# Optional loops, to replay a part of the thread N times:",
@@ -355,7 +382,7 @@ def default_thread_yaml(workflow_names: List[str]) -> str:
         "#         fallback:",
         "#           use: [workflow1_backup]                   # tried in order",
         "#           when: \"not source_available('my_db')\"   # checked just before the start",
-        "#           on_failure: true                          # also after a failure",
+        "#           on_failure: true                          # also after a failure (nothing published)",
         'version: "1.0"',
         "thread:",
         "  - mode: sequential",
@@ -391,6 +418,8 @@ def render_thread(thread: ThreadDef) -> str:
             lines.append(f"        active: {'true' if wf.active else 'false'}")
             if wf.delay_before not in (None, "", 0):
                 lines.append(f"        delay_before: {wf.delay_before}")
+            if wf.timeout not in (None, ""):
+                lines.append(f"        timeout: {wf.timeout}")
             if wf.fallback:
                 fb = wf.fallback
                 lines.append("        fallback:")

@@ -27,6 +27,7 @@ export interface LNode {
   id: string; name: string; x: number; y: number; active: boolean; col: number
   h: number; fallbackOf?: string          // remplaçant : workflow du thread qu'il remplace
   wait?: string | null                    // delay_before (« 23s ») : horloge devant le bloc
+  timeout?: string | null                 // timeout (« 30m ») : sablier à droite au-dessus du bloc
 }
 export interface LFallback { d: string; labelX: number; labelY: number; label: string; title: string; of: string }
 export interface LJunction { x: number; y: number; delay: string | null }
@@ -69,7 +70,7 @@ export function layoutThread(stages: ThreadStage[], loops: ThreadLoop[] = []): L
     u.names.forEach(n => {
       const x = colX(i)
       nodes.push({ id: n, name: n, col: i, active: byName.get(n)?.active ?? true, x, y, h: NODE_H,
-        wait: fmtDelay(byName.get(n)?.delay_before) })
+        wait: fmtDelay(byName.get(n)?.delay_before), timeout: fmtDelay(byName.get(n)?.timeout) })
       const fb = byName.get(n)?.fallback
       let fy = y + NODE_H + FB_GAP
       alts(n).forEach((a, k) => {

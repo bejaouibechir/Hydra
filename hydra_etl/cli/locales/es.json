@@ -242,5 +242,10 @@
   "run.project.plan_wait_seq": "tras el workflow anterior",
   "run.project.plan_wait_par": "desde el inicio de la etapa",
   "run.project.wait": "{name}: espera {seconds} antes de iniciarse",
-  "run.project.cancelled": "{name} — no iniciado (otro workflow de la etapa falló)"
+  "run.project.cancelled": "{name} — no iniciado (otro workflow de la etapa falló)",
+  "run.project.plan_timeout": "timeout {seconds}: superado, el workflow falla",
+  "run.project.timeout": "{name}: tiempo agotado tras {seconds} — se detiene en el siguiente step o lote",
+  "run.project.wf_recovered": "Workflow '{name}' falló ({duration}s), nada publicado — reemplazado por {use}: {error}",
+  "run.project.fallback_blocked": "{name}: alternativa {use} no iniciada — {reason}",
+  "run.project.fallback_none_left": "{name}: no quedan workflows de respaldo — {reason}"
 }

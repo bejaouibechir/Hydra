@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { appendWorkflow, forSave, isValidDelay, moveWorkflow, namesIn, removeWorkflow, type ThreadStage } from './thread'
+import { appendWorkflow, forSave, isValidDelay, isValidTimeout, moveWorkflow, namesIn, removeWorkflow, type ThreadStage } from './thread'
 
 const S = (): ThreadStage[] => [
   { mode: 'sequential', workflows: [{ name: 'a', active: true }, { name: 'b', active: true }] },
@@ -98,5 +98,22 @@ describe('delay_before (attente avant le lancement)', () => {
   it('format validé comme delay_after', () => {
     for (const v of ['500ms', '30s', '5m', '1h', 2, '']) expect(isValidDelay(v)).toBe(true)
     for (const v of ['soon', '2x', '-1s']) expect(isValidDelay(v)).toBe(false)
+  })
+})
+
+describe('timeout (durée maximale)', () => {
+  it('validation : vide ou durée de plus de 0', () => {
+    for (const ok of ['', '  ', '30s', '5m', '1h', '500ms', 10, null, undefined]) expect(isValidTimeout(ok)).toBe(true)
+    for (const bad of ['0', '0s', 0, 'abc', '-5', '5 min']) expect(isValidTimeout(bad)).toBe(false)
+  })
+  it('forSave : vide retiré, espaces enlevés, gardé avec un fallback', () => {
+    const out = forSave([{ mode: 'sequential', workflows: [
+      { name: 'a', active: true, timeout: ' 30m ' },
+      { name: 'b', active: true, timeout: '' },
+      { name: 'c', active: true, timeout: '1h', fallback: { use: ['x'], on_failure: true } },
+    ] }])
+    expect(out[0].workflows[0].timeout).toBe('30m')
+    expect('timeout' in out[0].workflows[1]).toBe(false)
+    expect(out[0].workflows[2]).toMatchObject({ timeout: '1h', fallback: { use: ['x'], on_failure: true } })
   })
 })

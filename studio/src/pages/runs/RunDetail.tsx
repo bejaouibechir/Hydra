@@ -127,8 +127,11 @@ function FallbackBadge({ d }: { d: FallbackDecision }) {
 }
 
 /** Décision détaillée, affichée quand le step est ouvert. */
-function FallbackBanner({ d }: { d: FallbackDecision }) {
-  const head = d.action === 'switched'
+function FallbackBanner({ d, recoveredBy }: { d: FallbackDecision; recoveredBy?: string }) {
+  const head = recoveredBy && d.action === 'kept'
+    ? <><b>{d.workflow}</b> started (its condition was false), then failed without leaving anything
+        published: <b>{recoveredBy}</b> ran in its place</>
+    : d.action === 'switched'
     ? <><b>{d.use}</b> ran in place of <b>{d.workflow}</b> ({TRIGGER_TEXT[d.trigger ?? ''] ?? d.trigger})</>
     : d.action === 'kept'
       ? <><b>{d.workflow}</b> ran: its fallback <b>{d.use}</b> was not needed</>
@@ -193,7 +196,7 @@ function StepCard({ step, index, defaultOpen = false }: {
             <Timer size={11} /> waited {fmtWait(step.waited)}
           </span>
         ) : null}
-        {step.fallback && <FallbackBadge d={step.fallback} />}
+        {step.fallback && !(step.recovered_by && step.fallback.action === 'kept') && <FallbackBadge d={step.fallback} />}
         {step.timed_out && (
           <span data-testid="timeout-badge" className="text-xs px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1"
             style={{ border: '1px dashed var(--error)', color: 'var(--error)' }}
@@ -230,7 +233,7 @@ function StepCard({ step, index, defaultOpen = false }: {
       {/* Expanded content */}
       {open && (
         <div className="px-4 pb-4 pt-2 space-y-3" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--bg-border)' }}>
-          {step.fallback && <FallbackBanner d={step.fallback} />}
+          {step.fallback && <FallbackBanner d={step.fallback} recoveredBy={step.recovered_by} />}
 
           {/* Skipped banner */}
           {step.skipped && (

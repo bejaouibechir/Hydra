@@ -7,6 +7,17 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Large-volume engine** (optional, `pip install "hydra-etl[duckdb]"`, which now also installs pyarrow):
+  above `HYDRA_LARGE_VOLUME_ROWS` estimated rows (2,000,000 by default), a job with a global operation
+  reads its CSV source with pyarrow and runs `aggregate` and `sort` in a temporary DuckDB database on
+  disk; pandas keeps every other step and stays the default below the threshold. `HYDRA_ENGINE=auto |
+  pandas | duckdb`. No silent fallback: an untranslatable global step goes back to pandas with a log
+  message, the fast reader hands over to the Python reader with a warning. On 20 million rows (2 CPUs):
+  112.8 s / 5.4 GB → 34.3 s / 1.4 GB, identical results.
+- `--profile` shows the engine chosen and why.
+
 ## [0.14.0] — 2026-10-28
 
 ### Added

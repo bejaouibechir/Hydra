@@ -566,6 +566,36 @@ Python automatically whenever that guarantee cannot be kept. Benchmarks: [`bench
 
 ---
 
+## Large-volume engine (optional)
+
+pandas stays the reference engine. Above about two million rows, a job with a global operation
+(`aggregate`, `sort`…) can switch two steps to faster engines, with the same results:
+
+- CSV reading with pyarrow (C++, several cores), in large batches;
+- `aggregate` and `sort` in a temporary DuckDB database on disk, instead of gathering every row in memory.
+  Row-by-row steps (`filter`, `cast`, inner `join`, `calculate`…) still run in pandas, batch by batch.
+
+```bash
+pip install "hydra-etl[duckdb]"
+hdrctl run . --profile          # the profile shows the engine chosen and why
+```
+
+`HYDRA_ENGINE=auto` (default) picks DuckDB when the job has a global operation and the CSV source holds
+more than `HYDRA_LARGE_VOLUME_ROWS` estimated rows (2,000,000); `pandas` or `duckdb` force the choice.
+A global operation DuckDB cannot translate is handed back to pandas, with a log message; the fast CSV
+reader hands over to the Python reader (irregular row, BOM, duplicate header, non-UTF-8 encoding),
+with a warning. Parity tests: `tests/test_large_volume.py`.
+
+Measured on 2 CPUs / 8 GB (orders → customers join → revenue by country and by month, two jobs):
+
+| Rows | pandas | large-volume engine | dlt + dbt (DuckDB) |
+|---|---|---|---|
+| 5 M | 26.8 s · 1.4 GB | **8.9 s** · 0.86 GB | 19.8 s · 0.55 GB |
+| 10 M | 65.0 s · 2.7 GB | **17.3 s** · 1.0 GB | 28.3 s · 0.69 GB |
+| 20 M | 112.8 s · 5.4 GB | **34.3 s** · 1.4 GB | 46.2 s · 0.79 GB |
+
+---
+
 ## VS Code extension
 
 Completion and validation for Hydra manifests inside the editor, without installing Hydra.

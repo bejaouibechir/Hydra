@@ -52,7 +52,7 @@ server = [
 # Accélérateurs natifs (Rust) : optionnels, Hydra fonctionne sans.
 # Voir rust/hydra_native et hydra.backends.yaml.
 native = ["hydra-native>=0.1,<0.2", "pyarrow>=14.0"]
-duckdb = ["duckdb>=0.10"]
+duckdb = ["duckdb>=0.10", "pyarrow>=14.0"]   # + moteur gros volumes (HYDRA_ENGINE)
 parquet = ["pyarrow>=14.0"]
 mysql = ["mysql-connector-python>=8.3"]
 postgres = ["psycopg2-binary>=2.9"]

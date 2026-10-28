@@ -121,6 +121,10 @@ def format_profile(profile: Dict[str, Any]) -> str:
     entries = profile.get("entries") or []
     width = max([len(str(e["label"])) for e in entries] + [12])
     head = f"Profil — job '{profile.get('job_id', '')}' — {total:.3f} s"
+    if profile.get("engine"):
+        head += f" — moteur {profile['engine']}"
+        if profile.get("engine_reason"):
+            head += f" ({profile['engine_reason']})"
     lines = [head, "-" * len(head)]
     for e in entries:
         bar = "#" * max(0, int(round(float(e["share"]) * 30)))

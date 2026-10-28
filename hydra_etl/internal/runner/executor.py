@@ -218,6 +218,25 @@ class JobExecutor:
             stream_steps, global_steps = self._split_global_steps(steps)
             global_frames: List[pd.DataFrame] = []
 
+            # Moteur gros volumes (large_volume.py) : lecture pyarrow + opérations
+            # globales dans DuckDB, au-delà du seuil ou sur demande (engine:).
+            from hydra_etl.internal.engines import large_volume as lv
+            csv_path = None
+            if type(source_connector).__name__ == "CSVConnector" and not any(
+                    ch in str(extract_table) for ch in "*?["):
+                try:
+                    csv_path = source_connector._validated_source_path(
+                        table=extract_table, batch_size=extract_batch_size, query=extract_query)
+                except Exception:  # noqa: BLE001 — l'erreur sortira à la lecture, avec son message
+                    csv_path = None
+            engine, engine_reason = lv.decide(lv.requested_engine(transforms_raw),
+                                              bool(global_steps), csv_path)
+            self.engine, self.engine_reason = engine, engine_reason
+            duck = lv.DuckGlobal() if engine == "duckdb" and global_steps else None
+            if duck is not None:
+                duck.keep_only(global_steps)
+            logger.info(f"Job '{self.job_id}': engine {engine} ({engine_reason})")
+
             # Échanges par DataFrame (étape 0-bis). Avec transformations, c'est
             # toujours gagnant. Sans transformation (job E-L pur), ça ne l'est
             # que si les DEUX bouts sont colonnes : sinon on remplace des dicts
@@ -284,6 +303,8 @@ class JobExecutor:
 
             # 7) Streaming batch par batch
             extract = source_connector.extract_frames if frames_in else source_connector.extract_batches
+            if engine == "duckdb" and csv_path is not None and frames_in:
+                extract = source_connector._extract_frames_arrow   # lecteur rapide (pyarrow)
             # Le lot suivant est lu pendant que le lot courant est transformé :
             # « extract » ne compte plus que le temps réellement bloqué.
             # Rien a recouvrir si la boucle ne fait qu'empiler les lots pour une
@@ -314,7 +335,11 @@ class JobExecutor:
                         df_in = batch if isinstance(batch, pd.DataFrame) else pd.DataFrame(batch)
                     if stream_steps:
                         df_in = self._run_steps(df_in, stream_steps, 1, len(steps))
-                    global_frames.append(df_in)
+                    if duck is not None:
+                        with prof.span("lots -> DuckDB"):
+                            duck.append(df_in)
+                    else:
+                        global_frames.append(df_in)
                     continue
 
                 # Transformations (si définies)
@@ -330,6 +355,19 @@ class JobExecutor:
                 _emit(out_batch)
 
             # 8) Opérations globales : une seule passe sur l'ensemble des lignes
+            if duck is not None:
+                try:
+                    with prof.span("opérations globales (DuckDB)"):
+                        first = len(stream_steps) + 1
+                        df_duck = duck.run(global_steps, lambda d, rest, done: self._run_steps(
+                            d, rest, first + done, len(steps)))
+                    logger.info(f"Job '{self.job_id}': global operations on {duck.rows} rows (DuckDB)")
+                finally:
+                    duck.close()
+                global_frames = [df_duck]
+                global_steps_left = []
+            else:
+                global_steps_left = global_steps
             if global_steps and global_frames:
                 non_empty = [f for f in global_frames if len(f)] or global_frames[:1]
                 with prof.span("concaténation (opérations globales)"):
@@ -339,7 +377,8 @@ class JobExecutor:
                     f"Job '{self.job_id}': global operations on {len(df_all)} rows "
                     f"(steps {len(stream_steps) + 1}-{len(steps)})"
                 )
-                df_all = self._run_steps(df_all, global_steps, len(stream_steps) + 1, len(steps))
+                if global_steps_left:
+                    df_all = self._run_steps(df_all, global_steps_left, len(stream_steps) + 1, len(steps))
                 # Conversion en records par tranche : même coût qu'avant par batch,
                 # et pas de liste géante de dicts en mémoire (pression GC).
                 chunk = max(1, int(extract_batch_size or 1))
@@ -363,6 +402,8 @@ class JobExecutor:
                 profile_data = prof.to_dict(
                     total=duration, rows_in=rows_in, rows_out=rows_out, job_id=self.job_id
                 )
+                profile_data["engine"] = getattr(self, "engine", "pandas")
+                profile_data["engine_reason"] = getattr(self, "engine_reason", "")
                 logger.info("\n" + format_profile(profile_data))
 
             logger.info(
@@ -395,6 +436,9 @@ class JobExecutor:
             )
 
         except BaseException as exc:
+            _duck = locals().get("duck")
+            if _duck is not None:                 # base DuckDB temporaire du moteur gros volumes
+                _duck.close()
             # Échec ou interruption (Ctrl+C) : annuler le chargement en cours.
             # En tout ou rien, la destination reste comme avant le job.
             if session is not None:
@@ -410,6 +454,8 @@ class JobExecutor:
                 profile_data = self._profiler.to_dict(
                     total=duration, rows_in=rows_in, rows_out=rows_out, job_id=self.job_id
                 )
+                profile_data["engine"] = getattr(self, "engine", "pandas")
+                profile_data["engine_reason"] = getattr(self, "engine_reason", "")
                 logger.info("\n" + format_profile(profile_data))
 
             if session is not None:

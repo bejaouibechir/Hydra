@@ -693,6 +693,70 @@ class CSVConnector(Connector):
                     batch = batch.select(list(keep))
                 yield batch.to_pandas()
 
+    def _extract_frames_arrow(
+        self,
+        *,
+        table: str,
+        batch_size: int = 10_000,
+        query: Optional[str] = None,
+        block_mb: int = 32,
+    ) -> Iterator["pd.DataFrame"]:
+        """
+        Lecteur rapide du moteur gros volumes (pyarrow, C++, plusieurs cœurs),
+        en grands lots. Mêmes valeurs que la version Python (tout en texte,
+        cellule vide = ""), mêmes colonnes (projection comprise). Rend la main au
+        lecteur Python, avec un avertissement, dès qu'un résultat identique n'est
+        pas garanti : encodage autre qu'UTF-8, BOM, en-tête à noms dupliqués,
+        ligne irrégulière ou retour à la ligne dans une valeur — y compris en
+        cours de lecture, en reprenant après les lignes déjà rendues.
+        """
+        import pyarrow as pa
+        import pyarrow.csv as pacsv
+
+        csv_path = self._validated_source_path(table=table, batch_size=batch_size, query=query)
+
+        def handover(reason: str, skip_rows: int = 0) -> Iterator["pd.DataFrame"]:
+            warn_once(f"csv.read.arrow:{csv_path}:{reason}",
+                      f"CSVConnector [{self.name}]: lecteur rapide (pyarrow) non utilisé pour "
+                      f"{csv_path} ({reason}) : lecteur Python")
+            return self._frames_python(csv_path, batch_size, skip_rows=skip_rows)
+
+        if self._settings.encoding.strip().lower().replace("_", "-") not in ("utf-8", "utf8"):
+            yield from handover(f"encoding {self._settings.encoding!r}")
+            return
+        with csv_path.open("rb") as fb:
+            if fb.read(3) == b"\xef\xbb\xbf":
+                yield from handover("BOM")
+                return
+        with csv_path.open("r", encoding="utf-8", newline="") as f:
+            header = next(csv.reader(f, delimiter=self._settings.delimiter,
+                                     quotechar=self._settings.quotechar), None)
+        if not header:
+            raise ValueError(f"CSVConnector: CSV header missing or empty: {csv_path}")
+        if len(set(header)) != len(header):
+            yield from handover("en-tête à noms dupliqués")
+            return
+        keep = self._kept_columns(header)
+        emitted = 0
+        try:
+            reader = pacsv.open_csv(
+                str(csv_path),
+                read_options=pacsv.ReadOptions(block_size=block_mb << 20, use_threads=True),
+                parse_options=pacsv.ParseOptions(delimiter=self._settings.delimiter,
+                                                 quote_char=self._settings.quotechar or False),
+                convert_options=pacsv.ConvertOptions(
+                    column_types={c: pa.string() for c in header},
+                    include_columns=list(keep) if keep else None,
+                    strings_can_be_null=False, quoted_strings_can_be_null=False),
+            )
+            for rb in reader:
+                if rb.num_rows:
+                    df = rb.to_pandas()
+                    emitted += len(df)
+                    yield df
+        except (pa.ArrowInvalid, UnicodeDecodeError) as e:
+            yield from handover(str(e).splitlines()[0][:160], skip_rows=emitted)
+
     @staticmethod
     def _rows_to_frame(rows: List[List[str]], header: List[str], regular_header: bool, pd: Any,
                        keep: Optional[List[str]] = None) -> Any:

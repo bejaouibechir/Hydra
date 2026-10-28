@@ -124,8 +124,8 @@ def test_job_parity_pandas_duckdb(tmp_path, monkeypatch, steps):
         job = _job(tmp_path / engine, steps)
         r = JobExecutor(job_dir=str(job)).run()
         assert r.success, r
-        out[engine] = pd.read_csv(job / "data" / "out.csv", keep_default_na=False)
-    pd.testing.assert_frame_equal(out["pandas"], out["duckdb"], check_exact=False, rtol=1e-9)
+        out[engine] = (job / "data" / "out.csv").read_bytes()
+    assert out["pandas"] == out["duckdb"]          # mêmes octets, sommes comprises
 
 
 def test_auto_engine_above_threshold(tmp_path, monkeypatch):

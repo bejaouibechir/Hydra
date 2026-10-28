@@ -108,8 +108,10 @@ def decide(requested: str, has_global: bool, csv_path: Optional[Path]) -> Tuple[
 
 
 # ── Opérations globales dans DuckDB ──────────────────────────────────────────
-_AGG_SQL = {"sum": "coalesce(sum({c}), 0)", "count": "count({c})", "mean": "avg({c})",
-            "avg": "avg({c})", "min": "min({c})", "max": "max({c})"}
+# fsum : somme compensée (Kahan), comme pandas — mêmes chiffres jusqu'au dernier décimal
+_AGG_SQL = {"sum": "coalesce(fsum({c}), 0)", "count": "count({c})",
+            "mean": "fsum({c}) / count({c})", "avg": "fsum({c}) / count({c})",
+            "min": "min({c})", "max": "max({c})"}
 
 
 def _q(name: str) -> str:
@@ -171,6 +173,9 @@ class DuckGlobal:
         a) est rendu à `pandas_tail(df, steps_restants)`."""
         if not self._created:
             return pd.DataFrame()
+        # Un seul fil pour le calcul final (≈ 0,03 s) : sommes faites dans l'ordre
+        # des lignes, comme pandas, au lieu de partiels combinés dans un ordre variable.
+        self.con.execute("SET threads=1")
         rel, done = "t", 0
         for i, step in enumerate(steps):
             op, p = self._step(step)

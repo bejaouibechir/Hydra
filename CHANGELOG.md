@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-10-28
+
 ### Added
 
 - Studio Project settings: a **wait** field on each workflow of the execution

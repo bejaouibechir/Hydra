@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-10-29
+
 ### Added
 
 - **Large-volume engine** (optional, `pip install "hydra-etl[duckdb]"`, which now also installs pyarrow):

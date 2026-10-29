@@ -4,6 +4,8 @@ import {
   sectionYamlsToJobModel,
   jobModelToFlow,
   flowToJobModel,
+  jobEngineOf,
+  withJobEngine,
   type HydraJobModel,
 } from './hdrSerializer'
 
@@ -283,5 +285,45 @@ describe('hdrSerializer — fidélité disque → canvas → disque', () => {
       data: { nodeType: 'source_csv', label: 'CSV', params: { path: 'a.csv' } } }] as never
     const back = flowToJobModel(nodes, [], 'j')
     expect(Object.values(back.sources)[0].extract.batch_size).toBe(1000)
+  })
+})
+
+describe('engine: (moteur gros volumes)', () => {
+  const files = (tf: string) => ({
+    sources: 'version: "1.0"\nsources:\n  orders:\n    type: csv\n    connection: {}\n    extract:\n      table: data/orders.csv\n',
+    transformations: tf,
+    destinations: 'version: "1.0"\ndestinations:\n  out:\n    type: csv\n    connection: {}\n    load:\n      table: out.csv\n      mode: replace\n',
+    pipeline: 'version: "1.0"\npipeline:\n  name: j\n  from: orders\n  to: out\n  transformations: transformations\n',
+  })
+  const STEPS = '  - sort:\n      by: [amount]\n'
+
+  it('lu à la racine ou sous transformations:, gardé par le canvas, réécrit', () => {
+    for (const tf of [`engine: duckdb\nsteps:\n${STEPS}`, `transformations:\n  engine: DuckDB\n  steps:\n  ${STEPS.replace(/\n  /g, '\n    ')}`]) {
+      const model = sectionYamlsToJobModel(files(tf), 'j')!
+      expect(model.transformations.engine).toBe('duckdb')
+      const { nodes, edges } = jobModelToFlow(model)
+      expect(jobEngineOf(nodes)).toBe('duckdb')
+      const back = flowToJobModel(nodes, edges, 'j')
+      expect(back.transformations.engine).toBe('duckdb')
+      expect(jobModelToSectionYamls(back).transformations).toContain('engine: duckdb')
+    }
+  })
+
+  it('absent ou inconnu : rien d\'écrit (auto)', () => {
+    for (const tf of [`steps:\n${STEPS}`, `engine: spark\nsteps:\n${STEPS}`]) {
+      const model = sectionYamlsToJobModel(files(tf), 'j')!
+      expect(model.transformations.engine).toBeUndefined()
+      const { nodes, edges } = jobModelToFlow(model)
+      expect(jobModelToSectionYamls(flowToJobModel(nodes, edges, 'j')).transformations).not.toContain('engine')
+    }
+  })
+
+  it('withJobEngine : posé sur la première source, retiré avec auto', () => {
+    const { nodes, edges } = jobModelToFlow(sectionYamlsToJobModel(files(`steps:\n${STEPS}`), 'j')!)
+    const set = withJobEngine(nodes, 'pandas')
+    expect(jobEngineOf(set)).toBe('pandas')
+    expect(flowToJobModel(set, edges, 'j').transformations.engine).toBe('pandas')
+    const cleared = withJobEngine(set, undefined)
+    expect(jobEngineOf(cleared)).toBeUndefined()
   })
 })

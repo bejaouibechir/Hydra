@@ -17,7 +17,7 @@ import * as YAML from 'js-yaml'
 import { api, conflictFiles, type Run } from '@/lib/api'
 import { validateDAG, edgesToDAGNodes } from '@/lib/dag'
 import { flowToWorkflow, workflowToYAMLString, workflowToFlow, parseWorkflowYAML, isContainerNode, isProxyEdge, CONTAINER_NODE_TYPE, type FlowNodeData } from '@/lib/workflowSerializer'
-import { flowToHdr, parseHdr, sectionYamlsToJobModel, jobModelToFlow, flowToJobModel, jobModelToSectionYamls, type JobSectionYamls } from '@/lib/hdrSerializer'
+import { flowToHdr, parseHdr, sectionYamlsToJobModel, jobModelToFlow, flowToJobModel, jobModelToSectionYamls, jobEngineOf, withJobEngine, JOB_ENGINES, type JobEngine, type JobSectionYamls } from '@/lib/hdrSerializer'
 import type { JobFilesPayload } from '@/lib/api'
 import { getNode } from '@/lib/nodeRegistry'
 import { validateConnection } from '@/lib/nodeValidation'
@@ -40,7 +40,7 @@ import {
   Save, Play, ChevronLeft, AlertTriangle, CheckCircle2, GitBranch,
   ChevronDown, ChevronUp, Terminal, Circle, Code2, Upload,
   Undo2, Redo2, Trash2, FolderOpen, Package, MoreHorizontal,
-  Pencil, Copy, ArrowLeft, Archive, Boxes, RefreshCw, RotateCcw,
+  Pencil, Copy, ArrowLeft, Archive, Boxes, RefreshCw, RotateCcw, Cpu,
 } from 'lucide-react'
 import { useUndoRedo } from '@/hooks/useUndoRedo'
 import { loadSettings } from '@/pages/Settings'
@@ -1971,6 +1971,30 @@ function WorkflowEditorInner() {
             <RefreshCw size={13} className={syncBusy ? 'animate-spin' : undefined} />
             Sync with disk
           </button>
+        )}
+
+        {isJobScene && activeJobId && (
+          <label
+            className="btn-secondary text-xs !py-1.5"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            title={'engine: — engine for global operations (aggregate, sort). auto: pandas, except above '
+              + '2 million estimated rows, where the large-volume engine (pyarrow + DuckDB, '
+              + 'pip install "hydra-etl[duckdb]") is used. The HYDRA_ENGINE variable takes precedence.'}
+          >
+            <Cpu size={13} />
+            Engine
+            <select
+              data-testid="job-engine"
+              value={jobEngineOf(nodes as Node<FlowNodeData>[]) ?? 'auto'}
+              onChange={e => {
+                const v = e.target.value as JobEngine
+                setNodes(nds => withJobEngine(nds as Node<FlowNodeData>[], v === 'auto' ? undefined : v))
+              }}
+              style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: 12, cursor: 'pointer' }}
+            >
+              {JOB_ENGINES.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </label>
         )}
 
         {!isJobScene && (

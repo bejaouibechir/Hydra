@@ -14,6 +14,16 @@
     }
   ],
   "properties": {
+    "engine": {
+      "default": "auto",
+      "description": "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf au-delà de HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) : moteur gros volumes (pyarrow + DuckDB, extra hydra-etl[duckdb]). La variable HYDRA_ENGINE est prioritaire.",
+      "enum": [
+        "auto",
+        "pandas",
+        "duckdb"
+      ],
+      "type": "string"
+    },
     "steps": {
       "description": "Liste ordonnée d'étapes, chacune étant un objet à UNE seule clé : le nom de l'opération.",
       "items": {
@@ -650,6 +660,16 @@
     "transformations": {
       "description": "Forme imbriquée, équivalente à 'steps' à la racine.",
       "properties": {
+        "engine": {
+          "default": "auto",
+          "description": "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf au-delà de HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) : moteur gros volumes (pyarrow + DuckDB, extra hydra-etl[duckdb]). La variable HYDRA_ENGINE est prioritaire.",
+          "enum": [
+            "auto",
+            "pandas",
+            "duckdb"
+          ],
+          "type": "string"
+        },
         "steps": {
           "description": "Liste ordonnée d'étapes, chacune étant un objet à UNE seule clé : le nom de l'opération.",
           "items": {

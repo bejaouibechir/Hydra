@@ -57,12 +57,23 @@ def test_arrow_reader_matches_python_reader(tmp_path, name):
 
 def test_requested_engine(monkeypatch):
     monkeypatch.delenv("HYDRA_ENGINE", raising=False)
-    assert lv.requested_engine() == "auto"
-    monkeypatch.setenv("HYDRA_ENGINE", "DuckDB")
-    assert lv.requested_engine() == "duckdb"
+    assert lv.requested_engine() == ("auto", "engine: auto")
+    assert lv.requested_engine("duckdb") == ("duckdb", "engine: duckdb")
+    monkeypatch.setenv("HYDRA_ENGINE", "Pandas")
+    assert lv.requested_engine("duckdb") == ("pandas", "HYDRA_ENGINE=pandas")   # variable prioritaire
     monkeypatch.setenv("HYDRA_ENGINE", "spark")
     with pytest.raises(ValueError, match="inconnu"):
         lv.requested_engine()
+
+
+def test_engine_key_parsed():
+    from hydra_etl.internal.parser.transform import TransformParser
+    one = [{"sort": {"by": ["a"]}}]
+    assert TransformParser().parse({"steps": one}).engine == "auto"
+    assert TransformParser().parse({"engine": "DuckDB", "steps": one}).engine == "duckdb"
+    assert TransformParser().parse({"transformations": {"engine": "pandas", "steps": one}}).engine == "pandas"
+    with pytest.raises(Exception, match="engine"):
+        TransformParser().parse({"engine": "spark", "steps": one})
 
 
 def test_decide_auto(tmp_path, monkeypatch):
@@ -78,7 +89,7 @@ def test_decide_auto(tmp_path, monkeypatch):
     assert lv.estimate_csv_rows(p) == pytest.approx(1000, rel=0.01)
 
 
-def _job(tmp: Path, steps: str) -> Path:
+def _job(tmp: Path, steps: str, engine: str = "") -> Path:
     job = tmp / "job"
     (job / "data").mkdir(parents=True)
     rows = "".join(
@@ -93,7 +104,7 @@ def _job(tmp: Path, steps: str) -> Path:
         "destinations:\n  dst:\n    type: csv\n    load:\n      table: data/out.csv\n      mode: replace\n",
         encoding="utf-8")
     (job / "pipeline.yaml").write_text("pipeline:\n  from: src\n  to: dst\n", encoding="utf-8")
-    (job / "transformations.yaml").write_text("steps:\n" + steps, encoding="utf-8")
+    (job / "transformations.yaml").write_text(engine + "steps:\n" + steps, encoding="utf-8")
     return job
 
 
@@ -135,4 +146,27 @@ def test_auto_engine_above_threshold(tmp_path, monkeypatch):
     assert ex.run().success and ex.engine == "duckdb"
     monkeypatch.setenv("HYDRA_LARGE_VOLUME_ROWS", "2000000")
     ex = JobExecutor(job_dir=str(_job(tmp_path / "small", AGG)))
+    assert ex.run().success and ex.engine == "pandas"
+
+
+@pytest.mark.parametrize("head, expected", [
+    ("engine: duckdb\n", "duckdb"),
+    ("transformations:\n  engine: duckdb\n", None),          # forme imbriquée : voir ci-dessous
+    ("engine: pandas\n", "pandas"),
+])
+def test_engine_from_transformations_yaml(tmp_path, monkeypatch, head, expected):
+    monkeypatch.delenv("HYDRA_ENGINE", raising=False)
+    monkeypatch.setenv("HYDRA_LARGE_VOLUME_ROWS", "1000")         # auto choisirait duckdb
+    if expected is None:                                           # forme écrite par Studio
+        job = _job(tmp_path, "")
+        steps = "\n".join("  " + ln if ln else ln for ln in AGG.splitlines())
+        (job / "transformations.yaml").write_text(head + "  steps:\n" + steps + "\n", encoding="utf-8")
+        expected = "duckdb"
+    else:
+        job = _job(tmp_path, AGG, engine=head)
+    ex = JobExecutor(job_dir=str(job))
+    assert ex.run().success
+    assert ex.engine == expected and ex.engine_reason == f"engine: {expected}"
+    monkeypatch.setenv("HYDRA_ENGINE", "pandas")                   # la variable l'emporte
+    ex = JobExecutor(job_dir=str(job))
     assert ex.run().success and ex.engine == "pandas"

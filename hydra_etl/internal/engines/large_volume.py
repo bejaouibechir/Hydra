@@ -16,7 +16,8 @@ le même résultat.
    Une opération globale qu'il ne sait pas traduire est rendue à pandas (sur
    le résultat de DuckDB), avec un message : jamais de repli silencieux.
 
-Choix du moteur : variable HYDRA_ENGINE = auto (défaut) | pandas | duckdb.
+Choix du moteur : `engine: auto | pandas | duckdb` dans transformations.yaml,
+ou la variable HYDRA_ENGINE (prioritaire) ; auto par défaut.
 `auto` : DuckDB si le job a
 une opération globale et que la source dépasse HYDRA_LARGE_VOLUME_ROWS lignes
 estimées (2 000 000 par défaut) ; sinon pandas.
@@ -55,13 +56,18 @@ def threshold() -> int:
         return DEFAULT_THRESHOLD
 
 
-def requested_engine(transforms_raw: Any = None) -> str:  # noqa: ARG001 — clé DSL `engine:` à venir
-    """Moteur demandé : HYDRA_ENGINE (auto | pandas | duckdb), auto par défaut.
-    La clé `engine:` de transformations.yaml viendra avec son support DSL / Studio."""
-    val = os.environ.get("HYDRA_ENGINE", "").strip().lower() or "auto"
+def requested_engine(declared: Optional[str] = None) -> Tuple[str, str]:
+    """(moteur demandé, origine) : HYDRA_ENGINE, sinon `engine:` de
+    transformations.yaml, sinon auto."""
+    env = os.environ.get("HYDRA_ENGINE", "").strip().lower()
+    if env:
+        if env not in ENGINES:
+            raise ValueError(f"HYDRA_ENGINE='{env}' inconnu (attendu : {', '.join(ENGINES)})")
+        return env, f"HYDRA_ENGINE={env}"
+    val = str(declared or "auto").strip().lower()
     if val not in ENGINES:
-        raise ValueError(f"HYDRA_ENGINE='{val}' inconnu (attendu : {', '.join(ENGINES)})")
-    return val
+        raise ValueError(f"engine: '{val}' inconnu (attendu : {', '.join(ENGINES)})")
+    return val, f"engine: {val}"
 
 
 def estimate_csv_rows(path: Path) -> int:
@@ -79,14 +85,16 @@ def estimate_csv_rows(path: Path) -> int:
         return 0
 
 
-def decide(requested: str, has_global: bool, csv_path: Optional[Path]) -> Tuple[str, str]:
-    """(moteur retenu, raison)."""
+def decide(requested: Any, has_global: bool, csv_path: Optional[Path]) -> Tuple[str, str]:
+    """(moteur retenu, raison). `requested` : résultat de requested_engine()
+    (ou simplement le nom du moteur)."""
+    requested, origin = requested if isinstance(requested, tuple) else (requested, f"engine: {requested}")
     if requested == "pandas":
-        return "pandas", "HYDRA_ENGINE=pandas"
+        return "pandas", origin
     if requested == "duckdb":
         if not available():
-            raise ValueError("HYDRA_ENGINE=duckdb demande duckdb et pyarrow : pip install 'hydra-etl[duckdb]'")
-        return "duckdb", "HYDRA_ENGINE=duckdb"
+            raise ValueError(f"{origin} demande duckdb et pyarrow : pip install 'hydra-etl[duckdb]'")
+        return "duckdb", origin
     # auto
     if not has_global:
         return "pandas", "auto : aucune opération globale"

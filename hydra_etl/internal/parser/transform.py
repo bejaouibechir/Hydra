@@ -406,8 +406,35 @@ class TransformStep(BaseModel):
         return self
 
 
+ENGINES = ("auto", "pandas", "duckdb")
+
+
+def _engine_of(data: Dict[str, Any]) -> Any:
+    """`engine:` à la racine ou sous `transformations:` (forme écrite par Studio)."""
+    if "engine" in data:
+        return data["engine"]
+    inner = data.get("transformations")
+    if isinstance(inner, dict) and "engine" in inner:
+        return inner["engine"]
+    return None
+
+
 class TransformConfig(BaseModel):
     steps: List[TransformStep] = Field(min_length=1)
+    engine: Literal["auto", "pandas", "duckdb"] = Field(
+        default="auto",
+        description=(
+            "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf "
+            "au-delà de HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) où le moteur "
+            "gros volumes (pyarrow + DuckDB, extra hydra-etl[duckdb]) est utilisé. "
+            "pandas / duckdb : forcé. La variable HYDRA_ENGINE est prioritaire."
+        ),
+    )
+
+    @field_validator("engine", mode="before")
+    @classmethod
+    def _lower_engine(cls, v: Any) -> Any:
+        return v.strip().lower() if isinstance(v, str) else v
 
     @model_validator(mode="before")
     @classmethod
@@ -415,7 +442,11 @@ class TransformConfig(BaseModel):
         if isinstance(data, dict) and "steps" not in data and "transformations" in data:
             inner = data.get("transformations")
             if isinstance(inner, dict) and "steps" in inner:
-                return {"steps": inner["steps"]}
+                out = {"steps": inner["steps"]}
+                engine = _engine_of(data)
+                if engine is not None:
+                    out["engine"] = engine
+                return out
         return data
 
 
@@ -454,6 +485,7 @@ class TransformParser:
 
     def _convert_steps(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         data = raw
+        engine = _engine_of(raw) if isinstance(raw, dict) else None
 
         if "steps" not in data and "transformations" in data and isinstance(data["transformations"], dict):
             data = {"steps": data["transformations"].get("steps")}
@@ -481,4 +513,7 @@ class TransformParser:
 
             converted_steps.append({"op": op, "params": self._coerce_param_types(params)})
 
-        return {"steps": converted_steps}
+        out: Dict[str, Any] = {"steps": converted_steps}
+        if engine is not None:
+            out["engine"] = engine
+        return out

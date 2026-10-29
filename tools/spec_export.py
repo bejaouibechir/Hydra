@@ -249,6 +249,17 @@ def transformations_surface_schema(operations: Dict[str, Any]) -> Dict[str, Any]
         "description": "Liste ordonnée d'étapes, chacune étant un objet à UNE seule clé : le nom de l'opération.",
     }
 
+    engine = {
+        "type": "string",
+        "enum": ["auto", "pandas", "duckdb"],
+        "default": "auto",
+        "description": (
+            "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf au-delà de "
+            "HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) : moteur gros volumes "
+            "(pyarrow + DuckDB, extra hydra-etl[duckdb]). La variable HYDRA_ENGINE est prioritaire."
+        ),
+    }
+
     return {
         "$schema": JSON_SCHEMA_DIALECT,
         "$id": f"https://hydra.local/schemas/{product_version()}/manifests/transformations.surface.schema.json",
@@ -256,10 +267,11 @@ def transformations_surface_schema(operations: Dict[str, Any]) -> Dict[str, Any]
         "type": "object",
         "properties": {
             "version": {"type": "string"},
+            "engine": engine,
             "steps": steps,
             "transformations": {
                 "type": "object",
-                "properties": {"steps": steps},
+                "properties": {"engine": engine, "steps": steps},
                 "required": ["steps"],
                 "description": "Forme imbriquée, équivalente à 'steps' à la racine.",
             },

@@ -1,6 +1,8 @@
 # This file contains DELIBERATE errors.
 
 version: "1.0"
+engine: spark
+# ERROR 0 — engine is auto, pandas or duckdb.
 steps:
   - select:
       columns: []

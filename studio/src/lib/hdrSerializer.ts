@@ -23,7 +23,7 @@ export interface HdrDoc {
   job: {
     name: string
     sources:         Record<string, HdrSource>
-    transformations?: { steps: HdrStep[] }
+    transformations?: { engine?: JobEngine; steps: HdrStep[] }
     destinations:    Record<string, HdrDest>
     pipeline: { from: string; to: string; transformations?: string }
   }
@@ -36,9 +36,41 @@ export interface HdrDoc {
 export interface HydraJobModel {
   name:            string
   sources:         Record<string, HdrSource>
-  transformations: { steps: HdrStep[] }
+  transformations: { engine?: JobEngine; steps: HdrStep[] }
   destinations:    Record<string, HdrDest>
   pipeline:        { from: string; to: string; transformations?: string }
+}
+
+/** `engine:` de transformations.yaml — moteur des opérations globales. */
+export type JobEngine = 'auto' | 'pandas' | 'duckdb'
+export const JOB_ENGINES: JobEngine[] = ['auto', 'pandas', 'duckdb']
+
+function _asEngine(v: unknown): JobEngine | undefined {
+  const e = typeof v === 'string' ? v.trim().toLowerCase() : ''
+  return (JOB_ENGINES as string[]).includes(e) ? e as JobEngine : undefined
+}
+
+/** Moteur du job porté par le canvas : paramètre `_engine` d'un nœud (posé sur
+ *  la première source à l'import). Absent = non écrit dans le YAML (auto). */
+export function jobEngineOf(nodes: Node<FlowNodeData>[]): JobEngine | undefined {
+  for (const n of nodes) {
+    const e = _asEngine((n.data?.params as Record<string, unknown> | undefined)?._engine)
+    if (e) return e
+  }
+  return undefined
+}
+
+/** Pose le moteur du job sur la première source (et le retire des autres nœuds). */
+export function withJobEngine(nodes: Node<FlowNodeData>[], engine: JobEngine | undefined): Node<FlowNodeData>[] {
+  const first = nodes.find(n => String(n.data?.nodeType ?? '').startsWith('source_'))
+  return nodes.map(n => {
+    const params = { ...((n.data?.params ?? {}) as Record<string, unknown>) }
+    const had = '_engine' in params
+    delete params._engine
+    if (n === first && engine) params._engine = engine
+    else if (!had) return n
+    return { ...n, data: { ...n.data, params } }
+  })
 }
 
 /** Textes YAML des 4 sections (un par onglet) */
@@ -735,10 +767,11 @@ export function flowToJobModel(
     firstDestKey = 'dest_main'
   }
 
+  const engine = jobEngineOf(nodes)
   return {
     name,
     sources,
-    transformations: { steps },
+    transformations: { ...(engine ? { engine } : {}), steps },
     destinations,
     pipeline: {
       from: firstSrcKey,
@@ -778,7 +811,7 @@ export function sectionYamlsToJobModel(yamls: JobSectionYamls, name: string): Hy
     // (écrite par Studio) et `steps: [...]` à la racine (hdrctl init, CLI, à la
     // main). Ignorer la 2e faisait perdre les transformations à la réécriture.
     const tf   = YAML.load(yamls.transformations) as
-      { transformations?: { steps?: HdrStep[] }; steps?: HdrStep[] } | null
+      { transformations?: { steps?: HdrStep[]; engine?: unknown }; steps?: HdrStep[]; engine?: unknown } | null
     const dst  = YAML.load(yamls.destinations) as { destinations?: Record<string, HdrDest> }
     type PipeShape = { name?: string; from: string; to: string; transformations?: string }
     const pip  = YAML.load(yamls.pipeline) as {
@@ -787,7 +820,9 @@ export function sectionYamlsToJobModel(yamls: JobSectionYamls, name: string): Hy
     }
 
     const sources         = src?.sources ?? {}
+    const engine = _asEngine(tf?.transformations?.engine ?? tf?.engine)
     const transformations = {
+      ...(engine ? { engine } : {}),
       steps: (Array.isArray(tf?.transformations?.steps) ? tf!.transformations!.steps
         : Array.isArray(tf?.steps) ? tf!.steps : []) as HdrStep[],
     }
@@ -824,6 +859,7 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
       path: (src.extract?.table as string) ?? (src.connection as Record<string, unknown> | undefined)?.uri,
       _key: key,
       _orig: JSON.stringify({ connection: src.connection ?? {}, extract: src.extract ?? {} }),
+      ...(key === srcKeys[0] && model.transformations.engine ? { _engine: model.transformations.engine } : {}),
     }
     nodes.push({
       id, type: 'hydraNode', position: { x, y: 100 },

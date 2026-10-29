@@ -580,8 +580,17 @@ pip install "hydra-etl[duckdb]"
 hdrctl run . --profile          # the profile shows the engine chosen and why
 ```
 
-`HYDRA_ENGINE=auto` (default) picks DuckDB when the job has a global operation and the CSV source holds
+`engine: auto` (default) picks DuckDB when the job has a global operation and the CSV source holds
 more than `HYDRA_LARGE_VOLUME_ROWS` estimated rows (2,000,000); `pandas` or `duckdb` force the choice.
+Set it per job in `transformations.yaml` (Studio: **Engine** selector of a job), or for a whole run with
+the `HYDRA_ENGINE` variable, which takes precedence:
+
+```yaml
+engine: auto          # auto | pandas | duckdb
+steps:
+  - aggregate: {by: [country], agg: {revenue: {func: sum, col: amount}}}
+```
+
 A global operation DuckDB cannot translate is handed back to pandas, with a log message; the fast CSV
 reader hands over to the Python reader (irregular row, BOM, duplicate header, non-UTF-8 encoding),
 with a warning. Parity tests: `tests/test_large_volume.py`.

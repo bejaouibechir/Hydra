@@ -7,6 +7,12 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `engine: auto | pandas | duckdb` in `transformations.yaml` (root or under `transformations:`) chooses the
+  engine of a job's global operations; `HYDRA_ENGINE` still takes precedence. Studio: **Engine** selector
+  on a job's canvas, kept on round-trips with the YAML files. JSON schemas (Hydra DSL, VS Code) updated.
+
 ## [0.15.0] — 2026-10-29
 
 ### Added

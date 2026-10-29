@@ -158,6 +158,7 @@ class JobExecutor:
             dests_cfg = self._dest_parser.parse(dests_raw)
 
             steps: List[Dict[str, Any]] = []
+            transforms_cfg = None
             # Un transformations.yaml présent mais SANS steps (steps: []) est
             # valide : job source → destination sans transformation.
             # (Cas généré par Studio et fréquent en création manuelle.)
@@ -229,7 +230,7 @@ class JobExecutor:
                         table=extract_table, batch_size=extract_batch_size, query=extract_query)
                 except Exception:  # noqa: BLE001 — l'erreur sortira à la lecture, avec son message
                     csv_path = None
-            engine, engine_reason = lv.decide(lv.requested_engine(transforms_raw),
+            engine, engine_reason = lv.decide(lv.requested_engine(getattr(transforms_cfg, "engine", None)),
                                               bool(global_steps), csv_path)
             self.engine, self.engine_reason = engine, engine_reason
             duck = lv.DuckGlobal() if engine == "duckdb" and global_steps else None

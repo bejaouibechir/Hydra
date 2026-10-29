@@ -53,6 +53,17 @@
   "$id": "https://hydra.local/schemas/0.15.0/manifests/transformations.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "engine": {
+      "default": "auto",
+      "description": "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf au-delà de HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) où le moteur gros volumes (pyarrow + DuckDB, extra hydra-etl[duckdb]) est utilisé. pandas / duckdb : forcé. La variable HYDRA_ENGINE est prioritaire.",
+      "enum": [
+        "auto",
+        "pandas",
+        "duckdb"
+      ],
+      "title": "Engine",
+      "type": "string"
+    },
     "steps": {
       "items": {
         "$ref": "#/$defs/TransformStep"

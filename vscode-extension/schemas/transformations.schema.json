@@ -13,17 +13,32 @@
       "description": "Hydra DSL version.",
       "examples": ["1.0"]
     },
+    "engine": { "$ref": "#/definitions/engine" },
     "steps": { "$ref": "#/definitions/stepList" },
     "transformations": {
       "type": "object",
       "description": "Nested form, equivalent to 'steps' at the root.",
       "required": ["steps"],
       "additionalProperties": false,
-      "properties": { "steps": { "$ref": "#/definitions/stepList" } }
+      "properties": {
+        "engine": { "$ref": "#/definitions/engine" },
+        "steps": { "$ref": "#/definitions/stepList" }
+      }
     }
   },
 
   "definitions": {
+    "engine": {
+      "type": "string",
+      "enum": ["auto", "pandas", "duckdb"],
+      "default": "auto",
+      "description": "Engine for global operations (aggregate, sort). auto: pandas, except above HYDRA_LARGE_VOLUME_ROWS estimated rows (2,000,000), where the large-volume engine (pyarrow + DuckDB, extra hydra-etl[duckdb]) is used. The HYDRA_ENGINE variable takes precedence.",
+      "markdownEnumDescriptions": [
+        "pandas below about 2 million estimated rows, large-volume engine above",
+        "always pandas",
+        "always the large-volume engine (`pip install \"hydra-etl[duckdb]\"`)"
+      ]
+    },
     "stepList": {
       "type": "array",
       "minItems": 1,

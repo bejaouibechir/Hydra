@@ -1,4 +1,5 @@
 version: "1.0"
+engine: auto            # auto | pandas | duckdb (large volumes)
 steps:
   - select:
       columns: [id, customer_id, amount, status, created_at]

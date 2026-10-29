@@ -569,11 +569,16 @@ Python automatically whenever that guarantee cannot be kept. Benchmarks: [`bench
 ## Large-volume engine (optional)
 
 pandas stays the reference engine. Above about two million rows, a job with a global operation
-(`aggregate`, `sort`…) can switch two steps to faster engines, with the same results:
+(`aggregate`, `sort`, right or outer `join`…) can switch two steps to faster engines, with the same results:
 
 - CSV reading with pyarrow (C++, several cores), in large batches;
-- `aggregate` and `sort` in a temporary DuckDB database on disk, instead of gathering every row in memory.
-  Row-by-row steps (`filter`, `cast`, inner `join`, `calculate`…) still run in pandas, batch by batch.
+- `aggregate`, `sort` and right / outer `join` in a temporary DuckDB database on disk, instead of gathering
+  every row in memory; only the columns they need are copied. Row-by-row steps (`filter`, `cast`, inner or
+  left `join`, `calculate`…) still run in pandas, batch by batch.
+
+Same rows, columns, order and types as pandas (`sort` is stable: ties keep their input order). Sums use a
+compensated summation, like pandas; on rare values the last digit can still differ (`261.1` against
+`261.09999999999997`).
 
 ```bash
 pip install "hydra-etl[duckdb]"

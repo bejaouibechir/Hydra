@@ -12,6 +12,14 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - `engine: auto | pandas | duckdb` in `transformations.yaml` (root or under `transformations:`) chooses the
   engine of a job's global operations; `HYDRA_ENGINE` still takes precedence. Studio: **Engine** selector
   on a job's canvas, kept on round-trips with the YAML files. JSON schemas (Hydra DSL, VS Code) updated.
+- Large-volume engine: right and outer `join` run in DuckDB, with the same rows, columns, order and types
+  as pandas; only the columns the following aggregation needs are copied. 20 million rows, right join then
+  aggregation (2 CPUs): 71.8 s / 3.4 GB → 27.7 s / 2.6 GB.
+
+### Changed
+
+- `sort` is stable: rows with equal sort keys keep their input order (it was so already for several
+  columns, not always for one).
 
 ## [0.15.0] — 2026-10-29
 

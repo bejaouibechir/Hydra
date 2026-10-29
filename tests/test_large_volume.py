@@ -170,3 +170,122 @@ def test_engine_from_transformations_yaml(tmp_path, monkeypatch, head, expected)
     monkeypatch.setenv("HYDRA_ENGINE", "pandas")                   # la variable l'emporte
     ex = JobExecutor(job_dir=str(job))
     assert ex.run().success and ex.engine == "pandas"
+
+
+# ── join right / outer dans DuckDB ──────────────────────────────────────────
+def _random_join_case(rnd):
+    import random  # noqa: F401
+    keytype = rnd.choice(["str", "int"])
+    nk = rnd.choice([1, 1, 2])
+    kv = (lambda: str(rnd.randint(0, 6))) if keytype == "str" else (lambda: rnd.randint(0, 6))
+    nl, nr = rnd.randint(1, 40), rnd.randint(1, 12)
+    left = pd.DataFrame({**{f"k{i}": [kv() for _ in range(nl)] for i in range(nk)},
+                         "v": [rnd.randint(0, 9) for _ in range(nl)],
+                         "amount": [round(rnd.uniform(0, 100), 2) for _ in range(nl)],
+                         "x": [f"l{j}" for j in range(nl)],
+                         "b": [rnd.random() < .5 for _ in range(nl)]})
+    keys = [f"k{i}" for i in range(nk)]
+    rows = [{**{f"k{i}": kv() for i in range(nk)}, "x": f"r{j}", "country": rnd.choice(["FR", "TN", "DE"]),
+             "n": rnd.randint(0, 9)} for j in range(nr)]
+    how = rnd.choice(["right", "outer"])
+    if rnd.random() < .5:
+        jp = {"key": keys if nk > 1 else keys[0], "how": how}
+    else:
+        rows = [{("r" + k if k in keys else k): v for k, v in r.items()} for r in rows]
+        jp = {"left_key": keys, "right_key": ["r" + k for k in keys], "how": how}
+    jp["_right_rows"] = rows
+    tail = rnd.choice([[], [{"sort": {"by": ["x"]}}], [{"fill_null": {"value": 0}}],
+                       [{"aggregate": {"by": ["country"], "agg": {
+                           "s": {"func": "sum", "col": "amount"}, "c": {"func": "count", "col": "x"},
+                           "mx": {"func": "max", "col": "v"}}}}]])
+    return left, [{"join": jp}] + tail
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_join_right_outer_parity(seed):
+    """Mêmes lignes, colonnes, ordre et types que pandas (df.merge), clés texte ou
+    entières, simples ou multiples, key ou left_key / right_key, colonnes en double
+    (suffixe _r), lots multiples, suivis de sort / aggregate / fill_null."""
+    import random
+    import warnings
+    from hydra_etl.internal.engines.pandas_engine import PandasEngine
+    eng, rnd = PandasEngine(), random.Random(seed)
+
+    def pandas_run(df, steps):
+        for st in steps:
+            df = eng.apply_step(df, st).output
+        return df
+
+    for _ in range(60):
+        left, steps = _random_join_case(rnd)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            expected = pandas_run(left.copy(), steps)
+            d = lv.DuckGlobal()
+            handed = []
+            try:
+                d.keep_only(steps)
+                cut = rnd.randint(1, len(left))
+                d.append(left.iloc[:cut].reset_index(drop=True))
+                d.append(left.iloc[cut:].reset_index(drop=True))
+                got = d.run(steps, lambda df, rest, done: (handed.append(done), pandas_run(df, rest))[1])
+            finally:
+                d.close()
+        assert not handed or handed[0] > 0, "la jointure doit être faite par DuckDB"
+        agg = any("aggregate" in st for st in steps)
+        # sommes : DuckDB (fsum) et pandas peuvent différer au dernier chiffre
+        pd.testing.assert_frame_equal(expected.reset_index(drop=True), got.reset_index(drop=True),
+                                      check_exact=not agg, rtol=1e-12)
+        if not agg:
+            assert expected.to_csv(index=False) == got.to_csv(index=False)
+
+
+def test_join_falls_back_to_pandas_when_not_guaranteed():
+    """Clés avec vides ou de types différents : pandas s'en charge (même résultat)."""
+    left = pd.DataFrame({"k": ["a", None, "b"], "v": [1, 2, 3]})
+    steps = [{"join": {"key": "k", "how": "outer", "_right_rows": [{"k": "a", "w": "x"}]}}]
+    d = lv.DuckGlobal()
+    handed = []
+    try:
+        d.append(left)
+        d.run(steps, lambda df, rest, done: (handed.append(done), df)[1])
+    finally:
+        d.close()
+    assert handed == [0]
+
+
+JOIN_RIGHT = """  - filter: {expr: "status == 'paid'"}
+  - cast: {mapping: {amount: float}}
+  - join: {right: customers, key: customer, how: HOW}
+  - aggregate:
+      by: [country]
+      agg:
+        revenue: {func: sum, col: amount}
+        orders: {func: count, col: id}
+  - sort: {by: [revenue], ascending: false}
+"""
+
+
+@pytest.mark.parametrize("how", ["right", "outer"])
+def test_job_join_right_outer_pandas_duckdb(tmp_path, monkeypatch, how):
+    out = {}
+    for engine in ("pandas", "duckdb"):
+        monkeypatch.setenv("HYDRA_ENGINE", engine)
+        job = _job(tmp_path / engine, JOIN_RIGHT.replace("HOW", how))
+        (job / "data" / "customers.csv").write_text(
+            "customer,country\n" + "".join(f"C{i},{'FR' if i % 2 else 'TN'}\n" for i in range(9)),
+            encoding="utf-8")
+        (job / "sources.yaml").write_text(
+            (job / "sources.yaml").read_text(encoding="utf-8")
+            + "  customers:\n    type: csv\n    extract:\n      table: data/customers.csv\n", encoding="utf-8")
+        r = JobExecutor(job_dir=str(job)).run()
+        assert r.success, r
+        out[engine] = pd.read_csv(job / "data" / "out.csv", keep_default_na=False)
+    pd.testing.assert_frame_equal(out["pandas"], out["duckdb"], check_exact=False, rtol=1e-12)
+
+
+def test_sort_is_stable():
+    from hydra_etl.internal.engines.pandas_engine import PandasEngine
+    df = pd.DataFrame({"k": [1, 0] * 50, "i": range(100)})
+    out = PandasEngine().apply_step(df, {"sort": {"by": ["k"]}}).output
+    assert list(out["i"]) == list(range(1, 100, 2)) + list(range(0, 100, 2))

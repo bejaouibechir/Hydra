@@ -833,6 +833,9 @@ class PandasEngine(TransformEngine):
         Params:
             by: List[str] - colonnes de tri
             ascending: bool | List[bool] - ordre (defaut True)
+
+        Tri stable : à égalité, les lignes gardent leur ordre d'arrivée (résultat
+        déterministe, identique avec le moteur gros volumes).
         """
         by = p.get("by")
         if not by:
@@ -840,7 +843,7 @@ class PandasEngine(TransformEngine):
         if isinstance(by, str):
             by = [by]
         ascending = p.get("ascending", True)
-        return df.sort_values(by=by, ascending=ascending).reset_index(drop=True)
+        return df.sort_values(by=by, ascending=ascending, kind="stable").reset_index(drop=True)
 
     def _op_deduplicate(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """

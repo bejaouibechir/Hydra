@@ -365,7 +365,7 @@ class JobExecutor:
                     logger.info(f"Job '{self.job_id}': global operations on {duck.rows} rows (DuckDB)")
                 finally:
                     duck.close()
-                global_frames = [df_duck]
+                global_frames = [df_duck] if duck._created else []   # aucun lot : comme pandas
                 global_steps_left = []
             else:
                 global_steps_left = global_steps

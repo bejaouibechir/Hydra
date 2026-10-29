@@ -41,8 +41,7 @@
     },
     "stepList": {
       "type": "array",
-      "minItems": 1,
-      "description": "Operations run in list order.",
+      "description": "Operations run in list order. An empty list is valid: the job copies the source to the destination (form written by Hydra Studio).",
       "items": { "$ref": "#/definitions/step" }
     },
 

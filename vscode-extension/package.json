@@ -2,7 +2,7 @@
   "name": "hydra-etl",
   "displayName": "HYDRA ETL",
   "description": "Autocompletion, validation and snippets for HYDRA ETL manifests — jobs and workflows.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "hydraetl",
   "author": {
     "name": "Bechir Bejaoui"

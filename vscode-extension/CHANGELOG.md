@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+## 0.1.5
+
+Brings the schemas in line with Hydra ETL 0.15.
+
+- `transformations.yaml`: `engine: auto | pandas | duckdb` (root or under
+  `transformations:`), engine of the global operations; large-volume engine
+  above about 2 million rows. `steps: []` is no longer reported as an error
+  (a job without transformation, as written by Hydra Studio).
+- Workflows: `rollback`, `undo` on steps, `on_failure` and `timeout`.
+- `destinations.yaml`: all-or-nothing load per destination.
 - `workflows/thread.yaml` is validated: stages, `mode` (`sequential` |
-  `parallel`), `delay_after` and per-workflow `active`, with hover help. It was
-  previously checked against the workflow schema and reported a false error.
+  `parallel`), `delay_before`, `delay_after`, per-workflow `active` and
+  fallback, with hover help. It was previously checked against the workflow
+  schema and reported a false error.
 
 ## 0.1.4
 

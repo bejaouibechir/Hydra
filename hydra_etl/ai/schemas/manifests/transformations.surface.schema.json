@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.15.0/manifests/transformations.surface.schema.json",
+  "$id": "https://hydra.local/schemas/0.16.0/manifests/transformations.surface.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "anyOf": [
     {
@@ -1320,7 +1320,7 @@
     "dslVersion": "1.0",
     "kind": "manifest-surface",
     "note": "Forme utilisateur (une clé = un nom d'opération). Le schéma transformations.schema.json décrit la forme interne op/params, produite par TransformParser. Utiliser CELUI-CI pour contraindre une génération.",
-    "productVersion": "0.15.0",
+    "productVersion": "0.16.0",
     "sourceModel": "hydra_etl.internal.parser.transform._OP_MODEL_MAP"
   }
 }

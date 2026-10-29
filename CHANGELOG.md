@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-10-29
+
 ### Added
 
 - `engine: auto | pandas | duckdb` in `transformations.yaml` (root or under `transformations:`) chooses the

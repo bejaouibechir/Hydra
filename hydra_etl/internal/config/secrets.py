@@ -117,20 +117,7 @@ class SecretResolver:
         """
         return re.sub(r"[.\-]", "_", key).upper()
 
-    def _get_secret(self, key: str) -> str:
-        """
-        Recupere un secret obligatoire, cherche dans cet ordre :
-
-        1) le mapping 'secrets' injecte (coffre applicatif, Vault, AWS...) ;
-        2) la variable d'environnement correspondante, normalisee
-           ('db.password' -> 'DB_PASSWORD') ;
-        3) la variable d'environnement portant exactement le nom de la cle ;
-        4) le fichier de secrets du projet (`fallback`) : .hydra/secrets, ou le
-           fichier désigné par HYDRA_SECRETS_FILE / --secrets-file.
-
-        L'environnement (CI, coffre-fort, shell, .env) l'emporte donc sur le
-        fichier : le fichier sert en local, sans rien changer en production.
-        """
+    def _lookup(self, key: str) -> Optional[str]:
         if key in self.secrets:
             return str(self.secrets[key])
 
@@ -146,6 +133,40 @@ class SecretResolver:
         if env_name in self.fallback:
             return str(self.fallback[env_name])
 
+        # Fournisseur du projet (.hydra/secrets.yaml : sops...), en dernier.
+        lookup = getattr(self.fallback, "lookup", None)
+        if lookup is not None:
+            for k in (key, env_name):
+                v = lookup(k)
+                if v is not None:
+                    return str(v)
+        return None
+
+    def _get_secret(self, key: str) -> str:
+        """
+        Recupere un secret obligatoire, cherche dans cet ordre :
+
+        1) le mapping 'secrets' injecte (coffre applicatif, Vault, AWS...) ;
+        2) la variable d'environnement correspondante, normalisee
+           ('db.password' -> 'DB_PASSWORD') ;
+        3) la variable d'environnement portant exactement le nom de la cle ;
+        4) le fichier de secrets du projet (`fallback`) : .hydra/secrets, ou le
+           fichier désigné par HYDRA_SECRETS_FILE / --secrets-file (en clair
+           ou chiffré par SOPS) ;
+        5) le fournisseur choisi dans .hydra/secrets.yaml (sops...).
+
+        L'environnement (CI, coffre-fort, shell, .env) l'emporte donc sur le
+        fichier : le fichier sert en local, sans rien changer en production.
+        """
+        value = self._lookup(key)
+        if value is not None:
+            # Toute valeur lue est masquée ensuite dans les logs et messages
+            # (visibilité du projet, voir masking.py).
+            from hydra_etl.internal.config.masking import register
+            register(value, getattr(self.fallback, "visibility", None), name=key)
+            return value
+
+        env_name = self._env_name(key)
         raise SecretResolutionError(
             f"Missing secret: {key} — not in the environment ({env_name}) "
             f"nor in the project secrets file (.hydra/secrets or {SECRETS_FILE_ENV})"
@@ -197,13 +218,53 @@ def parse_secrets_text(text: str, source: str = "secrets") -> Dict[str, str]:
     return out
 
 
-def load_secrets_file(path: Path) -> Dict[str, str]:
+def load_secrets_file(path: Path, age_key_file: Optional[str] = None) -> Dict[str, str]:
+    """Fichier `name=value` en clair, ou chiffré par SOPS (détecté au contenu :
+    dotenv, YAML ou JSON ; déchiffré par sops, le clair ne touche pas le disque)."""
     path = Path(path)
     try:
         text = path.read_text(encoding="utf-8-sig")
     except OSError as e:
         raise SecretResolutionError(f"cannot read secrets file {path}: {e}") from None
+    from hydra_etl.internal.config.secret_providers import (
+        SecretProviderError, is_sops_encrypted, sops_decrypt)
+    if is_sops_encrypted(text):
+        try:
+            return sops_decrypt(path, age_key_file=age_key_file)
+        except SecretProviderError as e:
+            raise SecretResolutionError(str(e)) from None
     return parse_secrets_text(text, str(path))
+
+
+def is_encrypted_file(path: Path) -> bool:
+    from hydra_etl.internal.config.secret_providers import is_sops_encrypted
+    try:
+        return Path(path).is_file() and is_sops_encrypted(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+class ProjectSecrets(dict):
+    """Secrets du fichier local (dict, comme avant) + le fournisseur et la
+    visibilité réglés dans .hydra/secrets.yaml. `lookup` interroge le
+    fournisseur (déchiffré / appelé au premier besoin seulement)."""
+
+    def __init__(self, values: Optional[Mapping[str, str]] = None, *,
+                 root: Optional[Path] = None, settings: Any = None, provider: Any = None) -> None:
+        super().__init__(values or {})
+        self.root = root
+        self.settings = settings
+        self.provider = provider
+        self.visibility = getattr(settings, "visibility", None)
+
+    def lookup(self, key: str) -> Optional[str]:
+        if self.provider is None:
+            return None
+        from hydra_etl.internal.config.secret_providers import SecretProviderError
+        try:
+            return self.provider.get(key)
+        except SecretProviderError as e:
+            raise SecretResolutionError(str(e)) from None
 
 
 def _project_root(start: Path) -> Optional[Path]:
@@ -220,21 +281,47 @@ def _project_root(start: Path) -> Optional[Path]:
 def project_secrets(*anchors: Optional[Path]) -> Dict[str, str]:
     """Secrets du fichier du projet. HYDRA_SECRETS_FILE (ou --secrets-file)
     désigne un fichier hors du projet ; sinon .hydra/secrets du projet qui
-    contient le premier `anchor` trouvé. Pas de fichier : {}."""
+    contient le premier `anchor` trouvé. Pas de fichier : {}.
+
+    Rend un ProjectSecrets (dict) qui porte aussi les réglages de
+    .hydra/secrets.yaml (visibilité, fournisseur). Toutes les valeurs du
+    fichier sont enregistrées pour être masquées, même celles qu'aucun
+    ${SECRET:...} n'utilise (un script peut les lire autrement)."""
+    from hydra_etl.internal.config.masking import VisibilityError, register, resolve_visibility
+    from hydra_etl.internal.config.secret_providers import (
+        SecretProviderError, build_provider, load_settings)
+    root: Optional[Path] = None
+    for a in anchors:
+        if a is not None:
+            root = _project_root(Path(a))
+            if root is not None:
+                break
+    try:
+        settings = load_settings(root)
+        visibility = resolve_visibility(settings.visibility)
+        settings.visibility = visibility
+        provider = build_provider(root, settings) if root is not None else None
+    except (SecretProviderError, VisibilityError) as e:
+        raise SecretResolutionError(str(e)) from None
+    age_key = (settings.options.get("sops") or {}).get("age_key_file") \
+        if isinstance(settings.options.get("sops"), dict) else None
+
+    values: Dict[str, str] = {}
     explicit = os.environ.get(SECRETS_FILE_ENV)
     if explicit:
         f = Path(explicit).expanduser()
         if not f.is_file():
             raise SecretResolutionError(f"secrets file not found: {f} (set by {SECRETS_FILE_ENV})")
-        return load_secrets_file(f)
-    for a in anchors:
-        if a is None:
-            continue
-        root = _project_root(Path(a))
-        if root is not None:
-            f = root / PROJECT_SECRETS_FILE
-            return load_secrets_file(f) if f.is_file() else {}
-    return {}
+        values = load_secrets_file(f, age_key)
+    elif root is not None:
+        f = root / PROJECT_SECRETS_FILE
+        if f.is_file():
+            values = load_secrets_file(f, age_key)
+    for k, v in values.items():
+        register(v, visibility, name=k)
+    if provider is not None and hasattr(provider, "_on_load"):
+        provider._on_load = lambda vals: [register(v, visibility, name=k) for k, v in vals.items()]
+    return ProjectSecrets(values, root=root, settings=settings, provider=provider)
 
 
 def scaffold_secrets(root: Path) -> list:
@@ -301,6 +388,7 @@ def set_secret(path: Path, name: str, value: str) -> None:
     """Ajoute ou remplace `name=value` dans le fichier (créé si absent)."""
     name = check_secret_name(name)
     path = Path(path)
+    _refuse_encrypted(path)
     lines = path.read_text(encoding="utf-8-sig").splitlines() if path.is_file() else \
         SECRETS_TEMPLATE.splitlines()
     new = f"{name}={_format_value(str(value))}"
@@ -314,10 +402,17 @@ def set_secret(path: Path, name: str, value: str) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _refuse_encrypted(path: Path) -> None:
+    if is_encrypted_file(path):
+        raise SecretResolutionError(
+            f"{path} is encrypted with sops: edit it with `sops {path}`")
+
+
 def delete_secret(path: Path, name: str) -> bool:
     path = Path(path)
     if not path.is_file():
         return False
+    _refuse_encrypted(path)
     lines = path.read_text(encoding="utf-8-sig").splitlines()
     kept = [ln for ln in lines if _key_of(ln) != name]
     if len(kept) == len(lines):

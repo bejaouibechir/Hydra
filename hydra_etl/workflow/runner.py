@@ -311,6 +311,8 @@ class WorkflowRunner:
     def _finish(self, result: WorkflowResult, start: float) -> WorkflowResult:
         """Fin du run : workflow réussi → sauvegardes supprimées ; échoué → steps
         déjà faits défaits du dernier au premier."""
+        from hydra_etl.internal.config.masking import redact_result
+        redact_result(result)
         stack = self._undo_stack
         if stack is None:
             return result
@@ -335,7 +337,7 @@ class WorkflowRunner:
         elif report["status"] == "done":
             result.error = f"{result.error} (changes undone)"
         result.duration = time.monotonic() - start
-        return result
+        return redact_result(result)
 
     def _connector_for_undo(self, entry: Dict[str, Any]) -> Any:
         from hydra_etl.workflow.rollback import connector_from_entry
@@ -455,6 +457,12 @@ class WorkflowRunner:
                 time.sleep(wait)
 
     def _execute_step_once(self, step: WorkflowStep) -> StepResult:
+        """Une tentative, résultat nettoyé des secrets (erreur, logs, sortie de
+        l'action) avant d'être conservé, affiché ou envoyé à l'API."""
+        from hydra_etl.internal.config.masking import redact_result
+        return redact_result(self._execute_step_once_raw(step))
+
+    def _execute_step_once_raw(self, step: WorkflowStep) -> StepResult:
         """Exécute un step individuel (une seule tentative) et retourne son résultat."""
         start = time.monotonic()
 

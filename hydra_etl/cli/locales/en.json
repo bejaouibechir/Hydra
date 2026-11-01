@@ -218,6 +218,7 @@
   "job.list.run_hint": "Run one job: hdrctl run jobs/<job>  ·  the whole project: hdrctl run .",
   "help.job.list.docstring": "\b\nList the jobs of a project and the workflows that use them.\nShows each folder of jobs/ (free, or the workflows it is in, or the files it\nlacks), and the job folders a workflow refers to but that do not exist.\n\b\nExamples:\n  hdrctl job list\n  hdrctl job list C:\\data\\my_project",
   "help.run.secrets_file": "Secrets file to use instead of .hydra/secrets (name=value per line)",
+  "help.run.secrets_visibility": "How secret values appear in logs and messages: plain (debugging), masked (default) or hidden; overrides .hydra/secrets.yaml",
   "help.run.use_fallback": "Force the fallback of WORKFLOW (a workflow of the thread that declares a fallback), to rehearse a recovery scenario. Repeatable.",
   "run.secrets_file_not_found": "Secrets file not found: {path}",
   "run.project.pass": "(pass {iteration}/{iterations})",

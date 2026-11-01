@@ -935,7 +935,9 @@ def delete_workflow(project_id: str, workflow_id: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def save_run(run: RunResponse) -> None:
-    _runs[run.run_id] = run
+    # Dernier rempart : aucun secret dans un run conservé ni rendu par l'API.
+    from hydra_etl.internal.config.masking import redact_model
+    _runs[run.run_id] = redact_model(run)
 
 
 def get_run(run_id: str) -> Optional[RunResponse]:

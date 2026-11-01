@@ -7,6 +7,29 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Secrets are masked everywhere Hydra shows or keeps text: logs (every logger, step logs, API), error
+  messages, tracebacks, the output of `bash`, `powershell`, `python` and `ssh` actions, `webhook` and
+  `email` log lines, the rollback (undo) report and the runs stored by the API. The values sent to
+  connectors, scripts and webhooks are unchanged. URL-encoded and JSON-escaped forms are masked too.
+- Secrets visibility, as in GitLab: `plain` (debugging, with a warning), `masked` (default, `[MASKED]`) or
+  `hidden` (lines that contain a secret are dropped and counted). Set it in `.hydra/secrets.yaml`
+  (`visibility:`), with `HYDRA_SECRETS_VISIBILITY` or with `--secrets-visibility` on `hdrctl run` and
+  `hdrctl workflow run`. Values shorter than 4 characters are not masked; a warning names them.
+- `.hydra/secrets.yaml`: project secrets settings (no secret inside, safe to commit) — `visibility`,
+  `provider` and the provider block. Unknown keys, values and providers are reported, never ignored.
+- SOPS provider (`provider: sops`, `sops.file`, optional `sops.format` and `sops.age_key_file`): secrets
+  encrypted with [SOPS](https://github.com/getsops/sops) (age, PGP, cloud KMS) are decrypted in memory, on
+  first use; nested YAML/JSON keys are read as `${SECRET:db.password}`. A SOPS-encrypted `.hydra/secrets`
+  or `--secrets-file` is detected and decrypted as well; Studio refuses to edit an encrypted file.
+- Provider interface (`SecretProvider`, `register_provider`) for external vaults.
+
+### Unchanged
+
+- `${SECRET:NAME}` syntax and lookup order: environment (normalised, then exact name) > local secrets file
+  > configured provider.
+
 ## [0.16.1] — 2026-11-01
 
 ### Fixed

@@ -155,14 +155,17 @@ class UndoStack:
             try:
                 rec.discard(e.get("_connector") or (connector_for(e) if rec.kind == "db" else None))
             except Exception as ex:  # noqa: BLE001 — la donnée est bonne, seule une copie reste
-                warnings.append(f"could not remove the backup of '{e['step']}': {ex}")
+                from hydra_etl.internal.config.masking import redact_text
+                warnings.append(redact_text(f"could not remove the backup of '{e['step']}': {ex}"))
         self.entries = []
         self.remove()
         return warnings
 
     def undo_all(self, run_action: Callable[[str, Dict[str, Any]], Tuple[bool, str]],
                  connector_for: Callable[[Dict[str, Any]], Any]) -> Dict[str, Any]:
-        """Défait la pile, du dernier step au premier. S'arrête au premier échec."""
+        """Défait la pile, du dernier step au premier. S'arrête au premier échec.
+        Les messages du rapport sont nettoyés des secrets (masking.py)."""
+        from hydra_etl.internal.config.masking import redact_text
         from hydra_etl.internal.connector.undo import undo_from_dict
         report: List[Dict[str, Any]] = []
         status = "nothing" if not self.entries else "done"
@@ -178,10 +181,10 @@ class UndoStack:
                     if not ok:
                         raise RuntimeError(msg)
             except Exception as ex:  # noqa: BLE001
-                report.append({"step": e["step"], "status": "failed", "message": str(ex)})
+                report.append({"step": e["step"], "status": "failed", "message": redact_text(str(ex))})
                 status = "failed"
                 break
-            report.append({"step": e["step"], "status": "undone", "message": msg})
+            report.append({"step": e["step"], "status": "undone", "message": redact_text(msg)})
             self.entries.pop()
             self._save()
         if status != "failed":

@@ -134,7 +134,11 @@ class JobExecutor:
         # Copy-on-Write : les copies défensives des opérations deviennent
         # paresseuses (comportement natif de pandas 3, aligné ici sur pandas 2).
         with copy_on_write():
-            return self._run()
+            result = self._run()
+        # Message d'erreur nettoyé des secrets (DSN, mot de passe cité par un
+        # pilote...) avant d'être affiché, journalisé ou rendu par l'API.
+        from hydra_etl.internal.config.masking import redact_result
+        return redact_result(result)
 
     def _run(self) -> JobResult:
         start = time.monotonic()

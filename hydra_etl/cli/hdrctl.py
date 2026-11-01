@@ -774,6 +774,9 @@ CONTEXT_SETTINGS = dict(help_option_names=["--help", "-h"])
 @_lang_option
 @click.pass_context
 def cli(ctx: click.Context) -> None:
+    # Secrets masqués dans tout ce que le CLI affiche (voir masking.py)
+    from hydra_etl.internal.config.masking import install_stream_redaction
+    install_stream_redaction()
     if ctx.invoked_subcommand is None:
         print_banner()
         click.echo(ctx.get_help())
@@ -811,6 +814,9 @@ def cli(ctx: click.Context) -> None:
 @click.option("--profile", "profile", is_flag=True, default=False, help=t("help.run.profile"))
 @click.option("--secrets-file", "secrets_file", default=None, metavar="FILE",
               help=t("help.run.secrets_file"))
+@click.option("--secrets-visibility", "secrets_visibility", default=None,
+              type=click.Choice(["plain", "masked", "hidden"], case_sensitive=False),
+              help=t("help.run.secrets_visibility"))
 @click.option("--use-fallback", "use_fallback", multiple=True, metavar="WORKFLOW",
               help=t("help.run.use_fallback"))
 def cmd_run(path: str, verbosity: int, dry_run: bool,
@@ -820,7 +826,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             on_finish: Optional[str],
             env_name: Optional[str] = None, param_overrides: tuple = (),
             profile: bool = False, secrets_file: Optional[str] = None,
-            use_fallback: tuple = ()) -> None:
+            use_fallback: tuple = (), secrets_visibility: Optional[str] = None) -> None:
     """Exécute un pipeline ETL."""
     verbosity = verbosity or 0  # click < 8.2 passes None when no -v flag is given
     print_banner()
@@ -831,6 +837,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
         error_box(t("dir.not_found", path=path))
         sys.exit(1)
     _use_secrets_file(secrets_file)
+    _use_secrets_visibility(secrets_visibility)
 
     # Projet (.hydra/ sans fichiers de job à la racine) → tous ses workflows,
     # dans l'ordre de workflows/thread.yaml. Sinon : un job seul.
@@ -980,6 +987,15 @@ def _use_secrets_file(path: Optional[str]) -> None:
         error_box(t("run.secrets_file_not_found", path=str(f)))
         sys.exit(1)
     os.environ[SECRETS_FILE_ENV] = str(f)
+
+
+def _use_secrets_visibility(value: Optional[str]) -> None:
+    """--secrets-visibility : plain | masked | hidden pour ce run ; l'emporte
+    sur .hydra/secrets.yaml. Transmis au moteur par HYDRA_SECRETS_VISIBILITY."""
+    if not value:
+        return
+    from hydra_etl.internal.config.masking import VISIBILITY_ENV
+    os.environ[VISIBILITY_ENV] = value.lower()
 
 
 def _parse_param_overrides(items) -> dict:
@@ -1382,6 +1398,12 @@ Put passwords and tokens in `.hydra/secrets`, one `name=value` per line, and use
 wins over it (`${{SECRET:db.password}}` first reads `DB_PASSWORD`), so CI or a vault can provide the
 values without the file. To keep the file elsewhere: `HYDRA_SECRETS_FILE=<path>` or
 `hdrctl run . --secrets-file <path>`.
+
+Secret values are masked in logs, error messages and action output (`[MASKED]`). Choose how they
+appear in `.hydra/secrets.yaml` with `visibility: plain | masked | hidden`, or per run with
+`--secrets-visibility`. To commit encrypted secrets instead, encrypt a file with
+[SOPS](https://github.com/getsops/sops) and age, then declare it in `.hydra/secrets.yaml`:
+`provider: sops` and `sops: {{file: .hydra/secrets.sops.yaml}}`.
 
 ## Commands
 
@@ -1920,13 +1942,18 @@ def _echo_step_output(step_result) -> None:
 @click.option("--project", "project", default=None, metavar="PATH", help=t("help.workflow.project"))
 @click.option("--secrets-file", "secrets_file", default=None, metavar="FILE",
               help=t("help.run.secrets_file"))
-def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[str]) -> None:
+@click.option("--secrets-visibility", "secrets_visibility", default=None,
+              type=click.Choice(["plain", "masked", "hidden"], case_sensitive=False),
+              help=t("help.run.secrets_visibility"))
+def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[str],
+                     secrets_visibility: Optional[str] = None) -> None:
     """Execute un workflow DAG."""
     from hydra_etl.workflow.parser import load_workflow, validate_workflow
     from hydra_etl.workflow.runner import WorkflowRunner
 
     print_banner()
     _use_secrets_file(secrets_file)
+    _use_secrets_visibility(secrets_visibility)
     wf_path = _resolve_workflow_arg(path, project)
     if not wf_path.exists():
         error_box(t("workflow.file_not_found", path=str(wf_path)))

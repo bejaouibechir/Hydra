@@ -33,7 +33,9 @@
             "transpose",
             "merge",
             "union",
-            "script"
+            "script",
+            "text_to_rows",
+            "window"
           ],
           "title": "Op",
           "type": "string"

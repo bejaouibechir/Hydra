@@ -1,0 +1,172 @@
+{
+  "$defs": {
+    "WindowColumn": {
+      "additionalProperties": false,
+      "description": "A column added by window: its function and options.",
+      "properties": {
+        "col": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Column read by the function (not for row_number, rank, dense_rank).",
+          "title": "Col"
+        },
+        "default": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "lag / lead: value when the offset leaves the partition (default null).",
+          "title": "Default"
+        },
+        "func": {
+          "description": "Window function.",
+          "enum": [
+            "row_number",
+            "rank",
+            "dense_rank",
+            "lag",
+            "lead",
+            "cumsum",
+            "cumcount",
+            "cummin",
+            "cummax",
+            "sum",
+            "mean",
+            "min",
+            "max",
+            "count",
+            "first",
+            "last"
+          ],
+          "title": "Func",
+          "type": "string"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "lag / lead: rows to look back or ahead (default 1).",
+          "title": "Offset"
+        }
+      },
+      "required": [
+        "func"
+      ],
+      "title": "WindowColumn",
+      "type": "object"
+    },
+    "WindowOrderItem": {
+      "additionalProperties": false,
+      "description": "Item of window.order_by written as {col, desc}.",
+      "properties": {
+        "col": {
+          "description": "Column.",
+          "minLength": 1,
+          "title": "Col",
+          "type": "string"
+        },
+        "desc": {
+          "default": false,
+          "description": "true: descending (null values stay last).",
+          "title": "Desc",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "col"
+      ],
+      "title": "WindowOrderItem",
+      "type": "object"
+    }
+  },
+  "$id": "https://hydra.local/schemas/0.16.1/operations/window.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Window functions: adds columns and keeps every row, in its input order.\nRank (row_number, rank, dense_rank), offset (lag, lead), running (cumsum,\ncumcount, cummin, cummax) and whole-partition (sum, mean, min, max, count,\nfirst, last) functions. Rank, offset and running functions need order_by.\nFull rules: internal/engines/window.py.",
+  "properties": {
+    "columns": {
+      "additionalProperties": {
+        "$ref": "#/$defs/WindowColumn"
+      },
+      "description": "Mapping of output_column: {func, col, offset, default}.",
+      "minProperties": 1,
+      "title": "Columns",
+      "type": "object"
+    },
+    "order_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/WindowOrderItem"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Order inside each partition: names or {col, desc}; nulls last, ties in input order.",
+      "title": "Order By"
+    },
+    "partition_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Columns splitting the rows into independent partitions (whole table without it).",
+      "title": "Partition By"
+    }
+  },
+  "required": [
+    "columns"
+  ],
+  "title": "WindowOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "window",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.16.1",
+    "sourceModel": "hydra_etl.internal.parser.transform.WindowOp"
+  }
+}

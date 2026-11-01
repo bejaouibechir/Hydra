@@ -328,10 +328,15 @@ class PandasEngine(TransformEngine):
             return self._op_union(df, step.params)
         if step.op == "script":
             return self._op_script(df, step.params)
+        if step.op == "text_to_rows":
+            return self._op_text_to_rows(df, step.params)
+        if step.op == "window":
+            from hydra_etl.internal.engines.window import apply_pandas
+            return apply_pandas(df, step.params)
 
         raise ValueError(
             f"Opération inconnue: {step.op}. "
-            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script"
+            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script, text_to_rows, window"
         )
 
     # --------------------------------------------------
@@ -742,9 +747,11 @@ class PandasEngine(TransformEngine):
                 "Le step 'join' doit etre execute via le runner (source 'right' requise)."
             )
         how = p.get("how", "inner")
-        if how not in ("inner", "left", "right", "outer"):
-            raise ValueError(f"join.how invalide: {how} (inner|left|right|outer)")
+        if how not in ("inner", "left", "right", "outer", "cross"):
+            raise ValueError(f"join.how invalide: {how} (inner|left|right|outer|cross)")
         right_df = pd.DataFrame(list(right_rows))
+        if how == "cross":
+            return self._cross_join(df, right_df, p)
 
         left_key = p.get("left_key")
         right_key = p.get("right_key")
@@ -770,6 +777,28 @@ class PandasEngine(TransformEngine):
             if k not in right_df.columns:
                 raise ValueError(f"join: cle '{k}' absente de la source de reference")
         return df.merge(right_df, on=keys, how=how, suffixes=("", "_r"))
+
+    # Garde-fou du produit cartésien : lignes produites au plus (forçable par max_rows)
+    CROSS_MAX_ROWS = 10_000_000
+
+    def _cross_join(self, df: pd.DataFrame, right_df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """Produit cartésien : chaque ligne du flux × chaque ligne de droite, dans
+        l'ordre (gauche, puis droite). Ligne à ligne : appliqué lot par lot, même
+        résultat. Le total produit, cumulé sur les lots (p["_cross_rows"]), est
+        vérifié AVANT de produire le lot qui dépasserait max_rows."""
+        given = [k for k in ("key", "left_key", "right_key") if p.get(k)]
+        if given:
+            raise ValueError(f"join: how: cross takes no key — remove {', '.join(given)}")
+        limit = p.get("max_rows") or self.CROSS_MAX_ROWS
+        total = int(p.get("_cross_rows", 0)) + len(df) * len(right_df)
+        if total > limit:
+            raise ValueError(
+                f"join (cross): {total:,} rows would be produced, more than max_rows ({limit:,}). "
+                f"Filter the inputs first, or raise join.max_rows if this size is intended")
+        p["_cross_rows"] = total
+        if right_df.shape[1] == 0:            # source de droite vide, sans colonnes
+            return df.iloc[:0].copy()
+        return df.merge(right_df, how="cross", suffixes=("", "_r"))
 
     def _op_calculate(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """
@@ -872,6 +901,60 @@ class PandasEngine(TransformEngine):
         if value is None:
             raise ValueError("fill_null requiert 'value' ou 'columns' (dict)")
         return df.fillna(value)
+
+    def _op_text_to_rows(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Une ligne par valeur : "a;b;c" -> 3 lignes, les autres colonnes recopiées.
+
+        Params: column, sep (défaut ","), regex, trim (défaut True),
+        keep_empty (défaut False), index_column (position 1, 2, 3...).
+        Valeur nulle -> une ligne, nulle (position nulle). Aucune valeur non
+        vide -> une ligne, nulle : une ligne d'entrée n'est jamais perdue.
+        Ligne à ligne : appliqué lot par lot, même résultat.
+        """
+        import re
+        col = p.get("column")
+        if not isinstance(col, str) or not col:
+            raise ValueError("text_to_rows: 'column' is required")
+        if col not in df.columns:
+            raise ValueError(f"text_to_rows: column '{col}' not found (available: {', '.join(map(str, df.columns))})")
+        sep = p.get("sep", ",")
+        if not isinstance(sep, str) or sep == "":
+            raise ValueError("text_to_rows: 'sep' cannot be empty")
+        idx_col = p.get("index_column")
+        if idx_col is not None and (idx_col == col or idx_col in df.columns):
+            raise ValueError(f"text_to_rows: index_column '{idx_col}' already exists")
+        trim = bool(p.get("trim", True))
+        keep_empty = bool(p.get("keep_empty", False))
+        split = re.compile(sep).split if p.get("regex") else (lambda s: s.split(sep))
+
+        values: List[Any] = []
+        positions: List[Any] = []
+        counts: List[int] = []
+        for v in df[col].tolist():
+            if v is None or (not isinstance(v, (list, dict)) and pd.isna(v)):
+                values.append(None); positions.append(None); counts.append(1)
+                continue
+            items = split(v if isinstance(v, str) else str(v))
+            if trim:
+                items = [x.strip() for x in items]
+            if not keep_empty:
+                items = [x for x in items if x != ""]
+            if not items:
+                values.append(None); positions.append(None); counts.append(1)
+                continue
+            values.extend(items)
+            positions.extend(range(1, len(items) + 1))
+            counts.append(len(items))
+
+        out = df.loc[df.index.repeat(counts)].reset_index(drop=True)
+        dtype = df[col].dtype if pd.api.types.is_string_dtype(df[col].dtype) \
+            and not pd.api.types.is_object_dtype(df[col].dtype) else object
+        out[col] = pd.Series(values, dtype=dtype)
+        if idx_col is not None:
+            pos = list(out.columns).index(col) + 1
+            out.insert(pos, idx_col, pd.Series(positions, dtype="Int64"))
+        return out
 
     def _op_trim(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """

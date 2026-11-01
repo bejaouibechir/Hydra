@@ -1,0 +1,57 @@
+{
+  "$id": "https://hydra.local/schemas/0.16.1/operations/text_to_rows.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One row per value of a text column (\"a;b;c\" -> 3 rows, other columns copied).\nA null value, or one with no non-empty part, keeps one row with a null value.\n\n    text_to_rows:\n      column: tags          # column to split (required)\n      sep: \";\"              # separator (default \",\"), plain text\n      regex: false          # true: sep is a regular expression\n      trim: true            # strip spaces around each value\n      keep_empty: false     # empty values are dropped\n      index_column: tag_pos # optional: position 1, 2, 3...",
+  "properties": {
+    "column": {
+      "title": "Column",
+      "type": "string"
+    },
+    "index_column": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Index Column"
+    },
+    "keep_empty": {
+      "default": false,
+      "title": "Keep Empty",
+      "type": "boolean"
+    },
+    "regex": {
+      "default": false,
+      "title": "Regex",
+      "type": "boolean"
+    },
+    "sep": {
+      "default": ",",
+      "title": "Sep",
+      "type": "string"
+    },
+    "trim": {
+      "default": true,
+      "title": "Trim",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "column"
+  ],
+  "title": "TextToRowsOp",
+  "type": "object",
+  "x-hydra": {
+    "dslName": "text_to_rows",
+    "dslVersion": "1.0",
+    "generatedFromPydantic": true,
+    "kind": "transformation",
+    "productVersion": "0.16.1",
+    "sourceModel": "hydra_etl.internal.parser.transform.TextToRowsOp"
+  }
+}

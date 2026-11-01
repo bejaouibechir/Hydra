@@ -36,3 +36,20 @@ steps:
           func: somme
           col: amount
       # ERROR 6 — 'somme' is not a valid function. Use 'sum'.
+
+  - join:
+      right: calendar
+      how: cross
+      key: id
+      # ERROR 7 — a cross join takes no key.
+
+  - text_to_rows:
+      sep: ";"
+      # ERROR 8 — 'column' (the column to split) is required.
+
+  - window:
+      order_by: [order_date]
+      columns:
+        r: {func: rank, col: amount}
+        # ERROR 9 — rank takes no column ('col' is for lag, lead,
+        # running and partition functions).

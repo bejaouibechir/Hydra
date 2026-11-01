@@ -41,13 +41,19 @@ OP_HINTS: Dict[str, List[str]] = {
     "trim":        ["espaces en trop", "rogne"],
     "aggregate":   ["total par", "somme par", "par pays", "par statut", "compte le nombre", "chiffre d'affaires", "agrege", "moyenne par"],
     "rename":      ["renomme", "en 'amount'", "appelle plutot"],
-    "join":        ["associe", "joins", "joindre", "jointure", "rattache", "enrichi"],
+    "join":        ["associe", "joins", "joindre", "jointure", "rattache", "enrichi",
+                    "produit cartesien", "toutes les combinaisons", "cross join", "chaque combinaison"],
     "union":       ["empile", "un seul fichier", "concatene", "ajoute les lignes de"],
     "merge":       ["fusionne"],
     "pivot":       ["tableau croise", "en lignes", "en colonnes"],
     "unpivot":     ["format long", "une ligne par couple", "colonne par mois"],
     "transpose":   ["transpose"],
     "script":      ["script python", "code personnalise"],
+    "text_to_rows": ["une ligne par valeur", "une ligne par tag", "eclate", "separe en lignes",
+                     "decoupe en lignes", "split into rows", "one row per value"],
+    "window":      ["rang ", "numero de ligne", "row_number", "classement par", "cumul", "total cumule",
+                    "somme cumulee", "ligne precedente", "valeur precedente", "ligne suivante",
+                    "running total", "fonction de fenetre", "window function"],
 }
 
 MODE_HINTS = {

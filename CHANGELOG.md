@@ -24,6 +24,42 @@ and versions follow [Semantic Versioning](https://semver.org/).
   first use; nested YAML/JSON keys are read as `${SECRET:db.password}`. A SOPS-encrypted `.hydra/secrets`
   or `--secrets-file` is detected and decrypted as well; Studio refuses to edit an encrypted file.
 - Provider interface (`SecretProvider`, `register_provider`) for external vaults.
+- `join` with `how: cross`: cartesian product (every row × every row of `right`, in order), no key
+  (`key`, `left_key`, `right_key` are refused). Guard `max_rows` (default 10,000,000 rows produced,
+  counted over all batches): the run stops before producing the batch that would exceed it.
+- `text_to_rows`: one row per value of a text column (`"a;b;c"` → 3 rows, other columns copied).
+  Options: `sep` (default `,`), `regex`, `trim` (default true), `keep_empty` (default false) and
+  `index_column` (position 1, 2, 3…). A null value, or one with no non-empty part, keeps one row with a
+  null value: no input row is lost. Unknown options are refused.
+- `window` (window functions): adds columns, keeps every row in its input order. `partition_by`
+  (optional), `order_by` (columns or `{col, desc}`; nulls last, ties kept in input order),
+  `columns: {name: {func: ...}}` with:
+  - rank: `row_number`, `rank`, `dense_rank`;
+  - offset: `lag`, `lead` (`col`, `offset` ≥ 1, `default`);
+  - running: `cumsum`, `cumcount`, `cummin`, `cummax` (a null value is skipped, the row keeps the running
+    value);
+  - whole partition: `sum`, `mean`, `min`, `max`, `count`, `first`, `last` (nulls ignored, as in
+    `aggregate`; `order_by` optional, used by `first` / `last`).
+
+  Rank, offset and running functions require `order_by`; `cumsum`, `cummin`, `cummax`, `sum` and
+  `mean` require a numeric column. Global operation: with the large-volume engine it runs in DuckDB
+  (`OVER (PARTITION BY … ORDER BY …)`), same rows, values and types as pandas; a case DuckDB cannot
+  guarantee is handed to pandas.
+- Studio: **Text to Rows** and **Window** nodes in the palette; **Window** has a row editor (output name,
+  function grouped by family, column, offset, default) with a JSON mode. The **Join** node offers
+  `cross`: the key fields are hidden and a *Max rows* field appears. Round-trips with the YAML files keep
+  every option and its type.
+- DSL specification (`hydra_etl/ai/schemas`, `tools/spec_export.py`): JSON schemas for `text_to_rows` and
+  `window` (functions, options and their types), `join.how: cross` and `join.max_rows`; 20 operations.
+- MCP server: `hydra_list_operations` lists the 20 operations; `hydra_explain_error` explains the new
+  errors (`order_by` missing, `max_rows`, key given with `how: cross`, `text_to_rows`, non-numeric column
+  in a window); `hydra_check_job` warns when a request asks for ranks, running totals, one row per value
+  or every combination and the job lacks `window`, `text_to_rows` or `join`.
+- VS Code extension 0.1.6 (`vscode-extension/`): schema and snippets for the three additions.
+
+### Fixed
+
+- Studio: the **Script** node showed a generic icon in the palette and its configuration dialog.
 
 ### Unchanged
 

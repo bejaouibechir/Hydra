@@ -158,6 +158,8 @@ const OP_TO_NODE: Record<string, string> = {
   merge: 'transform_merge',
   union: 'transform_union',
   script: 'transform_script',
+  text_to_rows: 'transform_text_to_rows',
+  window: 'transform_window',
 }
 
 const NODE_TO_OP: Record<string, string> = {
@@ -173,6 +175,8 @@ const NODE_TO_OP: Record<string, string> = {
   transform_merge: 'merge',
   transform_union: 'union',
   transform_script: 'script',
+  transform_text_to_rows: 'text_to_rows',
+  transform_window: 'window',
 }
 
 // ── Flow → HDR ────────────────────────────────────────────────────────────────
@@ -265,10 +269,7 @@ export function flowToHdr(
     const cfg = (tn.data.params ?? {}) as Record<string, unknown>
     if (op === 'join') {
       const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
-      const j: Record<string, unknown> = { right: rightKey, how: cfg.how ?? 'inner' }
-      if (cfg.left_key && cfg.right_key) { j.left_key = cfg.left_key; j.right_key = cfg.right_key }
-      else { j.key = cfg.key ?? '' }
-      return { join: j }
+      return { join: _joinToEngine(rightKey, cfg) }
     }
     if (op === 'merge') {
       const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
@@ -501,8 +502,66 @@ function _uiParamsToEngine(op: string, cfg: Record<string, unknown>): Record<str
     case 'unpivot':     return { id_vars: _parseList(cfg.id_vars as string), value_vars: _parseList(cfg.value_vars as string), var_name: cfg.var_name ?? 'variable', value_name: cfg.value_name ?? 'value' }
     case 'transpose':   return cfg.index_col ? { index_col: cfg.index_col, header_name: cfg.header_name ?? 'column' } : { header_name: cfg.header_name ?? 'column' }
     case 'script':      return { inputs: _parseList(cfg.inputs as string), outputs: _parseJson(cfg.outputs as string), code: cfg.code ?? '', mode: cfg.mode === 'row' ? 'row' : 'vectorized' }
+    case 'text_to_rows': {
+      const t: Record<string, unknown> = { column: String(cfg.column ?? '').trim(), sep: cfg.sep === undefined || cfg.sep === '' ? ',' : String(cfg.sep) }
+      if (_bool(cfg.regex)) t.regex = true
+      if (cfg.trim !== undefined && cfg.trim !== '' && !_bool(cfg.trim)) t.trim = false
+      if (_bool(cfg.keep_empty)) t.keep_empty = true
+      if (String(cfg.index_column ?? '').trim()) t.index_column = String(cfg.index_column).trim()
+      return t
+    }
+    case 'window': {
+      const w: Record<string, unknown> = {}
+      const part = _parseList(cfg.partition_by as string)
+      if (part.length) w.partition_by = part
+      const order = _orderToEngine(cfg.order_by)
+      if (order.length) w.order_by = order
+      w.columns = _parseJson(cfg.columns as string)
+      return w
+    }
     default:            return { ...cfg }
   }
+}
+
+function _bool(v: unknown): boolean {
+  return v === true || v === 'true' || v === 'yes'
+}
+
+/** join : how cross = sans clé (le moteur refuse key / left_key / right_key) ;
+ *  max_rows seulement avec cross. */
+function _joinToEngine(rightKey: string, cfg: Record<string, unknown>): Record<string, unknown> {
+  const how = String(cfg.how ?? 'inner')
+  const j: Record<string, unknown> = { right: rightKey, how }
+  if (how === 'cross') {
+    const m = _intOf(cfg.max_rows)
+    if (m !== undefined && m > 0) j.max_rows = m
+    return j
+  }
+  if (cfg.left_key && cfg.right_key) { j.left_key = cfg.left_key; j.right_key = cfg.right_key }
+  else { j.key = cfg.key ?? '' }
+  return j
+}
+
+/** "order_date, amount desc" -> ["order_date", {col: "amount", desc: true}] */
+function _orderToEngine(v: unknown): unknown[] {
+  if (Array.isArray(v)) return v
+  return String(v ?? '').split(',').map(s => s.trim()).filter(Boolean).map(item => {
+    const m = item.match(/^(.+?)\s+(asc|desc)$/i)
+    if (!m) return item
+    return m[2].toLowerCase() === 'desc' ? { col: m[1].trim(), desc: true } : m[1].trim()
+  })
+}
+
+/** Inverse : liste du YAML -> "order_date, amount desc" */
+function _orderToUi(v: unknown): string {
+  const items = Array.isArray(v) ? v : (v ? [v] : [])
+  return items.map(it => {
+    if (it && typeof it === 'object') {
+      const o = it as Record<string, unknown>
+      return `${o.col ?? ''}${o.desc === true ? ' desc' : ''}`
+    }
+    return String(it)
+  }).join(', ')
 }
 
 function _sourceToParams(src: HdrSource): Record<string, unknown> {
@@ -565,7 +624,9 @@ function _stepToParams(op: string, raw: Record<string, unknown> = {}): Record<st
       const cols = raw.columns ?? raw.subset
       return { columns: Array.isArray(cols) ? (cols as string[]).join(',') : (cols ?? '') }
     }
-    case 'join':         return { right: raw.right ?? '', key: raw.key ?? '', left_key: raw.left_key ?? '', right_key: raw.right_key ?? '', how: raw.how ?? 'inner' }
+    case 'join':         return { right: raw.right ?? '', key: raw.key ?? '', left_key: raw.left_key ?? '', right_key: raw.right_key ?? '', how: raw.how ?? 'inner', max_rows: raw.max_rows != null ? String(raw.max_rows) : '' }
+    case 'text_to_rows': return { column: raw.column ?? '', sep: raw.sep ?? ',', regex: raw.regex === true ? 'true' : 'false', trim: raw.trim === false ? 'false' : 'true', keep_empty: raw.keep_empty === true ? 'true' : 'false', index_column: raw.index_column ?? '' }
+    case 'window':       return { partition_by: Array.isArray(raw.partition_by) ? (raw.partition_by as string[]).join(', ') : (raw.partition_by ?? ''), order_by: _orderToUi(raw.order_by), columns: typeof raw.columns === 'object' ? JSON.stringify(raw.columns) : (raw.columns ?? '') }
     case 'merge':        return { right: raw.right ?? '', key: raw.key ?? '', delete_unmatched: raw.delete_unmatched ? 'true' : 'false' }
     case 'union':        return { right: raw.right ?? '', distinct: raw.distinct ? 'true' : 'false' }
     case 'fill_null':    return { value: raw.value ?? '', columns: typeof raw.columns === 'object' ? JSON.stringify(raw.columns) : (raw.columns ?? '') }
@@ -705,10 +766,7 @@ export function flowToJobModel(
     if (op === 'join') {
       // 'right' vient du graphe : la source choisie (rightSourceId = id de noeud)
       const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''
-      const j: Record<string, unknown> = { right: rightKey, how: cfg.how ?? 'inner' }
-      if (cfg.left_key && cfg.right_key) { j.left_key = cfg.left_key; j.right_key = cfg.right_key }
-      else { j.key = cfg.key ?? '' }
-      return { join: j }
+      return { join: _joinToEngine(rightKey, cfg) }
     }
     if (op === 'merge') {
       const rightKey = srcKeyByNode.get(cfg.rightSourceId as string) ?? (cfg.right as string) ?? ''

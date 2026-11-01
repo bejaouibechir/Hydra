@@ -17,7 +17,7 @@ exist — remains the job of `hdrctl validate`.
 | `sources.yaml` | connector types, `connection` keys matching the chosen type, extraction and schema options |
 | `destinations.yaml` | load modes, `key` required in `upsert` mode, `batch_size` bounds |
 | `pipeline.yaml` | `from` / `to` required |
-| `transformations.yaml` | all 18 operations and their parameters, with allowed values |
+| `transformations.yaml` | all 20 operations and their parameters, with allowed values |
 | `workflow.yaml` | steps, dependencies, built-in actions, retry policy, `cron` required in `schedule` mode |
 
 Three complementary mechanisms:
@@ -32,7 +32,7 @@ its explanation.
 missing required field, unsatisfied conditional constraint. Errors are
 underlined in the editor and listed in the Problems panel.
 
-**Snippets.** 32 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
+**Snippets.** 35 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
 produces a complete MySQL source, cursor on the first field to fill, Tab to move
 on, dropdown menus on fixed-value fields.
 
@@ -118,7 +118,7 @@ Open `examples/invalid_examples/destinations.yaml`. It holds four deliberate
 errors, each documented in a comment. Open the Problems panel (`Ctrl+Shift+M`):
 all four should be listed, with matching line numbers.
 
-Repeat with `workflow.yaml` (5 errors) and `transformations.yaml` (6 errors).
+Repeat with `workflow.yaml` (5 errors) and `transformations.yaml` (9 errors).
 
 Conversely, `examples/valid_job/` and `examples/valid_workflow/` must produce
 **no** error at all.
@@ -150,7 +150,7 @@ between fields; on the `table`/`query` field a dropdown should open.
 
 The `Esc` matters: on an empty line the schema opens its own key suggestions, and
 that popup captures the `Tab` before the snippet does. Typing `h` then
-`Ctrl+Space` lists all 32 prefixes.
+`Ctrl+Space` lists all 35 prefixes.
 
 ### Test 5 — schema consistency (automated)
 

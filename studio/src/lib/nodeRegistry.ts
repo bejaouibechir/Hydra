@@ -59,7 +59,7 @@ const NODES: HydraNodeDef[] = [
   { type: 'transform_sort',      label: 'Sort',        category: 'transformation', color: '#6366f1', icon: 'ArrowUpDown',    description: 'Sorts the data' },
   { type: 'transform_dedupe',    label: 'Deduplicate', category: 'transformation', color: '#6366f1', icon: 'Fingerprint',    description: 'Removes duplicates' },
   { type: 'transform_derive',    label: 'Derive',      category: 'transformation', color: '#8b5cf6', icon: 'FunctionSquare', description: 'Creates a computed column' },
-  { type: 'transform_join',      label: 'Join',        category: 'transformation', color: '#a78bfa', icon: 'GitMerge',       description: 'Joins two flows on a key' },
+  { type: 'transform_join',      label: 'Join',        category: 'transformation', color: '#a78bfa', icon: 'GitMerge',       description: 'Joins two flows on a key, or every row × every row (cross)' },
   { type: 'transform_fill_null', label: 'Fill Null',   category: 'transformation', color: '#6366f1', icon: 'Binary',         description: 'Replaces null values' },
   { type: 'transform_trim',      label: 'Trim',        category: 'transformation', color: '#6366f1', icon: 'Scissors',       description: 'Removes extra spaces' },
   { type: 'transform_clean',     label: 'Clean',       category: 'transformation', color: '#6366f1', icon: 'Tags',           description: 'Cleans text (spaces, case)' },
@@ -68,6 +68,8 @@ const NODES: HydraNodeDef[] = [
   { type: 'transform_transpose', label: 'Transpose',   category: 'transformation', color: '#8b5cf6', icon: 'ArrowUpDown',     description: 'Swap rows and columns' },
   { type: 'transform_merge',     label: 'Merge',       category: 'transformation', color: '#a78bfa', icon: 'Link2',          description: 'Upsert a source into a target (SQL MERGE)' },
   { type: 'transform_union',     label: 'Union',       category: 'transformation', color: '#a78bfa', icon: 'Layers',         description: 'Append a source (UNION / UNION ALL)' },
+  { type: 'transform_text_to_rows', label: 'Text to Rows', category: 'transformation', color: '#6366f1', icon: 'Rows3',       description: 'One row per value of a text column ("a;b" -> 2 rows)' },
+  { type: 'transform_window',    label: 'Window',      category: 'transformation', color: '#8b5cf6', icon: 'ListOrdered',    description: 'Window functions: rank, lag/lead, running totals, partition totals' },
   { type: 'transform_script',    label: 'Script',      category: 'transformation', color: '#8b5cf6', icon: 'FileCode2',      description: 'Custom Python transformation (input -> output columns)' },
 
   // Destinations

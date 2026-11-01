@@ -31,7 +31,7 @@ Version du produit : **0.16.1**
 | `transformations.yaml` | `hydra_etl.internal.parser.transform.TransformConfig` | `steps` |
 | `workflow.yaml` | `hydra_etl.workflow.models.WorkflowDef` | `name`, `steps` |
 
-## Opérations de transformation (18)
+## Opérations de transformation (20)
 
 | Opération | Clés obligatoires |
 |---|---|
@@ -49,10 +49,12 @@ Version du produit : **0.16.1**
 | `script` | `outputs`, `code` |
 | `select` | `columns` |
 | `sort` | `by` |
+| `text_to_rows` | `column` |
 | `transpose` | — |
 | `trim` | — |
 | `union` | `right` |
 | `unpivot` | `id_vars` |
+| `window` | `columns` |
 
 ## Actions de workflow (11)
 

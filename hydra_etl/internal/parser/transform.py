@@ -4,7 +4,7 @@ Parser + validation Pydantic pour transformations.yaml (Hydra DSL v1.1).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Type
+from typing import Any, Dict, List, Literal, Optional, Type, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -150,18 +150,23 @@ class JoinOp(BaseModel):
             connection: {...}
             extract: {table: departments}
           key: email                # cle commune (str ou liste de str)
-          how: left                 # inner | left | right | outer
+          how: left                 # inner | left | right | outer | cross
+
+    how: cross: cartesian product (every row x every right row), no key;
+    max_rows guard (default 10,000,000 rows produced).
     """
     right: Any
     key: Any = None
     left_key: Any = None
     right_key: Any = None
     how: str = "inner"
+    max_rows: Optional[int] = Field(
+        default=None, description="how: cross only. Maximum rows produced (default 10,000,000).")
 
     @field_validator("how")
     @classmethod
     def _valid_how(cls, v: str) -> str:
-        allowed = {"inner", "left", "right", "outer"}
+        allowed = {"inner", "left", "right", "outer", "cross"}
         if v not in allowed:
             raise ValueError(f"join.how invalide: {v} (attendu: {sorted(allowed)})")
         return v
@@ -179,8 +184,22 @@ class JoinOp(BaseModel):
             return v
         raise ValueError("join: cle doit etre une colonne (str) ou une liste de colonnes non vides")
 
+    @field_validator("max_rows")
+    @classmethod
+    def _valid_max_rows(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (isinstance(v, bool) or v < 1):
+            raise ValueError("join.max_rows must be a positive integer")
+        return v
+
     @model_validator(mode="after")
     def _check_keys(self):
+        if self.how == "cross":
+            given = [k for k in ("key", "left_key", "right_key") if getattr(self, k) is not None]
+            if given:
+                raise ValueError(f"join: how: cross takes no key — remove {', '.join(given)}")
+            return self
+        if self.max_rows is not None:
+            raise ValueError("join.max_rows only applies to how: cross")
         has_single = self.key is not None
         has_pair = self.left_key is not None and self.right_key is not None
         if not has_single and not has_pair:
@@ -348,6 +367,102 @@ class ScriptOp(BaseModel):
         return v2
 
 
+class TextToRowsOp(BaseModel):
+    """
+    One row per value of a text column ("a;b;c" -> 3 rows, other columns copied).
+    A null value, or one with no non-empty part, keeps one row with a null value.
+
+        text_to_rows:
+          column: tags          # column to split (required)
+          sep: ";"              # separator (default ","), plain text
+          regex: false          # true: sep is a regular expression
+          trim: true            # strip spaces around each value
+          keep_empty: false     # empty values are dropped
+          index_column: tag_pos # optional: position 1, 2, 3...
+    """
+    model_config = {"extra": "forbid"}
+
+    column: str
+    sep: str = ","
+    regex: bool = False
+    trim: bool = True
+    keep_empty: bool = False
+    index_column: Optional[str] = None
+
+    @field_validator("column", "index_column")
+    @classmethod
+    def _non_empty_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("text_to_rows: column names cannot be empty")
+        return v.strip()
+
+    @field_validator("sep")
+    @classmethod
+    def _non_empty_sep(cls, v: str) -> str:
+        if v == "":
+            raise ValueError("text_to_rows.sep cannot be empty")
+        return v
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.regex:
+            import re
+            try:
+                re.compile(self.sep)
+            except re.error as e:
+                raise ValueError(f"text_to_rows.sep is not a valid regular expression: {e}") from None
+        if self.index_column is not None and self.index_column == self.column:
+            raise ValueError("text_to_rows.index_column must differ from column")
+        return self
+
+
+class WindowOrderItem(BaseModel):
+    """Item of window.order_by written as {col, desc}."""
+    model_config = {"extra": "forbid"}
+    col: str = Field(min_length=1, description="Column.")
+    desc: bool = Field(default=False, description="true: descending (null values stay last).")
+
+
+class WindowColumn(BaseModel):
+    """A column added by window: its function and options."""
+    model_config = {"extra": "forbid"}
+    func: Literal[
+        "row_number", "rank", "dense_rank", "lag", "lead",
+        "cumsum", "cumcount", "cummin", "cummax",
+        "sum", "mean", "min", "max", "count", "first", "last",
+    ] = Field(description="Window function.")
+    col: Optional[str] = Field(default=None, description="Column read by the function (not for row_number, rank, dense_rank).")
+    offset: Optional[int] = Field(default=None, ge=1, description="lag / lead: rows to look back or ahead (default 1).")
+    default: Optional[Any] = Field(default=None, description="lag / lead: value when the offset leaves the partition (default null).")
+
+
+class WindowOp(BaseModel):
+    """
+    Window functions: adds columns and keeps every row, in its input order.
+    Rank (row_number, rank, dense_rank), offset (lag, lead), running (cumsum,
+    cumcount, cummin, cummax) and whole-partition (sum, mean, min, max, count,
+    first, last) functions. Rank, offset and running functions need order_by.
+    Full rules: internal/engines/window.py.
+    """
+    model_config = {"extra": "forbid"}
+
+    partition_by: Optional[Union[str, List[str]]] = Field(
+        default=None, description="Columns splitting the rows into independent partitions (whole table without it).")
+    order_by: Optional[Union[str, List[Union[str, WindowOrderItem]]]] = Field(
+        default=None, description="Order inside each partition: names or {col, desc}; nulls last, ties in input order.")
+    columns: Dict[str, WindowColumn] = Field(
+        min_length=1, description="Mapping of output_column: {func, col, offset, default}.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _check(cls, data: Any) -> Any:
+        from hydra_etl.internal.engines.window import check
+        check(data)
+        return data
+
+
 # -----------------------------
 # Registre des operations
 # -----------------------------
@@ -356,6 +471,7 @@ OpName = Literal[
     "select", "rename", "cast", "filter", "calculate",
     "sort", "deduplicate", "fill_null", "trim", "aggregate", "join",
     "clean", "pivot", "unpivot", "transpose", "merge", "union", "script",
+    "text_to_rows", "window",
 ]
 
 _OP_MODEL_MAP: Dict[str, Type[BaseModel]] = {
@@ -377,6 +493,8 @@ _OP_MODEL_MAP: Dict[str, Type[BaseModel]] = {
     "merge": MergeOp,
     "union": UnionOp,
     "script": ScriptOp,
+    "text_to_rows": TextToRowsOp,
+    "window": WindowOp,
 }
 
 

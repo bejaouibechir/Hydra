@@ -14,8 +14,8 @@ def test_generated_schema_inventory_is_complete() -> None:
     artifacts = build_artifacts()
     index = json.loads(artifacts["index.json"])
 
-    assert index["schemaCount"] == 22
-    assert len(index["schemas"]) == 22
+    assert index["schemaCount"] == 24          # 20 opérations (+ text_to_rows, window) + 4
+    assert len(index["schemas"]) == 24
 
     generated_operations = {
         entry["dslName"]

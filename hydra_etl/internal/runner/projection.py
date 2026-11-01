@@ -231,6 +231,26 @@ def required_columns(steps: List[Any]) -> Optional[Set[str]]:
                 needed |= set(cols)
             continue
 
+        if op == "window":
+            from hydra_etl.internal.engines.window import outputs, used_columns
+            try:
+                used = used_columns(params)
+            except ValueError:
+                return None
+            needed -= set(outputs(params))   # créées par l'opération
+            needed |= set(used)
+            continue
+
+        if op == "text_to_rows":
+            col = params.get("column")
+            if not isinstance(col, str):
+                return None
+            idx = params.get("index_column")
+            if isinstance(idx, str):
+                needed.discard(idx)          # créée par l'opération
+            needed.add(col)
+            continue
+
         if op in {"trim", "fill_null"}:
             # sans effet sur les autres colonnes, et tolérants aux absentes
             continue

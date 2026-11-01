@@ -23,7 +23,7 @@ import {
   FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
   // Transformations
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge,
+  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2,
   // Actions
   Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal,
   // Control Flow
@@ -44,7 +44,7 @@ const LUCIDE: Record<string, React.ElementType> = {
   FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
   // Transformations
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge,
+  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2,
   // Actions
   Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal,
   // Control Flow

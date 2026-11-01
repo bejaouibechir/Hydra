@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import JobCreatorWizard from '@/components/canvas/JobCreatorWizard'
 import ExpressionBuilder from '@/components/canvas/ExpressionBuilder'
 import AggregationBuilder from '@/components/canvas/AggregationBuilder'
+import WindowBuilder from '@/components/canvas/WindowBuilder'
 import ScriptBuilder from '@/components/canvas/ScriptBuilder'
 import { rewriteFriendlyConcat } from '@/lib/exprBuilder'
 
@@ -138,7 +139,8 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'key',       label: 'Key (common column)',       type: 'text',   placeholder: 'email' },
     { key: 'left_key',  label: 'Left key (if different)',  type: 'text',   placeholder: 'manager_id' },
     { key: 'right_key', label: 'Right key (if different)',  type: 'text',   placeholder: 'id' },
-    { key: 'how',       label: 'Join type',            type: 'select', options: ['inner', 'left', 'right', 'outer'] },
+    { key: 'how',       label: 'Join type',            type: 'select', options: ['inner', 'left', 'right', 'outer', 'cross'] },
+    { key: 'max_rows',  label: 'Max rows produced (cross join; default 10,000,000)', type: 'number', placeholder: '10000000', min: 1 },
   ],
   transform_fill_null: [
     { key: 'value',   label: 'Replacement value (global)', type: 'text',     placeholder: '0' },
@@ -175,6 +177,19 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'distinct', label: 'Remove duplicates (UNION vs UNION ALL)', type: 'select', options: ['false', 'true'] },
   ],
   transform_script: [],
+  transform_text_to_rows: [
+    { key: 'column',       label: 'Column to split',                type: 'text',   placeholder: 'tags', required: true },
+    { key: 'sep',          label: 'Separator (default ,)',           type: 'text',   placeholder: ';' },
+    { key: 'regex',        label: 'Separator is a regular expression', type: 'select', options: ['false', 'true'] },
+    { key: 'trim',         label: 'Trim spaces around each value',   type: 'select', options: ['true', 'false'] },
+    { key: 'keep_empty',   label: 'Keep empty values',               type: 'select', options: ['false', 'true'] },
+    { key: 'index_column', label: 'Position column (optional: 1, 2, 3…)', type: 'text', placeholder: 'tag_pos' },
+  ],
+  transform_window: [
+    { key: 'partition_by', label: 'Partition by (comma-separated, empty = whole table)', type: 'text', placeholder: 'customer_id' },
+    { key: 'order_by',     label: 'Order by (comma-separated, add "desc" if needed)', type: 'text', placeholder: 'order_date, amount desc' },
+    { key: 'columns',      label: 'Columns', type: 'textarea', required: true },
+  ],
   // Actions génériques
   action_log: [
     { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Message written to the run logs' },
@@ -258,7 +273,7 @@ const CATEGORY_ACCENT: Record<string, string> = {
 import {
   FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge,
+  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
   Briefcase,
@@ -268,7 +283,7 @@ import { MySQLIcon, PostgreSQLIcon } from '@/components/icons/DatabaseIcons'
 const LUCIDE: Record<string, React.ElementType> = {
   FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge,
+  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
   MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon,
@@ -894,7 +909,7 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
           )}
 
           {/* Join — choix mutuellement exclusif : cle commune vs cles distinctes (self-join) */}
-          {d.nodeType === 'transform_join' && (() => {
+          {d.nodeType === 'transform_join' && params.how !== 'cross' && (() => {
             const btnStyle = (active: boolean) => ({
               flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               borderRadius: 6, border: 'none',
@@ -949,6 +964,10 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             if (isDbSource && (field.key === 'table' || field.key === 'query')) return null
             // Join : cle / left_key / right_key sont geres par le toggle ci-dessus
             if (d.nodeType === 'transform_join' && (field.key === 'key' || field.key === 'left_key' || field.key === 'right_key')) return null
+            // Join : max_rows seulement pour how: cross
+            if (d.nodeType === 'transform_join' && field.key === 'max_rows' && params.how !== 'cross') return null
+            // Window : les colonnes sont gerees par WindowBuilder ci-dessous
+            if (d.nodeType === 'transform_window' && field.key === 'columns') return null
             // Aggregate : le champ agg est gere par AggregationBuilder ci-dessous
             if (d.nodeType === 'transform_aggregate' && field.key === 'agg') return null
             return (
@@ -1114,6 +1133,18 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
               </span>
               <div style={{ marginTop: 6 }}>
                 <AggregationBuilder value={params.agg ?? ''} accent={accent} onChange={v => setParam('agg', v)} />
+              </div>
+            </div>
+          )}
+
+          {/* Window — editeur en lignes (genere le JSON columns) */}
+          {d.nodeType === 'transform_window' && (
+            <div style={{ display: 'block', marginBottom: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Columns <span style={{ color: 'var(--error)' }}>*</span>
+              </span>
+              <div style={{ marginTop: 6 }}>
+                <WindowBuilder value={params.columns ?? ''} accent={accent} onChange={v => setParam('columns', v)} />
               </div>
             </div>
           )}

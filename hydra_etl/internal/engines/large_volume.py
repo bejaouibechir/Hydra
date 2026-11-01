@@ -239,6 +239,14 @@ class DuckGlobal:
             if op == "join":
                 if not self._join(p, rel, name):
                     break
+            elif op == "window":
+                from hydra_etl.internal.engines.window import sql as window_sql
+                res = window_sql(p, rel, self._rel_dtypes(rel), _q)
+                if res is None:
+                    break
+                sql, to_double = res
+                self.con.execute(f"CREATE TEMP TABLE {name} AS {sql}")
+                self._ints_with_nulls_to_double(name, only=to_double)
             else:
                 sql = self._sql(op, p, rel)
                 if sql is None:
@@ -333,6 +341,30 @@ class DuckGlobal:
                 self.con.execute(f"ALTER TABLE {name} ALTER {_q(col)} TYPE DOUBLE")
         self._joined = True
         return True
+
+    def _rel_dtypes(self, rel: str) -> Dict[str, set]:
+        """Types pandas des colonnes de rel : ceux des lots pour la table t ;
+        après une autre étape, déduits des types DuckDB (sinon inconnus : pandas)."""
+        if rel == "t":
+            return self._dtypes
+        m = {"BIGINT": "int64", "DOUBLE": "float64", "VARCHAR": "object", "BOOLEAN": "bool"}
+        out: Dict[str, set] = {}
+        for col, typ in self.con.execute(
+                f"SELECT column_name, data_type FROM information_schema.columns "
+                f"WHERE table_name = '{rel}'").fetchall():
+            if typ in m:
+                out[col] = {m[typ]}
+        return out
+
+    def _ints_with_nulls_to_double(self, name: str, only: Optional[List[str]] = None) -> None:
+        """pandas passe en float une colonne entière qui reçoit des vides."""
+        for col, typ in self.con.execute(
+                f"SELECT column_name, data_type FROM information_schema.columns "
+                f"WHERE table_name = '{name}'").fetchall():
+            if typ in ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UTINYINT", "USMALLINT",
+                       "UINTEGER", "UBIGINT") and (only is None or col in only) and self.con.execute(
+                    f"SELECT count(*) - count({_q(col)}) FROM {name}").fetchall()[0][0]:
+                self.con.execute(f"ALTER TABLE {name} ALTER {_q(col)} TYPE DOUBLE")
 
     def _columns(self, rel: str) -> set:
         return {d[0] for d in self.con.execute(f"SELECT * FROM {rel} LIMIT 0").description}

@@ -28,6 +28,13 @@ export function isNodeConfigured(data: FlowNodeData): boolean {
       case 'transform_sort':      return filled(p.by)
       case 'transform_aggregate': return filled(p.by) && filled(p.agg)
       case 'transform_derive':    return filled(p.column) && filled(p.expr)
+      case 'transform_text_to_rows': return filled(p.column)
+      case 'transform_window': {
+        try {
+          const cols = JSON.parse(String(p.columns ?? '{}'))
+          return !!cols && typeof cols === 'object' && Object.keys(cols).length > 0
+        } catch { return false }
+      }
       default:                    return true
     }
   }

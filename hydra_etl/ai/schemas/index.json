@@ -32,9 +32,9 @@
   "generatedBy": "tools/spec_export.py",
   "generatedFrom": "Pydantic model_json_schema(mode='validation') + AST du runner",
   "manifestCount": 6,
-  "operationCount": 18,
+  "operationCount": 20,
   "productVersion": "0.16.1",
-  "schemaCount": 27,
+  "schemaCount": 29,
   "schemas": [
     {
       "dslName": "actions",
@@ -175,6 +175,12 @@
       "sourceModel": "hydra_etl.internal.parser.transform.SortOp"
     },
     {
+      "dslName": "text_to_rows",
+      "kind": "transformation",
+      "path": "operations/text_to_rows.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.TextToRowsOp"
+    },
+    {
       "dslName": "transpose",
       "kind": "transformation",
       "path": "operations/transpose.schema.json",
@@ -197,6 +203,12 @@
       "kind": "transformation",
       "path": "operations/unpivot.schema.json",
       "sourceModel": "hydra_etl.internal.parser.transform.UnpivotOp"
+    },
+    {
+      "dslName": "window",
+      "kind": "transformation",
+      "path": "operations/window.schema.json",
+      "sourceModel": "hydra_etl.internal.parser.transform.WindowOp"
     }
   ],
   "unmodelledManifests": []

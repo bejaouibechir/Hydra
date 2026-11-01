@@ -24,6 +24,14 @@ steps:
       columns: [id]
       keep: last
 
+  - window:
+      partition_by: [customer_id]
+      order_by: [{col: created_at, desc: false}]
+      columns:
+        order_rank: {func: row_number}
+        prev_amount: {func: lag, col: amount, default: 0}
+        customer_total: {func: sum, col: amount}
+
   - sort:
       by: [created_at]
       ascending: false

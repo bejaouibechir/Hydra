@@ -298,7 +298,7 @@ def build_server() -> Any:
 
     @server.tool(
         description=(
-            "List the 18 transformation operations of Hydra ETL with their "
+            "List every transformation operation of Hydra ETL with its "
             "required parameters. Call this BEFORE writing a "
             "transformations.yaml: any operation missing from this list does "
             "not exist and will be rejected."
@@ -511,6 +511,19 @@ def build_server() -> Any:
                       "étape étant un objet à UNE seule clé : le nom de "
                       "l'opération."),
             ("mode", "`load.mode` vaut append, replace ou upsert."),
+            ("order_by", "window: rank (row_number, rank, dense_rank), offset (lag, lead) "
+                         "and running (cumsum, cumcount, cummin, cummax) functions need "
+                         "`order_by`: a list of column names or {col, desc}."),
+            ("max_rows", "join how: cross produces left rows x right rows. Filter the "
+                         "inputs first, or raise `max_rows` if this size is intended. "
+                         "`max_rows` is only allowed with how: cross."),
+            ("cross", "join how: cross takes no key: remove `key`, `left_key` and "
+                      "`right_key`."),
+            ("text_to_rows", "text_to_rows needs `column` (the column to split); `sep` "
+                             "is plain text unless `regex: true`; `index_column` must be "
+                             "a new column name."),
+            ("numeric column", "window: cumsum, cummin, cummax, sum and mean read a "
+                               "numeric column. Add a `cast` step before the window."),
         ]
         low = error_message.lower()
         found = [h for key, h in hints if key in low]

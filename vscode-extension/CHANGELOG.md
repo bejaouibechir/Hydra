@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.1.6
+
+Brings `transformations.yaml` in line with Hydra ETL 0.17.
+
+- `join`: `how: cross` (cartesian product). No key is allowed with it, and
+  `max_rows` (rows produced at most) is accepted only with it.
+- New `text_to_rows` operation: `column`, `sep`, `regex`, `trim`,
+  `keep_empty`, `index_column`.
+- New `window` operation: `partition_by`, `order_by` (names or
+  `{col, desc}`) and `columns`, with 16 functions — rank (`row_number`,
+  `rank`, `dense_rank`), offset (`lag`, `lead`), running (`cumsum`,
+  `cumcount`, `cummin`, `cummax`) and whole partition (`sum`, `mean`, `min`,
+  `max`, `count`, `first`, `last`). Each function only accepts its own
+  options (`col`, `offset`, `default`), with hover help.
+- Snippets: `hcrossjoin`, `htexttorows`, `hwindow`.
+
 ## 0.1.5
 
 Brings the schemas in line with Hydra ETL 0.15.

@@ -74,9 +74,11 @@ def test_liste_les_connecteurs_reels(call):
     assert "s3" not in out and "bigquery" not in out
 
 
-def test_liste_les_18_operations(call):
+def test_liste_toutes_les_operations(call):
+    from hydra_etl.internal.parser.transform import _OP_MODEL_MAP
     lignes = [l for l in call("hydra_list_operations").splitlines() if l.strip()]
-    assert len(lignes) == 18
+    assert len(lignes) == len(_OP_MODEL_MAP) == 20
+    assert any(l.startswith("window") for l in lignes) and any(l.startswith("text_to_rows") for l in lignes)
     assert any(l.startswith("cast") for l in lignes)
 
 

@@ -327,3 +327,69 @@ describe('engine: (moteur gros volumes)', () => {
     expect(jobEngineOf(cleared)).toBeUndefined()
   })
 })
+
+/**
+ * join how: cross, text_to_rows, window : disque → canvas → disque, après
+ * passage par la boîte de configuration (qui convertit les params en chaînes).
+ */
+describe('hdrSerializer — cross join, text_to_rows, window', () => {
+  const disk = sectionYamlsToJobModel({
+    sources: 'sources:\n  orders:\n    type: csv\n    extract:\n      table: data/orders.csv\n  cal:\n    type: csv\n    extract:\n      table: data/cal.csv\n',
+    transformations: [
+      'steps:',
+      '  - join: {right: cal, how: cross, max_rows: 5000}',
+      '  - text_to_rows: {column: tags, sep: ";", regex: false, trim: false, keep_empty: true, index_column: pos}',
+      '  - window:',
+      '      partition_by: [cust]',
+      '      order_by: [day, {col: amount, desc: true}]',
+      '      columns:',
+      '        rn: {func: row_number}',
+      '        prev: {func: lag, col: amount, offset: 2, default: 0}',
+      '        tot: {func: sum, col: amount}',
+      '',
+    ].join('\n'),
+    destinations: 'destinations:\n  out:\n    type: csv\n    load:\n      table: data/out.csv\n      mode: replace\n',
+    pipeline: 'pipeline:\n  from: orders\n  to: out\n',
+  }, 'job1')!
+
+  const asDialog = (nodes: ReturnType<typeof jobModelToFlow>['nodes']) => nodes.map(n => ({
+    ...n, data: { ...n.data, params: Object.fromEntries(Object.entries((n.data.params ?? {}) as Record<string, unknown>).map(([k, v]) => [k, String(v ?? '')])) },
+  }))
+
+  it('les nœuds ont le bon type', () => {
+    const { nodes } = jobModelToFlow(disk)
+    const types = nodes.map(n => n.data.nodeType)
+    expect(types).toContain('transform_join')
+    expect(types).toContain('transform_text_to_rows')
+    expect(types).toContain('transform_window')
+  })
+
+  it('aller-retour sans perte (types compris)', () => {
+    const { nodes, edges } = jobModelToFlow(disk)
+    const back = flowToJobModel(asDialog(nodes), edges, 'job1')
+    expect(back.transformations.steps).toEqual([
+      { join: { right: 'cal', how: 'cross', max_rows: 5000 } },
+      { text_to_rows: { column: 'tags', sep: ';', trim: false, keep_empty: true, index_column: 'pos' } },
+      { window: {
+        partition_by: ['cust'],
+        order_by: ['day', { col: 'amount', desc: true }],
+        columns: { rn: { func: 'row_number' }, prev: { func: 'lag', col: 'amount', offset: 2, default: 0 }, tot: { func: 'sum', col: 'amount' } },
+      } },
+    ])
+  })
+
+  it('join cross : aucune clé écrite, max_rows absent sans valeur', () => {
+    const { nodes, edges } = jobModelToFlow(disk)
+    const j = asDialog(nodes).map(n => n.data.nodeType === 'transform_join'
+      ? { ...n, data: { ...n.data, params: { ...(n.data.params as Record<string, string>), key: 'id', max_rows: '' } } } : n)
+    const step = flowToJobModel(j, edges, 'job1').transformations.steps[0]
+    expect(step).toEqual({ join: { right: 'cal', how: 'cross' } })
+  })
+
+  it('join non cross : max_rows jamais écrit', () => {
+    const { nodes, edges } = jobModelToFlow(disk)
+    const j = asDialog(nodes).map(n => n.data.nodeType === 'transform_join'
+      ? { ...n, data: { ...n.data, params: { ...(n.data.params as Record<string, string>), how: 'left', key: 'id' } } } : n)
+    expect(flowToJobModel(j, edges, 'job1').transformations.steps[0]).toEqual({ join: { right: 'cal', how: 'left', key: 'id' } })
+  })
+})

@@ -717,7 +717,7 @@ class JobExecutor:
     # tri local, doublons inter-batch, union/merge répétés à chaque batch).
     _GLOBAL_OPS = frozenset({
         "aggregate", "sort", "deduplicate", "pivot", "unpivot",
-        "transpose", "union", "merge",
+        "transpose", "union", "merge", "window",
     })
 
     @classmethod

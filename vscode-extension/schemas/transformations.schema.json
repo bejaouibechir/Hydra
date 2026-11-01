@@ -32,7 +32,7 @@
       "type": "string",
       "enum": ["auto", "pandas", "duckdb"],
       "default": "auto",
-      "description": "Engine for global operations (aggregate, sort). auto: pandas, except above HYDRA_LARGE_VOLUME_ROWS estimated rows (2,000,000), where the large-volume engine (pyarrow + DuckDB, extra hydra-etl[duckdb]) is used. The HYDRA_ENGINE variable takes precedence.",
+      "description": "Engine for global operations (aggregate, sort, right/outer join, window). auto: pandas, except above HYDRA_LARGE_VOLUME_ROWS estimated rows (2,000,000), where the large-volume engine (pyarrow + DuckDB, extra hydra-etl[duckdb]) is used. The HYDRA_ENGINE variable takes precedence.",
       "markdownEnumDescriptions": [
         "pandas below about 2 million estimated rows, large-volume engine above",
         "always pandas",
@@ -69,6 +69,8 @@
         "pivot": { "$ref": "#/definitions/opPivot" },
         "unpivot": { "$ref": "#/definitions/opUnpivot" },
         "transpose": { "$ref": "#/definitions/opTranspose" },
+        "text_to_rows": { "$ref": "#/definitions/opTextToRows" },
+        "window": { "$ref": "#/definitions/opWindow" },
         "script": { "$ref": "#/definitions/opScript" }
       }
     },
@@ -325,15 +327,24 @@
 
     "opJoin": {
       "type": "object",
-      "description": "Join with a second stream. Provide either 'key' (a shared column name) or both 'left_key' and 'right_key'.",
+      "description": "Join with a second stream. Provide either 'key' (a shared column name) or both 'left_key' and 'right_key'. With how: cross, give no key: every row is paired with every row of the right stream.",
       "required": ["right"],
-      "anyOf": [{ "required": ["key"] }, { "required": ["left_key", "right_key"] }],
+      "allOf": [
+        {
+          "if": { "required": ["how"], "properties": { "how": { "const": "cross" } } },
+          "then": { "properties": { "key": false, "left_key": false, "right_key": false } },
+          "else": {
+            "anyOf": [{ "required": ["key"] }, { "required": ["left_key", "right_key"] }],
+            "properties": { "max_rows": false }
+          }
+        }
+      ],
       "additionalProperties": false,
       "properties": {
         "right": { "$ref": "#/definitions/rightSource" },
         "key": {
           "allOf": [{ "$ref": "#/definitions/joinKey" }],
-          "description": "Column present on both sides under the same name."
+          "description": "Column present on both sides under the same name. Not allowed with how: cross."
         },
         "left_key": {
           "allOf": [{ "$ref": "#/definitions/joinKey" }],
@@ -345,15 +356,22 @@
         },
         "how": {
           "type": "string",
-          "enum": ["inner", "left", "right", "outer"],
+          "enum": ["inner", "left", "right", "outer", "cross"],
           "default": "inner",
           "description": "Join type.",
           "enumDescriptions": [
             "inner — only rows present on both sides.",
             "left — every row of the current stream; right columns are null when unmatched.",
             "right — every row of the right stream.",
-            "outer — union of both, missing values set to null."
+            "outer — union of both, missing values set to null.",
+            "cross — every row of the current stream × every row of the right stream (cartesian product), no key. Guarded by max_rows."
           ]
+        },
+        "max_rows": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10000000,
+          "description": "how: cross only. Maximum number of rows the join may produce, counted over all batches (default 10,000,000). The run stops before producing the batch that would exceed it."
         }
       }
     },
@@ -465,6 +483,323 @@
           "type": "string",
           "default": "column",
           "description": "Name of the column receiving the former headers."
+        }
+      }
+    },
+
+    "opTextToRows": {
+      "type": "object",
+      "description": "One row per value of a text column: \"a;b;c\" becomes 3 rows, the other columns are copied. A null value, or one with no non-empty part, keeps one row with a null value: no input row is lost.",
+      "required": [
+        "column"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "column": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Column to split.",
+          "examples": [
+            "tags"
+          ]
+        },
+        "sep": {
+          "type": "string",
+          "minLength": 1,
+          "default": ",",
+          "description": "Separator (plain text, or a regular expression with regex: true).",
+          "examples": [
+            ";",
+            "|"
+          ]
+        },
+        "regex": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: sep is a regular expression, e.g. \"[,;]\"."
+        },
+        "trim": {
+          "type": "boolean",
+          "default": true,
+          "description": "Strip spaces around each value."
+        },
+        "keep_empty": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep empty values (\"a;;b\" gives 3 rows instead of 2)."
+        },
+        "index_column": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional column receiving the position of each value (1, 2, 3…). Must not exist yet.",
+          "examples": [
+            "tag_pos"
+          ]
+        }
+      }
+    },
+
+    "windowOrderItem": {
+      "description": "A column name (ascending), or {col, desc}.",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "required": [
+            "col"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Column."
+            },
+            "desc": {
+              "type": "boolean",
+              "default": false,
+              "description": "true: descending. Null values stay last."
+            }
+          }
+        }
+      ]
+    },
+
+    "windowColumn": {
+      "type": "object",
+      "required": [
+        "func"
+      ],
+      "additionalProperties": false,
+      "description": "Function computing this column.",
+      "properties": {
+        "func": {
+          "type": "string",
+          "enum": [
+            "row_number",
+            "rank",
+            "dense_rank",
+            "lag",
+            "lead",
+            "cumsum",
+            "cumcount",
+            "cummin",
+            "cummax",
+            "sum",
+            "mean",
+            "min",
+            "max",
+            "count",
+            "first",
+            "last"
+          ],
+          "description": "Window function.",
+          "enumDescriptions": [
+            "row_number — 1, 2, 3… in order; ties keep the input order.",
+            "rank — equal rows share a rank, with gaps (1, 1, 3).",
+            "dense_rank — equal rows share a rank, without gaps (1, 1, 2).",
+            "lag — value of col offset rows before, in the same partition.",
+            "lead — value of col offset rows after, in the same partition.",
+            "cumsum — running total of col (numeric).",
+            "cumcount — running count of non-null col values (of rows without col).",
+            "cummin — running minimum of col (numeric).",
+            "cummax — running maximum of col (numeric).",
+            "sum — total of col over the whole partition (numeric).",
+            "mean — mean of col over the whole partition (numeric).",
+            "min — minimum of col over the whole partition.",
+            "max — maximum of col over the whole partition.",
+            "count — non-null values of col in the partition.",
+            "first — first non-null value of col, in order_by order (input order without it).",
+            "last — last non-null value of col, in order_by order (input order without it)."
+          ]
+        },
+        "col": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Column read by the function."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "lag / lead: number of rows to look back or ahead."
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "lag / lead: value when the offset leaves the partition (null by default)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "func": {
+                "enum": [
+                  "row_number",
+                  "rank",
+                  "dense_rank"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "col": false,
+              "offset": false,
+              "default": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "func": {
+                "enum": [
+                  "lag",
+                  "lead"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "col"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "func": {
+                "enum": [
+                  "cumsum",
+                  "cumcount",
+                  "cummin",
+                  "cummax",
+                  "sum",
+                  "mean",
+                  "min",
+                  "max",
+                  "count",
+                  "first",
+                  "last"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "offset": false,
+              "default": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "func": {
+                "enum": [
+                  "cumsum",
+                  "cummin",
+                  "cummax",
+                  "sum",
+                  "mean",
+                  "min",
+                  "max",
+                  "count",
+                  "first",
+                  "last"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "col"
+            ]
+          }
+        }
+      ]
+    },
+
+    "opWindow": {
+      "type": "object",
+      "description": "Window functions: adds columns and keeps every row, in its input order. Rank, offset and running functions need order_by. Global operation (runs in DuckDB with the large-volume engine).",
+      "required": [
+        "columns"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "partition_by": {
+          "description": "Columns that split the rows into independent groups. Without it, the whole table is one partition. Null values form their own group.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/definitions/columnList"
+            }
+          ],
+          "examples": [
+            [
+              "customer_id"
+            ]
+          ]
+        },
+        "order_by": {
+          "description": "Order inside each partition: column names, or {col, desc}. Null values last; ties keep the input order.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/definitions/windowOrderItem"
+              }
+            }
+          ],
+          "examples": [
+            [
+              "order_date"
+            ],
+            [
+              {
+                "col": "amount",
+                "desc": true
+              }
+            ]
+          ]
+        },
+        "columns": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Mapping of output_column: {func, col, offset, default}. Output columns must not exist yet.",
+          "additionalProperties": {
+            "$ref": "#/definitions/windowColumn"
+          },
+          "examples": [
+            {
+              "order_rank": {
+                "func": "row_number"
+              },
+              "prev_amount": {
+                "func": "lag",
+                "col": "amount",
+                "default": 0
+              }
+            }
+          ]
         }
       }
     },

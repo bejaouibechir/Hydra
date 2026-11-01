@@ -296,6 +296,18 @@
     ]
   },
 
+  "Hydra — cross join step": {
+    "prefix": "hcrossjoin",
+    "description": "Every row × every row of a declared source (cartesian product)",
+    "body": [
+      "- join:",
+      "    right: ${1:calendar}",
+      "    how: cross",
+      "    max_rows: ${2:10000000}",
+      "$0"
+    ]
+  },
+
   "Hydra — union step": {
     "prefix": "hunion",
     "description": "Stack a second stream",
@@ -340,6 +352,34 @@
       "    id_vars: [${1:date}]",
       "    var_name: ${2:variable}",
       "    value_name: ${3:value}",
+      "$0"
+    ]
+  },
+
+  "Hydra — text_to_rows step": {
+    "prefix": "htexttorows",
+    "description": "One row per value of a text column",
+    "body": [
+      "- text_to_rows:",
+      "    column: ${1:tags}",
+      "    sep: \"${2:;}\"",
+      "    index_column: ${3:tag_pos}",
+      "$0"
+    ]
+  },
+
+  "Hydra — window step": {
+    "prefix": "hwindow",
+    "description": "Window functions: rank, lag/lead, running totals, partition totals",
+    "body": [
+      "- window:",
+      "    partition_by: [${1:customer_id}]",
+      "    order_by: [${2:order_date}]",
+      "    columns:",
+      "      ${3:order_rank}: {func: ${4|row_number,rank,dense_rank|}}",
+      "      ${5:prev_amount}: {func: ${6|lag,lead|}, col: ${7:amount}, default: ${8:0}}",
+      "      ${9:running_total}: {func: ${10|cumsum,cumcount,cummin,cummax|}, col: ${11:amount}}",
+      "      ${12:customer_total}: {func: ${13|sum,mean,min,max,count,first,last|}, col: ${14:amount}}",
       "$0"
     ]
   },

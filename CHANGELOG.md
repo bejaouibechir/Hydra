@@ -7,6 +7,16 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-11-01
+
+### Fixed
+
+- MongoDB source: `schema.drift_policy` (`fail` / `warn` / `adapt` / `ignore`) was inoperative. The `schema`
+  block never reached the connector, and documents were normalised before drift detection. Now:
+  `fail` raises `SchemaDriftError` naming the field and the document; `warn` logs each new field once plus a
+  summary; `adapt` extends the schema; `ignore` stays silent. `schema.sample_size` is honoured.
+  Regression tests: `tests/test_mongodb_drift.py`.
+
 ## [0.16.0] — 2026-10-29
 
 ### Added

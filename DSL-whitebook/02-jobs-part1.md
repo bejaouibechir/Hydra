@@ -270,15 +270,9 @@ sources:
 
 `host: SRV-ERP\SQLEXPRESS` is accepted too.
 
-
-
 **[LAB lab-02-02 · Killercoda]** **[Read from a SQL database]([9. Read from a SQL database | Hydra ETL | Killercoda](https://killercoda.com/hydra-etl/scenario/09-read-from-a-sql-database))** 
 
-
-
 ![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\02-jobs-part1\23.png)
-
-
 
  A MySQL and a PostgreSQL server are running. Read a whole table with `table`, then only the last 7 days with `query`.
 
@@ -306,8 +300,6 @@ Instead of `uri`, you can give `host`, `port`, `username` and `password`.
 **[[GITHUB gh-02-01 · example] mongodb_schema]([bejaouibechir.github.io/codes/02-jobs-part1/mongodb_schema at main · bejaouibechir/bejaouibechir.github.io · GitHub](https://github.com/bejaouibechir/bejaouibechir.github.io/tree/main/codes/02-jobs-part1/mongodb_schema))**
 
 ![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\02-jobs-part1\24.png)
-
-
 
 erreur du moteur à corriger ici
 
@@ -359,8 +351,6 @@ Configuration : `mode: infer_strict`, `sample_size: 100`. Répéter avec `drift_
    |
 
    v
-
-
 
 > **[LAB lab-02-03 · Killercoda]** **MongoDB documents and schema drift** — Read a collection whose documents differ, then compare `drift_policy: warn`, `fail` and `adapt`.
 

@@ -1,0 +1,12 @@
+{
+  "id": "139c4391",
+  "name": "hydra",
+  "description": "",
+  "created_at": "2026-10-28T13:27:11.182547+00:00",
+  "conventions": {
+    "data_dir": "Data",
+    "output_dir": "outputs"
+  },
+  "workflows": [],
+  "jobs": []
+}

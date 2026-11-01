@@ -32,6 +32,11 @@ class DriftPolicy(Enum):
     """Dynamically adapt schema to match actual data."""
 
 
+class SchemaDriftError(ValueError):
+    """Dérive de schéma refusée (`drift_policy: fail`). Message en anglais :
+    il atteint l'utilisateur."""
+
+
 class ValidationPolicy(Enum):
     """
     Policy for validating data during extraction/loading.

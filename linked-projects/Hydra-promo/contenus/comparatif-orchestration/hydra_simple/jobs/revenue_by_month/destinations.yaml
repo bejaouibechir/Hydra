@@ -1,0 +1,6 @@
+destinations:
+  report:
+    type: csv
+    load:
+      table: ../../output/revenue_by_month.csv
+      mode: replace

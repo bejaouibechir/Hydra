@@ -1,0 +1,10 @@
+version: "1.0"
+thread:
+  - mode: sequential
+    workflows:
+      - name: daily_revenue
+        timeout: 10m
+        fallback:
+          use: [daily_revenue_backup]
+          when: "not file_exists('data/orders.csv')"   # checked just before the start
+          on_failure: true                             # also after a failure that left nothing published

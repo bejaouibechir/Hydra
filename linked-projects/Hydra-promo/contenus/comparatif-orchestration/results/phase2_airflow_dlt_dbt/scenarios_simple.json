@@ -1,0 +1,110 @@
+[
+ {
+  "scenario": "normal",
+  "run": 1,
+  "exit_code": 0,
+  "seconds": 15.81,
+  "revenue_by_country": "main",
+  "revenue_by_month": "main",
+  "consistent": true
+ },
+ {
+  "scenario": "normal",
+  "run": 2,
+  "exit_code": 0,
+  "seconds": 13.94,
+  "revenue_by_country": "main",
+  "revenue_by_month": "main",
+  "consistent": true
+ },
+ {
+  "scenario": "normal",
+  "run": 3,
+  "exit_code": 0,
+  "seconds": 14.13,
+  "revenue_by_country": "main",
+  "revenue_by_month": "main",
+  "consistent": true
+ },
+ {
+  "scenario": "missing_source",
+  "run": 1,
+  "exit_code": 1,
+  "seconds": 9.61,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "missing_source",
+  "run": 2,
+  "exit_code": 1,
+  "seconds": 9.88,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "missing_source",
+  "run": 3,
+  "exit_code": 1,
+  "seconds": 9.98,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_amount",
+  "run": 1,
+  "exit_code": 1,
+  "seconds": 13.95,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_amount",
+  "run": 2,
+  "exit_code": 1,
+  "seconds": 13.94,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_amount",
+  "run": 3,
+  "exit_code": 1,
+  "seconds": 13.92,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_date",
+  "run": 1,
+  "exit_code": 1,
+  "seconds": 13.97,
+  "revenue_by_country": "main",
+  "revenue_by_month": "previous",
+  "consistent": false
+ },
+ {
+  "scenario": "bad_date",
+  "run": 2,
+  "exit_code": 1,
+  "seconds": 13.9,
+  "revenue_by_country": "main",
+  "revenue_by_month": "previous",
+  "consistent": false
+ },
+ {
+  "scenario": "bad_date",
+  "run": 3,
+  "exit_code": 1,
+  "seconds": 14.02,
+  "revenue_by_country": "main",
+  "revenue_by_month": "previous",
+  "consistent": false
+ }
+]

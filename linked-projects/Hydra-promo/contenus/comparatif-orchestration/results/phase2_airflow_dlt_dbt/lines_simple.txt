@@ -1,0 +1,11 @@
+  18  ingest.py
+  12  dags/daily_revenue_simple.py
+  11  dbt/dbt_project.yml
+   6  dbt/profiles.yml
+   6  dbt/models/marts/revenue_by_country.sql
+   5  dbt/models/marts/revenue_by_month.sql
+   2  dbt/models/staging/stg_customers.sql
+   8  dbt/models/staging/stg_orders.sql
+   7  dbt/models/staging/sources.yml
+   3  env.sh
+  78  TOTAL (10 files)

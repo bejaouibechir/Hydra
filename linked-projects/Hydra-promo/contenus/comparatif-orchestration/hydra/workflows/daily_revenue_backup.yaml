@@ -1,0 +1,15 @@
+workflow:
+  name: daily_revenue_backup
+  steps:
+    - name: use_backup_export
+      type: action
+      action: set_param
+      params: {name: orders_file, value: ../../data/backup/orders.csv}
+    - name: by_country
+      type: job
+      job: ../jobs/revenue_by_country
+      depends_on: [use_backup_export]
+    - name: by_month
+      type: job
+      job: ../jobs/revenue_by_month
+      depends_on: [by_country]

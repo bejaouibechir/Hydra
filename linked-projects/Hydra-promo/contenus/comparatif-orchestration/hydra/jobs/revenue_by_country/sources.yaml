@@ -1,0 +1,9 @@
+sources:
+  orders:
+    type: csv
+    extract:
+      table: "{{ param:orders_file }}"
+  customers:
+    type: csv
+    extract:
+      table: ../../data/customers.csv

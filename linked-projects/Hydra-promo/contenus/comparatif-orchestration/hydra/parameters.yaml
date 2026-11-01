@@ -1,0 +1,6 @@
+version: "1.0"
+parameters:
+  orders_file:
+    type: str
+    default: ../../data/orders.csv
+    description: Orders export read by both jobs (the backup workflow points to data/backup/).

@@ -1,0 +1,12 @@
+{
+ "docker_install_seconds": 13.0,
+ "abctl_install_seconds": 3.0,
+ "airbyte_install_seconds": 323.1,
+ "airbyte_low_resource_mode": true,
+ "first_sync_orders_main_seconds": 82.0,
+ "first_sync_customers_seconds": 66.0,
+ "airbyte_images": "26",
+ "airbyte_running_containers": "18",
+ "airbyte_images_mb": "7050",
+ "docker_df": "Images 8.879GB; Containers 3.641MB; Local Volumes 7.622GB; Build Cache 0B"
+}

@@ -1,0 +1,10 @@
+steps:
+  - filter: {expr: "status == 'paid'"}
+  - cast: {mapping: {amount: float}}
+  - join: {right: customers, key: customer_id, how: inner}
+  - aggregate:
+      by: [country]
+      agg:
+        revenue: {func: sum, col: amount}
+        orders: {func: count, col: order_id}
+  - sort: {by: [country]}

@@ -16,7 +16,8 @@ from .policies import (
     DriftPolicy,
     ValidationPolicy,
     FieldPolicy,
-    PolicyFactory
+    PolicyFactory,
+    SchemaDriftError,
 )
 from .validator import SchemaValidator, ValidationResult
 
@@ -32,6 +33,7 @@ __all__ = [
     'ValidationPolicy',
     'FieldPolicy',
     'PolicyFactory',
+    'SchemaDriftError',
     # Validator
     'SchemaValidator',
     'ValidationResult',

@@ -1,0 +1,7 @@
+{
+ "stack": "Airflow + Airbyte + dbt",
+ "install_seconds": 26.0,
+ "packages": 162,
+ "env_size_mb": 531.0,
+ "python": "3.12"
+}

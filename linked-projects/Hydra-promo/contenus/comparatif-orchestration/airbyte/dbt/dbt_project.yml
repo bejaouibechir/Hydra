@@ -1,0 +1,13 @@
+name: daily_revenue
+version: "1.0"
+config-version: 2
+profile: daily_revenue
+model-paths: ["models"]
+models:
+  daily_revenue:
+    staging:
+      # éphémère : aucune vue ne dépend des tables brutes, qu'Airbyte remplace
+      # à chaque synchronisation (full refresh overwrite)
+      +materialized: ephemeral
+    marts:
+      +materialized: table

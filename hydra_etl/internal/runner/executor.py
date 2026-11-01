@@ -858,6 +858,17 @@ class JobExecutor:
                     config["extract"] = extract.dict()
                 elif isinstance(extract, dict):
                     config["extract"] = extract
+            # Bloc `schema` (MongoDB) : transmis tel quel au connecteur. Sans lui,
+            # mode / fields / drift_policy / sample_size n'atteignaient jamais le
+            # connecteur, qui retombait en silence sur ses valeurs par défaut.
+            schema = definition.__dict__.get("schema") if hasattr(definition, "__dict__") else None
+            if schema is None and isinstance(definition, dict):
+                schema = definition.get("schema")
+            if schema is not None:
+                if hasattr(schema, "model_dump"):
+                    config["schema"] = schema.model_dump()
+                elif isinstance(schema, dict):
+                    config["schema"] = schema
         else:
             load = getattr(definition, "load", None)
             if load is not None:

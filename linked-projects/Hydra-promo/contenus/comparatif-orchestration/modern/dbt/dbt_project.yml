@@ -1,0 +1,11 @@
+name: daily_revenue
+version: "1.0"
+config-version: 2
+profile: daily_revenue
+model-paths: ["models"]
+models:
+  daily_revenue:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: external

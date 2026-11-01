@@ -273,7 +273,7 @@ const CATEGORY_ACCENT: Record<string, string> = {
 import {
   FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2,
+  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
   Briefcase,
@@ -283,7 +283,7 @@ import { MySQLIcon, PostgreSQLIcon } from '@/components/icons/DatabaseIcons'
 const LUCIDE: Record<string, React.ElementType> = {
   FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
   Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2,
+  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
   MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon,

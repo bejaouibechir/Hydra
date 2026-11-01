@@ -60,6 +60,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Studio: the **Script** node showed a generic icon in the palette and its configuration dialog.
+- Studio: the **MySQL** and **PostgreSQL** nodes show the official logos (from the CC0 `simple-icons`
+  package) instead of hand-drawn shapes; the **SQL Server** node showed a generic icon in the palette and
+  now shows a database icon.
 
 ### Unchanged
 

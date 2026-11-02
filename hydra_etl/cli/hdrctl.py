@@ -817,6 +817,8 @@ def cli(ctx: click.Context) -> None:
 @click.option("--secrets-visibility", "secrets_visibility", default=None,
               type=click.Choice(["plain", "masked", "hidden"], case_sensitive=False),
               help=t("help.run.secrets_visibility"))
+@click.option("--env-file", "env_file", default=None, metavar="FILE",
+              help=t("help.run.env_file"))
 @click.option("--use-fallback", "use_fallback", multiple=True, metavar="WORKFLOW",
               help=t("help.run.use_fallback"))
 def cmd_run(path: str, verbosity: int, dry_run: bool,
@@ -826,7 +828,8 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             on_finish: Optional[str],
             env_name: Optional[str] = None, param_overrides: tuple = (),
             profile: bool = False, secrets_file: Optional[str] = None,
-            use_fallback: tuple = (), secrets_visibility: Optional[str] = None) -> None:
+            use_fallback: tuple = (), secrets_visibility: Optional[str] = None,
+            env_file: Optional[str] = None) -> None:
     """Exécute un pipeline ETL."""
     verbosity = verbosity or 0  # click < 8.2 passes None when no -v flag is given
     print_banner()
@@ -838,6 +841,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
         sys.exit(1)
     _use_secrets_file(secrets_file)
     _use_secrets_visibility(secrets_visibility)
+    _use_env_file(env_file)
 
     # Projet (.hydra/ sans fichiers de job à la racine) → tous ses workflows,
     # dans l'ordre de workflows/thread.yaml. Sinon : un job seul.
@@ -987,6 +991,19 @@ def _use_secrets_file(path: Optional[str]) -> None:
         error_box(t("run.secrets_file_not_found", path=str(f)))
         sys.exit(1)
     os.environ[SECRETS_FILE_ENV] = str(f)
+
+
+def _use_env_file(path: Optional[str]) -> None:
+    """--env-file : variables d'environnement de ce run (au-dessus de toutes les
+    autres couches). Transmis au moteur par HYDRA_ENV_FILE."""
+    if not path:
+        return
+    from hydra_etl.internal.config.loader import ENV_FILE_ENV
+    f = Path(path).expanduser().resolve()
+    if not f.is_file():
+        error_box(t("run.env_file_not_found", path=str(f)))
+        sys.exit(1)
+    os.environ[ENV_FILE_ENV] = str(f)
 
 
 def _use_secrets_visibility(value: Optional[str]) -> None:
@@ -1945,8 +1962,14 @@ def _echo_step_output(step_result) -> None:
 @click.option("--secrets-visibility", "secrets_visibility", default=None,
               type=click.Choice(["plain", "masked", "hidden"], case_sensitive=False),
               help=t("help.run.secrets_visibility"))
+@click.option("--env", "env_name", default=None, metavar="NAME", help=t("help.run.env"))
+@click.option("-P", "--param", "param_overrides", multiple=True, metavar="KEY=VALUE",
+              help=t("help.run.param"))
+@click.option("--env-file", "env_file", default=None, metavar="FILE",
+              help=t("help.run.env_file"))
 def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[str],
-                     secrets_visibility: Optional[str] = None) -> None:
+                     secrets_visibility: Optional[str] = None, env_name: Optional[str] = None,
+                     param_overrides: tuple = (), env_file: Optional[str] = None) -> None:
     """Execute un workflow DAG."""
     from hydra_etl.workflow.parser import load_workflow, validate_workflow
     from hydra_etl.workflow.runner import WorkflowRunner
@@ -1954,6 +1977,10 @@ def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[s
     print_banner()
     _use_secrets_file(secrets_file)
     _use_secrets_visibility(secrets_visibility)
+    _use_env_file(env_file)
+    env_name = env_name or os.environ.get("HYDRA_ENV") or None
+    if env_name:
+        os.environ["HYDRA_ENV"] = env_name          # secrets.<env>, sops {env}, probes
     wf_path = _resolve_workflow_arg(path, project)
     if not wf_path.exists():
         error_box(t("workflow.file_not_found", path=str(wf_path)))
@@ -1968,7 +1995,8 @@ def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[s
     info(t("workflow.run.starting", name=c(C.CY, wf.name)))
     click.echo(c(C.DM, "  " + "─" * 56))
 
-    runner = WorkflowRunner(wf, base_dir=wf_path.parent)
+    runner = WorkflowRunner(wf, base_dir=wf_path.parent, env=env_name,
+                            params=_parse_param_overrides(param_overrides))
     result = runner.run()
 
     click.echo()

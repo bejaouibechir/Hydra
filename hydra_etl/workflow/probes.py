@@ -206,7 +206,7 @@ def probe_url_ok(arg: str, ctx: ProbeContext):
 def probe_secret_defined(arg: str, ctx: ProbeContext):
     from hydra_etl.internal.config.secrets import SecretResolutionError, SecretResolver, project_secrets
     try:
-        SecretResolver(secrets={}, fallback=project_secrets(ctx.root))._get_secret(arg)
+        SecretResolver(secrets={}, fallback=project_secrets(ctx.root, env=getattr(ctx, "env", None)))._get_secret(arg)
         return True, ""
     except SecretResolutionError:
         return False, "not in the environment nor in the secrets file"

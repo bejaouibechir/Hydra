@@ -98,7 +98,16 @@ class JobExecutor:
         self._transforms_file   = Path(transformations_file).resolve() if transformations_file else self.job_dir / "transformations.yaml"
 
         
-        # Chargement .env layers
+        # Environnement actif (dev, prod…) : --env, sinon HYDRA_ENV
+        self._active_env = env or os.environ.get("HYDRA_ENV")
+
+        # Chargement .env layers : variables globales (~/.hydra/env, env.<env>)
+        # < .env du projet < .env du job < --env-file
+        try:
+            from hydra_etl.internal.config.loader import apply_global_env
+            apply_global_env(self._active_env, override_os=override_os)
+        except Exception as e:
+            logger.warning(f"Could not load the global environment variables: {e}")
         try:
             root_env_path = self.root_dir / ".env" if (self.root_dir / ".env").exists() else None
             job_env_path = self.job_dir / ".env" if (self.job_dir / ".env").exists() else None
@@ -111,14 +120,16 @@ class JobExecutor:
             logger.info(f"Loaded {env_report.loaded_root} root vars, {env_report.loaded_job} job vars")
         except Exception as e:
             logger.warning(f"Could not load .env layers: {e}")
+        from hydra_etl.internal.config.loader import apply_env_file_option
+        apply_env_file_option(override_os=override_os)      # fichier absent : erreur, pas d'avertissement
         
         # Parsers et engine
         from hydra_etl.internal.config.secrets import project_secrets
         self._secret_resolver = SecretResolver(
-            secrets={}, fallback=project_secrets(self.job_dir, self.root_dir, self.path_base))
+            secrets={}, fallback=project_secrets(self.job_dir, self.root_dir, self.path_base,
+                                                 env=self._active_env))
         # Parametres (couche statique, lecture seule) resolus avant le parsing
         self._runtime_params = dict(params or {})
-        self._active_env = env or os.environ.get("HYDRA_ENV")
         self._effective_params = self._load_parameters()
         self._param_resolver = ParameterResolver(params=self._effective_params, env=dict(os.environ), strict=False, strict_params=True)
         self._source_parser = SourceParser()

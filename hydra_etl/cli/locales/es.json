@@ -218,6 +218,8 @@
   "job.list.run_hint": "Ejecutar un job: hdrctl run jobs/<job>  ·  todo el proyecto: hdrctl run .",
   "help.job.list.docstring": "\b\nLista los jobs de un proyecto y los workflows que los usan.\nMuestra cada carpeta de jobs/ (libre, o los workflows donde está, o los archivos\nque le faltan) y las carpetas de jobs citadas por un workflow que no existen.\n\b\nEjemplos:\n  hdrctl job list\n  hdrctl job list C:\\data\\my_project",
   "help.run.secrets_file": "Archivo de secretos a usar en lugar de .hydra/secrets (nombre=valor por línea)",
+  "help.run.env_file": "Variables de entorno adicionales para esta ejecución (nombre=valor por línea); prevalecen sobre las demás capas",
+  "run.env_file_not_found": "Archivo de entorno no encontrado: {path}",
   "help.run.secrets_visibility": "Cómo aparecen los secretos en los logs y mensajes: plain (depuración), masked (por defecto) o hidden; prevalece sobre .hydra/secrets.yaml",
   "help.run.use_fallback": "Fuerza la alternativa de WORKFLOW (un workflow del thread que declara un fallback), para ensayar un escenario de recuperación. Repetible.",
   "run.secrets_file_not_found": "Archivo de secretos no encontrado: {path}",

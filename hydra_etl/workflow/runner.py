@@ -167,6 +167,20 @@ class WorkflowRunner:
 
         logger.info(f"▶ Workflow '{self.workflow.name}' started")
 
+        # Variables d'environnement visibles des actions dès le début (sans
+        # attendre qu'un job les charge) : globales (~/.hydra/env, env.<env>)
+        # < .env du projet < --env-file.
+        from hydra_etl.internal.config.loader import apply_env_file_option, apply_global_env, load_env_layers
+        try:
+            apply_global_env(self.env)
+            root_env = self.project_root / ".env"
+            load_env_layers(root_env_path=root_env if root_env.is_file() else None,
+                            job_env_path=None, override_os=True)
+            apply_env_file_option()
+        except Exception as e:  # noqa: BLE001 — fichier illisible : le run s'arrête, message clair
+            return WorkflowResult(workflow_name=self.workflow.name, success=False, duration=0.0,
+                                  error=f"environment variables: {e}")
+
         # Un run précédent arrêté sans finir son annulation : ne rien relancer.
         from hydra_etl.workflow.rollback import UndoStack, journal_path, rollback_problems
         journal = journal_path(self.project_root, self.workflow.name)
@@ -667,7 +681,7 @@ class WorkflowRunner:
         from hydra_etl.internal.config.secrets import SecretResolver, project_secrets
         # ${SECRET:x} / ${ENV:X} d'abord, comme dans les jobs.
         params = SecretResolver(
-            secrets={}, fallback=project_secrets(self.project_root, self.base_dir),
+            secrets={}, fallback=project_secrets(self.project_root, self.base_dir, env=self.env),
         ).resolve(params)
         merged = {**self._project_params(), **self._runtime_snapshot()}
         resolver = ParameterResolver(

@@ -7,6 +7,22 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Global environment variables, shared by every project of the machine: `~/.hydra/env` (all
+  environments) and `~/.hydra/env.<env>` (one environment: dev, prod…), selected by `--env` /
+  `HYDRA_ENV`. Location: `HYDRA_HOME` (default `~/.hydra`). Order, weakest first: `env` < `env.<env>` <
+  project `.env` < job `.env` < `--env-file`; as for `.env` files, a file wins over a variable already set
+  in the system. When a run switches environment (Studio, API), the variables of the previous one are
+  removed. Workflow actions now see these variables and the project `.env` from the first step.
+- Secrets per environment: `.hydra/secrets.<env>` (plain or SOPS-encrypted) wins over `.hydra/secrets`
+  when the run uses `--env <env>`; `sops.file` accepts `{env}` (`.hydra/secrets.{env}.sops.yaml`).
+  `.gitignore` written by `hdrctl init` ignores `.hydra/secrets.*` but keeps `.hydra/secrets.yaml` and
+  SOPS-encrypted files.
+- `--env-file FILE` on `hdrctl run` and `hdrctl workflow run`: extra variables for one run, above every
+  other layer. A missing file stops the run.
+- `hdrctl workflow run` accepts `--env` and `-P/--param`, like `hdrctl run`.
+
 ## [0.17.0] — 2026-11-01
 
 ### Added

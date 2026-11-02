@@ -188,7 +188,7 @@ class SopsProvider(SecretProvider):
 
 
 # ── Registre des fournisseurs ───────────────────────────────────────────────
-ProviderFactory = Callable[[Path, Dict[str, Any], "SecretsSettings"], SecretProvider]
+ProviderFactory = Callable[..., SecretProvider]   # (root, block, settings, env=None)
 _PROVIDERS: Dict[str, ProviderFactory] = {}
 
 
@@ -196,12 +196,19 @@ def register_provider(name: str, factory: ProviderFactory) -> None:
     _PROVIDERS[name] = factory
 
 
-def _sops_factory(root: Path, block: Dict[str, Any], settings: "SecretsSettings") -> SecretProvider:
+def _sops_factory(root: Path, block: Dict[str, Any], settings: "SecretsSettings",
+                  env: Optional[str] = None) -> SecretProvider:
     file = block.get("file")
     if not file:
         raise SecretProviderError(f"{settings.source}: provider 'sops' needs sops.file "
                                   "(path of the encrypted file, relative to the project)")
-    p = Path(str(file)).expanduser()
+    file = str(file)
+    if "{env}" in file:
+        if not env:
+            raise SecretProviderError(f"{settings.source}: sops.file uses {{env}} but no environment is "
+                                      "selected (--env or HYDRA_ENV)")
+        file = file.replace("{env}", env)
+    p = Path(file).expanduser()
     if not p.is_absolute():
         p = Path(root) / p
     return SopsProvider(p, block.get("format"), block.get("age_key_file"))
@@ -259,10 +266,17 @@ def load_settings(root: Optional[Path]) -> SecretsSettings:
     return s
 
 
-def build_provider(root: Path, settings: SecretsSettings) -> Optional[SecretProvider]:
+def build_provider(root: Path, settings: SecretsSettings, env: Optional[str] = None) -> Optional[SecretProvider]:
     if settings.provider == "none":
         return None
     block = settings.options.get(settings.provider) or {}
     if not isinstance(block, dict):
         raise SecretProviderError(f"{settings.source}: '{settings.provider}' must be a mapping")
-    return _PROVIDERS[settings.provider](Path(root), block, settings)
+    factory = _PROVIDERS[settings.provider]
+    import inspect
+    try:
+        takes_env = len(inspect.signature(factory).parameters) >= 4
+    except (TypeError, ValueError):
+        takes_env = False
+    # fournisseur enregistré avant 0.18 : (root, block, settings), sans env
+    return factory(Path(root), block, settings, env) if takes_env else factory(Path(root), block, settings)

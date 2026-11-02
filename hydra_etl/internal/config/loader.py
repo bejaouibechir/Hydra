@@ -261,3 +261,121 @@ puis exécuter :
 
 Résultat attendu : 6/6 tests passent (100%)
 """
+
+# ---------------------------------------------------------------------------
+# Variables d'environnement globales (partagées entre projets) — 0.18
+# ---------------------------------------------------------------------------
+# Dossier de l'utilisateur : ~/.hydra (ou HYDRA_HOME). Deux fichiers .env :
+#   env          variables communes à tous les environnements ;
+#   env.<nom>    variables de l'environnement <nom> (dev, prod…), choisi par
+#                --env / HYDRA_ENV ou par le combo du Studio.
+# Ordre (du plus faible au plus fort) : env < env.<nom> < .env du projet
+#   < .env du job < --env-file (HYDRA_ENV_FILE). Comme pour les .env existants,
+#   un fichier l'emporte sur la variable déjà présente dans le système.
+
+import re as _re
+import threading as _threading
+
+HOME_ENV = "HYDRA_HOME"
+ENV_FILE_ENV = "HYDRA_ENV_FILE"
+ENV_NAME_RE = _re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_\-]*$")
+
+
+def hydra_home() -> Path:
+    """Dossier des réglages de l'utilisateur (variables globales)."""
+    return Path(os.environ.get(HOME_ENV) or (Path.home() / ".hydra")).expanduser()
+
+
+def check_env_name(name: str) -> str:
+    n = (name or "").strip()
+    if not ENV_NAME_RE.match(n):
+        raise ValueError(f"invalid environment name '{name}': use letters, digits, '_' or '-'")
+    return n
+
+
+def global_env_file(env: Optional[str] = None) -> Path:
+    """~/.hydra/env (commun) ou ~/.hydra/env.<env>."""
+    home = hydra_home()
+    return home / "env" if not env else home / f"env.{check_env_name(env)}"
+
+
+def global_env_names() -> list:
+    """Environnements qui ont des variables globales (fichiers env.<nom>)."""
+    home = hydra_home()
+    if not home.is_dir():
+        return []
+    return sorted(p.name[4:] for p in home.glob("env.*") if p.is_file() and ENV_NAME_RE.match(p.name[4:]))
+
+
+_GLOBAL_LOCK = _threading.Lock()
+_GLOBAL_STATE: Dict[str, object] = {"env": None, "applied": {}}   # applied : clé -> (valeur posée, valeur d'origine)
+
+
+def apply_global_env(env: Optional[str], override_os: bool = True) -> Dict[str, str]:
+    """Pose dans os.environ les variables globales (commun + env.<env>).
+
+    Quand l'environnement change d'un run au suivant (Studio, API), les
+    variables posées pour le précédent sont d'abord retirées (ou rendues à leur
+    valeur d'origine), sauf si quelqu'un les a modifiées depuis : un run en dev
+    ne garde pas une variable propre à prod. Retourne {clé: fichier}.
+    """
+    files = [global_env_file(None)]
+    if env:
+        files.append(global_env_file(env))
+    values: Dict[str, str] = {}
+    sources: Dict[str, str] = {}
+    for f in files:
+        for k, v in parse_env_file(f).items():
+            values[k] = v
+            sources[k] = str(f)
+    with _GLOBAL_LOCK:
+        applied: Dict[str, tuple] = _GLOBAL_STATE["applied"]  # type: ignore[assignment]
+        if _GLOBAL_STATE["env"] != env:
+            for k, (set_val, orig) in list(applied.items()):
+                if os.environ.get(k) == set_val:
+                    if orig is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = orig
+                applied.pop(k, None)
+        for k, v in values.items():
+            if k not in applied:
+                if not override_os and k in os.environ:
+                    continue
+                applied[k] = (v, os.environ.get(k))
+            else:
+                applied[k] = (v, applied[k][1])
+            os.environ[k] = v
+        _GLOBAL_STATE["env"] = env
+    return sources
+
+
+def apply_env_file_option(override_os: bool = True) -> int:
+    """--env-file / HYDRA_ENV_FILE : variables de ce run, au-dessus de tout."""
+    f = os.environ.get(ENV_FILE_ENV)
+    if not f:
+        return 0
+    path = Path(f).expanduser()
+    if not path.is_file():
+        raise EnvFileParseError(f"environment file not found: {path} (set by {ENV_FILE_ENV})")
+    n = 0
+    for k, v in parse_env_file(path).items():
+        if not override_os and k in os.environ:
+            continue
+        os.environ[k] = v
+        n += 1
+    return n
+
+
+def restore_global_env() -> None:
+    """Retire les variables globales posées (rend les valeurs d'origine)."""
+    with _GLOBAL_LOCK:
+        applied: Dict[str, tuple] = _GLOBAL_STATE["applied"]  # type: ignore[assignment]
+        for k, (set_val, orig) in list(applied.items()):
+            if os.environ.get(k) == set_val:
+                if orig is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = orig
+        _GLOBAL_STATE["env"] = None
+        _GLOBAL_STATE["applied"] = {}

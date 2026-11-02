@@ -189,11 +189,14 @@ SECRETS_TEMPLATE = """\
 # reads DB_PASSWORD from the environment (CI, vault, shell, .env).
 # To keep the secrets elsewhere, set HYDRA_SECRETS_FILE=<path> or pass
 # --secrets-file <path> to hdrctl run.
+# Per environment: .hydra/secrets.<env> (e.g. .hydra/secrets.prod) wins over
+# this file when the run uses --env <env>.
 #
 # db.password=change-me
 """
 
-GITIGNORE_LINES = ("# Hydra: never commit secrets", ".hydra/secrets", ".env", ".env.*", "!.env.example")
+GITIGNORE_LINES = ("# Hydra: never commit secrets", ".hydra/secrets", ".hydra/secrets.*",
+                   "!.hydra/secrets.yaml", "!.hydra/*.sops.*", ".env", ".env.*", "!.env.example")
 
 
 def parse_secrets_text(text: str, source: str = "secrets") -> Dict[str, str]:
@@ -278,7 +281,13 @@ def _project_root(start: Path) -> Optional[Path]:
     return None
 
 
-def project_secrets(*anchors: Optional[Path]) -> Dict[str, str]:
+def env_secrets_file(root: Path, env: str) -> Path:
+    """.hydra/secrets.<env> : secrets propres à un environnement."""
+    from hydra_etl.internal.config.loader import check_env_name
+    return Path(root) / ".hydra" / f"secrets.{check_env_name(env)}"
+
+
+def project_secrets(*anchors: Optional[Path], env: Optional[str] = None) -> Dict[str, str]:
     """Secrets du fichier du projet. HYDRA_SECRETS_FILE (ou --secrets-file)
     désigne un fichier hors du projet ; sinon .hydra/secrets du projet qui
     contient le premier `anchor` trouvé. Pas de fichier : {}.
@@ -286,7 +295,12 @@ def project_secrets(*anchors: Optional[Path]) -> Dict[str, str]:
     Rend un ProjectSecrets (dict) qui porte aussi les réglages de
     .hydra/secrets.yaml (visibilité, fournisseur). Toutes les valeurs du
     fichier sont enregistrées pour être masquées, même celles qu'aucun
-    ${SECRET:...} n'utilise (un script peut les lire autrement)."""
+    ${SECRET:...} n'utilise (un script peut les lire autrement).
+
+    env (défaut HYDRA_ENV) : .hydra/secrets.<env>, s'il existe, l'emporte sur
+    .hydra/secrets ; `{env}` dans sops.file désigne le fichier chiffré de
+    l'environnement."""
+    env = env or os.environ.get("HYDRA_ENV") or None
     from hydra_etl.internal.config.masking import VisibilityError, register, resolve_visibility
     from hydra_etl.internal.config.secret_providers import (
         SecretProviderError, build_provider, load_settings)
@@ -300,7 +314,7 @@ def project_secrets(*anchors: Optional[Path]) -> Dict[str, str]:
         settings = load_settings(root)
         visibility = resolve_visibility(settings.visibility)
         settings.visibility = visibility
-        provider = build_provider(root, settings) if root is not None else None
+        provider = build_provider(root, settings, env) if root is not None else None
     except (SecretProviderError, VisibilityError) as e:
         raise SecretResolutionError(str(e)) from None
     age_key = (settings.options.get("sops") or {}).get("age_key_file") \
@@ -317,6 +331,13 @@ def project_secrets(*anchors: Optional[Path]) -> Dict[str, str]:
         f = root / PROJECT_SECRETS_FILE
         if f.is_file():
             values = load_secrets_file(f, age_key)
+    if env and root is not None:
+        try:
+            ef = env_secrets_file(root, env)
+        except ValueError as e:
+            raise SecretResolutionError(str(e)) from None
+        if ef.is_file():
+            values = {**values, **load_secrets_file(ef, age_key)}
     for k, v in values.items():
         register(v, visibility, name=k)
     if provider is not None and hasattr(provider, "_on_load"):

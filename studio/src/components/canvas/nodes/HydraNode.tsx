@@ -12,66 +12,19 @@ import { memo, useCallback, useContext, useState, useRef, useEffect } from 'reac
 import { SceneContext } from '@/lib/sceneContext'
 import { Handle, Position, NodeProps, NodeToolbar, useReactFlow } from '@xyflow/react'
 import {
-  Play, PowerOff, Trash2, MoreHorizontal,
-  Briefcase, Zap, Database, FileText, Globe,
-  GitBranch, Shuffle, Layers, AlertCircle, Pin,
-  ExternalLink, Clock,
+  Play, PowerOff, Trash2, MoreHorizontal, AlertCircle, Pin, ExternalLink,
 } from 'lucide-react'
+import { nodeAppearance, tint } from '@/lib/nodeAppearance'
 import type { FlowNodeData } from '@/lib/workflowSerializer'
 import { isNodeConfigured } from '@/lib/nodeValidation'
-
-// ── Icône par nodeType / catégorie ────────────────────────────────────────────
-
-const ICON_MAP: Record<string, React.ElementType> = {
-  job:             Briefcase,
-  action_webhook:  Globe,
-  action_log:      FileText,
-  action_delay:    Clock,
-  action_condition: GitBranch,
-  action_email:    FileText,
-  action_slack:    FileText,
-  source_csv:      Database,
-  source_json:     Database,
-  source_parquet:  Database,
-  source_mysql:    Database,
-  source_postgres: Database,
-  source_sqlserver: Database,
-  source_mongodb:  Database,
-  source_api:      Globe,
-  transform:       Shuffle,
-  workflow_split:  GitBranch,
-  workflow_merge:  Layers,
-  workflow_join:   Layers,
-}
-
-function nodeIcon(nodeType: string, category?: string): React.ElementType {
-  return ICON_MAP[nodeType] ?? ICON_MAP[category ?? ''] ?? Briefcase
-}
-
-// ── Couleur d'accent par catégorie ────────────────────────────────────────────
-
-const ACCENT: Record<string, string> = {
-  source:         'var(--primary)',
-  destination:    '#a78bfa',
-  transformation: '#34d399',
-  action:         'var(--info)',
-  workflow:       'var(--warning)',
-}
-
-function nodeAccent(nodeType: string): string {
-  for (const [key, color] of Object.entries(ACCENT)) {
-    if (nodeType.startsWith(key) || nodeType === key) return color
-  }
-  return 'var(--primary)'
-}
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 export const HydraNode = memo(({ id, data, selected }: NodeProps) => {
   const d         = data as FlowNodeData
   const rf        = useReactFlow()
-  const accent    = nodeAccent(d.nodeType)
-  const Icon      = nodeIcon(d.nodeType)
+  // Couleur et icône identiques à l'élément de la palette (lib/nodeAppearance)
+  const { color: accent, Icon } = nodeAppearance(d.nodeType)
   const enabled   = d.enabled !== false   // undefined → true
 
   // État d'exécution : blanc (initial) → pulsation (running) → vert/rouge
@@ -168,10 +121,10 @@ export const HydraNode = memo(({ id, data, selected }: NodeProps) => {
             : runColor
               ? `2px solid ${runColor}`
               : enabled
-                ? `1px solid var(--bg-border)`
-                : `1.5px dashed var(--bg-border)`,
+                ? `1.5px solid ${tint(accent, 70)}`
+                : `1.5px dashed ${tint(accent, 50)}`,
           boxShadow:  selected
-            ? `0 0 0 3px ${accent}40, 0 8px 24px rgba(0,0,0,0.45)`
+            ? `0 0 0 3px ${tint(accent, 25)}, 0 8px 24px rgba(0,0,0,0.45)`
             : runColor && runStatus !== 'running'
               ? `0 0 0 3px ${runColor}33, 0 4px 16px rgba(0,0,0,0.35)`
               : '0 4px 16px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2)',
@@ -203,10 +156,10 @@ export const HydraNode = memo(({ id, data, selected }: NodeProps) => {
             width: 28, height: 28,
             borderRadius: 7,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: `${accent}1a`,
+            background: tint(accent, 12),
           }}
         >
-          <Icon size={14} style={{ color: accent }} />
+          <Icon size={16} style={{ color: accent }} />
         </div>
 
         {/* Handles */}

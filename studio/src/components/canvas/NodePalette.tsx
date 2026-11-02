@@ -19,47 +19,12 @@ import {
   ChevronDown, ChevronRight, ChevronLeft,
   // Catégories
   HardDriveDownload, Shuffle, HardDriveUpload, Zap, GitBranch,
-  // Sources
-  FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
-  // Transformations
-  Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
-  // Actions
-  Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal,
-  // Control Flow
-  LayoutGrid, Clock, Scissors, Link2,
-  // Job node
-  Package,
-  // Container
-  Boxes, ShieldAlert, RotateCcw,
-  // Fallback
-  Briefcase,
+  // Job node / containers
+  Package, Boxes, ShieldAlert, RotateCcw,
 } from 'lucide-react'
-import { MySQLIcon, PostgreSQLIcon } from '@/components/icons/DatabaseIcons'
-
-// ── Icône string → composant Lucide ───────────────────────────────────────────
-
-const LUCIDE: Record<string, React.ElementType> = {
-  // Sources
-  FileSpreadsheet, Braces, Layers, Cylinder, Container, Globe,
-  // Transformations
-  Filter, CheckSquare2, Tags, Binary, BarChart2, ArrowUpDown,
-  Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
-  // Actions
-  Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal,
-  // Control Flow
-  GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  // Job
-  Package,
-  // Databases custom
-  MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon,
-  // Fallback
-  Briefcase,
-}
-
-function resolveIcon(name: string): React.ElementType {
-  return LUCIDE[name] ?? Briefcase
-}
+import {
+  resolveIcon, CATEGORY_COLORS, JOB_COLOR, CONTAINER_COLOR, ERRORSCOPE_COLOR, RETRYSCOPE_COLOR,
+} from '@/lib/nodeAppearance'
 
 // ── Catégories registry ───────────────────────────────────────────────────────
 
@@ -70,19 +35,6 @@ const CATEGORIES: { id: NodeCategory; label: string; icon: React.ElementType }[]
   { id: 'action',         label: 'Actions',        icon: Zap },
   { id: 'control_flow',   label: 'Control Flow',   icon: GitBranch },
 ]
-
-const CATEGORY_COLORS: Record<NodeCategory, string> = {
-  source:         'var(--success)',
-  transformation: 'var(--primary)',
-  destination:    'var(--warning)',
-  action:         'var(--info)',
-  control_flow:   '#f97316',
-}
-
-const JOB_COLOR = '#8b5cf6'
-const CONTAINER_COLOR = '#f59e0b'
-const ERRORSCOPE_COLOR = '#ef4444'
-const RETRYSCOPE_COLOR = '#06b6d4'
 
 const PALETTE_KEY = 'hydra-palette-collapsed'
 

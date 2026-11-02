@@ -119,7 +119,8 @@ server is a different piece of work.
 | `hydra_explain_error` | turn a validation error into a fix |
 | `hydra_list_workflows` · `hydra_read_workflow` | find and read workflows |
 | `hydra_write_workflow` | write a workflow — **validated first** |
-| `hydra_run_workflow` | execute a workflow |
+| `hydra_run_workflow` | execute a workflow, optionally in an environment (`env`) |
+| `hydra_project_settings` | environments, parameters and secrets of a project — **names only** for secrets and variables |
 | `hydra_preview_data` | columns and first rows of a CSV, JSON or Parquet file |
 | `hydra_check_job` | does the job match what the user asked? |
 | `hydra_find_example` | the closest real job, as a starting point |
@@ -129,7 +130,7 @@ The DSL tools read the specification generated from the engine's own code
 
 ## Beyond writing jobs
 
-Four tools close the loop between *writing* a pipeline and *understanding* it.
+Five tools close the loop between *writing* a pipeline and *understanding* it.
 
 **`hydra_preview_data`** shows the real column names and the first rows — call
 it before writing a `select`, so the assistant stops guessing, and after a run,
@@ -148,6 +149,13 @@ ALERTS — review before presenting the job:
 
 **`hydra_find_example`** returns the closest real job from the repository — an
 example that runs beats a reconstruction from memory.
+
+**`hydra_project_settings`** lists the environments (dev, prod…), the names of
+the global environment variables, the parameters (type, default, value per
+environment, effective value for `env`) and the names of the secrets, common or
+per environment. Secret values and variable values are never returned: the
+assistant writes `${SECRET:NAME}`, `${ENV:NAME}` and `{{ param:NAME }}` with
+names that exist, and the values stay on the machine.
 
 **`hydra_run_job`** reports what was produced: rows, columns, and a warning
 when zero rows were written, which usually means a filter is too strict or a

@@ -1,0 +1,5 @@
+# Expected errors: variables do not belong here (they go in ~/.hydra/env.prod)
+parameters:
+  batch_size: 5000
+variables:
+  DB_HOST: db.prod

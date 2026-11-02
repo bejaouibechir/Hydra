@@ -19,6 +19,13 @@ exist — remains the job of `hdrctl validate`.
 | `pipeline.yaml` | `from` / `to` required |
 | `transformations.yaml` | all 20 operations and their parameters, with allowed values |
 | `workflow.yaml` | steps, dependencies, built-in actions, retry policy, `cron` required in `schedule` mode |
+| `parameters.yaml` | parameter declarations: `type`, `default`, `required`, `description`, valid names |
+| `environments/<env>.yaml` | parameter values of one environment (dev, prod…) |
+| `.hydra/secrets.yaml` | secrets settings: `visibility` (`plain` / `masked` / `hidden`), `provider: sops` and its `sops` block (`file` with `{env}`, `format`, `age_key_file`) |
+
+Secret values never go in these files: they live in `.hydra/secrets` and
+`.hydra/secrets.<env>` (`hdrctl secret set`), and the global environment
+variables in `~/.hydra/env` and `~/.hydra/env.<env>` (`hdrctl env set`).
 
 Three complementary mechanisms:
 
@@ -32,7 +39,7 @@ its explanation.
 missing required field, unsatisfied conditional constraint. Errors are
 underlined in the editor and listed in the Problems panel.
 
-**Snippets.** 35 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
+**Snippets.** 42 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
 produces a complete MySQL source, cursor on the first field to fill, Tab to move
 on, dropdown menus on fixed-value fields.
 
@@ -72,7 +79,7 @@ cd vscode-extension
 python build_vsix.py
 ```
 
-This produces `hydra-etl-0.1.4.vsix`. The script needs neither Node, npm nor
+This produces `hydra-etl-0.1.7.vsix`. The script needs neither Node, npm nor
 `vsce`: a `.vsix` is a ZIP archive, and `build_vsix.py` assembles it with the
 Python standard library.
 
@@ -84,7 +91,7 @@ Python standard library.
 ### 3. Install
 
 ```powershell
-code --install-extension hydra-etl-0.1.4.vsix
+code --install-extension hydra-etl-0.1.7.vsix
 ```
 
 Without the command line: `Ctrl+Shift+X` → `...` menu at the top of the panel →
@@ -150,7 +157,11 @@ between fields; on the `table`/`query` field a dropdown should open.
 
 The `Esc` matters: on an empty line the schema opens its own key suggestions, and
 that popup captures the `Tab` before the snippet does. Typing `h` then
-`Ctrl+Space` lists all 35 prefixes.
+`Ctrl+Space` lists all 42 prefixes.
+
+Project files: `hparams` (parameters.yaml), `hparam` (one parameter), `henv`
+(environments/<env>.yaml), `hsecrets-sops` (.hydra/secrets.yaml); references
+`hrefparam`, `hrefsecret`, `hrefenv` in any field.
 
 ### Test 5 — schema consistency (automated)
 
@@ -159,7 +170,7 @@ pip install jsonschema pyyaml
 python examples/check_schemas.py
 ```
 
-The script checks that the five schemas are valid, that the correct examples
+The script checks that the eight schemas are valid, that the correct examples
 pass, and that the faulty examples raise the errors they advertise.
 
 ---
@@ -199,13 +210,18 @@ vscode-extension/
 │   ├── destinations.schema.json
 │   ├── pipeline.schema.json
 │   ├── transformations.schema.json
-│   └── workflow.schema.json
+│   ├── workflow.schema.json
+│   ├── parameters.schema.json
+│   ├── environment.schema.json
+│   └── secrets-settings.schema.json
 ├── snippets/
-│   └── hydra.json                32 snippets
+│   └── hydra.json                42 snippets
 └── examples/                     test sandbox, excluded from the package
     ├── valid_job/
     ├── valid_workflow/
+    ├── valid_project/            parameters.yaml, environments/, .hydra/secrets.yaml
     ├── invalid_examples/
+    ├── invalid_project/
     └── check_schemas.py
 ```
 

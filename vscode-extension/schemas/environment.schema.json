@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/environment-v1.json",
+  "title": "Hydra — environments/<env>.yaml",
+  "description": "Parameter values of one environment (dev, prod…). Used when a run selects it: `hdrctl run --env <env>`, HYDRA_ENV, or the environment selector of Studio. A parameter absent here keeps its default from parameters.yaml. Environment variables are not set here: they live in ~/.hydra/env.<env> (`hdrctl env set`), and secrets in .hydra/secrets.<env> (`hdrctl secret set --env`).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string", "description": "Hydra DSL version.", "default": "1.0" },
+    "parameters": {
+      "type": "object",
+      "description": "Parameter name → value for this environment. The value is converted to the type declared in parameters.yaml.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_.-]+$",
+        "errorMessage": "Parameter names use letters, digits, '.', '_' or '-'."
+      },
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "array", "object", "null"]
+      }
+    }
+  }
+}

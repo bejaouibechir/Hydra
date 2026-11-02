@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.1.7
+
+Project settings of Hydra ETL 0.18: parameters, environments and secrets.
+
+- `parameters.yaml`: declarations (`type`, `default`, `required`,
+  `description`) with valid names and types, hover help.
+- `environments/<env>.yaml`: parameter values of one environment; a
+  `variables` block is reported (variables go in `~/.hydra/env.<env>`).
+- `.hydra/secrets.yaml`: `visibility`, `provider` (`none`, `sops`) and the
+  `sops` block (`file` with `{env}`, `format`, `age_key_file`); `sops`
+  required when `provider: sops`.
+- Snippets: `hparams`, `hparam`, `henv`, `hsecrets-sops`, `hrefparam`,
+  `hrefsecret`, `hrefenv`.
+
 ## 0.1.6
 
 Brings `transformations.yaml` in line with Hydra ETL 0.17.

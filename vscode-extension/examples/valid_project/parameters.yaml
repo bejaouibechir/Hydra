@@ -1,0 +1,10 @@
+version: "1.0"
+parameters:
+  min_amount:
+    type: float
+    default: 0
+    description: Orders below this amount are ignored
+  batch_size: {type: int, default: 500}
+  report_table: {type: string, default: revenue_by_country, required: true}
+  regions: {type: json, default: [FR, TN]}
+  label: {default: dev run}

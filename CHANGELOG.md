@@ -40,6 +40,13 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - API: `/api/global-env` (environments and global variables; `/names` lists the environments of the machine
   and of a project); `/api/secrets` accepts `env`; inline job and action runs accept `env`.
 
+- VS Code extension 0.1.7: schemas for `parameters.yaml`, `environments/<env>.yaml` and
+  `.hydra/secrets.yaml`; snippets `hparams`, `hparam`, `henv`, `hsecrets-sops`, `hrefparam`, `hrefsecret`,
+  `hrefenv`.
+- MCP: `hydra_project_settings` (read-only) lists the environments, the names of the global variables, the
+  parameters per environment and the names of the secrets; never a secret or variable value.
+  `hydra_run_workflow` accepts `env`.
+
 ### Fixed
 
 - `hdrctl run jobs/<job>` now reads the `.env` at the project root (the folder that contains `.hydra/`),

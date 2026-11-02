@@ -259,3 +259,38 @@ def test_find_example_privilegie_un_job_pertinent(call):
                user_request="joindre commandes et clients", count=1)
     assert "### Exemple" in out
     assert "sources.yaml" in out
+
+
+# --- Environnements, paramètres, secrets (0.18) ----------------------------
+
+def _env_project(root):
+    from hydra_etl.internal.config import env_admin as ea
+    (root / ".hydra").mkdir(parents=True, exist_ok=True)
+    (root / "parameters.yaml").write_text(
+        "parameters:\n  batch_size: {type: int, default: 500}\n  region: {type: string, default: eu}\n",
+        encoding="utf-8")
+    (root / "environments").mkdir(exist_ok=True)
+    (root / "environments" / "prod.yaml").write_text("parameters:\n  batch_size: 5000\n", encoding="utf-8")
+    ea.set_global_var(None, "PG_HOST", "db.local")
+    ea.set_global_var("prod", "PG_DATABASE", "shop_prod")
+    ea.set_secret_value(root, "pg.password", "COMMON-SECRET-VALUE")
+    ea.set_secret_value(root, "mysql.password", "PROD-SECRET-VALUE", env="prod")
+
+
+def test_project_settings_names_only(call):
+    root = call.workspace
+    _env_project(root)
+    out = call("hydra_project_settings", project_path=".", env="prod")
+    assert "prod" in out and "PG_HOST" in out and "PG_DATABASE" in out
+    assert "batch_size" in out and "effective in prod: 5000" in out
+    assert "mysql.password [prod]" in out and "pg.password [common]" in out
+    for value in ("COMMON-SECRET-VALUE", "PROD-SECRET-VALUE", "db.local", "shop_prod"):
+        assert value not in out
+
+
+def test_project_settings_refuses_outside_and_non_project(call):
+    assert call("hydra_project_settings", project_path="../..").startswith("REFUS")
+    (call.workspace / "plain").mkdir()
+    assert "Not a Hydra project" in call("hydra_project_settings", project_path="plain")
+    _env_project(call.workspace)
+    assert call("hydra_project_settings", project_path=".", env="bad name").startswith("REFUSED")

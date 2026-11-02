@@ -616,17 +616,116 @@ def build_server() -> Any:
         description=(
             "Run a workflow and return the trace, step by step. Only call "
             "this tool if the user asked for the run: the jobs it contains "
-            "write real data to their destinations."
+            "write real data to their destinations. `env` selects the "
+            "environment (dev, prod…), like `hdrctl workflow run --env`; "
+            "list them with hydra_project_settings."
         )
     ,
         annotations=_annot(**EXECUTION, title="Runs the pipeline — writes real data"))
-    def hydra_run_workflow(workflow_path: str) -> str:
+    def hydra_run_workflow(workflow_path: str, env: str = "") -> str:
         try:
             f = safe_path(workflow_path)
         except ValueError as exc:
             return f"REFUSÉ — {exc}"
-        ok, output = _hdrctl("workflow", "run", str(f))
+        args = ["workflow", "run", str(f)]
+        if env:
+            from hydra_etl.internal.config.loader import check_env_name
+            try:
+                args += ["--env", check_env_name(env)]
+            except ValueError as exc:
+                return f"REFUSÉ — {exc}"
+        ok, output = _hdrctl(*args)
         return ("EXÉCUTION RÉUSSIE\n" if ok else "ÉCHEC\n") + output
+
+    # -- Environnements, paramètres, secrets (lecture seule) -----------------
+
+    @server.tool(
+        description=(
+            "Show the environments, parameters and secrets of a Hydra "
+            "project, read-only. Returns: the environments (dev, prod…), the "
+            "NAMES of the global environment variables (~/.hydra/env, "
+            "env.<env>), the parameters with their type, default and value "
+            "per environment, and the NAMES of the secrets (common or per "
+            "environment). Secret values and variable values are never "
+            "returned. Call this before writing a job that needs a "
+            "connection: use ${ENV:NAME}, ${SECRET:NAME} and "
+            "{{ param:NAME }} with names that exist. `env` adds the effective "
+            "parameter values for that environment."
+        )
+    ,
+        annotations=_annot(**LECTURE, title="Read-only"))
+    def hydra_project_settings(project_path: str = ".", env: str = "") -> str:
+        from hydra_etl.internal.config import env_admin as ea
+        from hydra_etl.internal.config.loader import check_env_name, global_env_file
+        from hydra_etl.internal.config.parameters import ParameterError, build_effective
+        try:
+            root = safe_path(project_path)
+        except ValueError as exc:
+            return f"REFUSED — {exc}"
+        if not (root / ".hydra").is_dir():
+            return (f"Not a Hydra project: {project_path} (no .hydra/ folder). "
+                    "Give the folder that contains .hydra/.")
+        if env:
+            try:
+                env = check_env_name(env)
+            except ValueError as exc:
+                return f"REFUSED — {exc}"
+        try:
+            envs = ea.list_environments(root)
+            view = ea.read_parameters(root)
+            secrets = ea.list_secrets(root, env or None)
+        except ea.EnvAdminError as exc:
+            return f"ERROR — {exc}"
+        except Exception as exc:  # fichier de secrets illisible, etc.
+            return f"ERROR — {type(exc).__name__}: {exc}"
+
+        out = [f"Project: {root.name}"]
+        out.append("\nEnvironments (select with --env, HYDRA_ENV or the Studio selector):")
+        if not envs:
+            out.append("  (none) — runs use the defaults only")
+        for e in envs:
+            out.append(f"  {e.name}: {e.global_vars} global variable(s), "
+                       f"{e.params} parameter value(s), {e.secrets} secret(s)")
+
+        def _names(scope):
+            try:
+                return sorted(ea.global_vars(scope))
+            except Exception:
+                return []
+        out.append("\nGlobal environment variables — names only, use ${ENV:NAME}:")
+        out.append(f"  common ({global_env_file(None)}): {', '.join(_names(None)) or '—'}")
+        for e in envs:
+            if e.global_file:
+                out.append(f"  {e.name}: {', '.join(_names(e.name)) or '—'}")
+
+        out.append("\nParameters — use {{ param:NAME }}:")
+        if not view.declarations:
+            out.append("  (none)")
+        effective = {}
+        if env:
+            try:
+                effective = build_effective(view.declarations, [view.environments.get(env, {})])
+            except ParameterError as exc:
+                out.append(f"  ! {exc}")
+        for name, d in view.declarations.items():
+            per_env = ", ".join(f"{en}={vals[name]!r}" for en, vals in sorted(view.environments.items())
+                                if name in vals)
+            line = (f"  {name}: type={d.get('type', 'any')}, default={d.get('default')!r}"
+                    + (", required" if d.get("required") else "")
+                    + (f", per environment: {per_env}" if per_env else ""))
+            if env:
+                line += f" -> effective in {env}: {effective.get(name)!r}"
+            out.append(line)
+
+        out.append("\nSecrets — names only, use ${SECRET:NAME}:")
+        if not secrets:
+            out.append("  (none)")
+        for s_ in secrets:
+            extra = f" (overridden by the variable {s_.overridden_by})" if s_.overridden_by else ""
+            out.append(f"  {s_.name} [{s_.scope}]{extra}")
+        if not env and envs:
+            out.append("  (pass env to also see the secrets of one environment)")
+        return "\n".join(out)
 
     # -- Voir les données ----------------------------------------------------
 

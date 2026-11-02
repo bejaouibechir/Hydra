@@ -1,0 +1,4 @@
+parameters:
+  min_amount: 100
+  batch_size: 5000
+  regions: [FR, TN, ES]

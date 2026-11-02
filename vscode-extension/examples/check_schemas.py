@@ -34,7 +34,17 @@ MAPPING = {
     "transformations.yaml": "transformations.schema.json",
     "workflow.yaml": "workflow.schema.json",
     "thread.yaml": "workflow.schema.json",
+    "parameters.yaml": "parameters.schema.json",
+    "secrets.yaml": "secrets-settings.schema.json",
 }
+# Files matched by their folder (any name): environments/<env>.yaml
+FOLDER_MAPPING = {
+    "environments": "environment.schema.json",
+}
+
+
+def schema_name_for(path: Path):
+    return MAPPING.get(path.name) or FOLDER_MAPPING.get(path.parent.name)
 
 OK, KO = "  OK  ", "  KO  "
 failures: list[str] = []
@@ -47,7 +57,7 @@ def load_schema(name: str) -> dict:
 def check_meta() -> dict[str, dict]:
     print("\n=== 1. Schema validity ===")
     schemas: dict[str, dict] = {}
-    for name in sorted(MAPPING.values()):
+    for name in sorted(set(MAPPING.values()) | set(FOLDER_MAPPING.values())):
         try:
             schema = load_schema(name)
             Draft7Validator.check_schema(schema)
@@ -67,8 +77,8 @@ def errors_for(path: Path, schema: dict) -> list:
 def check_valid(schemas: dict[str, dict]) -> None:
     print("\n=== 2. Valid manifests (no error expected) ===")
     for folder in sorted(EXAMPLES_DIR.glob("valid_*")):
-        for path in sorted(folder.rglob("*.yaml")):
-            schema_name = MAPPING.get(path.name)
+        for path in sorted(folder.glob("**/*.yaml")):
+            schema_name = schema_name_for(path)
             if not schema_name or schema_name not in schemas:
                 continue
             errors = errors_for(path, schemas[schema_name])
@@ -86,8 +96,8 @@ def check_valid(schemas: dict[str, dict]) -> None:
 def check_invalid(schemas: dict[str, dict]) -> None:
     print("\n=== 3. Faulty manifests (errors expected) ===")
     for folder in sorted(EXAMPLES_DIR.glob("invalid_*")):
-        for path in sorted(folder.rglob("*.yaml")):
-            schema_name = MAPPING.get(path.name)
+        for path in sorted(folder.glob("**/*.yaml")):
+            schema_name = schema_name_for(path)
             if not schema_name or schema_name not in schemas:
                 continue
             errors = errors_for(path, schemas[schema_name])

@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/parameters-v1.json",
+  "title": "Hydra — parameters.yaml",
+  "description": "Parameters of a Hydra project: type, default value, required. Values per environment go in environments/<env>.yaml. Use a parameter as {{ param:NAME }} in any field, or params[\"NAME\"] in a script. Managed by `hdrctl param` and Studio › Project settings › Parameters.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Hydra DSL version.",
+      "default": "1.0"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "One entry per parameter. The name is what you write in {{ param:NAME }}.",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_.-]+$",
+        "errorMessage": "Parameter names use letters, digits, '.', '_' or '-'."
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "enum": [
+              "string",
+              "str",
+              "int",
+              "float",
+              "bool",
+              "boolean",
+              "json",
+              "any"
+            ],
+            "default": "string",
+            "description": "Type the value is converted to before the run. 'json' accepts a list or a mapping.",
+            "enumDescriptions": [
+              "Text",
+              "Text (alias of string)",
+              "Whole number",
+              "Decimal number",
+              "true / false",
+              "true / false (alias of bool)",
+              "List or mapping",
+              "No conversion"
+            ]
+          },
+          "default": {
+            "description": "Value used when the active environment (environments/<env>.yaml) and -P give none."
+          },
+          "required": {
+            "type": "boolean",
+            "default": false,
+            "description": "true: the run fails if the parameter ends up with no value."
+          },
+          "description": {
+            "type": "string",
+            "description": "Shown in Studio and in `hdrctl param list`."
+          }
+        },
+        "description": "Declaration of one parameter."
+      },
+      "defaultSnippets": [
+        {
+          "label": "parameter",
+          "body": {
+            "${1:name}": {
+              "type": "${2|string,int,float,bool,json,any|}",
+              "default": "${3}",
+              "description": "${4}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

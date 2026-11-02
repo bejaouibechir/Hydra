@@ -472,5 +472,72 @@
       "  cron: \"${1|0 8 * * *,0 2 * * *,*/15 * * * *,0 0 * * 1|}\"",
       "$0"
     ]
+  },
+
+  "Hydra — full parameters.yaml": {
+    "prefix": "hparams",
+    "description": "parameters.yaml with one parameter (type, default, description)",
+    "body": [
+      "version: \"1.0\"",
+      "parameters:",
+      "  ${1:batch_size}:",
+      "    type: ${2|int,string,float,bool,json,any|}",
+      "    default: ${3:500}",
+      "    description: ${4:Rows read per batch}",
+      "$0"
+    ]
+  },
+
+  "Hydra — parameter declaration": {
+    "prefix": "hparam",
+    "description": "One parameter of parameters.yaml",
+    "body": [
+      "${1:name}:",
+      "  type: ${2|string,int,float,bool,json,any|}",
+      "  default: ${3}",
+      "  required: ${4|false,true|}",
+      "  description: ${5}",
+      "$0"
+    ]
+  },
+
+  "Hydra — environments/<env>.yaml": {
+    "prefix": "henv",
+    "description": "Parameter values of one environment",
+    "body": [
+      "parameters:",
+      "  ${1:batch_size}: ${2:5000}",
+      "$0"
+    ]
+  },
+
+  "Hydra — .hydra/secrets.yaml with SOPS": {
+    "prefix": "hsecrets-sops",
+    "description": "Secrets settings: visibility and SOPS-encrypted file per environment",
+    "body": [
+      "visibility: ${1|masked,hidden,plain|}",
+      "provider: sops",
+      "sops:",
+      "  file: ${2:.hydra/secrets.{env}.sops.yaml}",
+      "$0"
+    ]
+  },
+
+  "Hydra — parameter reference": {
+    "prefix": "hrefparam",
+    "description": "{{ param:NAME }} — value of a parameter for the active environment",
+    "body": ["{{ param:${1:name} }}$0"]
+  },
+
+  "Hydra — secret reference": {
+    "prefix": "hrefsecret",
+    "description": "${SECRET:NAME} — secret of .hydra/secrets(.<env>), an environment variable or the provider",
+    "body": ["\\${SECRET:${1:db.password}}$0"]
+  },
+
+  "Hydra — environment variable reference": {
+    "prefix": "hrefenv",
+    "description": "${ENV:NAME} — required environment variable (~/.hydra/env, env.<env>, .env, --env-file)",
+    "body": ["\\${ENV:${1:DB_HOST}}$0"]
   }
 }

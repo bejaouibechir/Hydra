@@ -294,3 +294,49 @@ def test_project_settings_refuses_outside_and_non_project(call):
     assert "Not a Hydra project" in call("hydra_project_settings", project_path="plain")
     _env_project(call.workspace)
     assert call("hydra_project_settings", project_path=".", env="bad name").startswith("REFUSED")
+
+
+# --- Sous-projets (0.19) ------------------------------------------------------
+
+def _sub(base, name, calls=()):
+    import json as _json
+    root = base / name
+    (root / ".hydra").mkdir(parents=True)
+    (root / ".hydra" / "project.json").write_text(_json.dumps({"id": name, "name": name}))
+    (root / "workflows").mkdir()
+    steps = "    - name: hello\n      type: action\n      action: log\n      params: {message: hi}\n"
+    for i, value in enumerate(calls):
+        steps += f"    - name: call{i}\n      type: project\n      project: {value}\n"
+    (root / "workflows" / "main.yaml").write_text("workflow:\n  name: main\n  steps:\n" + steps)
+    (root / "workflows" / "thread.yaml").write_text(
+        "thread:\n  - mode: sequential\n    workflows:\n      - name: main\n")
+    return root
+
+
+def test_project_calls_tree(call):
+    ws = call.workspace
+    _sub(ws, "master", ["../slave_a", "../slave_b"])
+    _sub(ws, "slave_a", ["../slave_c"])
+    _sub(ws, "slave_b")
+    _sub(ws, "slave_c")
+    out = call("hydra_project_calls", project_path="master")
+    assert "main.yaml › call0" in out and "slave_a" in out and "slave_b" in out
+    assert "↳ slave_c" in out
+    assert "OK — no cycle" in out
+
+
+def test_project_calls_cycle_and_missing(call):
+    ws = call.workspace
+    _sub(ws, "a", ["../b", "../ghost"])
+    _sub(ws, "b", ["../a"])
+    out = call("hydra_project_calls", project_path="a", workflow="main")
+    assert "cycle" in out and "a → b → a" in out.replace("[main]", "").replace("  ", " ")
+    assert "NOT FOUND" in out and "Errors" in out
+
+
+def test_project_calls_refuses_outside_and_non_project(call):
+    assert call("hydra_project_calls", project_path="../..").startswith("REFUS")
+    (call.workspace / "plain").mkdir()
+    assert "Not a Hydra project" in call("hydra_project_calls", project_path="plain")
+    _sub(call.workspace, "solo")
+    assert "calls no other project" in call("hydra_project_calls", project_path="solo")

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.1.8
+
+Sub-project steps of Hydra ETL 0.19.
+
+- `workflow.yaml`: `type: project` runs another Hydra project. `project`
+  required; `ref` (`path`, default, or `name`), `env` (`inherit`, `none` or
+  an environment name), `params`, `variables`, `workflows`, `outputs`,
+  `isolation` (`inprocess`, `subprocess`), `timeout`, `overlap` (`wait`,
+  `skip`, `fail`). A `${SECRET:…}` in `params` or `variables` is refused:
+  each project keeps its own secrets. These fields are refused on `job` and
+  `action` steps; `job`, `action` and `undo` are refused on a project step.
+- Snippet: `hstep-project`.
+
 ## 0.1.7
 
 Project settings of Hydra ETL 0.18: parameters, environments and secrets.

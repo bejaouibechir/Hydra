@@ -116,7 +116,7 @@ def build_effective(
         raw = merged.get(name, decl.get("default"))
         if raw is None:
             if decl.get("required") and not has_value:
-                raise ParameterError(f"paramètre requis manquant: '{name}'")
+                raise ParameterError(f"missing required parameter: '{name}'")
             effective[name] = None
             continue
         effective[name] = coerce_value(raw, typ, name)
@@ -177,13 +177,13 @@ class ParameterResolver:
                 return self.params[key]
             strict_p = self.strict if self.strict_params is None else self.strict_params
             if strict_p:
-                raise ParameterError(f"paramètre non résolu: '{key}'")
+                raise ParameterError(f"unresolved parameter: '{key}'")
             return None
         # env
         if key in self.env:
             return self.env[key]
         if self.strict:
-            raise ParameterError(f"variable d'environnement manquante: '{key}'")
+            raise ParameterError(f"missing environment variable: '{key}'")
         return None
 
     def _resolve_string(self, s: str) -> Any:
@@ -191,7 +191,9 @@ class ParameterResolver:
         if m:
             # Chaîne = un seul placeholder -> on préserve le TYPE
             return self._lookup(m.group(1), m.group(2))
-        # Placeholder(s) intégré(s) -> substitution texte
-        return _PLACEHOLDER_RE.sub(
-            lambda mm: str(self._lookup(mm.group(1), mm.group(2))), s
-        )
+        # Placeholder(s) intégré(s) -> substitution texte ; une valeur absente
+        # ({{ env:X }} optionnel non défini) devient une chaîne vide, pas "None".
+        def _text(mm):
+            v = self._lookup(mm.group(1), mm.group(2))
+            return "" if v is None else str(v)
+        return _PLACEHOLDER_RE.sub(_text, s)

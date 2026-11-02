@@ -263,6 +263,20 @@ class TestProjectParams:
         assert res.success
         assert any("ip=192.168.1.50" in l for l in _step(res, "show").logs)
 
+    def test_env_value_kept_when_required_param_given_at_runtime(self, tmp_path):
+        # Un paramètre required fourni par -P ne doit pas faire perdre les
+        # valeurs de l'environnement aux actions du workflow.
+        (tmp_path / "parameters.yaml").write_text(
+            "parameters:\n  batch_date: {type: str, required: true}\n"
+            "  min_amount: {type: float, default: 0}\n", encoding="utf-8")
+        envd = tmp_path / "environments"; envd.mkdir()
+        (envd / "prod.yaml").write_text("parameters:\n  min_amount: 100\n", encoding="utf-8")
+        wf = _wf(WorkflowStep(name="show", type="action", action="log",
+                              params={"message": "{{ param:batch_date }} min={{ param:min_amount }}"}))
+        res = WorkflowRunner(wf, base_dir=tmp_path, env="prod", params={"batch_date": "d1"}).run()
+        assert res.success
+        assert any("d1 min=100" in l for l in _step(res, "show").logs)
+
 
 class TestPythonAction:
     def test_inline_script_with_param(self, tmp_path):

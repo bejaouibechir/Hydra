@@ -2001,6 +2001,19 @@ def cmd_workflow_run(path: str, project: Optional[str], secrets_file: Optional[s
         # Manifeste invalide : même message que `workflow validate`, sans trace Python.
         error_box(t("workflow.validate.failure", error=str(e)))
         sys.exit(1)
+    # Steps type: project : projet introuvable, cycle, profondeur — refusés
+    # avant le lancement, comme `hdrctl run` et `workflow validate`.
+    if any(s.type == "project" for s in wf.steps):
+        from hydra_etl.workflow.project import find_project_root
+        from hydra_etl.workflow.subprojects import check_project_calls
+        root = find_project_root(wf_path.parent)
+        if root is not None:
+            calls = check_project_calls(root, workflows=[wf_path.stem])
+            if calls.errors:
+                error_box(t("workflow.validate.failure", error=calls.errors[0]))
+                for e in calls.errors[1:]:
+                    err_line(f"  — {e}")
+                sys.exit(1)
     info(t("workflow.run.starting", name=c(C.CY, wf.name)))
     click.echo(c(C.DM, "  " + "─" * 56))
 
@@ -2742,6 +2755,143 @@ def cmd_secret_delete(name: str, project: Optional[str], env_name: Optional[str]
     root = _project_or_exit(project)
     path = _admin_call(delete_secret_value, root, name, env_name)
     ok(t("secret.delete.success", name=name, path=str(path)))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# hdrctl trigger — déclencheurs du projet (triggers.yaml, Hydra 0.19)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@cli.group("trigger", invoke_without_command=False, help=t("help.trigger.docstring"))
+@_lang_option
+def cmd_trigger() -> None:
+    """Groupe trigger."""
+    pass
+
+
+def _load_triggers_or_exit(root: Path):
+    from hydra_etl.triggers.models import TriggerFileError, load_triggers
+    try:
+        return load_triggers(root)
+    except TriggerFileError as e:
+        error_box(t("trigger.invalid", path=str(root / "triggers.yaml")))
+        for msg in e.errors:
+            err_line(f"  — {msg}")
+        sys.exit(1)
+
+
+@cmd_trigger.command("list", help=t("help.trigger.list.docstring"))
+@_lang_option
+@_project_option
+def cmd_trigger_list(project: Optional[str]) -> None:
+    from hydra_etl.triggers.core import last_runs
+    root = _project_or_exit(project)
+    tf = _load_triggers_or_exit(root)
+    info(t("trigger.list.title", path=str(root / "triggers.yaml")))
+    click.echo(c(C.DM, "  " + "─" * 56))
+    if not tf.triggers:
+        info(t("trigger.list.none"))
+        click.echo()
+        return
+    last = last_runs(root)
+    for tr in tf.triggers:
+        state = c(C.GR, "on ") if tr.enabled else c(C.DM, "off")
+        what = tr.when()
+        runs = ", ".join(tr.workflows) if tr.workflows else "thread.yaml"
+        click.echo(f"  {state} {c(C.CY, tr.name.ljust(18))} {what}")
+        extra = [t("trigger.list.runs", what=runs), f"env: {tr.env or t('trigger.list.env_default')}"]
+        if tr.retry:
+            extra.append(f"retry: {tr.retry.max} × {tr.retry.delay}")
+        click.echo(f"      {c(C.DM, ' · '.join(extra))}")
+        e = last.get(tr.name)
+        if e:
+            mark = {"success": c(C.GR, "✓"), "skipped": c(C.YL, "⏭")}.get(e.get("status"), c(C.RD, "✗"))
+            click.echo(f"      {c(C.DM, t('trigger.list.last'))} {mark} {e.get('at')} "
+                       f"{c(C.DM, '(' + str(e.get('origin')) + ')')}")
+    click.echo()
+
+
+@cmd_trigger.command("validate", help=t("help.trigger.validate.docstring"))
+@_lang_option
+@_project_option
+def cmd_trigger_validate(project: Optional[str]) -> None:
+    from hydra_etl.triggers.core import check_triggers
+    root = _project_or_exit(project)
+    tf = _load_triggers_or_exit(root)
+    res = check_triggers(root, tf)
+    for w in res.warnings:
+        click.echo(f"  {c(C.YL, '⚠')}  {w}")
+    if res.errors:
+        error_box(t("trigger.validate.failure", n=len(res.errors)))
+        for e in res.errors:
+            err_line(f"  — {e}")
+        sys.exit(1)
+    success_box(t("trigger.validate.success", n=len(tf.triggers)))
+    click.echo()
+
+
+@cmd_trigger.command("fire", help=t("help.trigger.fire.docstring"))
+@_lang_option
+@click.argument("name")
+@_project_option
+@click.option("--env", "env_name", default=None, metavar="NAME", help=t("help.trigger.fire.env"))
+@click.option("--no-retry", is_flag=True, default=False, help=t("help.trigger.fire.no_retry"))
+def cmd_trigger_fire(name: str, project: Optional[str], env_name: Optional[str], no_retry: bool) -> None:
+    from hydra_etl.triggers.core import check_triggers, fire
+    print_banner()
+    root = _project_or_exit(project)
+    tf = _load_triggers_or_exit(root)
+    tr = tf.get(name)
+    if tr is None:
+        error_box(t("trigger.not_found", name=name))
+        names = ", ".join(x.name for x in tf.triggers) or "—"
+        info(t("trigger.known", names=names))
+        sys.exit(1)
+    errors = [e for e in check_triggers(root, tf).errors if e.startswith(f"trigger '{name}'")
+              or e.startswith("after_project loop")]
+    if errors:
+        error_box(t("trigger.validate.failure", n=len(errors)))
+        for e in errors:
+            err_line(f"  — {e}")
+        sys.exit(1)
+    env_name = env_name or os.environ.get("HYDRA_ENV") or None
+    info(t("trigger.fire.starting", name=c(C.CY, name), what=tr.when(),
+           env=tr.env or env_name or "none"))
+    click.echo(c(C.DM, "  " + "─" * 56))
+    res = fire(root, tr, origin="manual", env=env_name, retry=not no_retry)
+    for line in res.lines:
+        click.echo(f"     {c(C.DM, '│')} {line}")
+    if res.status == "success":
+        success_box(t("trigger.fire.success", name=name, duration=f"{res.duration:.1f}"))
+    elif res.status == "skipped":
+        info(t("trigger.fire.skipped", name=name, error=res.error or ""))
+    else:
+        error_box(t("trigger.fire.failure", name=name, error=res.error or "", attempts=res.attempts))
+        sys.exit(1)
+    click.echo()
+
+
+@cmd_trigger.command("history", help=t("help.trigger.history.docstring"))
+@_lang_option
+@click.argument("name", required=False)
+@_project_option
+@click.option("-n", "limit", default=20, show_default=True, type=int, help=t("help.trigger.history.n"))
+def cmd_trigger_history(name: Optional[str], project: Optional[str], limit: int) -> None:
+    from hydra_etl.triggers.core import read_history
+    root = _project_or_exit(project)
+    items = read_history(root, name, limit)
+    info(t("trigger.history.title", path=str(root / ".hydra" / "triggers" / "history.jsonl")))
+    click.echo(c(C.DM, "  " + "─" * 56))
+    if not items:
+        info(t("trigger.history.none"))
+    for e in items:
+        mark = {"success": c(C.GR, "✓"), "skipped": c(C.YL, "⏭")}.get(e.get("status"), c(C.RD, "✗"))
+        att = f" #{e.get('attempt')}" if (e.get("attempt") or 1) > 1 else ""
+        line = (f"  {mark} {e.get('at')}  {c(C.CY, str(e.get('trigger')).ljust(16))} "
+                f"{c(C.DM, str(e.get('origin')))}{att}  {e.get('duration', 0)}s")
+        if e.get("error"):
+            line += f"  {c(C.RD, str(e.get('error'))[:120])}"
+        click.echo(line)
+    click.echo()
 
 
 @cli.command("serve", help="Start the Hydra API and the Studio.")

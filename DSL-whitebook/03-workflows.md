@@ -1,11 +1,11 @@
 <!-- Hydra DSL White Paper — Chapter 3: Workflows
-     DSL format version: 1.0 · Hydra 0.16.0
+     DSL format version: 1.0 · Hydra 0.19.0
      Sources: workflow/{models,parser,runner,expr,conditions,rollback,thread,project}.py,
-     internal/connector/undo.py, api/scheduler.py, cli/hdrctl.py (workflow run/undo/validate) -->
+     internal/connector/undo.py, api/scheduler.py, cli/hdrctl.py (workflow run/undo/validate), workflow/subprojects.py (0.19) -->
 
 # Hydra DSL - Workflows
 
-A **workflow** runs **steps** in a given order. A step is either a **job** or an **action**.
+A **workflow** runs **steps** in a given order. A step is a **job**, an **action** or, since Hydra 0.19, another **project**.
 
 ```yaml
 # workflows/daily_sales.yaml
@@ -107,10 +107,11 @@ trigger:
 | Key          | Applies to     | Default | Description                                |
 | ------------ | -------------- | ------- | ------------------------------------------ |
 | `name`       | all            | –       | Unique name. Required                      |
-| `type`       | all            | –       | `job` or `action`. Required                |
+| `type`       | all            | –       | `job`, `action` or `project`. Required     |
 | `job`        | `type: job`    | –       | Path to the job folder                     |
 | `action`     | `type: action` | –       | Name of the action                         |
-| `params`     | `type: action` | –       | Parameters of the action                   |
+| `params`     | `type: action`, `type: project` | – | Parameters of the action, or passed to the called project |
+| `project`    | `type: project` | –      | Called project (see *Sub-projects*)        |
 | `depends_on` | all            | `[]`    | Steps that must finish first               |
 | `on_failure` | all            | `fail`  | `fail` · `skip` · `continue`               |
 | `enabled`    | all            | `true`  | `false` skips the step                     |
@@ -121,7 +122,8 @@ trigger:
 ## Rules for steps
 
 - `type: job` requires `job`; `type: action` requires `action`.
-- `action` and `params` are refused on a job step; `job` is refused on an action step.
+- `type: project` requires `project`.
+- `action` and `params` are refused on a job step; `job` is refused on an action step; `job`, `action` and `undo` are refused on a project step; the project keys are refused on job and action steps.
 - An unknown action, an unknown parameter, or a missing required parameter is refused before the run.
 
 ## A job step
@@ -145,6 +147,16 @@ Before running, Hydra checks that the job folder exists and that its source and 
 ```
 
 The available actions are described in the *Actions* chapter.
+
+## A project step
+
+```yaml
+- name: crm_sync
+  type: project
+  project: ../crm_sync
+```
+
+Runs another Hydra project. See *Sub-projects* below.
 
 ---
 
@@ -424,6 +436,7 @@ If `load_payments` fails, the load of `load_invoices` is undone.
   - a job appends into a database without `load.key`;
   - a job uses a mode that cannot be undone for its destination.
 - `undo:` is allowed on action steps only. Jobs are undone automatically.
+- A `type: project` step cannot be undone: `rollback: true` refuses it.
 - Before undoing a load, Hydra checks that nobody else wrote to the destination since. If someone did, the undo is refused rather than erasing their work.
 - If an undo fails, the rest is kept in `.hydra/undo/<workflow>.json`. Finish it with:
 
@@ -557,3 +570,87 @@ when: "previous.status == 'failed' and previous.rows < 100"
 > **[LAB lab-03-04 · Killercoda]** **Orchestrate a project** — Build a thread of four workflows with a parallel stage, a loop and a fallback triggered by stopping a database container.
 
 > **[GITHUB gh-03-02 · example]** **project_thread** — Project with five workflows, a `thread.yaml` using stages, `delay_after`, `timeout`, a loop and a fallback, and a README explaining each run.
+
+---
+
+# Hydra DSL - Sub-projects
+
+*Hydra 0.19.0+.* A step of `type: project` runs **another Hydra project**: its `thread.yaml`, or only the workflows listed. The calling project is the **master**; the called projects are its sub-projects.
+
+```yaml
+# master/workflows/nightly.yaml
+workflow:
+  name: nightly
+  steps:
+    - name: crm_sync
+      type: project
+      project: ../crm_sync          # folder relative to the master's root
+      env: inherit                  # inherit | none | <environment>
+      params:
+        batch_date: "{{ param:run_date }}"
+      variables:
+        EXPORT_DIR: out/crm
+      workflows: [ingest, report]
+      outputs: [last_batch]
+      timeout: 10m
+
+    - name: report
+      type: action
+      action: log
+      when: "{{ project:crm_sync.status }} == 'success'"
+      params:
+        message: "{{ project:crm_sync.rows }} rows, batch {{ project:crm_sync.param.last_batch }}"
+      depends_on: [crm_sync]
+```
+
+> **[FIGURE fig-03-08 · diagram]** A master project with two called projects; arrows labelled with what passes (environment name, params, variables) and a crossed-out padlock for secrets; the results flowing back (`status`, `rows`, `outputs`).
+
+## Syntax
+
+| Key         | Default     | Description |
+| ----------- | ----------- | ----------- |
+| `project`   | –           | Called project: folder relative to the master's root (`ref: path`) or Studio workspace name (`ref: name`). Required |
+| `ref`       | `path`      | `path` (portable with git) · `name` |
+| `env`       | `inherit`   | Environment of the called project: `inherit` (same name, its own files) · `none` · a name |
+| `params`    | –           | Parameters given to the called project, with the rank of `-P` |
+| `variables` | –           | Environment variables lent for this run only |
+| `workflows` | thread.yaml | Workflows to run, in this order |
+| `outputs`   | –           | Parameters of the called project read back with `{{ project:STEP.param.NAME }}` |
+| `isolation` | `inprocess` | `inprocess` (same process, isolated environment) · `subprocess` (separate `hdrctl`) |
+| `timeout`   | –           | Maximum duration: `30s`, `5m`, `1h` or seconds |
+| `overlap`   | `wait`      | Project already running: `wait` · `skip` · `fail` |
+
+## What passes, what does not
+
+- **Environment**: only its name. The called project applies its own `environments/<env>.yaml`, `~/.hydra/env.<env>` and `.hydra/secrets.<env>`.
+- **Parameters**: only those listed in `params`. A `required` parameter of the called project without a value stops the step before anything runs.
+- **Variables**: only those listed in `variables`. The master's `.env`, `--env-file`, `--secrets-file` and global variables do not leak.
+- **Secrets**: never. `${SECRET:…}` in `params` or `variables` is refused; each project keeps its own `.hydra/secrets`.
+
+## Results
+
+| Placeholder                       | Value |
+| --------------------------------- | ----- |
+| `{{ project:STEP.status }}`       | `success` · `failed` · `skipped` |
+| `{{ project:STEP.rows }}`         | Rows written by the called project |
+| `{{ project:STEP.duration }}`     | Duration in seconds |
+| `{{ project:STEP.param.NAME }}`   | A parameter listed in `outputs` (`set_param`, `assign_param` or declared). Missing = step failed |
+
+## Rules for sub-projects
+
+- A project cannot call itself, directly or through others (`cycle: master → crm_sync → master`), and calls are limited to **5 levels**. A node of the graph is a project *and* the workflows it runs: a project may call another of its own workflows.
+- These checks run in `hdrctl run` (and `--dry-run`), `hdrctl workflow validate` (which prints the tree of called projects), in Hydra Studio when a project is dropped on the canvas, and in the MCP tool `hydra_project_calls`. A `project` computed with `{{ … }}` is checked at run time.
+- A project runs **once at a time** (`.hydra/run.lock`, also between processes). `overlap` decides what a second call does.
+- Steps that run in parallel always use `isolation: subprocess`.
+- `timeout`: in the same process, the called project stops at its next checkpoint; in a separate process, the process is stopped.
+- The called project's output (workflows, steps) appears in the log of the step, as a tree.
+
+## Running part of a project
+
+```bash
+hdrctl run ../crm_sync -w ingest -w report --env prod
+```
+
+`-w` (repeatable) runs only these workflows, in order.
+
+> **[LAB lab-03-05 · Killercoda]** **Master and sub-projects** — A master calls two projects in dev and prod, reads back a published parameter, then a cycle is introduced and refused by `hdrctl workflow validate`.

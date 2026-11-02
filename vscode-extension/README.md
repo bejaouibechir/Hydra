@@ -18,7 +18,7 @@ exist — remains the job of `hdrctl validate`.
 | `destinations.yaml` | load modes, `key` required in `upsert` mode, `batch_size` bounds |
 | `pipeline.yaml` | `from` / `to` required |
 | `transformations.yaml` | all 20 operations and their parameters, with allowed values |
-| `workflow.yaml` | steps, dependencies, built-in actions, retry policy, `cron` required in `schedule` mode |
+| `workflow.yaml` | steps (`job`, `action`, `project`), dependencies, built-in actions, retry policy, sub-project steps (`project`, `ref`, `env`, `params`, `variables`, `workflows`, `outputs`, `isolation`, `timeout`, `overlap`; no secret passed), `cron` required in `schedule` mode |
 | `parameters.yaml` | parameter declarations: `type`, `default`, `required`, `description`, valid names |
 | `environments/<env>.yaml` | parameter values of one environment (dev, prod…) |
 | `.hydra/secrets.yaml` | secrets settings: `visibility` (`plain` / `masked` / `hidden`), `provider: sops` and its `sops` block (`file` with `{env}`, `format`, `age_key_file`) |
@@ -39,7 +39,7 @@ its explanation.
 missing required field, unsatisfied conditional constraint. Errors are
 underlined in the editor and listed in the Problems panel.
 
-**Snippets.** 42 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
+**Snippets.** 43 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
 produces a complete MySQL source, cursor on the first field to fill, Tab to move
 on, dropdown menus on fixed-value fields.
 
@@ -79,7 +79,7 @@ cd vscode-extension
 python build_vsix.py
 ```
 
-This produces `hydra-etl-0.1.7.vsix`. The script needs neither Node, npm nor
+This produces `hydra-etl-0.1.8.vsix`. The script needs neither Node, npm nor
 `vsce`: a `.vsix` is a ZIP archive, and `build_vsix.py` assembles it with the
 Python standard library.
 
@@ -91,7 +91,7 @@ Python standard library.
 ### 3. Install
 
 ```powershell
-code --install-extension hydra-etl-0.1.7.vsix
+code --install-extension hydra-etl-0.1.8.vsix
 ```
 
 Without the command line: `Ctrl+Shift+X` → `...` menu at the top of the panel →
@@ -125,7 +125,7 @@ Open `examples/invalid_examples/destinations.yaml`. It holds four deliberate
 errors, each documented in a comment. Open the Problems panel (`Ctrl+Shift+M`):
 all four should be listed, with matching line numbers.
 
-Repeat with `workflow.yaml` (5 errors) and `transformations.yaml` (9 errors).
+Repeat with `workflow.yaml` (11 errors) and `transformations.yaml` (9 errors).
 
 Conversely, `examples/valid_job/` and `examples/valid_workflow/` must produce
 **no** error at all.
@@ -215,7 +215,7 @@ vscode-extension/
 │   ├── environment.schema.json
 │   └── secrets-settings.schema.json
 ├── snippets/
-│   └── hydra.json                42 snippets
+│   └── hydra.json                43 snippets
 └── examples/                     test sandbox, excluded from the package
     ├── valid_job/
     ├── valid_workflow/

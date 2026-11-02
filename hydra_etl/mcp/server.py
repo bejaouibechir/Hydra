@@ -727,6 +727,71 @@ def build_server() -> Any:
             out.append("  (pass env to also see the secrets of one environment)")
         return "\n".join(out)
 
+    # -- Sous-projets (lecture seule) ----------------------------------------
+
+    @server.tool(
+        description=(
+            "Show the projects a Hydra project calls through its "
+            "`type: project` steps, read-only: the tree of called projects "
+            "(with the workflows they run), then the problems — a called "
+            "project that cannot be found, a cycle (A → B → A), nesting deeper "
+            "than 5 levels — and the calls computed at run time. Without "
+            "`workflow`: the workflows a run of the project would start "
+            "(thread.yaml). Call this before adding a project step, and after "
+            "writing one, to check it creates no cycle."
+        )
+    ,
+        annotations=_annot(**LECTURE, title="Read-only"))
+    def hydra_project_calls(project_path: str = ".", workflow: str = "") -> str:
+        from hydra_etl.workflow.subprojects import check_project_calls, project_calls
+        try:
+            root = safe_path(project_path)
+        except ValueError as exc:
+            return f"REFUSED — {exc}"
+        if not (root / ".hydra").is_dir():
+            return (f"Not a Hydra project: {project_path} (no .hydra/ folder). "
+                    "Give the folder that contains .hydra/.")
+        only = [workflow.strip()] if workflow.strip() else None
+        try:
+            calls = project_calls(root, only)
+            res = check_project_calls(root, workflows=only)
+        except Exception as exc:  # workflow introuvable, YAML illisible…
+            return f"ERROR — {type(exc).__name__}: {exc}"
+
+        out = [f"Project: {root.name}" + (f" (workflow {only[0]})" if only else "")]
+        out.append("\nProject steps:")
+        if not calls:
+            out.append("  (none) — this project calls no other project")
+        for c in calls:
+            if c.error:
+                target = f"NOT FOUND — {c.error}"
+            elif c.dynamic:
+                target = "computed at run time"
+            elif c.target is not None:
+                try:
+                    target = str(c.target.relative_to(root.parent))
+                except ValueError:
+                    target = str(c.target)
+            else:
+                target = "—"
+            wfs = f", workflows: {', '.join(c.workflows)}" if c.workflows else ""
+            out.append(f"  workflows/{c.workflow}.yaml › {c.step}: "
+                       f"project={c.value!r} (ref: {c.ref}) -> {target}{wfs}")
+        if res.tree:
+            out.append("\nCalled projects:")
+            out.append(f"  {root.name}")
+            for depth, label in res.tree:
+                out.append(f"  {'   ' * depth}↳ {label}")
+        if res.errors:
+            out.append("\nErrors (the run would be refused):")
+            out.extend(f"  - {e}" for e in res.errors)
+        if res.warnings:
+            out.append("\nWarnings:")
+            out.extend(f"  - {w}" for w in res.warnings)
+        if calls and not res.errors:
+            out.append("\nOK — no cycle, every called project found.")
+        return "\n".join(out)
+
     # -- Voir les données ----------------------------------------------------
 
     @server.tool(

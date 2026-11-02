@@ -37,3 +37,27 @@ workflow:
       job: "./jobs/example"
       undo: none
       # ERROR 6 — 'undo' applies to actions; a job is undone automatically.
+
+    - name: "project_without_project"
+      type: project
+      # ERROR 7 — type 'project' requires the 'project' field.
+
+    - name: "project_with_secret"
+      type: project
+      project: "../crm_sync"
+      variables:
+        DB_PASSWORD: "${SECRET:crm_db}"
+      # ERROR 8 — secrets are not lent: each project keeps its own.
+
+    - name: "project_bad_isolation"
+      type: project
+      project: "../crm_sync"
+      isolation: thread
+      timeout: soon
+      # ERROR 9 — isolation is inprocess or subprocess; ERROR 10 — invalid timeout.
+
+    - name: "env_on_a_job"
+      type: job
+      job: "./jobs/example"
+      env: prod
+      # ERROR 11 — 'env' applies to type=project.

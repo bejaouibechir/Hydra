@@ -44,8 +44,44 @@ and versions follow [Semantic Versioning](https://semver.org/).
   workflows to run, parameters (the called project's declarations are listed, `required` ones flagged),
   variables, outputs, process, timeout, overlap and on-failure, and links to the called project. The side
   panel summarises the step. The step is read from and written to `workflow.yaml` like the other steps.
+- Project triggers, `triggers.yaml` at the project root (lot 2.1: file, checks and manual run; the engine
+  that watches the events comes with `hdrctl watch`). Types: `cron` (`cron`, `timezone`), `interval`
+  (`every`), `file` (`path` glob, `events: [added, modified]`, `debounce`), `marker` (`path`, `consume`),
+  `source_change` (`source: {job, id, check: count | max | checksum, column}`), `webhook` (`token` — a
+  `${SECRET:…}` reference only), `after_project` (`project`, `ref`, `on: success | failure | any`). Common
+  keys: `env`, `workflows` (default: the thread), `params` (no secret), `overlap` (`skip` by default),
+  `timeout`, `retry: {max, delay}`, `enabled`, `description`. A trigger always runs the project in a
+  separate process, under its `.hydra/run.lock`.
+- `hdrctl trigger list | validate | fire <name> | history`. `validate` also checks the workflows listed, the
+  projects they call, the job and source of `source_change`, the secret of a webhook (warning), and refuses
+  `after_project` loops (`a → b → a`). `fire` runs the project now as the trigger would, with its retries
+  (`--no-retry`). Every run is recorded in `.hydra/triggers/history.jsonl` (last 1000, not versioned).
 - API: `POST /api/projects/{id}/project-step` — what a `type: project` step would call (parameters,
   workflows, environments of the called project) and the problems it would create.
+- VS Code extension 0.1.8: `type: project` in `workflow.yaml` — its keys, completion and hover help, `project`
+  required, `${SECRET:…}` refused in `params` and `variables`, project keys refused on `job` and `action`
+  steps; snippet `hstep-project`.
+- MCP: `hydra_project_calls` (read-only) — the `type: project` steps of a project, the tree of the called
+  projects, and the problems (project not found, cycle, more than 5 levels).
+
+### Fixed
+
+- Workflow actions lost the values of the environment (`environments/<env>.yaml`) when a `required`
+  parameter was given at run time (`-P`, `params` of a `type: project` step): `{{ param:X }}` fell back
+  to the defaults, while the jobs of the same run used the environment.
+- `hdrctl workflow run` refuses a workflow whose `type: project` steps form a cycle, call a project that
+  cannot be found or nest more than 5 levels, before anything runs (as `hdrctl run` and
+  `hdrctl workflow validate`).
+- An optional `{{ env:NAME }}` (or a parameter without value) inside a text is replaced by an empty
+  string instead of `None`.
+- Parameter errors are in English: `missing required parameter`, `unresolved parameter`,
+  `missing environment variable`.
+
+### Documentation
+
+- White paper (FR/EN, `DSL-whitebook/`): chapter 1 gets **1.4 Sub-projects: type: project**; `type`,
+  `params` and `undo` mention project steps; chapters 1 to 4 regenerated, each starting on a new page.
+  `03-workflows.md`: new *Sub-projects* section. README: sub-projects in *Workflows*.
 
 ## [0.18.0] — 2026-11-02
 

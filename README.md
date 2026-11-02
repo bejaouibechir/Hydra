@@ -443,6 +443,34 @@ The `workflow` commands work on the project that contains the current folder, or
 with `--project <path>`; outside a project they stop with an error. Studio keeps `thread.yaml` in
 step too: a workflow created or deleted in Studio is added to or removed from it.
 
+**Sub-projects.** A step of `type: project` runs another Hydra project — its `thread.yaml`, or only
+the workflows listed — so one master project can drive several others:
+
+```yaml
+    - name: crm_sync
+      type: project
+      project: ../crm_sync        # folder relative to this project (portable with git); ref: name for a Studio project
+      env: inherit                # same environment name, the called project's own files
+      params: { batch_date: "{{ param:run_date }}" }
+      variables: { EXPORT_DIR: out/crm }
+      outputs: [last_batch]       # read back with {{ project:crm_sync.param.last_batch }}
+      timeout: 10m
+    - name: report
+      type: action
+      action: log
+      when: "{{ project:crm_sync.status }} == 'success'"
+      params: { message: "{{ project:crm_sync.rows }} rows synced" }
+      depends_on: [crm_sync]
+```
+
+Only the environment name passes implicitly; `params` and `variables` are explicit, and secrets are
+never lent — each project keeps its own. Cycles (`master → crm_sync → master`) and more than 5 levels
+are refused by `hdrctl workflow validate` (which prints the tree of called projects), `hdrctl run`,
+Studio (drop a project from the **Projects** section of the palette) and the MCP tool
+`hydra_project_calls`. A project runs once at a time (`overlap: wait | skip | fail`);
+`isolation: subprocess` runs it in a separate process. `hdrctl run <project> -w <workflow>` runs only
+some workflows of a project.
+
 An edge is a **dependency**, not a pipe: it decides *when* a job runs, never what data reaches it.
 Steps that share no dependency run in parallel.
 
@@ -645,7 +673,7 @@ Measured on 2 CPUs / 8 GB (orders → customers join → revenue by country and 
 ## VS Code extension
 
 Completion and validation for Hydra manifests inside the editor, without installing Hydra: job files,
-workflows, `parameters.yaml`, `environments/<env>.yaml` and `.hydra/secrets.yaml`.
+workflows (including `type: project` steps), `parameters.yaml`, `environments/<env>.yaml` and `.hydra/secrets.yaml`.
 Download the `.vsix` from the [latest release](https://github.com/bejaouibechir/Hydra/releases/latest),
 or build it yourself from [`vscode-extension/`](vscode-extension/) (`python build_vsix.py`, no Node required).
 

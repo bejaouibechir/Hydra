@@ -446,6 +446,24 @@
     ]
   },
 
+  "Hydra — workflow project step": {
+    "prefix": "hstep-project",
+    "description": "Step running another Hydra project (sub-project)",
+    "body": [
+      "- name: \"${1:sub_project}\"",
+      "  type: project",
+      "  project: \"${2:../${1:sub_project}}\"",
+      "  env: ${3|inherit,none,dev,prod|}",
+      "  params:",
+      "    ${4:batch_date}: \"${5:{{ param:run_date \\}\\}}\"",
+      "  isolation: ${6|inprocess,subprocess|}",
+      "  overlap: ${7|wait,skip,fail|}",
+      "  depends_on: [${8}]",
+      "  on_failure: ${9|fail,skip,continue|}",
+      "$0"
+    ]
+  },
+
   "Hydra — workflow step with retries": {
     "prefix": "hstep-retry",
     "description": "Step with a retry policy",

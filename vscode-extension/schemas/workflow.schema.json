@@ -4,14 +4,23 @@
   "title": "Hydra — workflows/<name>.yaml and workflows/thread.yaml",
   "description": "A workflow file (several Hydra jobs and actions, expressed as a dependency graph) or the project thread file workflows/thread.yaml (the order in which hdrctl runs the workflows). A file with a top-level 'thread' key is read as the thread file.",
   "type": "object",
-  "if": { "required": ["thread"] },
-  "then": { "$ref": "#/definitions/threadFile" },
-  "else": { "$ref": "#/definitions/workflowFile" },
-
+  "if": {
+    "required": [
+      "thread"
+    ]
+  },
+  "then": {
+    "$ref": "#/definitions/threadFile"
+  },
+  "else": {
+    "$ref": "#/definitions/workflowFile"
+  },
   "definitions": {
     "workflowFile": {
       "type": "object",
-      "required": ["workflow"],
+      "required": [
+        "workflow"
+      ],
       "additionalProperties": false,
       "properties": {
         "version": {
@@ -19,14 +28,17 @@
           "default": "1.0",
           "description": "Workflow file DSL version, written by hdrctl init at the top of the file."
         },
-        "workflow": { "$ref": "#/definitions/workflowDef" }
+        "workflow": {
+          "$ref": "#/definitions/workflowDef"
+        }
       }
     },
-
     "threadFile": {
       "type": "object",
       "description": "workflows/thread.yaml — execution order of the project's workflows, read by hdrctl run. Stages run one after the other; optional loops replay a part of the thread.",
-      "required": ["thread"],
+      "required": [
+        "thread"
+      ],
       "additionalProperties": false,
       "properties": {
         "version": {
@@ -37,54 +49,77 @@
         "thread": {
           "type": "array",
           "description": "Stages, run one after the other.",
-          "items": { "$ref": "#/definitions/threadStage" }
+          "items": {
+            "$ref": "#/definitions/threadStage"
+          }
         },
         "loops": {
           "type": "array",
           "description": "Optional loops: when workflow 'from' finishes, go back to workflow 'to' (earlier in the thread, or the same one) and replay that part. Loops must not overlap.",
-          "items": { "$ref": "#/definitions/threadLoop" }
+          "items": {
+            "$ref": "#/definitions/threadLoop"
+          }
         }
       }
     },
-
     "threadStage": {
       "type": "object",
-      "required": ["workflows"],
+      "required": [
+        "workflows"
+      ],
       "additionalProperties": false,
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["sequential", "parallel"],
+          "enum": [
+            "sequential",
+            "parallel"
+          ],
           "default": "sequential",
           "description": "sequential: the stage's workflows run one after the other. parallel: they run at the same time."
         },
         "delay_after": {
           "description": "Pause after the stage: a number of seconds, or a duration such as 30s, 5m, 1h, 500ms.",
           "oneOf": [
-            { "type": "number", "minimum": 0 },
-            { "type": "string", "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
           ],
-          "examples": ["30s", "5m", 10]
+          "examples": [
+            "30s",
+            "5m",
+            10
+          ]
         },
         "workflows": {
           "type": "array",
           "minItems": 1,
           "description": "Workflows of this stage.",
-          "items": { "$ref": "#/definitions/threadWorkflow" }
+          "items": {
+            "$ref": "#/definitions/threadWorkflow"
+          }
         }
       }
     },
-
     "threadWorkflow": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$",
           "description": "Workflow name: refers to workflows/<name>.yaml.",
-          "examples": ["workflow1"]
+          "examples": [
+            "workflow1"
+          ]
         },
         "active": {
           "type": "boolean",
@@ -94,46 +129,99 @@
         "delay_before": {
           "description": "Wait before starting this workflow: a number of seconds, or 500ms, 30s, 5m, 1h. Sequential stage: counted from the end of the previous workflow. Parallel stage: from the start of the stage (staggered starts). Fallback conditions are checked after the wait; in a parallel stage, a failure cancels the starts still waiting.",
           "oneOf": [
-            { "type": "number", "minimum": 0 },
-            { "type": "string", "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
           ],
-          "examples": ["500ms", "23s", 2]
+          "examples": [
+            "500ms",
+            "23s",
+            2
+          ]
         },
         "timeout": {
           "description": "Maximum duration of one run of this workflow (and of each fallback run in its place): a number of seconds, or 30s, 5m, 1h (more than 0). Beyond it the workflow is stopped at the next step or batch (an all-or-nothing load is cancelled; an action already started finishes) and counts as failed; with fallback.on_failure, the fallback can then run.",
           "oneOf": [
-            { "type": "number", "exclusiveMinimum": 0 },
-            { "type": "string", "pattern": "^\\s*(?!0+(\\.0+)?\\s*([mM][sS]|[sSmMhH])?\\s*$)\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*(?!0+(\\.0+)?\\s*([mM][sS]|[sSmMhH])?\\s*$)\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
           ],
-          "examples": ["30m", "1h", "90s"]
+          "examples": [
+            "30m",
+            "1h",
+            "90s"
+          ]
         },
-        "fallback": { "$ref": "#/definitions/threadFallback" }
+        "fallback": {
+          "$ref": "#/definitions/threadFallback"
+        }
       }
     },
-
     "threadFallback": {
       "type": "object",
       "description": "Backup workflow(s) for this workflow. The fallbacks are workflows/<name>.yaml files that are NOT in the thread; one takes this workflow's place when 'when' is true just before the start, or after a failure if 'on_failure' is true.",
-      "required": ["use"],
+      "required": [
+        "use"
+      ],
       "additionalProperties": false,
       "anyOf": [
-        { "required": ["when"] },
-        { "required": ["on_failure"], "properties": { "on_failure": { "const": true } } }
+        {
+          "required": [
+            "when"
+          ]
+        },
+        {
+          "required": [
+            "on_failure"
+          ],
+          "properties": {
+            "on_failure": {
+              "const": true
+            }
+          }
+        }
       ],
       "properties": {
         "use": {
           "description": "Fallback workflow(s), tried in order. A name or a list of names.",
           "oneOf": [
-            { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$" },
-            { "type": "array", "minItems": 1, "uniqueItems": true,
-              "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$" } }
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$"
+              }
+            }
           ],
-          "examples": [["load_crm_backup"]]
+          "examples": [
+            [
+              "load_crm_backup"
+            ]
+          ]
         },
         "when": {
           "type": "string",
           "description": "Condition checked just before the start. Functions: source_available('name'), destination_available('name'), file_exists('path'), file_size('path'), file_age('path'), url_ok('url'), secret_defined('name'), db.load('name'); values: previous.status, previous.rows; operators: and, or, not, ==, !=, <, <=, >, >=; durations 30s, 5m, 24h, 7d; sizes 10KB, 5MB, 1GB.",
-          "examples": ["not source_available('crm_db')", "file_age('data/orders.csv') > 24h"]
+          "examples": [
+            "not source_available('crm_db')",
+            "file_age('data/orders.csv') > 24h"
+          ]
         },
         "on_failure": {
           "type": "boolean",
@@ -142,29 +230,39 @@
         },
         "on_probe_error": {
           "type": "string",
-          "enum": ["keep", "replace"],
+          "enum": [
+            "keep",
+            "replace"
+          ],
           "default": "keep",
           "description": "If a check of 'when' fails or times out: keep the planned workflow (default) or switch to the fallback."
         }
       }
     },
-
     "threadLoop": {
       "type": "object",
-      "required": ["from", "to", "times"],
+      "required": [
+        "from",
+        "to",
+        "times"
+      ],
       "additionalProperties": false,
       "properties": {
         "from": {
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$",
           "description": "Workflow at the end of the loop: when it finishes, the run goes back to 'to'.",
-          "examples": ["workflow5"]
+          "examples": [
+            "workflow5"
+          ]
         },
         "to": {
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9_.\\-]*$",
           "description": "Workflow where the loop starts again. Must come before 'from' in the thread (or be the same workflow).",
-          "examples": ["workflow1"]
+          "examples": [
+            "workflow1"
+          ]
         },
         "times": {
           "type": "integer",
@@ -175,36 +273,53 @@
         "delay": {
           "description": "Pause before each repeat: a number of seconds, or a duration such as 30s, 5m, 1h, 500ms.",
           "oneOf": [
-            { "type": "number", "minimum": 0 },
-            { "type": "string", "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$" }
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
           ],
-          "examples": ["5m", 30]
+          "examples": [
+            "5m",
+            30
+          ]
         }
       }
     },
-
     "workflowDef": {
       "type": "object",
-      "required": ["name", "steps"],
+      "required": [
+        "name",
+        "steps"
+      ],
       "additionalProperties": false,
       "properties": {
         "version": {
           "type": "string",
           "default": "1.0",
           "description": "Workflow DSL version.",
-          "examples": ["1.0"]
+          "examples": [
+            "1.0"
+          ]
         },
         "name": {
           "type": "string",
           "minLength": 1,
           "description": "Workflow name. Appears in logs and run results.",
-          "examples": ["daily_sales_etl"]
+          "examples": [
+            "daily_sales_etl"
+          ]
         },
         "description": {
           "type": "string",
           "description": "Free-form description of the workflow."
         },
-        "trigger": { "$ref": "#/definitions/trigger" },
+        "trigger": {
+          "$ref": "#/definitions/trigger"
+        },
         "rollback": {
           "type": "boolean",
           "default": false,
@@ -214,11 +329,12 @@
           "type": "array",
           "minItems": 1,
           "description": "Workflow steps. Execution order is driven by 'depends_on', not by list order. Step names must be unique.",
-          "items": { "$ref": "#/definitions/step" }
+          "items": {
+            "$ref": "#/definitions/step"
+          }
         }
       }
     },
-
     "trigger": {
       "type": "object",
       "description": "What starts the workflow.",
@@ -226,7 +342,11 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["manual", "schedule", "webhook"],
+          "enum": [
+            "manual",
+            "schedule",
+            "webhook"
+          ],
           "default": "manual",
           "description": "Trigger type.",
           "enumDescriptions": [
@@ -238,45 +358,72 @@
         "cron": {
           "type": "string",
           "description": "Five-field cron expression: minute hour day month weekday. Required when type is 'schedule'.",
-          "examples": ["0 8 * * *", "*/15 * * * *", "0 2 * * 1"]
+          "examples": [
+            "0 8 * * *",
+            "*/15 * * * *",
+            "0 2 * * 1"
+          ]
         }
       },
       "allOf": [
         {
           "if": {
-            "properties": { "type": { "const": "schedule" } },
-            "required": ["type"]
+            "properties": {
+              "type": {
+                "const": "schedule"
+              }
+            },
+            "required": [
+              "type"
+            ]
           },
-          "then": { "required": ["cron"] }
+          "then": {
+            "required": [
+              "cron"
+            ]
+          }
         }
       ]
     },
-
     "step": {
       "type": "object",
-      "required": ["name", "type"],
+      "required": [
+        "name",
+        "type"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
           "minLength": 1,
           "description": "Step identifier, unique within the workflow. Other steps refer to it in their 'depends_on'.",
-          "examples": ["extract", "transform_a"]
+          "examples": [
+            "extract",
+            "transform_a"
+          ]
         },
         "type": {
           "type": "string",
-          "enum": ["job", "action"],
+          "enum": [
+            "job",
+            "action",
+            "project"
+          ],
           "description": "What the step runs.",
           "enumDescriptions": [
             "job — runs a Hydra job. The 'job' field becomes required.",
-            "action — runs a built-in action. The 'action' field becomes required."
+            "action — runs a built-in action. The 'action' field becomes required.",
+            "project — runs another Hydra project (sub-project). The 'project' field becomes required."
           ]
         },
         "job": {
           "type": "string",
           "minLength": 1,
           "description": "Path to the job directory, relative to workflow.yaml. The directory must contain sources.yaml, destinations.yaml and pipeline.yaml.",
-          "examples": ["./jobs/extract", "./jobs/load"]
+          "examples": [
+            "./jobs/extract",
+            "./jobs/load"
+          ]
         },
         "action": {
           "type": "string",
@@ -308,22 +455,173 @@
             "assign_param — assign a computed value to a runtime parameter."
           ]
         },
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "description": "type=project only. The called project: its folder, relative to this project's root (ref: path, the default, portable with git), or its name in the Studio workspace (ref: name). A project cannot call itself, directly or through another project.",
+          "examples": [
+            "../crm_sync",
+            "./subprojects/billing",
+            "crm_sync"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "enum": [
+            "path",
+            "name"
+          ],
+          "default": "path",
+          "description": "type=project only. How 'project' is read.",
+          "enumDescriptions": [
+            "path — folder relative to this project's root (default; portable with git).",
+            "name — project name in the Studio workspace."
+          ]
+        },
+        "env": {
+          "type": "string",
+          "default": "inherit",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_\\-]*$",
+          "description": "type=project only. Environment of the called project: inherit (default — the name of the current environment, applied with the called project's own environments/<name>.yaml), none, or an environment name.",
+          "examples": [
+            "inherit",
+            "none",
+            "prod"
+          ]
+        },
+        "variables": {
+          "type": "object",
+          "description": "type=project only. Environment variables lent to the called project for this run. Secrets cannot be passed: each project keeps its own (.hydra/secrets).",
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ],
+            "not": {
+              "pattern": "\\$\\{SECRET:"
+            }
+          },
+          "examples": [
+            {
+              "EXPORT_DIR": "out/crm"
+            }
+          ]
+        },
+        "workflows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.\\-]+$"
+          },
+          "description": "type=project only. Workflows of the called project to run, in this order. Without it: the called project's thread.yaml.",
+          "examples": [
+            [
+              "ingest",
+              "report"
+            ]
+          ]
+        },
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.\\-]+$"
+          },
+          "description": "type=project only. Runtime parameters published by the called project, read back here as {{ project:STEP.param.NAME }}. Always available: {{ project:STEP.status }}, {{ project:STEP.rows }}, {{ project:STEP.duration }}.",
+          "examples": [
+            [
+              "last_batch"
+            ]
+          ]
+        },
+        "isolation": {
+          "type": "string",
+          "enum": [
+            "inprocess",
+            "subprocess"
+          ],
+          "default": "inprocess",
+          "description": "type=project only. Where the called project runs. A step running in parallel with others always uses subprocess.",
+          "enumDescriptions": [
+            "inprocess — same Python process, isolated environment (default, fastest).",
+            "subprocess — separate hdrctl process (full isolation)."
+          ]
+        },
+        "timeout": {
+          "description": "type=project only. Maximum duration of the called project: a number of seconds, or 30s, 5m, 1h. The step fails when it is exceeded.",
+          "oneOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
+          ],
+          "examples": [
+            "10m",
+            600
+          ]
+        },
+        "overlap": {
+          "type": "string",
+          "enum": [
+            "wait",
+            "skip",
+            "fail"
+          ],
+          "default": "wait",
+          "description": "type=project only. What to do when the called project is already running (.hydra/run.lock).",
+          "enumDescriptions": [
+            "wait — wait until it ends (default).",
+            "skip — skip this step.",
+            "fail — fail this step."
+          ]
+        },
         "params": {
           "type": "object",
-          "description": "Action parameters. Values may reference a runtime parameter using the {{ param:NAME }} syntax.",
+          "description": "type=action: action parameters. type=project: parameters passed to the called project (like -P NAME=VALUE); they override its defaults and environment. Values may reference a runtime parameter using the {{ param:NAME }} syntax.",
           "additionalProperties": true,
-          "examples": [{ "message": "Workflow finished." }]
+          "examples": [
+            {
+              "message": "Workflow finished."
+            }
+          ]
         },
         "depends_on": {
           "type": "array",
           "default": [],
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "description": "Names of the steps that must finish before this one. An empty list starts the step immediately. Steps sharing the same dependencies run in parallel.",
-          "examples": [[], ["extract"], ["transform_a", "transform_b"]]
+          "examples": [
+            [],
+            [
+              "extract"
+            ],
+            [
+              "transform_a",
+              "transform_b"
+            ]
+          ]
         },
         "on_failure": {
           "type": "string",
-          "enum": ["fail", "skip", "continue"],
+          "enum": [
+            "fail",
+            "skip",
+            "continue"
+          ],
           "default": "fail",
           "description": "What happens when this step fails.",
           "enumDescriptions": [
@@ -340,38 +638,241 @@
         "when": {
           "type": "string",
           "description": "Conditional guard: the step runs only when the expression is true.",
-          "examples": ["{{ param:env }} == 'prod'"]
+          "examples": [
+            "{{ param:env }} == 'prod'"
+          ]
         },
-        "retry": { "$ref": "#/definitions/retryPolicy" },
+        "retry": {
+          "$ref": "#/definitions/retryPolicy"
+        },
         "undo": {
-          "description": "type=action only. How to reverse this action when the workflow (rollback: true) fails after it: an action, or 'none' (nothing to reverse).",
+          "description": "type=action only. How to reverse this action when the workflow (rollback: true) fails after it: an action, or 'none' (nothing to reverse). A job is undone automatically; a project step cannot be undone.",
           "oneOf": [
-            { "const": "none" },
+            {
+              "const": "none"
+            },
             {
               "type": "object",
-              "required": ["action"],
+              "required": [
+                "action"
+              ],
               "additionalProperties": false,
               "properties": {
-                "action": { "type": "string", "description": "Action that reverses the step (same actions and params as a step).", "examples": ["bash", "python", "webhook"] },
-                "params": { "type": "object", "description": "Parameters of the undo action." }
+                "action": {
+                  "type": "string",
+                  "description": "Action that reverses the step (same actions and params as a step).",
+                  "examples": [
+                    "bash",
+                    "python",
+                    "webhook"
+                  ]
+                },
+                "params": {
+                  "type": "object",
+                  "description": "Parameters of the undo action."
+                }
               }
             }
           ],
-          "examples": ["none", { "action": "bash", "params": { "command": "rm -f exports/today.csv" } }]
+          "examples": [
+            "none",
+            {
+              "action": "bash",
+              "params": {
+                "command": "rm -f exports/today.csv"
+              }
+            }
+          ]
         }
       },
       "allOf": [
         {
-          "if": { "properties": { "type": { "const": "job" } }, "required": ["type"] },
-          "then": { "required": ["job"], "not": { "required": ["undo"] } }
+          "if": {
+            "properties": {
+              "type": {
+                "const": "job"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "job"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "undo"
+                  ]
+                },
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "env"
+                  ]
+                },
+                {
+                  "required": [
+                    "variables"
+                  ]
+                },
+                {
+                  "required": [
+                    "workflows"
+                  ]
+                },
+                {
+                  "required": [
+                    "outputs"
+                  ]
+                },
+                {
+                  "required": [
+                    "isolation"
+                  ]
+                },
+                {
+                  "required": [
+                    "timeout"
+                  ]
+                },
+                {
+                  "required": [
+                    "overlap"
+                  ]
+                }
+              ]
+            }
+          }
         },
         {
-          "if": { "properties": { "type": { "const": "action" } }, "required": ["type"] },
-          "then": { "required": ["action"] }
+          "if": {
+            "properties": {
+              "type": {
+                "const": "action"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "action"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "env"
+                  ]
+                },
+                {
+                  "required": [
+                    "variables"
+                  ]
+                },
+                {
+                  "required": [
+                    "workflows"
+                  ]
+                },
+                {
+                  "required": [
+                    "outputs"
+                  ]
+                },
+                {
+                  "required": [
+                    "isolation"
+                  ]
+                },
+                {
+                  "required": [
+                    "timeout"
+                  ]
+                },
+                {
+                  "required": [
+                    "overlap"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "project"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "project"
+            ],
+            "properties": {
+              "params": {
+                "additionalProperties": {
+                  "not": {
+                    "pattern": "\\$\\{SECRET:"
+                  }
+                },
+                "propertyNames": {
+                  "pattern": "^[A-Za-z0-9_.\\-]+$"
+                }
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "job"
+                  ]
+                },
+                {
+                  "required": [
+                    "action"
+                  ]
+                },
+                {
+                  "required": [
+                    "undo"
+                  ]
+                }
+              ]
+            }
+          }
         }
       ]
     },
-
     "retryPolicy": {
       "type": "object",
       "description": "Retry policy applied when the step fails.",
@@ -382,18 +883,25 @@
           "minimum": 0,
           "default": 0,
           "description": "Number of retries AFTER the first failure. 0 disables retrying.",
-          "examples": [3]
+          "examples": [
+            3
+          ]
         },
         "delay": {
           "type": "number",
           "minimum": 0,
           "default": 0,
           "description": "Seconds to wait between attempts.",
-          "examples": [5]
+          "examples": [
+            5
+          ]
         },
         "backoff": {
           "type": "string",
-          "enum": ["fixed", "exponential"],
+          "enum": [
+            "fixed",
+            "exponential"
+          ],
           "default": "fixed",
           "description": "How the delay evolves between attempts.",
           "enumDescriptions": [

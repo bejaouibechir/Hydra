@@ -52,3 +52,25 @@ workflow:
         params:
           command: "rm -f /mnt/share/sales.csv"
       depends_on: ["notify"]
+
+    - name: "crm_sync"          # sub-project: runs another Hydra project
+      type: project
+      project: "../crm_sync"    # folder relative to this project (ref: path, the default)
+      env: inherit
+      params:
+        batch_date: "{{ param:run_date }}"
+      variables:
+        EXPORT_DIR: "out/crm"
+      workflows: ["ingest", "report"]
+      outputs: ["last_batch"]
+      isolation: inprocess
+      timeout: "10m"
+      overlap: wait
+      depends_on: ["export_copy"]
+
+    - name: "after_crm"
+      type: action
+      action: log
+      params:
+        message: "crm_sync {{ project:crm_sync.status }} — {{ project:crm_sync.rows }} rows"
+      depends_on: ["crm_sync"]

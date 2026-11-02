@@ -121,6 +121,7 @@ server is a different piece of work.
 | `hydra_write_workflow` | write a workflow — **validated first** |
 | `hydra_run_workflow` | execute a workflow, optionally in an environment (`env`) |
 | `hydra_project_settings` | environments, parameters and secrets of a project — **names only** for secrets and variables |
+| `hydra_project_calls` | projects called by `type: project` steps — tree, missing projects, cycles |
 | `hydra_preview_data` | columns and first rows of a CSV, JSON or Parquet file |
 | `hydra_check_job` | does the job match what the user asked? |
 | `hydra_find_example` | the closest real job, as a starting point |
@@ -130,7 +131,7 @@ The DSL tools read the specification generated from the engine's own code
 
 ## Beyond writing jobs
 
-Five tools close the loop between *writing* a pipeline and *understanding* it.
+Six tools close the loop between *writing* a pipeline and *understanding* it.
 
 **`hydra_preview_data`** shows the real column names and the first rows — call
 it before writing a `select`, so the assistant stops guessing, and after a run,
@@ -156,6 +157,13 @@ environment, effective value for `env`) and the names of the secrets, common or
 per environment. Secret values and variable values are never returned: the
 assistant writes `${SECRET:NAME}`, `${ENV:NAME}` and `{{ param:NAME }}` with
 names that exist, and the values stay on the machine.
+
+**`hydra_project_calls`** shows the projects a project calls through its
+`type: project` steps: each step and the folder it resolves to, the tree of
+called projects with the workflows they run, then what would stop the run — a
+project not found, a cycle (`a → b → a`), more than 5 levels — and the calls
+computed at run time. The assistant calls it before adding a project step and
+after writing one.
 
 **`hydra_run_job`** reports what was produced: rows, columns, and a warning
 when zero rows were written, which usually means a filter is too strict or a

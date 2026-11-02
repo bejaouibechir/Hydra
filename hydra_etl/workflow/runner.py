@@ -764,15 +764,20 @@ class WorkflowRunner:
             declarations.update(_block(d / "parameters.yaml"))
             if self.env:
                 env_values.update(_block(d / "environments" / f"{self.env}.yaml"))
+        # Les valeurs runtime (-P, params d'un step type: project) satisfont les
+        # paramètres `required` : sans elles, build_effective échouerait et les
+        # valeurs de l'environnement seraient perdues.
+        given = {k: v for k, v in self._runtime_snapshot().items() if k in declarations}
         try:
-            effective = build_effective(declarations, [env_values])
+            effective = build_effective(declarations, [env_values, given])
         except Exception:
-            # Paramètre requis sans valeur -> fallback sur les défauts seuls
+            # Paramètre requis sans valeur -> défauts, puis valeurs de l'environnement
             effective = {
                 k: (v or {}).get("default")
                 for k, v in declarations.items()
                 if isinstance(v, dict) and (v or {}).get("default") is not None
             }
+            effective.update(env_values)
         self._project_params_cache = effective
         return effective
 

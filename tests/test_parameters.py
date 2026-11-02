@@ -62,7 +62,7 @@ def test_value_coerced_to_declared_type():
 
 def test_required_missing_raises():
     decls = {"schema": {"type": "string", "required": True}}
-    with pytest.raises(ParameterError, match="requis manquant"):
+    with pytest.raises(ParameterError, match="missing required parameter"):
         build_effective(decls, [])
 
 def test_required_satisfied_by_layer():
@@ -101,7 +101,7 @@ def test_env_placeholder(monkeypatch):
 
 def test_missing_param_strict_raises():
     r = ParameterResolver(params={})
-    with pytest.raises(ParameterError, match="non résolu"):
+    with pytest.raises(ParameterError, match="unresolved parameter"):
         r.resolve("{{ param:nope }}")
 
 def test_missing_param_non_strict_none():
@@ -119,3 +119,8 @@ def test_short_form_declaration_is_a_default():
     """parameters.yaml : `nom: valeur` vaut une déclaration {default: valeur}."""
     from hydra_etl.internal.config.parameters import build_effective
     assert build_effective({"label": "dev run", "n": 5}, [{"n": 7}]) == {"label": "dev run", "n": 7}
+
+
+def test_embedded_missing_optional_env_is_empty():
+    r = ParameterResolver(params={}, env={}, strict=False)
+    assert r.resolve("dir={{ env:NOPE_X }}.") == "dir=."

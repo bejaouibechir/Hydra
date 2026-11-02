@@ -1192,6 +1192,9 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
     except KeyboardInterrupt:
         click.echo(f"\n\n  {c(C.YL, '⚠  ' + t('run.interrupted'))}")
         return 130
+    # Lancé par un step type: project (isolation: subprocess) : résultats pour le maître
+    from hydra_etl.workflow.subprojects import write_outputs
+    write_outputs(runner, result)
 
     click.echo()
     ran = [r for r in result.runs if r.status not in (INACTIVE, NOT_RUN)]

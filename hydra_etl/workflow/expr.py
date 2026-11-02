@@ -20,8 +20,8 @@ import re
 from typing import Any, Mapping
 
 # {{ param:NAME }} / {{ env:NAME }}
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(param|env)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}")
-_FULL_RE = re.compile(r"^\s*\{\{\s*(param|env)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}\s*$")
+_PLACEHOLDER_RE = re.compile(r"\{\{\s*(param|env|project)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}")
+_FULL_RE = re.compile(r"^\s*\{\{\s*(param|env|project)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}\s*$")
 
 _ALLOWED_NODES = (
     ast.Expression, ast.BoolOp, ast.And, ast.Or, ast.UnaryOp, ast.Not,
@@ -39,6 +39,8 @@ _STRUCT_OPS = {
 def _lookup(kind: str, name: str, params: Mapping[str, Any], env: Mapping[str, str]) -> Any:
     if kind == "env":
         return env.get(name, "")
+    if kind == "project":                      # {{ project:STEP.status }}
+        return params.get(f"project.{name}")
     return params.get(name)  # None si absent
 
 

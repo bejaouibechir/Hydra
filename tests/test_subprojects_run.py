@@ -203,3 +203,142 @@ def test_cli_run_only_workflows(tmp_path):
     r = CliRunner().invoke(cli, ["run", str(slave), "-w", "other"])
     assert r.exit_code == 0, r.output
     assert (slave / "other.txt").exists() and not (slave / "probe.json").exists()
+
+
+# ── Lot 1.4 : résultats, outputs, timeout, verrou ─────────────────────────
+
+def _publisher(base: Path, name: str = "pub") -> Path:
+    root = base / name
+    _write(root / ".hydra" / "project.json", json.dumps({"id": name[:8], "name": name}))
+    _write(root / "data" / "in.csv", "id,v\n1,a\n2,b\n3,c\n")
+    job = root / "jobs" / "copy"
+    _write(job / "sources.yaml", "sources:\n  s: {type: csv, connection: {}, extract: {table: ../../data/in.csv}}\n")
+    _write(job / "destinations.yaml",
+           "destinations:\n  d: {type: csv, connection: {}, load: {table: ../../data/out.csv, mode: replace}}\n")
+    _write(job / "pipeline.yaml", "pipeline:\n  from: s\n  to: d\n")
+    _write(root / "workflows" / "main.yaml", """workflow:
+  name: main
+  steps:
+    - name: copy
+      type: job
+      job: ../jobs/copy
+    - name: publish
+      type: action
+      action: set_param
+      params: {name: last_id, value: 42, type: int}
+      depends_on: [copy]
+""")
+    _write(root / "workflows" / "thread.yaml", "thread:\n  - mode: sequential\n    workflows:\n      - name: main\n")
+    return root
+
+
+def test_outputs_status_rows_reach_the_master(tmp_path, isolation):
+    _publisher(tmp_path)
+    master = _master(tmp_path, f"""    - name: call
+      type: project
+      project: ../pub
+      isolation: {isolation}
+      outputs: [last_id]
+    - name: after
+      type: action
+      action: python
+      depends_on: [call]
+      when: "{{{{ project:call.status }}}} == 'success'"
+      params:
+        script: "open('after.txt','w').write('{{{{ project:call.param.last_id }}}}|{{{{ project:call.rows }}}}')"
+""")
+    res = _run(master)
+    assert res.success, _step_error(res)
+    assert (master / "after.txt").read_text() == "42|3"
+
+
+def test_missing_output_fails_the_step(tmp_path, isolation):
+    _publisher(tmp_path)
+    master = _master(tmp_path, f"""    - name: call
+      type: project
+      project: ../pub
+      isolation: {isolation}
+      outputs: [nope]
+""")
+    res = _run(master)
+    assert not res.success and "did not publish nope" in _step_error(res)
+
+
+def test_project_result_used_before_the_step_is_an_error(tmp_path):
+    _publisher(tmp_path)
+    master = _master(tmp_path, """    - name: early
+      type: action
+      action: log
+      params: {message: "{{ project:call.status }}"}
+    - name: call
+      type: project
+      project: ../pub
+      depends_on: [early]
+""")
+    res = _run(master)
+    assert not res.success and "project result not available" in _step_error(res)
+
+
+def _sleeper(base: Path, seconds: int) -> Path:
+    root = base / "sleepy"
+    _write(root / ".hydra" / "project.json", json.dumps({"id": "sleepy", "name": "sleepy"}))
+    _write(root / "workflows" / "main.yaml", f"""workflow:
+  name: main
+  steps:
+    - name: nap
+      type: action
+      action: python
+      params: {{script: "import time; time.sleep({seconds})"}}
+    - name: mark
+      type: action
+      action: python
+      depends_on: [nap]
+      params: {{script: "open('marked.txt','w').write('x')"}}
+""")
+    _write(root / "workflows" / "thread.yaml", "thread:\n  - mode: sequential\n    workflows:\n      - name: main\n")
+    return root
+
+
+def test_timeout_stops_the_called_project(tmp_path, isolation):
+    import time
+    slave = _sleeper(tmp_path, 3)
+    master = _master(tmp_path, f"""    - name: call
+      type: project
+      project: ../sleepy
+      isolation: {isolation}
+      timeout: 1s
+""")
+    t0 = time.monotonic()
+    res = _run(master)
+    assert not res.success and "timed out after 1s" in _step_error(res)
+    assert not (slave / "marked.txt").exists()
+    assert time.monotonic() - t0 < 6
+
+
+def test_overlap_with_a_running_project(tmp_path):
+    slave = _slave(tmp_path)
+    lock = slave / ".hydra" / "run.lock"
+    lock.write_text(json.dumps({"pid": os.getpid()}))          # « déjà lancé » (processus vivant)
+    for mode, ok, text in (("fail", False, "already running (overlap: fail)"),
+                           ("skip", True, None)):
+        master = _master(tmp_path, f"""    - name: call
+      type: project
+      project: ../slave
+      overlap: {mode}
+""", name=f"m-{mode}")
+        res = _run(master)
+        assert res.success is ok, _step_error(res)
+        if text:
+            assert text in _step_error(res)
+    m = _master(tmp_path, """    - name: call
+      type: project
+      project: ../slave
+      timeout: 1s
+""", name="m-wait")
+    res = _run(m)
+    assert not res.success and "already running (overlap: wait)" in _step_error(res)
+    # verrou d'un processus disparu : repris
+    lock.write_text(json.dumps({"pid": 999999999}))
+    res = _run(m)
+    assert res.success, _step_error(res)
+    assert not lock.exists()

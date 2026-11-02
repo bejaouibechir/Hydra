@@ -429,6 +429,12 @@ class ProjectRunner:
         self.call_stack = call_stack
         self.parallel_context = parallel_context
         self._stage_parallel = False
+        # Arrêt demandé de l'extérieur (timeout d'un step type: project)
+        self._halt_reason: Optional[str] = None
+        self._active_stops: List[Any] = []
+        # Paramètres en fin de run (projet + runtime : set_param, assign_param),
+        # relus par un projet appelant (outputs d'un step type: project)
+        self.published: Dict[str, Any] = {}
         self.env = env
         self.params = dict(params or {})
         self._sleep = sleep
@@ -490,6 +496,23 @@ class ProjectRunner:
         else:
             self._sleep(seconds)
 
+    def halt(self, reason: str) -> None:
+        """Arrête le run : workflows en cours priés de s'arrêter, suivants non lancés."""
+        with self._lock:
+            self._halt_reason = reason
+            stops = list(self._active_stops)
+        for st in stops:
+            st.stop(reason)
+
+    def _collect(self, wr: Any) -> None:
+        """Paramètres du projet en fin de workflow (outputs d'un step type: project)."""
+        try:
+            values = {**wr._project_params(), **wr._runtime_snapshot()}
+        except Exception:  # noqa: BLE001
+            values = dict(getattr(wr, "runtime_params", {}) or {})
+        with self._lock:
+            self.published.update(values)
+
     def _emit(self, on_event: Optional[EventCallback], kind: str, data: Any) -> None:
         if on_event is None:
             return
@@ -528,11 +551,17 @@ class ProjectRunner:
             timer.start()
         t0 = time.monotonic()
         try:
-            result = WorkflowRunner(wf, base_dir=path.parent, env=self.env,
-                                    project_root=self.plan.root,
-                                    params=dict(self.params), stop=stop,
-                                    call_stack=self.call_stack,
-                                    parallel_context=self.parallel_context or self._stage_parallel).run()
+            with self._lock:
+                self._active_stops.append(stop)
+                if self._halt_reason:
+                    stop.stop(self._halt_reason)
+            wr = WorkflowRunner(wf, base_dir=path.parent, env=self.env,
+                                project_root=self.plan.root,
+                                params=dict(self.params), stop=stop,
+                                call_stack=self.call_stack,
+                                parallel_context=self.parallel_context or self._stage_parallel)
+            result = wr.run()
+            self._collect(wr)
             run = WorkflowRun(name=name, stage=stage,
                               status=SUCCESS if result.success else FAILED,
                               duration=time.monotonic() - t0, result=result,
@@ -545,6 +574,9 @@ class ProjectRunner:
         finally:
             if timer is not None:
                 timer.cancel()
+            with self._lock:
+                if stop in self._active_stops:
+                    self._active_stops.remove(stop)
         if stop.is_set() and run.status == FAILED:
             run.timed_out = True
             if stop.reason and stop.reason not in (run.error or ""):
@@ -629,6 +661,8 @@ class ProjectRunner:
             u = units[pc]
             stage_no = u.stage + 1
             it, its = pass_of(pc)
+            if self._halt_reason:
+                stopped = True
             if stopped:
                 for n in u.names:
                     r = WorkflowRun(n, stage_no, INACTIVE if not active[n] else NOT_RUN)

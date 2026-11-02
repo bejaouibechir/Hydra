@@ -689,11 +689,20 @@ class WorkflowRunner:
         resolved = self._resolve_action_params({
             "project": step.project, "params": step.params or {}, "variables": step.variables or {}})
         parallel = self.parallel_context or step.name in self._parallel_now
-        ok, error, lines = run_project_step(
+        out = run_project_step(
             step, resolved, caller_root=self.project_root, caller_env=self.env,
             call_stack=self.call_stack, parallel=parallel, log=step_log)
-        return StepResult(step_name=step.name, success=ok, duration=time.monotonic() - start,
-                          error=error, output=lines)
+        # Résultats lisibles par la suite du workflow : {{ project:STEP.status }}…
+        values = {f"project.{step.name}.status": out.status,
+                  f"project.{step.name}.rows": out.rows,
+                  f"project.{step.name}.duration": round(out.duration, 3)}
+        for o in step.outputs or []:
+            if o in out.published:
+                values[f"project.{step.name}.param.{o}"] = out.published[o]
+        with self._params_lock:
+            self.runtime_params.update(values)
+        return StepResult(step_name=step.name, success=out.success,
+                          duration=time.monotonic() - start, error=out.error, output=out.lines)
 
     def _resolve_action_params(self, params: dict) -> dict:
         """Résout les placeholders {{ param:NAME }} / {{ env:NAME }} dans les

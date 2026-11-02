@@ -28,8 +28,8 @@ from typing import Any, Dict, List, Mapping, Optional
 
 
 # {{ param:NAME }} / {{ env:NAME }}  (espaces tolérés, NAME alphanum . _ -)
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(param|env)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}")
-_FULL_RE = re.compile(r"^\s*\{\{\s*(param|env)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}\s*$")
+_PLACEHOLDER_RE = re.compile(r"\{\{\s*(param|env|project)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}")
+_FULL_RE = re.compile(r"^\s*\{\{\s*(param|env|project)\s*:\s*([A-Za-z0-9_.\-]+)\s*\}\}\s*$")
 
 _ALLOWED_TYPES = {"int", "float", "string", "str", "bool", "boolean", "json", "any"}
 
@@ -160,6 +160,18 @@ class ParameterResolver:
     # -- interne --
 
     def _lookup(self, kind: str, key: str) -> Any:
+        if kind == "project":
+            # {{ project:STEP.status }} = paramètre runtime « project.STEP.status »,
+            # posé par un step type: project terminé plus tôt dans le workflow
+            full = f"project.{key}"
+            if full in self.params:
+                return self.params[full]
+            strict_p = self.strict if self.strict_params is None else self.strict_params
+            if strict_p:
+                raise ParameterError(
+                    f"project result not available: '{key}' (the type: project step must run "
+                    f"before this one; a parameter must be listed in its outputs)")
+            return None
         if kind == "param":
             if key in self.params:
                 return self.params[key]

@@ -287,14 +287,117 @@ def _variables_file(variables: Dict[str, Any]) -> Optional[Path]:
     return Path(name)
 
 
+@dataclass
+class ProjectOutcome:
+    """Résultat d'un step type: project, posé dans les paramètres runtime du
+    maître : {{ project:STEP.status }}, .rows, .duration, .param.NOM."""
+    success: bool
+    status: str                                  # success | failed | skipped
+    error: Optional[str] = None
+    lines: List[str] = field(default_factory=list)
+    rows: int = 0
+    duration: float = 0.0
+    published: Dict[str, Any] = field(default_factory=dict)
+
+
+# ── Verrou : un projet appelé ne tourne qu'une fois à la fois ──────────────
+import threading as _threading
+import time as _time
+
+_LOCKS: Dict[str, Any] = {}
+_LOCKS_GUARD = _threading.Lock()
+LOCK_FILE = "run.lock"               # .hydra/run.lock du projet appelé
+
+
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        h = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)   # QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = ctypes.windll.kernel32.GetExitCodeProcess(h, ctypes.byref(code))
+        ctypes.windll.kernel32.CloseHandle(h)
+        return bool(ok) and code.value == 259                        # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _try_file_lock(target: Path) -> bool:
+    f = target / ".hydra" / LOCK_FILE
+    for _ in range(2):
+        try:
+            fd = os.open(str(f), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                info = json.loads(f.read_text(encoding="utf-8") or "{}")
+            except Exception:  # noqa: BLE001
+                info = {}
+            if _pid_alive(int(info.get("pid") or 0)):
+                return False
+            try:                                  # verrou d'un processus disparu
+                f.unlink()
+            except OSError:
+                return False
+            continue
+        with os.fdopen(fd, "w", encoding="utf-8") as h:
+            json.dump({"pid": os.getpid(), "since": _time.strftime("%Y-%m-%dT%H:%M:%S")}, h)
+        return True
+    return False
+
+
+def _release_file_lock(target: Path) -> None:
+    try:
+        (target / ".hydra" / LOCK_FILE).unlink()
+    except OSError:
+        pass
+
+
+def _acquire(target: Path, mode: str, deadline: Optional[float]) -> bool:
+    """Verrou du projet appelé (dans ce processus, puis entre processus).
+    mode wait : attend (jusqu'à `deadline`) ; skip / fail : essai unique."""
+    key = str(target)
+    with _LOCKS_GUARD:
+        lk = _LOCKS.setdefault(key, _threading.Lock())
+    while True:
+        if lk.acquire(blocking=False):
+            if _try_file_lock(target):
+                return True
+            lk.release()
+        if mode != "wait" or (deadline is not None and _time.monotonic() >= deadline):
+            return False
+        _time.sleep(0.5)
+
+
+def _release(target: Path) -> None:
+    _release_file_lock(target)
+    with _LOCKS_GUARD:
+        lk = _LOCKS.get(str(target))
+    if lk is not None and lk.locked():
+        lk.release()
+
+
 def run_project_step(step: Any, resolved: Dict[str, Any], *, caller_root: Path,
                      caller_env: Optional[str], call_stack: List[Any], parallel: bool,
-                     log: Any) -> Tuple[bool, Optional[str], List[str]]:
-    """Lance le projet d'un step type: project. Retourne (succès, erreur, lignes)."""
+                     log: Any) -> ProjectOutcome:
+    """Lance le projet d'un step type: project."""
+    t0 = _time.monotonic()
+
+    def fail(msg: str, lines: Optional[List[str]] = None) -> ProjectOutcome:
+        return ProjectOutcome(False, "failed", msg, lines or [], duration=_time.monotonic() - t0)
+
     try:
         target = resolve_project(str(resolved.get("project") or ""), caller_root, step.ref)
     except ProjectRefError as e:
-        return False, str(e), []
+        return fail(str(e))
+    name = _project_name(target)
     params = dict(resolved.get("params") or {})
     variables = dict(resolved.get("variables") or {})
     env = caller_env if step.env in (None, "inherit") else (None if step.env == "none" else step.env)
@@ -304,80 +407,149 @@ def run_project_step(step: Any, resolved: Dict[str, Any], *, caller_root: Path,
     names = [_project_name(Path(p)) for p, _ in stack]
     if key in stack:
         i = stack.index(key)
-        return False, "cycle: " + " → ".join(names[i:] + [_project_name(target)]) \
-            + " (the project is already running in this chain)", []
+        return fail("cycle: " + " → ".join(names[i:] + [name])
+                    + " (the project is already running in this chain)")
     if len(stack) > MAX_DEPTH:
-        return False, (f"projects nested more than {MAX_DEPTH} levels deep: "
-                       + " → ".join(names + [_project_name(target)])), []
+        return fail(f"projects nested more than {MAX_DEPTH} levels deep: " + " → ".join(names + [name]))
     missing = missing_required(target, env, params)
     if missing:
-        return False, (f"project {_project_name(target)}: required parameter(s) without a value: "
-                       f"{', '.join(missing)} — give them in params:"), []
+        return fail(f"project {name}: required parameter(s) without a value: "
+                    f"{', '.join(missing)} — give them in params:")
 
-    isolation = step.isolation or "inprocess"
-    if isolation == "inprocess" and parallel:
-        isolation = "subprocess"
-        log.info(f"[{step.name}] runs in parallel with other steps: project "
-                 f"{_project_name(target)} runs in a separate process")
-    log.info(f"[{step.name}] project {_project_name(target)} ({target}) — env: {env or 'none'}, "
-             f"{isolation}")
-    new_stack = stack + [key]
-    vfile = _variables_file(variables)
+    from hydra_etl.workflow.thread import parse_delay
+    timeout = parse_delay(step.timeout) if step.timeout is not None else None
+    overlap = step.overlap or "wait"
+    deadline = (t0 + timeout) if timeout else None
+    if not _acquire(target, overlap, deadline):
+        msg = f"project {name} is already running"
+        if overlap == "skip":
+            log.info(f"[{step.name}] {msg}: step skipped (overlap: skip)")
+            return ProjectOutcome(True, "skipped", None, [f"{msg} — skipped (overlap: skip)"],
+                                  duration=_time.monotonic() - t0)
+        return fail(f"{msg} (overlap: {overlap})")
     try:
-        if isolation == "subprocess":
-            return _run_subprocess(step, target, env, params, vfile, new_stack, log)
-        return _run_inprocess(step, target, env, params, vfile, new_stack, log)
+        isolation = step.isolation or "inprocess"
+        if isolation == "inprocess" and parallel:
+            isolation = "subprocess"
+            log.info(f"[{step.name}] runs in parallel with other steps: project {name} "
+                     f"runs in a separate process")
+        log.info(f"[{step.name}] project {name} ({target}) — env: {env or 'none'}, {isolation}")
+        left = (deadline - _time.monotonic()) if deadline else None
+        if left is not None and left <= 0:
+            return fail(f"project {name}: timed out after {step.timeout} (waiting for its lock)")
+        vfile = _variables_file(variables)
+        try:
+            run = _run_subprocess if isolation == "subprocess" else _run_inprocess
+            out = run(step, target, env, params, vfile, stack + [key], log, left)
+        finally:
+            if vfile is not None:
+                try:
+                    vfile.unlink()
+                except OSError:
+                    pass
     finally:
-        if vfile is not None:
-            try:
-                vfile.unlink()
-            except OSError:
-                pass
+        _release(target)
+    out.duration = _time.monotonic() - t0
+    # outputs : paramètres publiés par l'esclave, exigés s'il a réussi
+    if out.success and step.outputs:
+        absent = [o for o in step.outputs if o not in out.published]
+        if absent:
+            out.success, out.status = False, "failed"
+            out.error = (f"project {name} did not publish {', '.join(absent)} "
+                         f"(outputs: set them with set_param / assign_param, or declare them)")
+    return out
 
 
-def _summary(result: Any) -> Tuple[List[str], Optional[str]]:
+def _tree(result: Any) -> Tuple[List[str], Optional[str]]:
+    """Runs de l'esclave, en arbre : workflow, puis ses steps et leur sortie."""
     lines, first_error = [], None
     for r in result.runs:
         status = getattr(r, "status", "?")
-        line = f"{r.name}: {status} ({getattr(r, 'duration', 0.0):.1f}s)"
+        mark = {"success": "✓", "recovered": "↪", "failed": "✗"}.get(str(status), "·")
+        line = f"{mark} {r.name} ({getattr(r, 'duration', 0.0):.1f}s)"
+        if str(status) not in ("success",):
+            line += f" — {status}"
         if getattr(r, "error", None):
-            line += f" — {r.error}"
+            line += f": {r.error}"
             first_error = first_error or f"{r.name}: {r.error}"
         lines.append(line)
         res = getattr(r, "result", None)
         for st in getattr(res, "steps", None) or []:
+            smark = "⏭" if st.skipped else ("✓" if st.success else "✗")
+            lines.append(f"    {smark} {st.step_name}" + (f" — {st.error}" if st.error else ""))
             for o in getattr(st, "output", None) or []:
-                lines.append(f"  {st.step_name} │ {o}")
+                lines.append(f"      │ {o}")
     return lines, first_error
 
 
 def _run_inprocess(step: Any, target: Path, env: Optional[str], params: Dict[str, Any],
-                   vfile: Optional[Path], stack: List[Any], log: Any
-                   ) -> Tuple[bool, Optional[str], List[str]]:
+                   vfile: Optional[Path], stack: List[Any], log: Any,
+                   timeout: Optional[float]) -> ProjectOutcome:
     from hydra_etl.internal.config.loader import ENV_FILE_ENV, isolated_environ
-    from hydra_etl.workflow.project import ProjectError, ProjectRunner, prepare_project
+    from hydra_etl.workflow.project import ProjectError, ProjectRunner, _rows_written, prepare_project
+    name = _project_name(target)
     overrides: Dict[str, Optional[str]] = {"HYDRA_ENV": env, ENV_FILE_ENV: str(vfile) if vfile else None,
                                            STACK_ENV: json.dumps(stack)}
+    timed_out = []
     with isolated_environ(overrides):
         try:
             plan = prepare_project(target, only=step.workflows)
         except ProjectError as e:
-            return False, f"project {_project_name(target)}: " + "; ".join(e.errors), list(e.errors)
-        result = ProjectRunner(plan, env=env, params=params, call_stack=stack).run()
-    lines, err = _summary(result)
+            return ProjectOutcome(False, "failed", f"project {name}: " + "; ".join(e.errors), list(e.errors))
+        runner = ProjectRunner(plan, env=env, params=params, call_stack=stack)
+        timer = None
+        if timeout:
+            def _expire() -> None:
+                timed_out.append(True)
+                runner.halt(f"timed out after {step.timeout} (timeout of step '{step.name}')")
+            timer = _threading.Timer(timeout, _expire)
+            timer.daemon = True
+            timer.start()
+        try:
+            result = runner.run()
+        finally:
+            if timer is not None:
+                timer.cancel()
+    lines, err = _tree(result)
     for ln in lines:
         log.info(f"  {ln}")
+    rows = sum(_rows_written(r) for r in result.runs)
+    if timed_out:
+        return ProjectOutcome(False, "failed", f"project {name}: timed out after {step.timeout}",
+                              lines, rows=rows, published=dict(runner.published))
     if result.success:
-        return True, None, lines
-    return False, f"project {_project_name(target)} failed — {err or 'see its run'}", lines
+        return ProjectOutcome(True, "success", None, lines, rows=rows, published=dict(runner.published))
+    return ProjectOutcome(False, "failed", f"project {name} failed — {err or 'see its run'}", lines,
+                          rows=rows, published=dict(runner.published))
+
+
+OUTPUTS_ENV = "HYDRA_PROJECT_OUTPUTS"      # fichier où un run enfant écrit ses résultats
+
+
+def write_outputs(runner: Any, result: Any) -> None:
+    """Appelé par `hdrctl run <projet>` lancé par un step (isolation: subprocess)."""
+    f = os.environ.get(OUTPUTS_ENV)
+    if not f:
+        return
+    from hydra_etl.workflow.project import _rows_written
+    try:
+        Path(f).write_text(json.dumps({
+            "success": bool(result.success),
+            "rows": sum(_rows_written(r) for r in result.runs),
+            "published": getattr(runner, "published", {}),
+        }, default=str), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _run_subprocess(step: Any, target: Path, env: Optional[str], params: Dict[str, Any],
-                    vfile: Optional[Path], stack: List[Any], log: Any
-                    ) -> Tuple[bool, Optional[str], List[str]]:
+                    vfile: Optional[Path], stack: List[Any], log: Any,
+                    timeout: Optional[float]) -> ProjectOutcome:
     import subprocess
     import sys
+    import tempfile
     from hydra_etl.internal.config.loader import ENV_FILE_ENV, environ_without_layers
+    name = _project_name(target)
     cmd = [sys.executable, "-m", "hydra_etl.cli.hdrctl", "run", str(target)]
     if env:
         cmd += ["--env", env]
@@ -385,21 +557,44 @@ def _run_subprocess(step: Any, target: Path, env: Optional[str], params: Dict[st
         cmd += ["-P", f"{k}={v if isinstance(v, str) else json.dumps(v)}"]
     for w in step.workflows or []:
         cmd += ["-w", w]
+    fd, outf = tempfile.mkstemp(prefix="hydra_out_", suffix=".json")
+    os.close(fd)
     child = environ_without_layers()
     if env:
         child["HYDRA_ENV"] = env
     if vfile:
         child[ENV_FILE_ENV] = str(vfile)
     child[STACK_ENV] = json.dumps(stack)
+    child[OUTPUTS_ENV] = outf
     child["HYDRA_NO_BANNER"] = "1"
     child.setdefault("PYTHONIOENCODING", "utf-8")
-    proc = subprocess.run(cmd, cwd=str(target), env=child, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
-    lines = [ln.rstrip() for ln in (proc.stdout + proc.stderr).splitlines() if ln.strip()]
-    for ln in lines:
-        log.info(f"  {ln}")
+    try:
+        try:
+            proc = subprocess.run(cmd, cwd=str(target), env=child, capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            def _txt(b: Any) -> str:
+                return b.decode("utf-8", "replace") if isinstance(b, bytes) else (b or "")
+            out = _txt(e.stdout) + _txt(e.stderr)
+            lines = [ln.rstrip() for ln in out.splitlines() if ln.strip()]
+            return ProjectOutcome(False, "failed", f"project {name}: timed out after {step.timeout} "
+                                  f"(process stopped)", lines)
+        lines = [ln.rstrip() for ln in (proc.stdout + proc.stderr).splitlines() if ln.strip()]
+        for ln in lines:
+            log.info(f"  {ln}")
+        try:
+            data = json.loads(Path(outf).read_text(encoding="utf-8") or "{}")
+        except (OSError, ValueError):
+            data = {}
+    finally:
+        try:
+            os.unlink(outf)
+        except OSError:
+            pass
+    rows, published = int(data.get("rows") or 0), dict(data.get("published") or {})
     if proc.returncode == 0:
-        return True, None, lines
+        return ProjectOutcome(True, "success", None, lines, rows=rows, published=published)
     err = next((ln.strip() for ln in reversed(lines) if "failed" in ln.lower() or "error" in ln.lower()),
                f"exit code {proc.returncode}")
-    return False, f"project {_project_name(target)} failed — {err}", lines
+    return ProjectOutcome(False, "failed", f"project {name} failed — {err}", lines,
+                          rows=rows, published=published)

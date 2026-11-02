@@ -25,6 +25,17 @@ and versions follow [Semantic Versioning](https://semver.org/).
   dependency between them) always use a separate process. `params` have the rank of `-P`; a `required`
   parameter of the called project without a value stops the step before anything runs. A cycle missed by
   validation (computed path) is stopped at run time.
+- Results of a called project, readable by the next steps of the master workflow (`when`, any field):
+  `{{ project:STEP.status }}` (`success`, `failed`, `skipped`), `{{ project:STEP.rows }}` (rows written),
+  `{{ project:STEP.duration }}`, and `{{ project:STEP.param.NAME }}` for each name listed in `outputs` — a
+  parameter of the called project at the end of its run (`set_param`, `assign_param`, or declared). A listed
+  output that the project does not publish fails the step. The output shows the called project as a tree
+  (workflows, steps, their output).
+- `timeout` on a `type: project` step (30s, 5m, 1h): in the same process the called project stops at its next
+  checkpoint, and its following workflows do not start; in a separate process the process is stopped.
+- A called project runs once at a time (lock `.hydra/run.lock`, also between processes; a lock left by a
+  process that no longer exists is taken over). `overlap`: `wait` (default, until `timeout`), `skip` (step
+  skipped, status `skipped`) or `fail`.
 - `hdrctl run <project> -w <workflow>` (repeatable): run only these workflows of the project.
 
 ## [0.18.0] — 2026-11-02

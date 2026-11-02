@@ -182,6 +182,23 @@
           "default": null,
           "title": "Outputs"
         },
+        "overlap": {
+          "anyOf": [
+            {
+              "enum": [
+                "wait",
+                "skip",
+                "fail"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Overlap"
+        },
         "params": {
           "anyOf": [
             {
@@ -233,6 +250,24 @@
             }
           ],
           "default": null
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
         },
         "type": {
           "enum": [

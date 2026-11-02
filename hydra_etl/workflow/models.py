@@ -163,7 +163,8 @@ _PROJECT_ENV_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_\-]*$")
 _PROJECT_PARAM_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
 _PROJECT_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Champs propres à type=project (refusés sur les autres types)
-PROJECT_STEP_FIELDS = ("project", "ref", "env", "variables", "workflows", "outputs", "isolation")
+PROJECT_STEP_FIELDS = ("project", "ref", "env", "variables", "workflows", "outputs", "isolation",
+                       "timeout", "overlap")
 
 
 class WorkflowStep(BaseModel):
@@ -187,6 +188,8 @@ class WorkflowStep(BaseModel):
     workflows: Optional[List[str]] = None        # sinon : le thread.yaml de l'esclave
     outputs: Optional[List[str]] = None          # paramètres publiés par l'esclave, relus ici
     isolation: Optional[Literal["inprocess", "subprocess"]] = None   # défaut inprocess
+    timeout: Optional[Union[int, float, str]] = None   # durée max du projet appelé (30s, 5m, 1h)
+    overlap: Optional[Literal["wait", "skip", "fail"]] = None   # projet déjà lancé : défaut wait
 
     # Orchestration
     depends_on: List[str] = Field(default_factory=list)
@@ -238,6 +241,14 @@ class WorkflowStep(BaseModel):
             if isinstance(v, str) and "${SECRET:" in v:
                 raise ValueError(f"Step '{n}': params: '{k}' passes a secret; a project keeps "
                                  f"its own secrets (.hydra/secrets of the called project)")
+        if self.timeout is not None:
+            from hydra_etl.workflow.thread import parse_delay
+            try:
+                secs = parse_delay(self.timeout)
+            except ValueError as e:
+                raise ValueError(f"Step '{n}': timeout — {e}") from None
+            if secs <= 0:
+                raise ValueError(f"Step '{n}': timeout must be more than 0")
         for label, names in (("workflows", self.workflows), ("outputs", self.outputs)):
             if names is not None and not names:
                 raise ValueError(f"Step '{n}': {label} is empty — remove it or list names")

@@ -7,4 +7,4 @@ parameters:
   batch_size: {type: int, default: 500}
   report_table: {type: string, default: revenue_by_country, required: true}
   regions: {type: json, default: [FR, TN]}
-  label: {default: dev run}
+  label: dev run

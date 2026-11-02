@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-11-02
+
 ### Added
 
 - Global environment variables, shared by every project of the machine: `~/.hydra/env` (all
@@ -47,10 +49,20 @@ and versions follow [Semantic Versioning](https://semver.org/).
   parameters per environment and the names of the secrets; never a secret or variable value.
   `hydra_run_workflow` accepts `env`.
 
+- `parameters.yaml` accepts the short form `name: value` (a parameter of type `any` with that default); it
+  used to stop the run with an internal error.
+- Documentation: README (parameters, environments and secrets), `docs/MCP.md`, DSL white papers (chapter 4).
+
 ### Fixed
 
 - `hdrctl run jobs/<job>` now reads the `.env` at the project root (the folder that contains `.hydra/`),
   not only the one of the job's parent folder.
+- Workflow actions `bash`, `powershell` and `python` without `working_dir` now run in the project root,
+  whatever the current folder; a relative `working_dir` is resolved from the project root. Scheduled and
+  webhook runs (started by `hdrctl serve`) used to run in the server's folder, so relative paths failed.
+- Studio: opening a project whose `.hydra/project.json` has no `id` (written by hand) gave it the id `""`;
+  the id is now added to the file. The `schedule` workflows of a project opened in Studio are planned at once
+  instead of at the next start of `hdrctl serve`.
 - Studio runs with no environment selected sent `env: "default"`, which looked for `environments/default.yaml`;
   "default" now means no environment.
 

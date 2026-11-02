@@ -107,6 +107,9 @@ def build_effective(
 
     effective: Dict[str, Any] = {}
     for name, decl in declarations.items():
+        # Forme courte `nom: valeur` dans parameters.yaml = valeur par défaut, type any
+        if decl is not None and not isinstance(decl, Mapping):
+            decl = {"default": decl}
         decl = decl or {}
         typ = str(decl.get("type", "any"))
         has_value = name in merged

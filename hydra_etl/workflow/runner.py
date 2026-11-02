@@ -959,6 +959,15 @@ class WorkflowRunner:
             duration=time.monotonic() - start,
         )
 
+    def _action_cwd(self, wd) -> str:
+        """Dossier de travail des actions bash, powershell et python :
+        `working_dir` (relatif = depuis la racine du projet), sinon la racine
+        du projet — le même dossier en CLI, en Studio, planifié ou par webhook."""
+        if wd:
+            p = Path(str(wd)).expanduser()
+            return str(p if p.is_absolute() else self.project_root / p)
+        return str(self.project_root)
+
     def _action_shell(
         self, step: WorkflowStep, params: dict, start: float,
         step_log: logging.Logger,
@@ -968,7 +977,7 @@ class WorkflowRunner:
 
         action  = step.action or ""
         command = params.get("command", "")
-        work_dir = params.get("working_dir") or None
+        work_dir = self._action_cwd(params.get("working_dir"))
         timeout  = int(params.get("timeout", 60))
 
         if not command:
@@ -1027,7 +1036,7 @@ class WorkflowRunner:
 
         script    = params.get("script") or ""
         file_path = params.get("file_path") or ""
-        work_dir  = params.get("working_dir") or None
+        work_dir  = self._action_cwd(params.get("working_dir"))
         timeout   = int(params.get("timeout", 60))
 
         if not script.strip() and not file_path.strip():

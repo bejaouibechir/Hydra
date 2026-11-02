@@ -70,3 +70,20 @@ def test_inline_action_sees_global_env(api_proj, monkeypatch):
     step = store.get_run("a1").steps[0]
     assert "v=yes-qa" in ((step.get("output_text") if isinstance(step, dict) else step.output_text) or "")
     os.environ.pop("ONLY_QA", None)
+
+
+def test_open_project_without_id_gets_one(tmp_path, monkeypatch):
+    import json
+    from hydra_etl.api import store
+    monkeypatch.setattr(store, "WORKSPACE", tmp_path / "ws")
+    monkeypatch.setattr(store, "_INDEX_FILE", tmp_path / "ws" / "index.json")
+    (tmp_path / "ws").mkdir()
+    root = tmp_path / "hand"
+    (root / ".hydra").mkdir(parents=True)
+    (root / "workflows").mkdir()
+    (root / ".hydra" / "project.json").write_text('{"name": "hand", "description": "kept"}', encoding="utf-8")
+    proj = store.open_project(str(root))
+    assert proj.id and len(proj.id) == 8
+    meta = json.loads((root / ".hydra" / "project.json").read_text(encoding="utf-8"))
+    assert meta["id"] == proj.id and meta["description"] == "kept"
+    assert store.get_project(proj.id) is not None

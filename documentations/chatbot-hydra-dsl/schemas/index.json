@@ -33,7 +33,7 @@
   "generatedFrom": "Pydantic model_json_schema(mode='validation') + AST du runner",
   "manifestCount": 6,
   "operationCount": 20,
-  "productVersion": "0.17.0",
+  "productVersion": "0.18.0",
   "schemaCount": 29,
   "schemas": [
     {

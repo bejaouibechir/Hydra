@@ -48,6 +48,13 @@ def open_project(body: ProjectOpenRequest):
                    "Utilisez « Ouvrir un dossier local » pour l'adopter comme projet.")
     if not proj:
         raise HTTPException(status_code=404, detail=f"Chemin introuvable : {body.path}")
+    # Les workflows `trigger: schedule` du projet ouvert sont planifiés tout de
+    # suite (sinon seulement au prochain démarrage de hdrctl serve).
+    try:
+        from hydra_etl.api import scheduler
+        scheduler.sync_all()
+    except Exception:  # noqa: BLE001 — la planification ne doit pas empêcher l'ouverture
+        pass
     return proj
 
 

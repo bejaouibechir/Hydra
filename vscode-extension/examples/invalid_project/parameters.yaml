@@ -1,7 +1,6 @@
-# Expected errors: unknown type, unknown key "values", bad name, short form (not a mapping), unknown root key
+# Expected errors: unknown type, unknown key "values", bad name, unknown root key
 parameters:
   batch_size: {type: integer, default: 500}
   region: {type: string, values: [eu, us]}
   "bad name": {default: 1}
-  short_form: 1
 settings: {}

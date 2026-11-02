@@ -4,7 +4,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer,
-                                Flowable, KeepTogether, CondPageBreak)
+                                Flowable, KeepTogether, CondPageBreak, PageBreak)
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.colors import HexColor
 from xml.sax.saxutils import escape
@@ -153,6 +153,10 @@ def render(spec):
             out.append(H1(escape(val))); continue
         if kind == "h2":
             pending.append(Paragraph(escape(val), sH2)); continue
+        if kind == "h2top":                       # h2 en haut de page (sans espace avant)
+            pending.append(Paragraph(escape(val), ParagraphStyle("h2t", parent=sH2, spaceBefore=0))); continue
+        if kind == "pagebreak":
+            out.append(PageBreak()); continue
         if kind == "h3":
             pending.append(Paragraph(escape(val), sH3)); continue
         if kind == "code":

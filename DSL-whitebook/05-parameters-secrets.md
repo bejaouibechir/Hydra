@@ -1,9 +1,12 @@
 <!-- Hydra DSL White Paper — Chapter 5: Parameters and Secrets
-     DSL format version: 1.0 · Hydra 0.16.0
+     DSL format version: 1.0 · Hydra 0.18.0
      Sources: internal/config/{parameters,secrets,env_loader}.py, internal/runner/executor.py
      (_config_dirs, _load_parameters, resolution order), workflow/runner.py (_project_params,
      _resolve_action_params, _runtime_env_vars, _run_job), workflow/expr.py, cli/hdrctl.py
-     (--env, --param, --secrets-file, init templates) -->
+     (--env, --param, --secrets-file, init templates).
+     0.18.0: internal/config/loader.py (hydra_home, apply_global_env, --env-file),
+     internal/config/env_admin.py (hdrctl env|param|secret), secrets.py (.hydra/secrets.<env>),
+     masking.py, secret_providers.py (SOPS, {env}) -->
 
 # Hydra DSL - Parameters and Secrets
 
@@ -12,9 +15,11 @@ The same job often runs with different values: another date, another country, a 
 | Kind                            | Written as         | Comes from                                                           | For                                             |
 | ------------------------------- | ------------------ | -------------------------------------------------------------------- | ----------------------------------------------- |
 | Parameter                       | `{{ param:NAME }}` | `parameters.yaml`, `environments/<env>.yaml`, `--param`, `set_param` | Business values: dates, thresholds, table names |
-| Environment variable            | `{{ env:NAME }}`   | The system environment, `.env` files                                 | Machine settings                                |
+| Environment variable            | `{{ env:NAME }}`   | `~/.hydra/env`, `~/.hydra/env.<env>`, `.env` files, the system       | Machine settings                                |
 | Environment variable (required) | `${ENV:NAME}`      | Same                                                                 | Machine settings that must exist                |
-| Secret                          | `${SECRET:NAME}`   | Environment, `.hydra/secrets`                                        | Passwords, tokens, keys                         |
+| Secret                          | `${SECRET:NAME}`   | Environment, `.hydra/secrets.<env>`, `.hydra/secrets`, SOPS          | Passwords, tokens, keys                         |
+
+An **environment** (`dev`, `prod`…) selects one set of each: parameter values, global variables and secrets. Each kind is managed from the command line (`hdrctl param`, `hdrctl env`, `hdrctl secret`) or from Hydra Studio.
 
 > **[FIGURE fig-05-01 · diagram]** One `sources.yaml` with three placeholders (`{{ param:table }}`, `${ENV:DB_HOST}`, `${SECRET:db.password}`), arrows from each to its origin (`parameters.yaml` / `environments/prod.yaml`, system environment, `.hydra/secrets`), and the resolved file on the right.
 
@@ -48,6 +53,16 @@ parameters:
 | `default`     | –       | Value used when nothing else gives one                                   |
 | `required`    | `false` | `true`: the run stops if no value is given                               |
 | `description` | –       | Free text                                                                |
+
+Short form: `country: FR` (a value instead of a mapping) declares a parameter of type `any` with that default.
+
+From the command line, `hdrctl param set` writes the same file:
+
+```bash
+hdrctl param set min_amount 50 --type float --description "Orders below this amount are dropped."
+hdrctl param set country --type string --required
+hdrctl param list
+```
 
 ## Using parameters
 
@@ -133,6 +148,17 @@ Or with the variable `HYDRA_ENV`:
 ```bash
 HYDRA_ENV=prod hdrctl run .
 ```
+
+`hdrctl workflow run <name> --env prod` works the same way. In Hydra Studio, the **Environment** selector on the project page and in the editor header applies to every run started from Studio; **Project settings › Parameters** shows one column per environment.
+
+The values of one environment can also be written from the command line:
+
+```bash
+hdrctl param set min_amount 0 --env dev       # writes environments/dev.yaml
+hdrctl param unset min_amount --env dev       # back to the default
+```
+
+An environment groups more than parameter values: its global variables (`~/.hydra/env.<env>`, next page) and its secrets (`.hydra/secrets.<env>`). `hdrctl env create | rename | delete <name>` handles all of them at once; `rename` and `delete` first copy the files to `~/.hydra/_backups/`.
 
 ## Overriding one value
 
@@ -229,15 +255,35 @@ sources:
     message: "Running on {{ env:HOSTNAME }}"
 ```
 
+## Global variables
+
+Variables shared by **every project of the machine** live in your home folder:
+
+| File                 | Applies to                     |
+| -------------------- | ------------------------------ |
+| `~/.hydra/env`       | Every environment              |
+| `~/.hydra/env.<env>` | The selected environment only  |
+
+```bash
+hdrctl env set CRM_HOST crm.internal              # ~/.hydra/env
+hdrctl env set CRM_DATABASE crm_prod --env prod   # ~/.hydra/env.prod
+hdrctl env show prod
+```
+
+In Hydra Studio: **Global settings › Environments**. `HYDRA_HOME` moves the folder (default `~/.hydra`). When a run switches environment (Studio, API), the variables of the previous environment are removed first.
+
 ## .env files
 
-Hydra loads two `.env` files into the environment before a job runs:
+Hydra also loads `.env` files before a job runs. All the layers, from the strongest to the weakest:
 
-| File                                | Priority |
-| ----------------------------------- | -------- |
-| `.env` in the job folder            | Highest  |
-| `.env` at the project root          | Middle   |
-| Variables already set in the system | Lowest   |
+| #   | Source                                                   |
+| --- | -------------------------------------------------------- |
+| 1   | `--env-file <file>` (or `HYDRA_ENV_FILE`), for one run   |
+| 2   | `.env` in the job folder                                 |
+| 3   | `.env` at the project root (the folder with `.hydra/`)   |
+| 4   | `~/.hydra/env.<env>`                                     |
+| 5   | `~/.hydra/env`                                           |
+| 6   | Variables already set in the system                      |
 
 ```bash
 # jobs/crm/.env
@@ -245,7 +291,7 @@ CRM_HOST=localhost
 CRM_PORT=3306
 ```
 
-One `NAME=value` per line. Never put secrets in a `.env` file that is committed.
+One `NAME=value` per line. Never put secrets in a `.env` file that is committed. A missing `--env-file` stops the run.
 
 ---
 
@@ -267,9 +313,11 @@ For `${SECRET:db.password}`, in this order:
 | --- | ---------------------------------------------------------------------------------------- | ---------------- |
 | 1   | An environment variable with the **normalised** name: `.` and `-` become `_`, upper case | `DB_PASSWORD`    |
 | 2   | An environment variable with the exact name                                              | `db.password`    |
-| 3   | The project secrets file                                                                 | `.hydra/secrets` |
+| 3   | The secrets file of the selected environment                                             | `.hydra/secrets.prod` |
+| 4   | The project secrets file                                                                 | `.hydra/secrets` |
+| 5   | The provider of `.hydra/secrets.yaml` (SOPS)                                             | `provider: sops` |
 
-The environment always wins over the file. Locally you use the file; in production (CI, vault, container), you set the variable and change nothing in the YAML.
+The environment always wins over the files. Locally you use the file; in production (CI, vault, container), you set the variable and change nothing in the YAML.
 
 > **[FIGURE fig-05-03 · diagram]** Lookup path of `${SECRET:db.password}`: environment `DB_PASSWORD`? → environment `db.password`? → `.hydra/secrets`? → error, with "found" exits at each step.
 
@@ -285,6 +333,16 @@ api.token="abc 123"
 export smtp.password=s3cret
 ```
 
+Secrets of one environment go in `.hydra/secrets.<env>`, same format, also ignored by git. With `--env prod`, a name found in `.hydra/secrets.prod` wins over `.hydra/secrets`; the other names still come from `.hydra/secrets`.
+
+```bash
+hdrctl secret set db.password                 # typed hidden, twice
+hdrctl secret set db.password --env prod      # .hydra/secrets.prod
+echo "$PW" | hdrctl secret set api.token --stdin
+hdrctl secret list --env prod                 # names only
+```
+
+In Hydra Studio: **Project settings › Secrets**, common or per environment. No tool ever shows a value back: not the command line, Studio, the API or the MCP server.
 ## Rules for secrets
 
 - One `name=value` per line. Names use letters, digits, `.`, `_`, `-`.
@@ -293,10 +351,34 @@ export smtp.password=s3cret
 - To keep the file outside the project: `HYDRA_SECRETS_FILE=/path/to/secrets`, or `hdrctl run . --secrets-file /path/to/secrets`.
 - Never write a password, token or key in clear in a YAML file.
 
-<!-- REVIEW (décision K) : aucun masquage des secrets dans les logs n'a été trouvé
-     dans le code. Exemple : l'action bash journalise sa commande APRÈS résolution
-     (`{action}: {command[:80]}`) ; un ${SECRET:x} dans une commande apparaît donc
-     en clair dans le log. Section « masquage » non rédigée tant que ce n'est pas traité. -->
+## Secrets in logs
+
+Every secret value Hydra reads is **masked** in what it displays or keeps: logs, error messages, the output of `bash`, `powershell`, `python` and `ssh` actions, webhook and email log lines, undo reports and the runs stored by the API. The value sent to the connector or the script is never changed.
+
+| `visibility` | What is displayed                                        |
+| ------------ | -------------------------------------------------------- |
+| `plain`      | The value, in clear (debugging only)                     |
+| `masked`     | `[MASKED]` in place of the value — **default**           |
+| `hidden`     | The line is left out and counted                         |
+
+Set it in `.hydra/secrets.yaml` (`visibility: hidden`), with `HYDRA_SECRETS_VISIBILITY`, or for one run with `--secrets-visibility`.
+
+Limits: a value shorter than 4 characters is not masked (a warning names it); a secret that a script reads directly from the environment, or a transformed value (base64, split), is not masked.
+
+## Encrypted secrets (SOPS)
+
+`.hydra/secrets.yaml` holds settings, never a value, and can be committed:
+
+```yaml
+# .hydra/secrets.yaml
+visibility: masked
+provider: sops
+sops:
+  file: .hydra/secrets.{env}.sops.yaml   # {env} = the selected environment
+  age_key_file: ~/.config/sops/age/keys.txt
+```
+
+The encrypted file is decrypted in memory only. `sops` and `age` must be installed.
 
 ## Example: the same job, local and production
 
@@ -332,7 +414,7 @@ dwh.password=local-dev-password
 hdrctl run . --env dev
 ```
 
-In production, nothing changes in the files; the platform sets the variables:
+In production, either keep a `.hydra/secrets.prod` on the server, or let the platform set the variables — nothing changes in the files:
 
 ```bash
 export DWH_HOST=dwh.prod.internal
@@ -375,5 +457,13 @@ Parameters reach the scripts of a workflow in two ways.
 | `{{ env:NAME }}`   | Job files, step `params`, `when`                 | No error, no value | –               |
 | `${ENV:NAME}`      | Job files, step `params`                         | Error              | – (text)        |
 | `${SECRET:NAME}`   | Job files, step `params`                         | Error              | – (text)        |
+
+Where each value lives, and how to manage it:
+
+| Kind                  | Files                                              | Command line     | Hydra Studio                       |
+| --------------------- | -------------------------------------------------- | ---------------- | ---------------------------------- |
+| Parameters            | `parameters.yaml`, `environments/<env>.yaml`       | `hdrctl param`   | Project settings › Parameters      |
+| Environment variables | `~/.hydra/env`, `~/.hydra/env.<env>`, `.env`       | `hdrctl env`     | Global settings › Environments     |
+| Secrets               | `.hydra/secrets`, `.hydra/secrets.<env>`, SOPS     | `hdrctl secret`  | Project settings › Secrets         |
 
 Order of resolution in a job file: `${ENV:…}` and `${SECRET:…}` first, then `{{ param:… }}` and `{{ env:… }}`.

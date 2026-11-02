@@ -14,17 +14,27 @@ parameters:
     description: "Minimum threshold"'''),
 R("declares configurable project values and their types."),
 ("h3", "type / default / required / description"),
-P("See above. Accepted boolean values: true 1 yes on / false 0 no off."),
+P("See above. Accepted boolean values: true 1 yes on / false 0 no off. Short form (Hydra 0.18.0+): name: value is a parameter of type any with that default."),
 ("h2", "4.2 Environments"),
 ("h3", "environments/<env>.yaml"),
 ("code", '''# environments/prod.yaml
 parameters:
   publish_enabled: true
   country: BE'''),
-R("overrides parameters for each environment (dev, test, prod)."),
+R("overrides parameters for each environment (dev, test, prod). Only parameters: variables and secrets have their own files (below)."),
 ("h3", "--env / HYDRA_ENV: environment selection"),
-("code", "hdrctl run . --env prod        # or HYDRA_ENV=prod"),
-R("selects the environment configuration file."),
+("code", '''hdrctl run . --env prod                 # or HYDRA_ENV=prod
+hdrctl workflow run load_sales --env prod   # Hydra 0.18.0+'''),
+R("selects the environment: environments/<env>.yaml, ~/.hydra/env.<env> and .hydra/secrets.<env>. In Hydra Studio (0.18.0+), the Environment selector on the project page and in the editor header applies to every run started from Studio."),
+("h3", "~/.hydra/env and ~/.hydra/env.<env>: global variables (Hydra 0.18.0+)"),
+("code", '''# ~/.hydra/env: every environment, every project of the machine
+PG_HOST=db.internal
+# ~/.hydra/env.prod: prod only
+PG_DATABASE=shop_prod'''),
+R("environment variables shared by every project of the machine, read with ${ENV:NAME}. HYDRA_HOME changes the folder (default ~/.hydra). When a run changes environment, the variables of the previous one are removed."),
+("h3", "--env-file: variables for one run (Hydra 0.18.0+)"),
+("code", "hdrctl run . --env prod --env-file extra.env   # a missing file stops the run"),
+R("adds variables above every other layer (see 4.9)."),
 ("h3", "--param / -P: value for one run"),
 ("code", "hdrctl run . --env prod -P min_amount=100 -P country=BE"),
 R("overrides parameters for one run. Precedence: run > environment > default."),
@@ -46,8 +56,9 @@ P("For ${SECRET:db.password}, in this order (the first source that knows the nam
 ("table", ([["#", "Source", "Example"],
   ["1", "normalized environment variable (. and - become _, uppercase)", "DB_PASSWORD"],
   ["2", "environment variable with the exact name", "db.password"],
-  ["3", "local secrets file, plain text or encrypted with SOPS", ".hydra/secrets"],
-  ["4", "provider declared in .hydra/secrets.yaml (Hydra 0.17.0+)", "provider: sops"]],
+  ["3", "secrets file of the active environment (Hydra 0.18.0+)", ".hydra/secrets.prod"],
+  ["4", "local secrets file, plain text or encrypted with SOPS", ".hydra/secrets"],
+  ["5", "provider declared in .hydra/secrets.yaml (Hydra 0.17.0+)", "provider: sops"]],
   [10, 49.6, 327])),
 P("The environment (CI, shell, .env) always wins: production can supply every value without any file."),
 ("h3", ".hydra/secrets: local file"),
@@ -59,6 +70,10 @@ R("local storage created by hdrctl init and included in .gitignore. If the file 
 ("h3", "HYDRA_SECRETS_FILE / --secrets-file: alternate location"),
 ("code", "hdrctl run . --secrets-file /etc/hydra/secrets"),
 R("changes the secrets-file location without modifying the project. Plain or SOPS-encrypted."),
+("h3", ".hydra/secrets.<env>: secrets of one environment (Hydra 0.18.0+)"),
+("code", '''# .hydra/secrets.prod (ignored by git, like .hydra/secrets)
+mysql.password=Prod_Pass_456'''),
+R("with --env prod, a name present here wins over .hydra/secrets; the other names still come from .hydra/secrets. Same format, plain or SOPS-encrypted."),
 ("h3", "secret_defined('NAME'): test for a secret (in when)"),
 ("code", '''when: "secret_defined('api.token')"'''),
 R("runs a step only if the secret exists."),
@@ -68,7 +83,7 @@ R("runs a step only if the secret exists."),
 visibility: masked                  # plain | masked | hidden (default masked)
 provider: sops                      # none (default) | sops
 sops:
-  file: .hydra/secrets.sops.yaml    # encrypted file, relative to the project root
+  file: .hydra/secrets.sops.yaml    # relative to the project root; {env} = active environment (0.18.0+)
   format: yaml                      # dotenv | yaml | json (default: from the extension)
   age_key_file: ~/keys/hydra.txt    # optional (default: SOPS_AGE_KEY_FILE)'''),
 R("chooses how secrets appear in logs and where they come from. An unknown key, value or provider stops the run with an explicit error. vault, azure-keyvault and aws-secrets-manager are reserved names, not available yet."),
@@ -116,9 +131,28 @@ P("Hydra Studio refuses to edit an encrypted file (edit it with sops). Explicit 
   ["transformation script", 'read-only mapping params["min_amount"]']],
   [10, 223])),
 P("Secrets reach a script only through ${SECRET:NAME} written in its params."),
-("h2", "4.9 .env files"),
-P("The job directory .env takes precedence over the project-root .env (priority: job > root)."),
 P("Known limitations: a secret that a script reads directly from the environment, without ${SECRET:} or the secrets file, is not masked; nor is a transformed value (base64, split)."),
+("h2", "4.9 Order of the environment variables"),
+("table", ([["#", "Layer (the last one wins)", "Since"],
+  ["1", "~/.hydra/env (every environment)", "0.18.0"],
+  ["2", "~/.hydra/env.&lt;env&gt; (active environment)", "0.18.0"],
+  ["3", ".env at the project root (folder containing .hydra/)", ""],
+  ["4", ".env of the job folder", ""],
+  ["5", "--env-file &lt;file&gt; / HYDRA_ENV_FILE", "0.18.0"]],
+  [10, 40, 400])),
+P("A file wins over a variable already set in the system. hdrctl run jobs/<job> also reads the .env at the project root (0.18.0+)."),
+("h2", "4.10 Managing them: CLI and Studio (Hydra 0.18.0+)"),
+("table", ([["What", "CLI", "Hydra Studio"],
+  ["environments, global variables", "hdrctl env list | show | create | rename | delete | set | unset", "Global settings > Environments"],
+  ["parameters", "hdrctl param list | set | unset  (--env, --type, --required)", "Project settings > Parameters (one column per environment)"],
+  ["secrets (names only)", "hdrctl secret list | set | delete  (--env, --stdin)", "Project settings > Secrets (common or per environment)"]],
+  [10, 135, 345])),
+("code", '''hdrctl env create prod
+hdrctl env set PG_DATABASE shop_prod --env prod
+hdrctl param set batch_size 5000 --env prod
+hdrctl secret set mysql.password --env prod     # typed hidden, never an argument
+hdrctl env delete qa -y                         # files copied first to ~/.hydra/_backups'''),
+R("writes the files of 4.1 to 4.9. A secret value is never displayed, by the CLI, Studio, the API or the MCP server."),
 ]
 HEADER = "TECHNICAL REFERENCE"
-FOOTER = "hydraetl.com  ·  Hydra DSL v1.0  ·  Hydra 0.16.1"
+FOOTER = "hydraetl.com  ·  Hydra DSL v1.0  ·  Hydra 0.18.0"

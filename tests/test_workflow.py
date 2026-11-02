@@ -802,3 +802,24 @@ class TestCLIWorkflowRun:
         assert result.exit_code != 0
 
 
+
+
+def test_action_cwd_is_project_root(tmp_path, monkeypatch):
+    """bash/powershell/python : sans working_dir, le dossier de travail est la
+    racine du projet, quel que soit le dossier courant (CLI, Studio, planifié)."""
+    from hydra_etl.workflow.runner import WorkflowRunner
+    from hydra_etl.workflow.parser import load_workflow
+    root = tmp_path / "proj"
+    (root / ".hydra").mkdir(parents=True)
+    (root / "workflows").mkdir()
+    (root / "out").mkdir()
+    (root / "workflows" / "w.yaml").write_text(
+        "workflow:\n  name: w\n  steps:\n    - name: p\n      type: action\n      action: python\n"
+        "      params:\n        script: \"open('out/here.txt', 'w').write('ok')\"\n", encoding="utf-8")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    wf = load_workflow(str(root / "workflows" / "w.yaml"))
+    res = WorkflowRunner(wf, base_dir=root / "workflows").run()
+    assert res.success, res
+    assert (root / "out" / "here.txt").read_text() == "ok"

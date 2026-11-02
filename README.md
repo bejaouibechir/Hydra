@@ -450,19 +450,50 @@ Steps that share no dependency run in parallel.
 
 ---
 
-## Parameters
+## Parameters, environments and secrets
 
-Values can be declared once and reused, or created while the workflow runs.
+The same project runs against **dev**, **prod** or any environment you define, without editing a job.
+Three kinds of values, each with its own place:
+
+| | Written as | Where the values live | Managed with |
+|---|---|---|---|
+| **Parameters** | `{{ param:NAME }}` | `parameters.yaml` (type, default) and `environments/<env>.yaml` (value per environment) — in the project, committed | `hdrctl param`, Studio › Project settings › Parameters |
+| **Environment variables** | `${ENV:NAME}` (required), `{{ env:NAME }}` (optional) | `~/.hydra/env` (all environments) and `~/.hydra/env.<env>` — on the machine, **shared by every project** | `hdrctl env`, Studio › Global settings › Environments |
+| **Secrets** | `${SECRET:NAME}` | `.hydra/secrets` and `.hydra/secrets.<env>` — in the project, **ignored by git** (or SOPS-encrypted) | `hdrctl secret`, Studio › Project settings › Secrets |
 
 ```yaml
-- filter:
-    expr: "region == '{{ param:region }}'"
+# jobs/load/sources.yaml
+connection:
+  host: ${ENV:PG_HOST}
+  database: ${ENV:PG_DATABASE}
+  password: ${SECRET:pg.password}
+extract:
+  table: orders
+  batch_size: "{{ param:batch_size }}"
 ```
 
-`{{ param:NAME }}` reads a parameter and `{{ env:NAME }}` an environment variable.
-`${SECRET:NAME}` reads a secret. It is looked up first in the environment, under the name upper-cased with
-dots and dashes turned into underscores — so `${SECRET:db.password}` reads `DB_PASSWORD` (CI variables, a
-secret manager, your shell, a `.env` file) — then in the project's `.hydra/secrets` file:
+```bash
+hdrctl env create prod
+hdrctl env set PG_HOST db.internal                      # every environment
+hdrctl env set PG_DATABASE shop_prod --env prod         # prod only
+hdrctl param set batch_size 500 --type int              # default
+hdrctl param set batch_size 5000 --env prod             # prod value
+hdrctl secret set pg.password --env prod                # typed hidden, never an argument
+hdrctl run . --env prod                                 # or HYDRA_ENV=prod
+```
+
+**Choosing the environment.** `--env <name>` (or `HYDRA_ENV`) on `hdrctl run` and `hdrctl workflow run`;
+in Studio, the **Environment** selector on the project page and in the editor header applies to every run
+started from Studio. Without an environment, only the common variables and the default parameter values apply.
+
+**Order of the variables**, weakest first: `~/.hydra/env` < `~/.hydra/env.<env>` < project `.env` < job `.env`
+< `--env-file <file>`. A file wins over a variable already set in the system. `-P NAME=VALUE` overrides a
+parameter for one run.
+
+**Secrets** are looked up in the environment first, under the name upper-cased with dots and dashes turned
+into underscores — `${SECRET:db.password}` reads `DB_PASSWORD` (CI variables, a secret manager, your shell) —
+then in `.hydra/secrets.<env>`, then in `.hydra/secrets`, then in the provider set in `.hydra/secrets.yaml`
+(SOPS + age, with `{env}` in the file name for one encrypted file per environment):
 
 ```
 # .hydra/secrets — one name=value per line, listed in .gitignore by hdrctl init
@@ -470,10 +501,11 @@ db.password=change-me
 api.token=abc123
 ```
 
-In Studio, the **Secrets** tab of the workflow editor manages the same file (names only; values are never
-sent back to the browser). To keep that file outside the project, point to it with `HYDRA_SECRETS_FILE=<path>` or
-`hdrctl run . --secrets-file <path>`. The environment always wins over the file, so production can supply
-the values without touching the project.
+Secret values are **masked** in logs, error messages, action outputs and undo records (`visibility: plain |
+masked | hidden` in `.hydra/secrets.yaml`, or `--secrets-visibility`). Studio, the API and the MCP server only
+ever show secret **names**. To keep the secrets file outside the project: `HYDRA_SECRETS_FILE=<path>` or
+`--secrets-file <path>`.
+
 The `set_param` and `assign_param` actions create and change parameters mid-run, so two jobs can share a
 placeholder and produce different results.
 
@@ -612,7 +644,8 @@ Measured on 2 CPUs / 8 GB (orders → customers join → revenue by country and 
 
 ## VS Code extension
 
-Completion and validation for Hydra manifests inside the editor, without installing Hydra.
+Completion and validation for Hydra manifests inside the editor, without installing Hydra: job files,
+workflows, `parameters.yaml`, `environments/<env>.yaml` and `.hydra/secrets.yaml`.
 Download the `.vsix` from the [latest release](https://github.com/bejaouibechir/Hydra/releases/latest),
 or build it yourself from [`vscode-extension/`](vscode-extension/) (`python build_vsix.py`, no Node required).
 

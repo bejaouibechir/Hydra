@@ -19,47 +19,61 @@
         "errorMessage": "Parameter names use letters, digits, '.', '_' or '-'."
       },
       "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "type": {
-            "enum": [
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "enum": [
+                  "string",
+                  "str",
+                  "int",
+                  "float",
+                  "bool",
+                  "boolean",
+                  "json",
+                  "any"
+                ],
+                "default": "string",
+                "description": "Type the value is converted to before the run. 'json' accepts a list or a mapping.",
+                "enumDescriptions": [
+                  "Text",
+                  "Text (alias of string)",
+                  "Whole number",
+                  "Decimal number",
+                  "true / false",
+                  "true / false (alias of bool)",
+                  "List or mapping",
+                  "No conversion"
+                ]
+              },
+              "default": {
+                "description": "Value used when the active environment (environments/<env>.yaml) and -P give none."
+              },
+              "required": {
+                "type": "boolean",
+                "default": false,
+                "description": "true: the run fails if the parameter ends up with no value."
+              },
+              "description": {
+                "type": "string",
+                "description": "Shown in Studio and in `hdrctl param list`."
+              }
+            },
+            "description": "Declaration of one parameter."
+          },
+          {
+            "type": [
               "string",
-              "str",
-              "int",
-              "float",
-              "bool",
+              "number",
               "boolean",
-              "json",
-              "any"
+              "array",
+              "null"
             ],
-            "default": "string",
-            "description": "Type the value is converted to before the run. 'json' accepts a list or a mapping.",
-            "enumDescriptions": [
-              "Text",
-              "Text (alias of string)",
-              "Whole number",
-              "Decimal number",
-              "true / false",
-              "true / false (alias of bool)",
-              "List or mapping",
-              "No conversion"
-            ]
-          },
-          "default": {
-            "description": "Value used when the active environment (environments/<env>.yaml) and -P give none."
-          },
-          "required": {
-            "type": "boolean",
-            "default": false,
-            "description": "true: the run fails if the parameter ends up with no value."
-          },
-          "description": {
-            "type": "string",
-            "description": "Shown in Studio and in `hdrctl param list`."
+            "description": "Short form: the default value only (type any)."
           }
-        },
-        "description": "Declaration of one parameter."
+        ]
       },
       "defaultSnippets": [
         {

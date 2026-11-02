@@ -380,6 +380,19 @@ def open_project(path_str: str, adopt: bool = True) -> Optional[ProjectResponse]
         return None
 
     proj = _project_from_path(path)
+    if proj is not None and not proj.id:
+        # .hydra/project.json écrit à la main (sans id) : on le complète, sans
+        # rien perdre de ce qu'il contient — sinon le projet aurait l'id ""
+        m = _read_manifest(path) or {}
+        m.setdefault("name", path.name)
+        m.setdefault("description", "")
+        m["id"] = str(uuid.uuid4())[:8]
+        m["created_at"] = m.get("created_at") or _now()
+        m.setdefault("conventions", {"data_dir": "Data", "output_dir": "outputs"})
+        m.setdefault("workflows", [])
+        m.setdefault("jobs", [])
+        _write_manifest(path, m)
+        proj = _project_from_path(path)
     if proj is None:
         # Pas de méta Studio — projet reconnu par sa structure, sinon adoption
         if not adopt and not is_hydra_project(path):

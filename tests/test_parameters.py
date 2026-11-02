@@ -113,3 +113,9 @@ def test_non_placeholder_untouched():
     assert r.resolve("plain string") == "plain string"
     assert r.resolve(42) == 42
     assert r.resolve(True) is True
+
+
+def test_short_form_declaration_is_a_default():
+    """parameters.yaml : `nom: valeur` vaut une déclaration {default: valeur}."""
+    from hydra_etl.internal.config.parameters import build_effective
+    assert build_effective({"label": "dev run", "n": 5}, [{"n": 7}]) == {"label": "dev run", "n": 7}

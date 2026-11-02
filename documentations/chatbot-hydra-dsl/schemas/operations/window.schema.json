@@ -96,7 +96,7 @@
       "type": "object"
     }
   },
-  "$id": "https://hydra.local/schemas/0.16.1/operations/window.schema.json",
+  "$id": "https://hydra.local/schemas/0.17.0/operations/window.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Window functions: adds columns and keeps every row, in its input order.\nRank (row_number, rank, dense_rank), offset (lag, lead), running (cumsum,\ncumcount, cummin, cummax) and whole-partition (sum, mean, min, max, count,\nfirst, last) functions. Rank, offset and running functions need order_by.\nFull rules: internal/engines/window.py.",
@@ -166,7 +166,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.16.1",
+    "productVersion": "0.17.0",
     "sourceModel": "hydra_etl.internal.parser.transform.WindowOp"
   }
 }

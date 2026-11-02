@@ -2,7 +2,7 @@
  * NodeConfigDialog — Modale de configuration d'un nœud Hydra.
  * Déclencheurs : double-clic sur le nœud, ou context-menu "Configure"
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Node } from '@xyflow/react'
 import { X, FolderOpen, Eye, EyeOff } from 'lucide-react'
 import { getNode } from '@/lib/nodeRegistry'
@@ -14,6 +14,7 @@ import JobCreatorWizard from '@/components/canvas/JobCreatorWizard'
 import ExpressionBuilder from '@/components/canvas/ExpressionBuilder'
 import AggregationBuilder from '@/components/canvas/AggregationBuilder'
 import WindowBuilder from '@/components/canvas/WindowBuilder'
+import RefButton, { acceptsRefs, hasRef } from '@/components/canvas/RefPicker'
 import ScriptBuilder from '@/components/canvas/ScriptBuilder'
 import { rewriteFriendlyConcat } from '@/lib/exprBuilder'
 
@@ -430,6 +431,23 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
     setParams(p => ({ ...p, [key]: value }))
   }, [])
 
+  // Références ({{ param:… }}, ${SECRET:…}, ${ENV:…}) : insérées au curseur du
+  // champ, ou à la place de la valeur pour un champ numérique / mot de passe.
+  const fieldEls = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({})
+  const bindEl = (key: string) => (el: HTMLInputElement | HTMLTextAreaElement | null) => { fieldEls.current[key] = el }
+  // Expression Assistant ouvert sur un champ : le texte du champ y est édité,
+  // « Insert » le renvoie. 'expr' (derive / filter) : mode expression.
+  const [assistant, setAssistant] = useState<{ key: string; label: string; secretsOnly: boolean } | null>(null)
+  const refBtn = (key: string, _replace = false, secretsOnly = false) => {
+    const expression = key === 'expr'
+    return (
+      <RefButton accent={accent} label={expression ? 'fx' : '{x}'}
+        title={expression ? 'Expression Assistant' : undefined}
+        onClick={() => setAssistant({ key, secretsOnly,
+          label: configFields?.find(f => f.key === key)?.label ?? key })} />
+    )
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -727,13 +745,15 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Python script <span style={{ color: 'var(--error)' }}>*</span>
                     </span>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'flex-start' }}>
                     <textarea
+                      ref={bindEl('script')}
                       value={params.script ?? ''}
                       onChange={e => setParam('script', e.target.value)}
                       placeholder={'import sys\nprint(sys.version)'}
                       rows={8}
                       style={{
-                        display: 'block', width: '100%', marginTop: 6, resize: 'vertical', boxSizing: 'border-box',
+                        display: 'block', flex: 1, minWidth: 0, resize: 'vertical', boxSizing: 'border-box',
                         background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
                         borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)',
                         fontSize: 12, fontFamily: 'monospace', outline: 'none', tabSize: 4,
@@ -750,6 +770,8 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                         }
                       }}
                     />
+                    {refBtn('script')}
+                    </div>
                   </label>
                 )}
 
@@ -761,16 +783,18 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                     </span>
                     <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                       <input
+                        ref={bindEl('file_path')}
                         value={params.file_path ?? ''}
                         onChange={e => setParam('file_path', e.target.value)}
                         placeholder="/home/user/script.py"
                         style={{
-                          flex: 1, boxSizing: 'border-box',
+                          flex: 1, minWidth: 0, boxSizing: 'border-box',
                           background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
                           borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
                         }}
                       />
                       {browseBtn('file', '.py', p => setParam('file_path', p))}
+                      {refBtn('file_path')}
                     </div>
                   </label>
                 )}
@@ -787,30 +811,37 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                       {f.browseType ? (
                         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                           <input
+                            ref={bindEl(key)}
                             type="text"
                             value={params[key] ?? ''}
                             onChange={e => setParam(key, e.target.value)}
                             placeholder={f.placeholder}
                             style={{
-                              flex: 1, boxSizing: 'border-box',
+                              flex: 1, minWidth: 0, boxSizing: 'border-box',
                               background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
                               borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
                             }}
                           />
                           {browseBtn(f.browseType, f.browseExt ?? '', p => setParam(key, p))}
+                          {refBtn(key)}
                         </div>
                       ) : (
-                        <input
-                          type={f.type === 'number' ? 'number' : 'text'}
-                          value={params[key] ?? ''}
-                          onChange={e => setParam(key, e.target.value)}
-                          placeholder={f.placeholder}
-                          style={{
-                            display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box',
-                            background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
-                            borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                          }}
-                        />
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          <input
+                            ref={bindEl(key)}
+                            type="text"
+                            inputMode={f.type === 'number' ? 'numeric' : undefined}
+                            value={params[key] ?? ''}
+                            onChange={e => setParam(key, e.target.value)}
+                            placeholder={f.placeholder}
+                            style={{
+                              display: 'block', flex: 1, minWidth: 0, boxSizing: 'border-box',
+                              background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
+                              borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+                            }}
+                          />
+                          {refBtn(key, f.type === 'number')}
+                        </div>
                       )}
                     </label>
                   )
@@ -849,35 +880,43 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Table <span style={{ color: 'var(--error)' }}>*</span>
                     </span>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                     <input
+                      ref={bindEl('table')}
                       type="text"
                       value={params.table ?? ''}
                       onChange={e => setParam('table', e.target.value)}
                       placeholder="employees"
                       style={{
-                        display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box',
+                        display: 'block', flex: 1, minWidth: 0, boxSizing: 'border-box',
                         background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
                         borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
                       }}
                     />
+                    {refBtn('table')}
+                    </div>
                   </label>
                 ) : (
                   <label style={{ display: 'block' }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       SQL query <span style={{ color: 'var(--error)' }}>*</span>
                     </span>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'flex-start' }}>
                     <textarea
+                      ref={bindEl('query')}
                       value={params.query ?? ''}
                       onChange={e => setParam('query', e.target.value)}
-                      placeholder="SELECT * FROM employees WHERE age > 30"
+                      placeholder="SELECT * FROM employees WHERE age > {{ param:min_age }}"
                       rows={4}
                       style={{
-                        display: 'block', width: '100%', marginTop: 6, resize: 'vertical', boxSizing: 'border-box',
+                        display: 'block', flex: 1, minWidth: 0, resize: 'vertical', boxSizing: 'border-box',
                         background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
                         borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)',
                         fontSize: 12, fontFamily: 'monospace', outline: 'none',
                       }}
                     />
+                    {refBtn('query')}
+                    </div>
                   </label>
                 )}
               </div>
@@ -977,8 +1016,10 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
               </span>
               {field.type === 'password' ? (
                 <div style={{ marginTop: 6 }}>
-                  <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ position: 'relative', flex: 1 }}>
                     <input
+                      ref={bindEl(field.key)}
                       type={revealed[field.key] ? 'text' : 'password'}
                       value={params[field.key] ?? ''}
                       onChange={e => setParam(field.key, e.target.value)}
@@ -1002,6 +1043,8 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                     >
                       {revealed[field.key] ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
+                  </div>
+                  {refBtn(field.key, true, true)}
                   </div>
                   {(() => {
                     // Sécurité : ne jamais écrire un mot de passe en clair dans les
@@ -1052,18 +1095,22 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
                   })()}
                 </div>
               ) : field.type === 'textarea' ? (
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'flex-start' }}>
                 <textarea
+                  ref={bindEl(field.key)}
                   value={params[field.key] ?? ''}
                   onChange={e => setParam(field.key, e.target.value)}
                   placeholder={field.placeholder}
                   rows={4}
                   style={{
-                    display: 'block', width: '100%', marginTop: 6, resize: 'vertical', boxSizing: 'border-box',
+                    display: 'block', flex: 1, minWidth: 0, resize: 'vertical', boxSizing: 'border-box',
                     background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
                     borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)',
                     fontSize: 12, fontFamily: 'monospace', outline: 'none',
                   }}
                 />
+                {acceptsRefs(d.nodeType, field.key, field.type) && refBtn(field.key)}
+                </div>
               ) : field.type === 'select' ? (
                 <select
                   value={params[field.key] ?? (field.options?.[0] ?? '')}
@@ -1079,48 +1126,62 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
               ) : field.browseType ? (
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                   <input
+                    ref={bindEl(field.key)}
                     type="text"
                     value={params[field.key] ?? ''}
                     onChange={e => setParam(field.key, e.target.value)}
                     placeholder={field.placeholder}
                     style={{
-                      flex: 1, boxSizing: 'border-box',
+                      flex: 1, minWidth: 0, boxSizing: 'border-box',
                       background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
                       borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
                     }}
                   />
                   {browseBtn(field.browseType, field.browseExt ?? '', p => setParam(field.key, p))}
+                  {acceptsRefs(d.nodeType, field.key, field.type) && refBtn(field.key)}
                 </div>
               ) : (d.nodeType === 'transform_derive' && field.key === 'expr') ? (
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                   <input
+                    ref={bindEl(field.key)}
                     type="text"
                     value={params[field.key] ?? ''}
                     onChange={e => setParam(field.key, e.target.value)}
                     placeholder={field.placeholder}
-                    style={{ flex: 1, boxSizing: 'border-box', background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+                    style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
                   />
-                  <button type="button" onClick={() => setShowExprBuilder(true)} title="Expression assistant"
-                    style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 800, fontStyle: 'italic', border: '1px solid var(--bg-border)', background: 'var(--bg-hover)', color: accent, cursor: 'pointer', flexShrink: 0 }}>fx</button>
+                  {refBtn(field.key)}
                 </div>
-              ) : (
-                <input
-                  type={field.type === 'number' ? 'number' : 'text'}
-                  min={field.type === 'number' ? field.min : undefined}
-                  value={params[field.key] ?? ''}
-                  onChange={e => {
-                    let v = e.target.value
-                    if (field.type === 'number' && field.min !== undefined && v !== '' && Number(v) < field.min) v = String(field.min)
-                    setParam(field.key, v)
-                  }}
-                  placeholder={field.placeholder}
-                  style={{
-                    display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box',
-                    background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
-                    borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                  }}
-                />
-              )}
+              ) : (() => {
+                // Champ qui accepte une référence : texte libre (un champ number
+                // refuserait {{ param:port }}) ; borne min appliquée aux nombres seulement.
+                const refs = acceptsRefs(d.nodeType, field.key, field.type)
+                const numeric = field.type === 'number'
+                const input = (
+                  <input
+                    ref={bindEl(field.key)}
+                    type={numeric && !refs ? 'number' : 'text'}
+                    inputMode={numeric ? 'numeric' : undefined}
+                    min={numeric && !refs ? field.min : undefined}
+                    value={params[field.key] ?? ''}
+                    onChange={e => {
+                      let v = e.target.value
+                      if (numeric && field.min !== undefined && v !== '' && !hasRef(v)
+                          && !Number.isNaN(Number(v)) && Number(v) < field.min) v = String(field.min)
+                      setParam(field.key, v)
+                    }}
+                    placeholder={field.placeholder}
+                    style={{
+                      display: 'block', width: '100%', flex: 1, minWidth: 0, marginTop: refs ? 0 : 6, boxSizing: 'border-box',
+                      background: 'var(--bg-input)', border: '1px solid var(--bg-border)',
+                      borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+                    }}
+                  />
+                )
+                return refs
+                  ? <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>{input}{refBtn(field.key, numeric)}</div>
+                  : input
+              })()}
             </label>
             )
           })}
@@ -1167,8 +1228,21 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
             <ExpressionBuilder
               initialExpr={params.expr ?? ''}
               accent={accent}
+              projectId={projectId}
               onApply={(ex) => { setParam('expr', ex); setShowExprBuilder(false) }}
               onClose={() => setShowExprBuilder(false)}
+            />
+          )}
+          {assistant && (
+            <ExpressionBuilder
+              initialExpr={params[assistant.key] ?? ''}
+              accent={accent}
+              projectId={projectId}
+              mode={assistant.key === 'expr' ? 'expression' : 'value'}
+              fieldLabel={assistant.label}
+              secretsOnly={assistant.secretsOnly}
+              onApply={(v) => { setParam(assistant.key, v); setAssistant(null) }}
+              onClose={() => setAssistant(null)}
             />
           )}
 

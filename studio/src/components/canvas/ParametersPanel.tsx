@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Plus, X, Save, Loader2 } from 'lucide-react'
+import { getActiveEnv, setActiveEnv as storeActiveEnv } from '@/lib/activeEnv'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
@@ -29,7 +30,9 @@ export default function ParametersPanel({ projectId, accent = 'var(--primary)' }
 
   const [decls, setDecls] = useState<Decl[]>([])
   const [envs, setEnvs] = useState<string[]>(['dev'])
-  const [activeEnv, setActiveEnv] = useState('dev')
+  // Environnement actif partagé avec l'Expression Assistant (lib/activeEnv)
+  const [activeEnv, setActiveEnvState] = useState(() => getActiveEnv(projectId) ?? 'dev')
+  const setActiveEnv = (en: string) => { setActiveEnvState(en); storeActiveEnv(projectId, en) }
   const [values, setValues] = useState<Record<string, Record<string, string>>>({})
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export default function ParametersPanel({ projectId, accent = 'var(--primary)' }
     setDecls(d)
     const envNames = Object.keys(data.environments || {})
     setEnvs(envNames.length ? envNames : ['dev'])
-    setActiveEnv(prev => envNames.includes(prev) ? prev : (envNames[0] ?? 'dev'))
+    setActiveEnvState(prev => envNames.includes(prev) ? prev : (envNames[0] ?? 'dev'))
     const v: Record<string, Record<string, string>> = {}
     for (const [en, vals] of Object.entries(data.environments || {})) {
       v[en] = {}

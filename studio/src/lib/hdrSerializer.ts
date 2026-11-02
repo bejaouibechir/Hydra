@@ -535,6 +535,7 @@ function _joinToEngine(rightKey: string, cfg: Record<string, unknown>): Record<s
   if (how === 'cross') {
     const m = _intOf(cfg.max_rows)
     if (m !== undefined && m > 0) j.max_rows = m
+    else if (_isRef(cfg.max_rows)) j.max_rows = String(cfg.max_rows).trim()   // {{ param:… }} : résolu au run
     return j
   }
   if (cfg.left_key && cfg.right_key) { j.left_key = cfg.left_key; j.right_key = cfg.right_key }
@@ -669,6 +670,11 @@ function _mergeKeep(base: Record<string, unknown> | undefined, over: Record<stri
     else r[k] = v
   }
   return r
+}
+
+/** Référence {{ param:… }} / ${ENV:…} / ${SECRET:…} : écrite telle quelle. */
+function _isRef(v: unknown): boolean {
+  return typeof v === 'string' && /\{\{\s*(param|env)\s*:|\$\{(ENV|SECRET):/.test(v)
 }
 
 function _intOf(v: unknown): number | undefined {

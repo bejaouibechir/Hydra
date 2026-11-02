@@ -7,8 +7,19 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-11-01
+
 ### Added
 
+- Studio: the **Expression Assistant** (SSIS-style) now lists the project's **Parameters**, with type,
+  default and value in the **active environment** shown in its header (shared with the Parameters tab), and
+  **Environment variables** (required `${ENV:NAME}` or optional `{{ env:NAME }}`). Double-click an item, or
+  drag it into the edit area; **Insert** writes the result into the field. It opens from **fx** on
+  expressions (Derive, Filter) and from a new **{x}** button on the fields where a reference is useful
+  (file paths, host, port, database, schema, user, table, SQL query, URL, `fill_null` value, `max_rows`,
+  action commands, recipients, timeouts…); there it also lists the **Secrets** (`${SECRET:name}`), and
+  password fields offer secrets and environment variables only. Numeric fields accept a reference;
+  references are kept as written in the YAML files.
 - Secrets are masked everywhere Hydra shows or keeps text: logs (every logger, step logs, API), error
   messages, tracebacks, the output of `bash`, `powershell`, `python` and `ssh` actions, `webhook` and
   `email` log lines, the rollback (undo) report and the runs stored by the API. The values sent to

@@ -22,3 +22,17 @@ def _forget_masked_secrets():
     yield
     masking.clear()
     os.environ.pop(masking.VISIBILITY_ENV, None)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_hydra_home(tmp_path_factory, monkeypatch):
+    """Variables globales (~/.hydra/env) : chaque test a son propre dossier,
+    vide ; celles de la machine ne s'invitent jamais dans un test."""
+    from hydra_etl.internal.config import loader
+    monkeypatch.setenv(loader.HOME_ENV, str(tmp_path_factory.mktemp("hydra_home")))
+    monkeypatch.delenv(loader.ENV_FILE_ENV, raising=False)
+    monkeypatch.delenv("HYDRA_ENV", raising=False)
+    yield
+    loader.restore_global_env()
+    for k in ("HYDRA_ENV", loader.ENV_FILE_ENV):     # posées par le CLI (--env, --env-file)
+        os.environ.pop(k, None)

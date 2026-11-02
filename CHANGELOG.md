@@ -7,6 +7,26 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Workflow step `type: project`: a workflow of a "master" project runs another project (its `thread.yaml`, or
+  only the `workflows` listed, one after the other). Keys: `project` (path relative to the master's root, or with `ref: name` the
+  name of a project of the Studio workspace), `env` (`inherit` by default, `none` or a name), `params`,
+  `variables`, `workflows`, `outputs`, `isolation` (`inprocess` by default, or `subprocess`). Nothing is
+  passed implicitly except the environment, and a called project keeps its own secrets: `${SECRET:…}` in
+  `params` or `variables` is refused.
+- Called projects are checked by `hdrctl run` (and `--dry-run`), `hdrctl workflow validate` and the Studio
+  Check: missing or ambiguous project, cycles (`cycle: a → b → a`, a project calling itself), more than 5
+  levels. `hdrctl workflow validate` prints the tree of the called projects. A project computed with
+  `{{ … }}` is reported as checked only at run time. `rollback: true` refuses a `type: project` step.
+- Running a called project: in the same process by default, its environment cleaned of the caller's — the
+  caller's `.env`, `--env-file`, `--secrets-file` and the global variables of its environment do not leak — and
+  restored afterwards; or `isolation: subprocess`. Steps that run in parallel (parallel stage, steps without a
+  dependency between them) always use a separate process. `params` have the rank of `-P`; a `required`
+  parameter of the called project without a value stops the step before anything runs. A cycle missed by
+  validation (computed path) is stopped at run time.
+- `hdrctl run <project> -w <workflow>` (repeatable): run only these workflows of the project.
+
 ## [0.18.0] — 2026-11-02
 
 ### Added

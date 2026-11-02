@@ -116,8 +116,17 @@ class WorkflowRunner:
         project_root: Optional[Path] = None,
         params: Optional[Dict[str, Any]] = None,
         stop: Optional[Any] = None,
+        call_stack: Optional[List[Any]] = None,
+        parallel_context: bool = False,
     ) -> None:
         self.workflow = workflow
+        # Steps type: project — projets appelants (garde contre les cycles à
+        # l'exécution) et lancement au milieu d'autres runs en parallèle
+        # (l'esclave passe alors dans un processus séparé).
+        from hydra_etl.workflow.subprojects import stack_from_env
+        self.call_stack = list(call_stack) if call_stack is not None else stack_from_env()
+        self.parallel_context = parallel_context
+        self._parallel_now: Set[str] = set()
         # timeout du thread (workflow/stop.py) : arrêt au prochain point de contrôle
         self._stop = stop
         self.base_dir = Path(base_dir).resolve() if base_dir else Path.cwd()
@@ -490,6 +499,8 @@ class WorkflowRunner:
                 result = self._run_job(step, start, step_log)
             elif step.type == "action":
                 result = self._run_action(step, start, step_log)
+            elif step.type == "project":
+                result = self._run_project(step, start, step_log)
             else:
                 raise ValueError(f"Unknown step type: '{step.type}'")
             result.logs = handler.records
@@ -671,6 +682,18 @@ class WorkflowRunner:
                 and step.undo is not None and step.undo != "none"):
             self._undo_stack.push_action(step.name, step.undo)
         return result
+
+    def _run_project(self, step: WorkflowStep, start: float, step_log: logging.Logger) -> StepResult:
+        """Step type: project — lance un autre projet (voir workflow/subprojects.py)."""
+        from hydra_etl.workflow.subprojects import run_project_step
+        resolved = self._resolve_action_params({
+            "project": step.project, "params": step.params or {}, "variables": step.variables or {}})
+        parallel = self.parallel_context or step.name in self._parallel_now
+        ok, error, lines = run_project_step(
+            step, resolved, caller_root=self.project_root, caller_env=self.env,
+            call_stack=self.call_stack, parallel=parallel, log=step_log)
+        return StepResult(step_name=step.name, success=ok, duration=time.monotonic() - start,
+                          error=error, output=lines)
 
     def _resolve_action_params(self, params: dict) -> dict:
         """Résout les placeholders {{ param:NAME }} / {{ env:NAME }} dans les
@@ -1196,6 +1219,7 @@ class WorkflowRunner:
             f"  ⚡ Parallel: {[s.name for s in steps]}"
         )
 
+        self._parallel_now = {s.name for s in steps}
         with ThreadPoolExecutor(max_workers=len(steps)) as executor:
             futures = {
                 executor.submit(self._execute_step, step): step

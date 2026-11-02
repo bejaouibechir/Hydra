@@ -87,7 +87,7 @@
     },
     "WorkflowStep": {
       "additionalProperties": false,
-      "description": "Un step du workflow — soit un job Hydra, soit une action.",
+      "description": "Un step du workflow — un job Hydra, une action, ou un autre projet\n(type=project : projet esclave lancé par ce workflow).",
       "properties": {
         "action": {
           "anyOf": [
@@ -112,6 +112,34 @@
           "default": true,
           "title": "Enabled",
           "type": "boolean"
+        },
+        "env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Env"
+        },
+        "isolation": {
+          "anyOf": [
+            {
+              "enum": [
+                "inprocess",
+                "subprocess"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Isolation"
         },
         "job": {
           "anyOf": [
@@ -139,6 +167,21 @@
           "title": "On Failure",
           "type": "string"
         },
+        "outputs": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outputs"
+        },
         "params": {
           "anyOf": [
             {
@@ -151,6 +194,34 @@
           ],
           "default": null,
           "title": "Params"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "enum": [
+                "path",
+                "name"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ref"
         },
         "retry": {
           "anyOf": [
@@ -166,7 +237,8 @@
         "type": {
           "enum": [
             "job",
-            "action"
+            "action",
+            "project"
           ],
           "title": "Type",
           "type": "string"
@@ -187,6 +259,19 @@
           "default": null,
           "title": "Undo"
         },
+        "variables": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variables"
+        },
         "when": {
           "anyOf": [
             {
@@ -198,6 +283,21 @@
           ],
           "default": null,
           "title": "When"
+        },
+        "workflows": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflows"
         }
       },
       "required": [

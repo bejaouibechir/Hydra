@@ -35,6 +35,13 @@ def _isolated_hydra_home(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("HYDRA_SECRETS_FILE", raising=False)
     yield
     loader.restore_global_env()
+    # variables posées par des fichiers .env / --env-file pendant le test
+    for k, orig in list(loader._LAYER_ORIGINALS.items()):
+        if orig is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = orig
+    loader._LAYER_ORIGINALS.clear()
     for k in ("HYDRA_ENV", loader.ENV_FILE_ENV,       # posées par le CLI (--env, --env-file,
               "HYDRA_SECRETS_FILE"):                 # --secrets-file)
         os.environ.pop(k, None)

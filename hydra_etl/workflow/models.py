@@ -12,6 +12,7 @@ Résultats d'exécution :
 """
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -158,17 +159,34 @@ class UndoAction(BaseModel):
         return data
 
 
+_PROJECT_ENV_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_\-]*$")
+_PROJECT_PARAM_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+_PROJECT_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Champs propres à type=project (refusés sur les autres types)
+PROJECT_STEP_FIELDS = ("project", "ref", "env", "variables", "workflows", "outputs", "isolation")
+
+
 class WorkflowStep(BaseModel):
-    """Un step du workflow — soit un job Hydra, soit une action."""
+    """Un step du workflow — un job Hydra, une action, ou un autre projet
+    (type=project : projet esclave lancé par ce workflow)."""
     name: str
-    type: Literal["job", "action"]
+    type: Literal["job", "action", "project"]
 
     # type=job
     job: Optional[str] = None          # chemin vers le dossier job
 
     # type=action
     action: Optional[str] = None       # webhook | log | slack | email ...
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None   # action : ses paramètres ; project : paramètres passés à l'esclave
+
+    # type=project — projet esclave (Hydra 0.19)
+    project: Optional[str] = None      # chemin (ref: path, défaut) ou nom du workspace (ref: name)
+    ref: Optional[Literal["path", "name"]] = None
+    env: Optional[str] = None          # inherit (défaut) | none | <nom d'environnement>
+    variables: Optional[Dict[str, Any]] = None   # variables d'environnement prêtées pour ce run
+    workflows: Optional[List[str]] = None        # sinon : le thread.yaml de l'esclave
+    outputs: Optional[List[str]] = None          # paramètres publiés par l'esclave, relus ici
+    isolation: Optional[Literal["inprocess", "subprocess"]] = None   # défaut inprocess
 
     # Orchestration
     depends_on: List[str] = Field(default_factory=list)
@@ -189,12 +207,58 @@ class WorkflowStep(BaseModel):
         _reject_unknown_keys(data, cls.model_fields, f"Step '{name}'")
         return data
 
+    def _validate_project_step(self) -> None:
+        n = self.name
+        if not self.project or not str(self.project).strip():
+            raise ValueError(f"Step '{n}': type=project requires the 'project' field "
+                             f"(path of the project, or its name with ref: name)")
+        for f in ("job", "action"):
+            if getattr(self, f):
+                raise ValueError(f"Step '{n}': '{f}' applies to type={f}, not type=project")
+        if self.undo is not None:
+            raise ValueError(f"Step '{n}': 'undo' applies to type=action, not type=project")
+        if self.env is not None and self.env not in ("inherit", "none") \
+                and not _PROJECT_ENV_RE.match(str(self.env)):
+            raise ValueError(f"Step '{n}': env '{self.env}' — use inherit, none or an environment "
+                             f"name (letters, digits, '_' or '-')")
+        for k in (self.params or {}):
+            if not _PROJECT_PARAM_RE.match(str(k)):
+                raise ValueError(f"Step '{n}': params: invalid parameter name '{k}' "
+                                 f"(letters, digits, '.', '_' or '-')")
+        for k, v in (self.variables or {}).items():
+            if not _PROJECT_VAR_RE.match(str(k)):
+                raise ValueError(f"Step '{n}': variables: invalid variable name '{k}' "
+                                 f"(letters, digits and '_', not starting with a digit)")
+            if isinstance(v, (dict, list)):
+                raise ValueError(f"Step '{n}': variables: '{k}' must be a single value")
+            if isinstance(v, str) and "${SECRET:" in v:
+                raise ValueError(f"Step '{n}': variables: '{k}' passes a secret; a project keeps "
+                                 f"its own secrets (.hydra/secrets of the called project)")
+        for k, v in (self.params or {}).items():
+            if isinstance(v, str) and "${SECRET:" in v:
+                raise ValueError(f"Step '{n}': params: '{k}' passes a secret; a project keeps "
+                                 f"its own secrets (.hydra/secrets of the called project)")
+        for label, names in (("workflows", self.workflows), ("outputs", self.outputs)):
+            if names is not None and not names:
+                raise ValueError(f"Step '{n}': {label} is empty — remove it or list names")
+            for x in names or []:
+                if not isinstance(x, str) or not _PROJECT_PARAM_RE.match(x):
+                    raise ValueError(f"Step '{n}': {label}: invalid name '{x}'")
+
     @model_validator(mode="after")
     def _validate_fields(self) -> "WorkflowStep":
         if self.type == "job" and not self.job:
             raise ValueError(f"Step '{self.name}': type=job requires the 'job' field")
         if self.type == "action" and not self.action:
             raise ValueError(f"Step '{self.name}': type=action requires the 'action' field")
+        if self.type == "project":
+            self._validate_project_step()
+            return self
+        extra = [f for f in PROJECT_STEP_FIELDS if getattr(self, f) is not None]
+        if extra:
+            raise ValueError(f"Step '{self.name}': {', '.join(extra)} "
+                             f"{'applies' if len(extra) == 1 else 'apply'} to type=project, "
+                             f"not type={self.type}")
         # Un champ qui ne s'applique pas à ce type serait ignoré en silence.
         if self.type == "job" and (self.action or self.params):
             raise ValueError(

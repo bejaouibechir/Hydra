@@ -86,6 +86,10 @@ def rollback_problems(workflow: Any, base_dir: Path) -> List[str]:
                 out.append(f"step '{step.name}': append into a database with rollback: true needs "
                            f"load.key in {step.job}/destinations.yaml (the columns that identify "
                            f"a row), to remove exactly the rows of this run")
+        elif step.type == "project":
+            out.append(f"step '{step.name}': a called project (type: project) cannot be undone "
+                       f"by this workflow; remove rollback: true, or give the called project its "
+                       f"own rollback")
         elif step.action in SIDE_EFFECT_ACTIONS and step.undo is None:
             out.append(f"step '{step.name}': the '{step.action}' action acts outside Hydra; with "
                        f"rollback: true add undo: (the action that reverses it) or undo: none "

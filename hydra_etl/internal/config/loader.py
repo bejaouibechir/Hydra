@@ -155,6 +155,7 @@ def load_env_layers(
             if not override_os and key in preexisting_os_keys:
                 # Variable déjà présente dans l'OS initial => on ne touche pas
                 continue
+            _record_layer_key(key)
             os.environ[key] = value
             loaded_root += 1
 
@@ -167,6 +168,7 @@ def load_env_layers(
                 # Variable déjà présente dans l'OS initial => on ne touche pas
                 continue
             # Sinon, on écrase (que ce soit une variable de ROOT ou nouvelle)
+            _record_layer_key(key)
             os.environ[key] = value
             loaded_job += 1
 
@@ -362,6 +364,7 @@ def apply_env_file_option(override_os: bool = True) -> int:
     for k, v in parse_env_file(path).items():
         if not override_os and k in os.environ:
             continue
+        _record_layer_key(k)
         os.environ[k] = v
         n += 1
     return n
@@ -379,3 +382,78 @@ def restore_global_env() -> None:
                     os.environ[k] = orig
         _GLOBAL_STATE["env"] = None
         _GLOBAL_STATE["applied"] = {}
+
+
+# ── Couches fichier (.env, --env-file) et isolation d'un projet appelé ──────
+# Clé posée par un fichier .env ou --env-file -> valeur qu'elle avait avant
+# (None : absente). Sert à rendre un environnement « propre » à un projet appelé
+# par un step type: project, sans les variables des fichiers du projet appelant.
+_LAYER_ORIGINALS: Dict[str, Optional[str]] = {}
+
+# Variables d'un run qui ne doivent pas passer à un projet appelé : choix
+# d'environnement, --env-file et --secrets-file du projet appelant.
+CALLER_ONLY_VARS = ("HYDRA_ENV", ENV_FILE_ENV, "HYDRA_SECRETS_FILE")
+
+
+def _record_layer_key(key: str) -> None:
+    if key not in _LAYER_ORIGINALS:
+        _LAYER_ORIGINALS[key] = os.environ.get(key)
+
+
+def environ_without_layers() -> Dict[str, str]:
+    """os.environ sans les variables posées par le run en cours : variables
+    globales (~/.hydra/env…), fichiers .env / --env-file, CALLER_ONLY_VARS.
+    Le projet appelé repose lui-même les siennes."""
+    env = dict(os.environ)
+    # variables globales posées pour l'environnement du run appelant : le
+    # projet appelé repose les siennes (son environnement peut différer)
+    with _GLOBAL_LOCK:
+        applied = dict(_GLOBAL_STATE["applied"])  # type: ignore[arg-type]
+    for k, (set_val, orig) in applied.items():
+        if env.get(k) == set_val:
+            if orig is None:
+                env.pop(k, None)
+            else:
+                env[k] = orig
+    for k, orig in _LAYER_ORIGINALS.items():
+        if orig is None:
+            env.pop(k, None)
+        else:
+            env[k] = orig
+    for k in CALLER_ONLY_VARS:
+        env.pop(k, None)
+    return env
+
+
+import contextlib as _contextlib
+
+
+@_contextlib.contextmanager
+def isolated_environ(overrides: Optional[Dict[str, Optional[str]]] = None):
+    """Le temps du bloc : os.environ = environ_without_layers() + overrides
+    (valeur None = retirée). À la sortie, tout est rendu tel quel (variables,
+    état des variables globales, couches fichier)."""
+    snapshot = dict(os.environ)
+    with _GLOBAL_LOCK:
+        g_env = _GLOBAL_STATE["env"]
+        g_applied = dict(_GLOBAL_STATE["applied"])  # type: ignore[arg-type]
+    layers = dict(_LAYER_ORIGINALS)
+    clean = environ_without_layers()
+    for k, v in (overrides or {}).items():
+        if v is None:
+            clean.pop(k, None)
+        else:
+            clean[k] = str(v)
+    os.environ.clear()
+    os.environ.update(clean)
+    _LAYER_ORIGINALS.clear()
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(snapshot)
+        with _GLOBAL_LOCK:
+            _GLOBAL_STATE["env"] = g_env
+            _GLOBAL_STATE["applied"] = g_applied
+        _LAYER_ORIGINALS.clear()
+        _LAYER_ORIGINALS.update(layers)

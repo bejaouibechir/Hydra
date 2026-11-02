@@ -324,5 +324,7 @@
   "secret.set.confirm": "Repeat the value",
   "secret.set.empty": "The value is empty: nothing saved.",
   "secret.set.success": "Secret {name} saved in {path}",
-  "secret.delete.success": "Secret {name} deleted from {path}"
+  "secret.delete.success": "Secret {name} deleted from {path}",
+  "workflow.validate.calls": "Projects called by this workflow:",
+  "help.run.workflow": "Run only these workflows of the project, one after the other (repeat -w)"
 }

@@ -100,9 +100,12 @@ class ProjectPlan:
         return [w.name for s in self.thread.thread for w in s.workflows if w.active]
 
 
-def prepare_project(root: Path) -> ProjectPlan:
+def prepare_project(root: Path, only: Optional[List[str]] = None) -> ProjectPlan:
     """Charge et valide tout ce qu'il faut AVANT de lancer quoi que ce soit :
-    thread.yaml, fichiers des workflows, manifestes des workflows actifs."""
+    thread.yaml, fichiers des workflows, manifestes des workflows actifs.
+
+    `only` : ne lancer que ces workflows, l'un après l'autre dans cet ordre
+    (avec leur fallback de thread.yaml s'ils en ont un)."""
     from hydra_etl.workflow.parser import load_workflow
     from hydra_etl.workflow.jobcheck import pipeline_errors
 
@@ -116,6 +119,13 @@ def prepare_project(root: Path) -> ProjectPlan:
     except ValueError as e:
         raise ProjectError([f"{WORKFLOWS_DIR}/{THREAD_FILE}: {e}"]) from None
 
+    if only:
+        known = {w.name: w for st in thread.thread for w in st.workflows}
+        thread = ThreadDef(thread=[ThreadStage(
+            mode="sequential",
+            workflows=[known[n].model_copy(update={"active": True}) if n in known
+                       else ThreadWorkflow(name=n) for n in only])])
+        implicit = False
     errors: List[str] = []
     for name in missing_workflow_files(thread, root / WORKFLOWS_DIR):
         errors.append(f"{WORKFLOWS_DIR}/{THREAD_FILE}: workflow '{name}' has no file "
@@ -171,6 +181,11 @@ def prepare_project(root: Path) -> ProjectPlan:
             errors.extend(f"{where}: {p}" for p in _condition_name_errors(root, plan, w))
             plan.warnings.extend(f"{where}: {m}" for m in _destination_warnings(root, plan, w))
             plan.warnings.extend(f"{where}: {m}" for m in _on_failure_warnings(plan, w))
+    # Steps type: project — projets appelés introuvables, cycles, profondeur
+    from hydra_etl.workflow.subprojects import check_project_calls
+    calls = check_project_calls(root, workflows=only)
+    errors.extend(calls.errors)
+    plan.warnings.extend(calls.warnings)
     if errors:
         raise ProjectError(errors)
     return plan
@@ -406,8 +421,14 @@ class ProjectRunner:
                  params: Optional[Dict[str, Any]] = None,
                  sleep: Callable[[float], None] = time.sleep,
                  force_fallback: Optional[List[str]] = None,
-                 probe_timeout: Optional[float] = None) -> None:
+                 probe_timeout: Optional[float] = None,
+                 call_stack: Optional[List[Any]] = None,
+                 parallel_context: bool = False) -> None:
         self.plan = plan
+        # Projet lancé par un step type: project (workflow/subprojects.py)
+        self.call_stack = call_stack
+        self.parallel_context = parallel_context
+        self._stage_parallel = False
         self.env = env
         self.params = dict(params or {})
         self._sleep = sleep
@@ -509,7 +530,9 @@ class ProjectRunner:
         try:
             result = WorkflowRunner(wf, base_dir=path.parent, env=self.env,
                                     project_root=self.plan.root,
-                                    params=dict(self.params), stop=stop).run()
+                                    params=dict(self.params), stop=stop,
+                                    call_stack=self.call_stack,
+                                    parallel_context=self.parallel_context or self._stage_parallel).run()
             run = WorkflowRun(name=name, stage=stage,
                               status=SUCCESS if result.success else FAILED,
                               duration=time.monotonic() - t0, result=result,
@@ -646,6 +669,7 @@ class ProjectRunner:
                 if slot[-1].status == FAILED:
                     cancel.set()
                 return slot
+            self._stage_parallel = bool(u.parallel and len(todo) > 1)
             if u.parallel and len(todo) > 1:
                 with ThreadPoolExecutor(max_workers=len(todo)) as pool:
                     slots = list(pool.map(launch, todo))

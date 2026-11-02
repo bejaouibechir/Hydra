@@ -324,5 +324,7 @@
   "secret.set.confirm": "Repita el valor",
   "secret.set.empty": "El valor está vacío: no se guardó nada.",
   "secret.set.success": "Secreto {name} guardado en {path}",
-  "secret.delete.success": "Secreto {name} eliminado de {path}"
+  "secret.delete.success": "Secreto {name} eliminado de {path}",
+  "workflow.validate.calls": "Proyectos llamados por este workflow:",
+  "help.run.workflow": "Ejecutar solo estos workflows del proyecto, uno tras otro (repita -w)"
 }

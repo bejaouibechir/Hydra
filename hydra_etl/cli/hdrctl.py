@@ -209,6 +209,8 @@ _HYDRA_WORD_ASCII = (
 def print_banner() -> None:
     """Affiche le banner HYDRA ETL en ASCII art, mis à l'échelle et adapté au terminal."""
     import shutil
+    if os.environ.get("HYDRA_NO_BANNER"):       # projet lancé par un step type: project
+        return
     cols = shutil.get_terminal_size(fallback=(80, 24)).columns
     target = int(round(_art_width(_HYDRA_ART) * _ART_SCALE))
     lines = _fit_art(_HYDRA_ART, min(target, cols - 2))  # marge de 2 espaces à gauche
@@ -821,6 +823,8 @@ def cli(ctx: click.Context) -> None:
               help=t("help.run.env_file"))
 @click.option("--use-fallback", "use_fallback", multiple=True, metavar="WORKFLOW",
               help=t("help.run.use_fallback"))
+@click.option("-w", "--workflow", "only_workflows", multiple=True, metavar="WORKFLOW",
+              help=t("help.run.workflow"))
 def cmd_run(path: str, verbosity: int, dry_run: bool,
             sources_file: Optional[str], destinations_file: Optional[str],
             pipeline_file: Optional[str], transformations_file: Optional[str],
@@ -829,7 +833,7 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
             env_name: Optional[str] = None, param_overrides: tuple = (),
             profile: bool = False, secrets_file: Optional[str] = None,
             use_fallback: tuple = (), secrets_visibility: Optional[str] = None,
-            env_file: Optional[str] = None) -> None:
+            env_file: Optional[str] = None, only_workflows: tuple = ()) -> None:
     """Exécute un pipeline ETL."""
     verbosity = verbosity or 0  # click < 8.2 passes None when no -v flag is given
     print_banner()
@@ -857,7 +861,8 @@ def cmd_run(path: str, verbosity: int, dry_run: bool,
                         path=path))
             sys.exit(1)
         code = _run_project(job_dir, verbosity, dry_run, env_name,
-                            _parse_param_overrides(param_overrides), list(use_fallback))
+                            _parse_param_overrides(param_overrides), list(use_fallback),
+                            list(only_workflows) or None)
         status = "SUCCESS" if code == 0 else "FAILURE"
         if not dry_run:
             fire_hook("on-success", on_success if status == "SUCCESS" else None, verbosity)
@@ -1065,7 +1070,8 @@ def _fmt_seconds(sec: float) -> str:
 
 def _run_project(root: Path, verbosity: int, dry_run: bool,
                  env_name: Optional[str], params: dict,
-                 use_fallback: Optional[list] = None) -> int:
+                 use_fallback: Optional[list] = None,
+                 only: Optional[list] = None) -> int:
     """`hdrctl run <projet>` : valide tout, puis lance les workflows selon
     workflows/thread.yaml. Retourne le code de sortie (0 succès, 1 échec)."""
     from hydra_etl.workflow.project import (
@@ -1073,7 +1079,7 @@ def _run_project(root: Path, verbosity: int, dry_run: bool,
     )
 
     try:
-        plan = prepare_project(root)
+        plan = prepare_project(root, only=only)
     except ProjectError as e:
         error_box(t("run.project.invalid", name=root.name))
         for msg in e.errors:
@@ -2064,11 +2070,27 @@ def cmd_workflow_validate(path: str, project: Optional[str]) -> None:
         sys.exit(1)
 
     ok, msg = validate_workflow(wf_path)
-    if ok:
-        success_box(t("workflow.validate.success"))
-    else:
+    if not ok:
         error_box(t("workflow.validate.failure", error=msg))
         sys.exit(1)
+    # Steps type: project : projets appelés introuvables, cycles, profondeur
+    from hydra_etl.workflow.project import find_project_root
+    from hydra_etl.workflow.subprojects import check_project_calls
+    root = find_project_root(wf_path.parent)
+    if root is not None:
+        calls = check_project_calls(root, workflows=[wf_path.stem])
+        for w in calls.warnings:
+            click.echo(f"  {c(C.YL, '⚠')}  {w}")
+        if calls.errors:
+            error_box(t("workflow.validate.failure", error=calls.errors[0]))
+            for e in calls.errors[1:]:
+                err_line(f"  — {e}")
+            sys.exit(1)
+        if calls.tree:
+            info(t("workflow.validate.calls"))
+            for depth, label in calls.tree:
+                click.echo(f"  {'   ' * depth}↳ {label}")
+    success_box(t("workflow.validate.success"))
 
 
 def _project_or_exit(project: Optional[str]) -> Path:

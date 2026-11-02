@@ -3,6 +3,8 @@
  * Route : /workflows/:workflowId?projectId=...
  */
 import EnvSelector from '@/components/EnvSelector'
+import ProjectStepDialog from '@/components/canvas/ProjectStepDialog'
+import { PROJECT_NODE_TYPE } from '@/lib/workflowSerializer'
 import { envForRun } from '@/lib/activeEnv'
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
@@ -1085,6 +1087,13 @@ function WorkflowEditorInner() {
     e.dataTransfer.dropEffect = 'move'
   }, [])
 
+  // Projets du workspace (section Projects de la palette, nœud Project)
+  const projectsQ = useQuery({ queryKey: ['projects'], queryFn: api.projects.list })
+  const onProjectDragStart = useCallback((e: React.DragEvent, pr: { id: string; name: string; path: string }) => {
+    e.dataTransfer.setData('application/hydra-project', JSON.stringify(pr))
+    e.dataTransfer.effectAllowed = 'move'
+  }, [])
+
   const onJobDragStart = useCallback((e: React.DragEvent, jobId: string) => {
     e.dataTransfer.setData('application/hydra-job-ref', jobId)
     e.dataTransfer.effectAllowed = 'move'
@@ -1092,6 +1101,40 @@ function WorkflowEditorInner() {
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+
+    // Projet du workspace déposé : nœud Project (step type: project), vérifié
+    // par l'API avant d'être ajouté (cycle, projet introuvable)
+    const projRaw = e.dataTransfer.getData('application/hydra-project')
+    if (projRaw && rfInstance) {
+      const pr = JSON.parse(projRaw) as { id: string; name: string; path: string }
+      const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      api.projects.projectStep(projectId, { project: pr.path, ref: 'path' }).then(info => {
+        if (!info.ok) {
+          alert(`"${pr.name}" cannot be called from this workflow:\n\n${info.errors.join('\n')}`)
+          return
+        }
+        const taken = new Set(nodes.map(n => (n.data as FlowNodeData).stepName))
+        const base = `run_${(info.name ?? pr.name).replace(/[^A-Za-z0-9_]+/g, '_')}`
+        let stepName = base, k = 2
+        while (taken.has(stepName)) stepName = `${base}_${k++}`
+        const required = Object.entries(info.parameters ?? {})
+          .filter(([, d]) => d && d.required && (d.default === undefined || d.default === null))
+          .map(([n]) => n)
+        const newNode: Node<FlowNodeData> = {
+          id: stepName, type: 'hydraNode', position,
+          data: {
+            label: info.name ?? pr.name, nodeType: PROJECT_NODE_TYPE, stepName, enabled: true, onFailure: 'fail',
+            projectStep: { project: info.relative ?? pr.path, ref: 'path', displayName: info.name ?? pr.name },
+            params: Object.fromEntries(required.map(n => [n, ''])),
+          } as FlowNodeData,
+        }
+        pushHistory(nodes, edges)
+        setNodes(nds => [...nds, newNode])
+        setSelectedNode(newNode)
+        setDialogNode(newNode)                 // configuration tout de suite (paramètres requis…)
+      }).catch(err => alert(`Cannot check the project: ${(err as Error).message}`))
+      return
+    }
 
     // Job-ref drag depuis la palette Scene 2
     const jobRefId = e.dataTransfer.getData('application/hydra-job-ref')
@@ -1176,7 +1219,7 @@ function WorkflowEditorInner() {
 
     // Ouvrir immédiatement le panel propriétés pour le nouveau nœud
     setSelectedNode(newNode)
-  }, [rfInstance, replaceNodeId, nodes, edges, pushHistory])
+  }, [rfInstance, replaceNodeId, nodes, edges, pushHistory, projectId])
 
   const onDragStart = useCallback((e: React.DragEvent, nodeType: string) => {
     e.dataTransfer.setData('application/hydra-node', nodeType)
@@ -2254,6 +2297,9 @@ function WorkflowEditorInner() {
           sceneMode={sceneMode}
           jobsList={[...jobNames.entries()].map(([id, name]) => ({ id, name }))}
           onJobContextMenu={onJobContextMenu}
+          projectsList={(projectsQ.data ?? []).filter(p => p.id && p.id !== projectId)
+            .map(p => ({ id: p.id, name: p.name, path: p.path }))}
+          onProjectDragStart={onProjectDragStart}
         />
 
         <CanvasToolbox
@@ -2374,6 +2420,7 @@ function WorkflowEditorInner() {
             focusRename={renameNodeId === selectedNode.id || undefined}
             onClose={() => { setSelectedNode(null); setRenameNodeId(null) }}
             onChange={onNodeDataChange}
+            onConfigure={() => setDialogNode(selectedNode)}
           />
         )}
 
@@ -2414,7 +2461,16 @@ function WorkflowEditorInner() {
         )}
 
         {/* Config dialog */}
-        {dialogNode && (
+        {dialogNode && (dialogNode.data as FlowNodeData).nodeType === PROJECT_NODE_TYPE && (
+          <ProjectStepDialog
+            masterProjectId={projectId}
+            data={dialogNode.data as FlowNodeData}
+            projects={projectsQ.data ?? []}
+            onClose={() => setDialogNode(null)}
+            onSave={patch => { onNodeDataChange(dialogNode.id, patch); setDialogNode(null) }}
+          />
+        )}
+        {dialogNode && (dialogNode.data as FlowNodeData).nodeType !== PROJECT_NODE_TYPE && (
           <NodeConfigDialog
             node={dialogNode}
             projectId={projectId ?? undefined}

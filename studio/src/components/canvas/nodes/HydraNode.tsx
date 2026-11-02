@@ -199,7 +199,9 @@ export const HydraNode = memo(({ id, data, selected }: NodeProps) => {
           {d.nodeType === 'job' ? d.label : d.stepName}
         </p>
         <p style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1 }}>
-          {d.nodeType === 'job' ? d.stepName : d.label}
+          {d.nodeType === 'job' ? d.stepName
+            : d.nodeType === 'project' ? `project · ${(d as { projectStep?: { displayName?: string; project?: string } }).projectStep?.displayName ?? (d as { projectStep?: { project?: string } }).projectStep?.project ?? '?'}`
+            : d.label}
         </p>
       </div>
     </>

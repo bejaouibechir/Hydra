@@ -173,3 +173,42 @@ def test_cli_workflow_validate_reports_the_cycle(tmp_path):
     r = CliRunner().invoke(cli, ["workflow", "validate", "main", "--project", str(ok)])
     assert r.exit_code == 0, r.output
     assert "↳ z" in r.output
+
+
+def test_api_project_step_check(tmp_path, monkeypatch):
+    pytest.importorskip("fastapi")
+    from hydra_etl.api import store
+    from hydra_etl.api.routers import projects as r
+    monkeypatch.setattr(store, "WORKSPACE", tmp_path / "ws")
+    monkeypatch.setattr(store, "_INDEX_FILE", tmp_path / "ws" / "index.json")
+    (tmp_path / "ws").mkdir()
+    b = _project(tmp_path, "b")
+    (b / "parameters.yaml").write_text("parameters:\n  since: {type: string, required: true}\n")
+    a = _project(tmp_path, "a")
+    pa = store.open_project(str(a))
+    pb = store.open_project(str(b))
+    out = r.check_project_step(pa.id, r.ProjectStepCheck(project=str(b)))
+    assert out["ok"] and out["relative"] == "../b" and out["project_id"] == pb.id
+    assert out["workflows"] == ["main"] and out["parameters"]["since"]["required"] is True
+    # b appelle a : déposer b dans a créerait un cycle
+    f = b / "workflows" / "main.yaml"
+    f.write_text(f.read_text() + "    - name: back\n      type: project\n      project: ../a\n")
+    out = r.check_project_step(pa.id, r.ProjectStepCheck(project="../b"))
+    assert not out["ok"] and any("cycle: a → b → a" in e for e in out["errors"])
+    out = r.check_project_step(pa.id, r.ProjectStepCheck(project="."))
+    assert not out["ok"] and any("call itself" in e for e in out["errors"])
+    out = r.check_project_step(pa.id, r.ProjectStepCheck(project="../ghost"))
+    assert not out["ok"] and "not found" in out["errors"][0]
+    out = r.check_project_step(pa.id, r.ProjectStepCheck(project="../b", workflows=["nope"]))
+    assert not out["ok"] and "workflow(s) not found" in out["errors"][0]
+
+
+def test_api_saves_a_workflow_with_a_project_step(tmp_path, monkeypatch):
+    """Le Studio enregistre un workflow contenant un step type: project : le
+    fichier relu par le moteur garde le step."""
+    from hydra_etl.workflow.parser import load_workflow
+    _project(tmp_path, "b")
+    a = _project(tmp_path, "a", calls=[("../b", {"env": "prod", "outputs": ["x"], "timeout": "5m"})])
+    wf = load_workflow(a / "workflows" / "main.yaml")
+    st = [s for s in wf.steps if s.type == "project"][0]
+    assert st.project == "../b" and st.env == "prod" and st.outputs == ["x"] and st.timeout == "5m"

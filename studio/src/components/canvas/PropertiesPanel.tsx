@@ -13,9 +13,11 @@ interface Props {
   focusRename?: boolean
   onClose: () => void
   onChange: (id: string, data: Partial<FlowNodeData>) => void
+  /** Nœud Project : ouvre la fenêtre de configuration */
+  onConfigure?: () => void
 }
 
-export default function PropertiesPanel({ node, focusRename, onClose, onChange }: Props) {
+export default function PropertiesPanel({ node, focusRename, onClose, onChange, onConfigure }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
 
   // Auto-focus sur le champ nom si rename demandé
@@ -30,6 +32,7 @@ export default function PropertiesPanel({ node, focusRename, onClose, onChange }
 
   const d    = node.data
   const def  = getNode(d.nodeType)
+  const ps   = d.nodeType === 'project' ? d.projectStep : undefined
 
   return (
     <div
@@ -46,9 +49,11 @@ export default function PropertiesPanel({ node, focusRename, onClose, onChange }
         style={{ borderColor: 'var(--bg-border)' }}>
         <div>
           <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {def?.label ?? d.nodeType}
+            {d.nodeType === 'project' ? 'Project' : def?.label ?? d.nodeType}
           </p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{def?.description}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {d.nodeType === 'project' ? 'Runs another project (type: project)' : def?.description}
+          </p>
         </div>
         <button onClick={onClose} className="btn-ghost p-1 !gap-0">
           <X size={14} />
@@ -68,8 +73,23 @@ export default function PropertiesPanel({ node, focusRename, onClose, onChange }
           />
         </div>
 
+        {/* Project : résumé + configuration */}
+        {d.nodeType === 'project' && (
+          <div data-testid="project-step-summary" className="text-xs space-y-1" style={{ color: 'var(--text-secondary)' }}>
+            <div><span style={{ color: 'var(--text-muted)' }}>Project </span>
+              <code>{ps?.project || '—'}</code>{ps?.ref === 'name' ? ' (workspace name)' : ''}</div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Environment </span>{ps?.env ?? 'inherit'}</div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Workflows </span>{ps?.workflows?.length ? ps.workflows.join(', ') : 'its thread.yaml'}</div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Parameters </span>{Object.keys(d.params ?? {}).join(', ') || '—'}</div>
+            {ps?.outputs?.length ? <div><span style={{ color: 'var(--text-muted)' }}>Outputs </span>{ps.outputs.join(', ')}</div> : null}
+            <button type="button" className="btn-secondary text-xs" style={{ marginTop: 6 }} onClick={onConfigure}>
+              Configure…
+            </button>
+          </div>
+        )}
+
         {/* Job path */}
-        {(def?.category === 'source' || def?.category === 'destination' || def?.category === 'transformation' || !def) && (
+        {d.nodeType !== 'project' && (def?.category === 'source' || def?.category === 'destination' || def?.category === 'transformation' || !def) && (
           <div>
             <label className="block text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Job path</label>
             <input

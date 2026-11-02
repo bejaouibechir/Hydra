@@ -176,6 +176,54 @@ class CallCheck:
     tree: List[Tuple[int, str]] = field(default_factory=list)   # (profondeur, libellé) pour l'affichage
 
 
+Node = Tuple[Path, Tuple[str, ...]]
+
+
+def _node(proj: Path, only: Optional[List[str]]) -> Node:
+    return (Path(proj).resolve(), tuple(sorted(_run_workflows(Path(proj).resolve(), only))))
+
+
+def _label(n: Node, explicit: bool) -> str:
+    return _project_name(n[0]) + (f" [{', '.join(n[1])}]" if explicit else "")
+
+
+def _walk(res: CallCheck, cur: Node, only: Optional[List[str]], stack: List[Node],
+          names: List[str], depth: int, max_depth: int, seen_msgs: set) -> None:
+    def add(kind: List[str], msg: str) -> None:
+        if msg not in seen_msgs:
+            seen_msgs.add(msg)
+            kind.append(msg)
+
+    proj = cur[0]
+    for c in project_calls(proj, only):
+        where = f"{_project_name(proj)} › workflows/{c.workflow}.yaml › step '{c.step}'"
+        if c.error:
+            add(res.errors, f"{where}: {c.error}")
+            continue
+        if c.dynamic:
+            add(res.warnings, f"{where}: project '{c.value}' is computed at run time; "
+                              f"cycles through it are only stopped while running")
+            continue
+        if c.target is None:
+            continue
+        nxt = _node(c.target, c.workflows)
+        lbl = _label(nxt, bool(c.workflows))
+        res.tree.append((depth, lbl))
+        chain = names + [lbl]
+        if nxt in stack:
+            i = stack.index(nxt)
+            if nxt == cur and i == len(stack) - 1:
+                add(res.errors, f"{where}: the project calls itself")
+            else:
+                add(res.errors, f"{where}: cycle: " + " → ".join(chain[i:]))
+            continue
+        if depth >= max_depth:
+            add(res.errors, f"{where}: projects nested more than {max_depth} levels deep: "
+                            + " → ".join(chain))
+            continue
+        _walk(res, nxt, c.workflows, stack + [nxt], chain, depth + 1, max_depth, seen_msgs)
+
+
 def check_project_calls(root: Path, workflows: Optional[List[str]] = None,
                         max_depth: int = MAX_DEPTH) -> CallCheck:
     """Parcourt l'arbre des projets appelés depuis `root` : références
@@ -184,54 +232,25 @@ def check_project_calls(root: Path, workflows: Optional[List[str]] = None,
     Un nœud du graphe est (projet, workflows lancés) : un projet peut lancer
     un autre de ses workflows, ou être appelé deux fois avec des workflows
     différents, sans boucle. Le même nœud deux fois sur un chemin = cycle."""
-    root = Path(root).resolve()
     res = CallCheck()
-    seen_msgs = set()
+    start = _node(root, workflows)
+    _walk(res, start, workflows, [start], [_label(start, False)], 1, max_depth, set())
+    return res
 
-    def add(kind: List[str], msg: str) -> None:
-        if msg not in seen_msgs:
-            seen_msgs.add(msg)
-            kind.append(msg)
 
-    def node(proj: Path, only: Optional[List[str]]) -> Tuple[Path, Tuple[str, ...]]:
-        return (proj, tuple(sorted(_run_workflows(proj, only))))
-
-    def label(n: Tuple[Path, Tuple[str, ...]], explicit: bool) -> str:
-        return _project_name(n[0]) + (f" [{', '.join(n[1])}]" if explicit else "")
-
-    def walk(cur: Tuple[Path, Tuple[str, ...]], only: Optional[List[str]],
-             stack: List[Tuple[Path, Tuple[str, ...]]], names: List[str], depth: int) -> None:
-        proj = cur[0]
-        for c in project_calls(proj, only):
-            where = f"{_project_name(proj)} › workflows/{c.workflow}.yaml › step '{c.step}'"
-            if c.error:
-                add(res.errors, f"{where}: {c.error}")
-                continue
-            if c.dynamic:
-                add(res.warnings, f"{where}: project '{c.value}' is computed at run time; "
-                                  f"cycles through it are only stopped while running")
-                continue
-            if c.target is None:
-                continue
-            nxt = node(c.target, c.workflows)
-            lbl = label(nxt, bool(c.workflows))
-            res.tree.append((depth, lbl))
-            chain = names + [lbl]
-            if nxt in stack:
-                i = stack.index(nxt)
-                if nxt == cur and i == len(stack) - 1:
-                    add(res.errors, f"{where}: the project calls itself")
-                else:
-                    add(res.errors, f"{where}: cycle: " + " → ".join(chain[i:]))
-                continue
-            if depth >= max_depth:
-                add(res.errors, f"{where}: projects nested more than {max_depth} levels deep: "
-                                + " → ".join(chain))
-                continue
-            walk(nxt, c.workflows, stack + [nxt], chain, depth + 1)
-
-    start = node(root, workflows)
-    walk(start, workflows, [start], [label(start, False)], 1)
+def check_new_call(master_root: Path, target: Path, workflows: Optional[List[str]] = None,
+                   max_depth: int = MAX_DEPTH) -> CallCheck:
+    """Ce que donnerait un nouveau step type: project de `master_root` vers
+    `target` (Studio, au dépôt du nœud) : cycle, profondeur, arbre."""
+    res = CallCheck()
+    start = _node(master_root, None)
+    nxt = _node(target, workflows)
+    res.tree.append((1, _label(nxt, bool(workflows))))
+    if nxt[0] == start[0] and nxt == start:
+        res.errors.append("the project would call itself")
+        return res
+    names = [_label(start, False), _label(nxt, bool(workflows))]
+    _walk(res, nxt, workflows, [start, nxt], names, 2, max_depth, set())
     return res
 
 

@@ -20,10 +20,10 @@ import {
   // Catégories
   HardDriveDownload, Shuffle, HardDriveUpload, Zap, GitBranch,
   // Job node / containers
-  Package, Boxes, ShieldAlert, RotateCcw,
+  Package, Boxes, ShieldAlert, RotateCcw, FolderGit2,
 } from 'lucide-react'
 import {
-  resolveIcon, CATEGORY_COLORS, JOB_COLOR, CONTAINER_COLOR, ERRORSCOPE_COLOR, RETRYSCOPE_COLOR,
+  resolveIcon, CATEGORY_COLORS, JOB_COLOR, CONTAINER_COLOR, ERRORSCOPE_COLOR, RETRYSCOPE_COLOR, PROJECT_COLOR,
 } from '@/lib/nodeAppearance'
 
 // ── Catégories registry ───────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ const PALETTE_KEY = 'hydra-palette-collapsed'
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface JobEntry { id: string; name: string }
+export interface ProjectEntry { id: string; name: string; path: string }
 
 interface Props {
   onDragStart: (event: React.DragEvent, nodeType: string) => void
@@ -54,12 +55,16 @@ interface Props {
   sceneMode?: 'jobs' | 'workflow'
   /** Liste des jobs définis — affichés dans la section Jobs (sceneMode === 'workflow') */
   jobsList?: JobEntry[]
+  /** Projets du workspace (sauf le projet courant) — section Projects (sceneMode === 'workflow') */
+  projectsList?: ProjectEntry[]
+  onProjectDragStart?: (event: React.DragEvent, project: ProjectEntry) => void
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 export default function NodePalette({
   onDragStart, onJobDragStart, onJobContextMenu, replaceMode, onCancelReplace, sceneMode, jobsList = [],
+  projectsList = [], onProjectDragStart,
 }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({
     source: true,
@@ -69,6 +74,7 @@ export default function NodePalette({
     control_flow: false,
     containers: true,
     jobs: true,
+    projects: true,
   })
 
   // Plateforme backend — détermine quels nœuds système sont disponibles
@@ -446,6 +452,50 @@ export default function NodePalette({
                   </div>
                   <span className="text-xs truncate flex-1" style={{ color: 'var(--text-primary)' }}>
                     {job.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Section Projects (sceneMode === 'workflow') : step type: project ── */}
+      {sceneMode === 'workflow' && (
+        <div data-testid="palette-projects">
+          <button
+            onClick={() => setOpen(o => ({ ...o, projects: !o.projects }))}
+            className="w-full flex items-center justify-between px-3 py-2 transition-opacity hover:opacity-70"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <FolderGit2 size={26} style={{ color: PROJECT_COLOR, flexShrink: 0 }} />
+              <span className="text-xs font-medium">Projects</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({projectsList.length})</span>
+            </div>
+            {open.projects ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+          {open.projects && (
+            <div className="pb-1">
+              {projectsList.length === 0 ? (
+                <p className="text-xs mx-3 mb-2 italic" style={{ color: 'var(--text-muted)' }}>
+                  No other project open in Studio — open one from Overview to call it from here.
+                </p>
+              ) : projectsList.map(pr => (
+                <div
+                  key={pr.id}
+                  draggable
+                  onDragStart={e => onProjectDragStart?.(e, pr)}
+                  className="flex items-center gap-2 mx-2 mb-0.5 px-2 py-2 rounded-lg"
+                  style={{ cursor: 'grab' }}
+                  title={`Drag to run the project "${pr.name}" from this workflow\n${pr.path}`}
+                >
+                  <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <FolderGit2 size={18} style={{ color: PROJECT_COLOR }} />
+                  </div>
+                  <span className="text-xs truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                    {pr.name}
                   </span>
                 </div>
               ))}

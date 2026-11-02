@@ -10,8 +10,18 @@ import { topologicalSort, edgesToDAGNodes, validateDAG, computeLevels } from './
 
 export interface WorkflowStep {
   name: string
-  type: 'job' | 'action'
+  type: 'job' | 'action' | 'project'
   job?: string
+  // type=project : projet appelé (Hydra 0.19)
+  project?: string
+  ref?: 'path' | 'name'
+  env?: string
+  variables?: Record<string, unknown>
+  workflows?: string[]
+  outputs?: string[]
+  isolation?: 'inprocess' | 'subprocess'
+  timeout?: string | number
+  overlap?: 'wait' | 'skip' | 'fail'
   action?: string
   params?: Record<string, unknown>
   depends_on?: string[]
@@ -60,7 +70,26 @@ export interface FlowNodeData extends Record<string, unknown> {
   collapsed?: boolean     // conteneur replié (réservé — collapse post-socle)
   retry?: RetryPolicy     // config Retry-scope (sur le conteneur) recopiée aux enfants
   undo?: StepUndo         // action : `undo:` (rollback du workflow)
+  projectStep?: ProjectStepConfig   // nodeType 'project' : step type: project
 }
+
+/** Champs d'un step type: project (hors params, gardés dans `params`). */
+export interface ProjectStepConfig {
+  project: string
+  ref?: 'path' | 'name'
+  env?: string
+  variables?: Record<string, unknown>
+  workflows?: string[]
+  outputs?: string[]
+  isolation?: 'inprocess' | 'subprocess'
+  timeout?: string | number
+  overlap?: 'wait' | 'skip' | 'fail'
+  /** affichage seulement (nom du projet appelé), jamais écrit dans le YAML */
+  displayName?: string
+}
+
+export const PROJECT_NODE_TYPE = 'project'
+const PROJECT_KEYS = ['project', 'ref', 'env', 'variables', 'workflows', 'outputs', 'isolation', 'timeout', 'overlap'] as const
 
 /** Nœud de regroupement visuel (Sequence Container & futurs types).
  *  N'a AUCUNE sémantique d'exécution : exclu du DAG et de la sérialisation YAML. */
@@ -149,12 +178,29 @@ export function flowToWorkflow(
     const dag    = dagMap.get(id)!
     const data   = rfNode.data
 
+    const isProject = data.nodeType === PROJECT_NODE_TYPE
     const step: WorkflowStep = {
       name: data.stepName ?? id,
-      type: data.jobPath ? 'job' : 'action',
+      type: isProject ? 'project' : data.jobPath ? 'job' : 'action',
     }
 
-    if (step.type === 'job' && data.jobPath) {
+    if (isProject) {
+      const cfg = (data.projectStep ?? { project: '' }) as ProjectStepConfig
+      for (const k of PROJECT_KEYS) {
+        const v = cfg[k]
+        if (v === undefined || v === null || v === '') continue
+        if (Array.isArray(v) && v.length === 0) continue
+        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) continue
+        if (k === 'ref' && v === 'path') continue          // défaut
+        if (k === 'env' && v === 'inherit') continue       // défaut
+        if (k === 'isolation' && v === 'inprocess') continue
+        if (k === 'overlap' && v === 'wait') continue
+        ;(step as unknown as Record<string, unknown>)[k] = v
+      }
+      if (data.params && Object.keys(data.params as object).length > 0) {
+        step.params = data.params as Record<string, unknown>
+      }
+    } else if (step.type === 'job' && data.jobPath) {
       step.job = data.jobPath as string
     } else {
       // Priorité : data.action explicite ; sinon extraire depuis nodeType (action_powershell → powershell)
@@ -226,6 +272,12 @@ export function workflowToYAMLString(wf: WorkflowYAML): string {
   const steps = wf.workflow.steps.map(step => {
     const s: Record<string, unknown> = { name: step.name, type: step.type }
     if (step.job)    s.job = step.job.replace(/\\/g, '/')   // chemins job en posix
+    if (step.type === 'project') {
+      for (const k of PROJECT_KEYS) {
+        const v = (step as unknown as Record<string, unknown>)[k]
+        if (v !== undefined) s[k] = k === 'project' ? String(v).replace(/\\/g, '/') : v
+      }
+    }
     if (step.action) s.action = step.action
     if (step.params && Object.keys(step.params).length > 0) s.params = step.params
     if (step.depends_on?.length) s.depends_on = step.depends_on
@@ -296,7 +348,12 @@ export function parseWorkflowYAML(text: string): WorkflowYAML | null {
       if (!name) continue
       const step: WorkflowStep = {
         name,
-        type: r.type === 'job' ? 'job' : 'action',
+        type: r.type === 'job' ? 'job' : r.type === 'project' ? 'project' : 'action',
+      }
+      if (step.type === 'project') {
+        for (const k of PROJECT_KEYS) {
+          if (r[k] !== undefined && r[k] !== null) (step as unknown as Record<string, unknown>)[k] = r[k]
+        }
       }
       if (r.job)    step.job    = String(r.job)
       if (r.action) step.action = String(r.action)
@@ -401,7 +458,8 @@ export function workflowToFlow(wf: WorkflowYAML): {
       data: {
         label:    step.name,
         // 'job' → icône Briefcase générique ; action_xxx → icône selon type
-        nodeType:  step.type === 'job' ? 'job' : `action_${step.action ?? 'webhook'}`,
+        nodeType:  step.type === 'job' ? 'job' : step.type === 'project' ? PROJECT_NODE_TYPE
+                   : `action_${step.action ?? 'webhook'}`,
         stepName:  step.name,
         jobPath:   step.job,
         action:    step.action,
@@ -410,6 +468,7 @@ export function workflowToFlow(wf: WorkflowYAML): {
         enabled:   step.enabled !== false,
         when:      step.when,
         ...(step.undo ? { undo: step.undo } : {}),
+        ...(step.type === 'project' ? { projectStep: projectConfigOf(step) } : {}),
       },
     }
   })
@@ -432,4 +491,18 @@ export function workflowToFlow(wf: WorkflowYAML): {
     meta: { name: wf.workflow.name, triggerType: wf.workflow.trigger.type, cron: wf.workflow.trigger.cron,
             rollback: wf.workflow.rollback === true },
   }
+}
+
+
+/** Config d'un step type: project lu depuis le YAML (pour le nœud). */
+export function projectConfigOf(step: WorkflowStep): ProjectStepConfig {
+  const cfg: ProjectStepConfig = { project: String(step.project ?? '') }
+  for (const k of PROJECT_KEYS) {
+    if (k === 'project') continue
+    const v = (step as unknown as Record<string, unknown>)[k]
+    if (v !== undefined) (cfg as unknown as Record<string, unknown>)[k] = v
+  }
+  const base = cfg.project.replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() || cfg.project
+  cfg.displayName = base
+  return cfg
 }

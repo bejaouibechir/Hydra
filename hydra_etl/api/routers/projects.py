@@ -100,3 +100,65 @@ def delete_project(project_id: str, remove_files: bool = True):
     Idempotent : ne renvoie jamais 404 — le retrait est toujours effectif."""
     store.delete_project(project_id, remove_files=remove_files)
     return {"message": f"Project '{project_id}' deleted (files={'yes' if remove_files else 'kept'})"}
+
+
+# ── Step type: project (Studio : nœud Project) ──────────────────────────────
+
+class ProjectStepCheck(BaseModel):
+    project: str                                 # chemin (ref: path) ou nom (ref: name)
+    ref: str = "path"
+    workflows: List[str] = []
+
+
+@router.post("/{project_id}/project-step")
+def check_project_step(project_id: str, body: ProjectStepCheck):
+    """Projet appelé par un step type: project du projet `project_id` : ce qu'il
+    déclare (paramètres, workflows, environnements) et les problèmes qu'un tel
+    step créerait (introuvable, cycle, profondeur). Rien n'est écrit."""
+    import os
+    from pathlib import Path
+    from hydra_etl.internal.config.env_admin import list_environments, read_parameters
+    from hydra_etl.workflow.project import workflow_files
+    from hydra_etl.workflow.subprojects import (
+        ProjectRefError, _project_name, check_new_call, resolve_project,
+    )
+    master = store.get_project(project_id)
+    if not master:
+        raise HTTPException(404, detail=f"Project '{project_id}' not found")
+    root = Path(master.path).resolve()
+    out = {"ok": False, "errors": [], "warnings": [], "tree": [], "name": None, "path": None,
+           "relative": None, "project_id": None, "workflows": [], "parameters": {},
+           "environments": []}
+    try:
+        target = resolve_project(body.project, root, body.ref if body.ref in ("path", "name") else "path")
+    except ProjectRefError as e:
+        out["errors"].append(str(e))
+        return out
+    out["name"] = _project_name(target)
+    out["path"] = str(target)
+    try:
+        out["relative"] = Path(os.path.relpath(target, root)).as_posix()
+    except ValueError:                               # autre lecteur (Windows)
+        out["relative"] = target.as_posix()
+    for p in store.list_projects():
+        try:
+            if Path(p.path).resolve() == target:
+                out["project_id"] = p.id
+                break
+        except OSError:
+            continue
+    out["workflows"] = sorted(n for n in workflow_files(target) if n != "thread")
+    try:
+        out["parameters"] = read_parameters(target).declarations
+    except Exception:  # noqa: BLE001
+        out["parameters"] = {}
+    out["environments"] = [e.name for e in list_environments(target)]
+    unknown = [w for w in body.workflows if w not in out["workflows"]]
+    if unknown:
+        out["errors"].append(f"workflow(s) not found in {out['name']}: {', '.join(unknown)}")
+    res = check_new_call(root, target, body.workflows or None)
+    out["errors"] += res.errors
+    out["warnings"] += res.warnings
+    out["tree"] = [{"depth": d, "label": lbl} for d, lbl in res.tree]
+    out["ok"] = not out["errors"]
+    return out

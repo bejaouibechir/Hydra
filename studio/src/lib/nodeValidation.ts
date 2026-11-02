@@ -65,6 +65,12 @@ export function isNodeConfigured(data: FlowNodeData): boolean {
   // Job — une référence de job est requise
   if (nodeType === 'job') return filled(jobPath) || filled(p.job)
 
+  // Project — le projet appelé est requis
+  if (nodeType === 'project') {
+    const ps = data.projectStep
+    return filled(ps?.project)
+  }
+
   // Control flow & autres → configurés par défaut
   return true
 }

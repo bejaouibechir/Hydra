@@ -37,6 +37,15 @@ and versions follow [Semantic Versioning](https://semver.org/).
   process that no longer exists is taken over). `overlap`: `wait` (default, until `timeout`), `skip` (step
   skipped, status `skipped`) or `fail`.
 - `hdrctl run <project> -w <workflow>` (repeatable): run only these workflows of the project.
+- Studio — **Project** node (third node type of a workflow, next to actions and jobs): a **Projects** section in
+  the palette lists the projects open in Studio; dropping one adds a `type: project` step after an API check
+  (a cycle such as `master → crm → master`, or a project calling itself, is refused with the path). Its window
+  sets the project (by path, portable with git — saved relative — or by workspace name), environment,
+  workflows to run, parameters (the called project's declarations are listed, `required` ones flagged),
+  variables, outputs, process, timeout, overlap and on-failure, and links to the called project. The side
+  panel summarises the step. The step is read from and written to `workflow.yaml` like the other steps.
+- API: `POST /api/projects/{id}/project-step` — what a `type: project` step would call (parameters,
+  workflows, environments of the called project) and the problems it would create.
 
 ## [0.18.0] — 2026-11-02
 

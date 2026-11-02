@@ -13,7 +13,7 @@ import {
   Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal, Server,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  Package, Briefcase,
+  Package, Briefcase, FolderGit2,
 } from 'lucide-react'
 import { MySQLIcon, PostgreSQLIcon } from '@/components/icons/DatabaseIcons'
 import { getNode, type NodeCategory } from '@/lib/nodeRegistry'
@@ -25,7 +25,7 @@ export const NODE_ICONS: Record<string, React.ElementType> = {
   Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal, Server,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  Package,
+  Package, FolderGit2,
   MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon,
   Briefcase,
 }
@@ -43,6 +43,8 @@ export const CATEGORY_COLORS: Record<NodeCategory, string> = {
 }
 
 export const JOB_COLOR = '#8b5cf6'
+/** Nœud Project (step type: project) : projet appelé par le workflow. */
+export const PROJECT_COLOR = '#14b8a6'
 export const CONTAINER_COLOR = '#f59e0b'
 export const ERRORSCOPE_COLOR = '#ef4444'
 export const RETRYSCOPE_COLOR = '#06b6d4'
@@ -57,11 +59,12 @@ function categoryOf(nodeType: string): NodeCategory | null {
   return null
 }
 
-export interface NodeAppearance { Icon: React.ElementType; color: string; category: NodeCategory | 'job' | null }
+export interface NodeAppearance { Icon: React.ElementType; color: string; category: NodeCategory | 'job' | 'project' | null }
 
 export function nodeAppearance(nodeType: string | undefined): NodeAppearance {
   const t = nodeType ?? ''
   if (t === 'job') return { Icon: Package, color: JOB_COLOR, category: 'job' }
+  if (t === 'project') return { Icon: FolderGit2, color: PROJECT_COLOR, category: 'project' }
   const def = getNode(t)
   const category = def?.category ?? categoryOf(t)
   return {

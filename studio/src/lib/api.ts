@@ -146,6 +146,21 @@ export interface ConditionHelp {
   secrets: string[]                       // noms seulement
 }
 
+/** Réponse de POST /projects/{id}/project-step. */
+export interface ProjectStepInfo {
+  ok: boolean
+  errors: string[]
+  warnings: string[]
+  tree: { depth: number; label: string }[]
+  name: string | null
+  path: string | null
+  relative: string | null
+  project_id: string | null
+  workflows: string[]
+  parameters: Record<string, Record<string, unknown>>
+  environments: string[]
+}
+
 export interface CheckResult { ok: boolean; errors: string[]; active: string[]; warnings?: string[] }
 
 /** Décision du fallback d'un workflow du thread, jointe au step du run. */
@@ -191,6 +206,9 @@ export const api = {
     thread: (id: string)                      => get<ThreadInfo>(`/projects/${id}/thread`),
     saveThread: (id: string, thread: ThreadStage[], loops: ThreadLoop[] = []) =>
       put<ThreadInfo>(`/projects/${id}/thread`, { thread, loops }),
+    /** Projet appelé par un step type: project : déclarations et problèmes (cycle…). */
+    projectStep: (id: string, body: { project: string; ref?: 'path' | 'name'; workflows?: string[] }) =>
+      post<ProjectStepInfo>(`/projects/${id}/project-step`, body),
     /** Vérifie le projet comme `hdrctl run --dry-run`. */
     check:  (id: string)                      => post<CheckResult>(`/projects/${id}/check`, {}),
     /** Fonctions des conditions de fallback et noms déclarés dans le projet. */

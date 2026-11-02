@@ -125,6 +125,20 @@ function buildSkeleton(
       if (step.type === 'job') {
         const p = step.job ?? ''
         lines.push(`      job: "${p}"${!p ? '  # TODO: set job path' : ''}`)
+      } else if (step.type === 'project') {
+        lines.push(`      project: "${step.project ?? ''}"${!step.project ? '  # TODO: choose the project' : ''}`)
+        for (const k of ['ref', 'env', 'isolation', 'timeout', 'overlap'] as const) {
+          if (step[k] !== undefined) lines.push(`      ${k}: ${step[k]}`)
+        }
+        for (const k of ['workflows', 'outputs'] as const) {
+          if (step[k]?.length) lines.push(`      ${k}: [${step[k]!.join(', ')}]`)
+        }
+        for (const k of ['params', 'variables'] as const) {
+          const m = (step[k] ?? {}) as Record<string, unknown>
+          if (!Object.keys(m).length) continue
+          lines.push(`      ${k}:`)
+          for (const [kk, v] of Object.entries(m)) lines.push(`        ${kk}: "${String(v)}"`)
+        }
       } else {
         if (step.action) lines.push(`      action: ${step.action}`)
         lines.push('      params:')

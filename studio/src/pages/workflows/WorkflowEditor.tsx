@@ -2,6 +2,8 @@
  * WorkflowEditor — Canvas React Flow pour éditer un workflow Hydra.
  * Route : /workflows/:workflowId?projectId=...
  */
+import EnvSelector from '@/components/EnvSelector'
+import { envForRun } from '@/lib/activeEnv'
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -1426,6 +1428,7 @@ function WorkflowEditorInner() {
             timeout:     p.timeout ? Number(p.timeout) : 60,
             job_name:    wfQuery.data?.name ?? nodeType,
             params:      (nodeType === 'action_ssh' || nodeType === 'action_webhook') ? p : undefined,
+            env:         envForRun(projectId),
           })
         }
       }
@@ -1442,7 +1445,7 @@ function WorkflowEditorInner() {
         const workDir    = importedJobPath
           ?? jobDirOnDisk
           ?? (wfQuery.data?.path ? wfQuery.data.path.replace(/[\/][^\/]+$/, '') : undefined)
-        return api.runs.startInline({ hdr_content: hdrContent, job_name: jobName, work_dir: workDir })
+        return api.runs.startInline({ hdr_content: hdrContent, job_name: jobName, work_dir: workDir, env: envForRun(projectId) })
       }
 
       // Mode Workflow Orchestrateur : auto-save → disk → run
@@ -1468,7 +1471,7 @@ function WorkflowEditorInner() {
         if (files) setDiskConflict(files)
         throw err
       }
-      return api.runs.start({ workflow_path: wfQuery.data.path })
+      return api.runs.start({ workflow_path: wfQuery.data.path, env: envForRun(projectId) })
     },
     onMutate:  ()     => { applyRunStatus(null, true) },
     onSuccess: (data) => { setLastRun(data); setLogsOpen(true); pollRun(data.run_id) },
@@ -1476,7 +1479,7 @@ function WorkflowEditorInner() {
   })
 
   const runStepMut = useMutation({
-    mutationFn: (body: { workflow_path: string; step: string }) => api.runs.start(body),
+    mutationFn: (body: { workflow_path: string; step: string }) => api.runs.start({ ...body, env: envForRun(projectId) }),
     onMutate:  ()     => { applyRunStatus(null, true) },
     onSuccess: (data) => { setLastRun(data); setLogsOpen(true); pollRun(data.run_id) },
     onError:   ()     => { applyRunStatus(null, false); setLogsOpen(true) },
@@ -1530,7 +1533,7 @@ function WorkflowEditorInner() {
         ? `${projectRoot}/jobs/${slugify(activeJobName)}`
         : undefined
       const workDir = importedJobPath ?? jobDirOnDisk ?? (wfQuery.data?.path ? wfQuery.data.path.replace(/[\/][^\/]+$/, '') : undefined)
-      return api.runs.startInline({ hdr_content: hdrContent, job_name: `${jobName} · step`, work_dir: workDir, preview_up_to: idx })
+      return api.runs.startInline({ hdr_content: hdrContent, job_name: `${jobName} · step`, work_dir: workDir, preview_up_to: idx, env: envForRun(projectId) })
     },
     onMutate:  ()     => { applyRunStatus(null, true) },
     onSuccess: (data) => { setLastRun(data); setLogsOpen(true); pollRun(data.run_id) },
@@ -1576,6 +1579,7 @@ function WorkflowEditorInner() {
         timeout:     p.timeout ? Number(p.timeout) : 60,
         job_name:    wfQuery.data?.name ?? nt,
         params:      (nt === 'action_ssh' || nt === 'action_webhook') ? p : undefined,
+        env:         envForRun(projectId),
       })
       pollRun(run.run_id)
     } catch (err: any) {
@@ -1879,6 +1883,8 @@ function WorkflowEditorInner() {
           </div>
         )}
 
+        <div className="flex-1" />
+        {projectId && <EnvSelector projectId={projectId} compact />}
         <div className="flex-1" />
 
         {replaceNodeId && (

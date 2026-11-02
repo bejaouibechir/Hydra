@@ -10,12 +10,22 @@
  * projet ouvert dans ce navigateur ; sinon on demande d'en choisir un.
  */
 import { useEffect } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, FolderOpen } from 'lucide-react'
+import { ChevronLeft, FolderOpen, Layers, SlidersHorizontal, KeyRound } from 'lucide-react'
 import { api } from '@/lib/api'
 import { forgetProject, lastProject, projectSettingsPath, rememberProject } from '@/lib/lastProject'
 import ThreadEditor from '@/components/project/ThreadEditor'
+import ParametersPanel from '@/components/canvas/ParametersPanel'
+import SecretsPanel from '@/components/canvas/SecretsPanel'
+import EnvSelector from '@/components/EnvSelector'
+
+type Tab = 'order' | 'parameters' | 'secrets'
+const TABS: { id: Tab; label: string; icon: typeof Layers; note: string }[] = [
+  { id: 'order', label: 'Execution order', icon: Layers, note: 'Saved in workflows/thread.yaml, for everyone who opens the project.' },
+  { id: 'parameters', label: 'Parameters', icon: SlidersHorizontal, note: 'Saved in parameters.yaml and environments/<env>.yaml, for everyone who opens the project.' },
+  { id: 'secrets', label: 'Secrets', icon: KeyRound, note: 'Saved in .hydra/secrets and .hydra/secrets.<env>, ignored by git: on this machine only.' },
+]
 import Spinner from '@/components/ui/Spinner'
 
 /** Nom du fichier d'un workflow (workflows/<nom>.yaml), pour relier le schéma à l'éditeur. */
@@ -25,6 +35,9 @@ const fileName = (path: string | undefined, name: string) =>
 export default function ProjectSettings() {
   const { projectId } = useParams<{ projectId?: string }>()
   const navigate = useNavigate()
+  const [sp, setSp] = useSearchParams()
+  const tab: Tab = (['order', 'parameters', 'secrets'] as Tab[]).includes(sp.get('tab') as Tab) ? sp.get('tab') as Tab : 'order'
+  const setTab = (t: Tab) => setSp(t === 'order' ? {} : { tab: t }, { replace: true })
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects.list })
   const project = useQuery({
     queryKey: ['project', projectId], queryFn: () => api.projects.get(projectId!), enabled: !!projectId,
@@ -90,20 +103,39 @@ export default function ProjectSettings() {
           <h1 className="page-title" style={{ margin: 0 }}>{p.name}</h1>
           <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'monospace', margin: 0 }}>{p.path}</p>
           <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '2px 0 0' }}>
-            Saved in the project files (workflows/thread.yaml), for everyone who opens the project.
+            {TABS.find(t => t.id === tab)?.note}
           </p>
         </div>
+        <EnvSelector projectId={p.id} />
         {selector}
         <Link to={`/projects/${p.id}`} className="btn-secondary text-xs">
           <ChevronLeft size={13} /> Back to the project
         </Link>
       </div>
-      {workflows.isLoading
+      <div role="tablist" data-testid="project-settings-tabs"
+        style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--bg-border)', marginBottom: 12 }}>
+        {TABS.map(t => {
+          const Icon = t.icon
+          const active = t.id === tab
+          return (
+            <button key={t.id} role="tab" aria-selected={active} type="button" onClick={() => setTab(t.id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13,
+                fontWeight: 600, border: 'none', cursor: 'pointer', background: 'transparent', marginBottom: -1,
+                borderBottom: `2px solid ${active ? 'var(--primary)' : 'transparent'}`,
+                color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+              <Icon size={14} /> {t.label}
+            </button>
+          )
+        })}
+      </div>
+      {tab === 'parameters' && <div className="card"><ParametersPanel projectId={p.id} /></div>}
+      {tab === 'secrets' && <div className="card"><SecretsPanel projectId={p.id} /></div>}
+      {tab === 'order' && (workflows.isLoading
         ? <div className="flex justify-center py-10"><Spinner /></div>
         : (workflows.data?.length ?? 0) === 0
           ? <p className="text-sm" style={{ color: 'var(--text-muted)' }}>This project has no workflow yet.</p>
           : <ThreadEditor projectId={p.id} projectPath={p.path}
-              workflowIds={Object.fromEntries((workflows.data ?? []).map(w => [fileName(w.path, w.name), w.id]))} />}
+              workflowIds={Object.fromEntries((workflows.data ?? []).map(w => [fileName(w.path, w.name), w.id]))} />)}
     </div>
   )
 }

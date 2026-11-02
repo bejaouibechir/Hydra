@@ -198,3 +198,4 @@ class ActionNodeRequest(BaseModel):
     timeout: Optional[int] = 60
     job_name: Optional[str] = "action"
     params: Optional[Dict[str, str]] = None    # params SSH : host, port, username, password, key_path
+    env: Optional[str] = None                  # environnement actif (variables globales)

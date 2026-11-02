@@ -22,6 +22,30 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - `--env-file FILE` on `hdrctl run` and `hdrctl workflow run`: extra variables for one run, above every
   other layer. A missing file stops the run.
 - `hdrctl workflow run` accepts `--env` and `-P/--param`, like `hdrctl run`.
+- `hdrctl env list|show|create|rename|delete|set|unset`: environments and global variables. `create`
+  writes `~/.hydra/env.<name>` and, in a project, `environments/<name>.yaml`; `rename` and `delete` also
+  move/remove the parameter values and `.hydra/secrets.<name>`, after a copy to `~/.hydra/_backups/`.
+- `hdrctl param list|set|unset`: parameters of a project — declaration and default value in
+  `parameters.yaml` (`--type`, `--description`, `--required`), value per environment with `--env`.
+- `hdrctl secret list|set|delete`: secrets of a project, common or per environment (`--env`). The value
+  is typed hidden or read from stdin (`--stdin`), never passed as an argument; `list` shows names only.
+
+- Studio — active environment: a selector on the project page and in the editor header (shared, kept
+  per project). Run project, Run Workflow, running a job, a step or an action node use it: global variables,
+  parameter values and secrets of that environment. The Expression Assistant shows the same environment.
+- Studio — Global settings › Environments: create, rename and delete environments and edit their global
+  variables (`~/.hydra/env`, `~/.hydra/env.<env>`), saved on the machine that runs Hydra.
+- Studio — Project settings gets the tabs Execution order, Parameters (one column per environment;
+  `parameters.yaml` + `environments/<env>.yaml`) and Secrets (common or per environment, names only).
+- API: `/api/global-env` (environments and global variables; `/names` lists the environments of the machine
+  and of a project); `/api/secrets` accepts `env`; inline job and action runs accept `env`.
+
+### Fixed
+
+- `hdrctl run jobs/<job>` now reads the `.env` at the project root (the folder that contains `.hydra/`),
+  not only the one of the job's parent folder.
+- Studio runs with no environment selected sent `env: "default"`, which looked for `environments/default.yaml`;
+  "default" now means no environment.
 
 ## [0.17.0] — 2026-11-01
 

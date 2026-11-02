@@ -167,9 +167,11 @@ class SecretResolver:
             return value
 
         env_name = self._env_name(key)
+        active = os.environ.get("HYDRA_ENV")
+        files = f".hydra/secrets.{active}, .hydra/secrets" if active else ".hydra/secrets"
         raise SecretResolutionError(
             f"Missing secret: {key} — not in the environment ({env_name}) "
-            f"nor in the project secrets file (.hydra/secrets or {SECRETS_FILE_ENV})"
+            f"nor in the project secrets files ({files} or {SECRETS_FILE_ENV})"
         )
 
 

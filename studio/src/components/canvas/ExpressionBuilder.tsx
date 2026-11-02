@@ -18,7 +18,8 @@ import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { EXPR_CATEGORIES, rewriteFriendlyConcat } from '@/lib/exprBuilder'
-import { effectiveValue, getActiveEnv, setActiveEnv } from '@/lib/activeEnv'
+import { effectiveValue, useActiveEnv } from '@/lib/activeEnv'
+import EnvSelector from '@/components/EnvSelector'
 import { hasRef } from '@/components/canvas/RefPicker'
 
 export type AssistantMode = 'expression' | 'value'
@@ -64,20 +65,15 @@ export default function ExpressionBuilder({
     queryFn: () => api.parameters.get(projectId as string),
     enabled: Boolean(projectId) && !secretsOnly,
   })
+  // Environnement actif du projet (même valeur que la page du projet et l'en-tête de l'éditeur)
+  const [env] = useActiveEnv(projectId)
   const secretsQ = useQuery({
-    queryKey: ['secrets', projectId],
-    queryFn: () => api.secrets.list(projectId as string),
+    queryKey: ['secrets', projectId, env],
+    queryFn: () => api.secrets.list(projectId as string, env || null),
     enabled: Boolean(projectId) && mode === 'value',
   })
   const declarations = (paramsQ.data?.declarations ?? {}) as Record<string, Record<string, unknown>>
   const environments = (paramsQ.data?.environments ?? {}) as Record<string, Record<string, unknown>>
-  const envNames = Object.keys(environments).sort()
-  const [env, setEnv] = useState<string>(() => getActiveEnv(projectId) ?? '')
-  useEffect(() => {
-    if (!envNames.length) return
-    if (!envNames.includes(env)) setEnv(envNames.includes('dev') ? 'dev' : envNames[0])
-  }, [envNames.join('|')])                       // eslint-disable-line react-hooks/exhaustive-deps
-  const chooseEnv = (e: string) => { setEnv(e); setActiveEnv(projectId, e) }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
@@ -168,18 +164,7 @@ export default function ExpressionBuilder({
           <h2 style={{ margin: 0, flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
             Expression Assistant{fieldLabel ? <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> — {fieldLabel}</span> : null}
           </h2>
-          {!secretsOnly && (
-            <label title="Parameter values shown for this environment (environments/<env>.yaml)"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-              Environment:
-              {envNames.length ? (
-                <select value={env} onChange={e => chooseEnv(e.target.value)}
-                  style={{ background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 6, padding: '3px 6px', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer' }}>
-                  {envNames.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              ) : <span style={{ color: 'var(--text-muted)' }}>defaults only</span>}
-            </label>
-          )}
+          {!secretsOnly && <EnvSelector projectId={projectId} compact />}
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={15} /></button>
         </div>
 

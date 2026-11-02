@@ -32,7 +32,9 @@ def _isolated_hydra_home(tmp_path_factory, monkeypatch):
     monkeypatch.setenv(loader.HOME_ENV, str(tmp_path_factory.mktemp("hydra_home")))
     monkeypatch.delenv(loader.ENV_FILE_ENV, raising=False)
     monkeypatch.delenv("HYDRA_ENV", raising=False)
+    monkeypatch.delenv("HYDRA_SECRETS_FILE", raising=False)
     yield
     loader.restore_global_env()
-    for k in ("HYDRA_ENV", loader.ENV_FILE_ENV):     # posées par le CLI (--env, --env-file)
+    for k in ("HYDRA_ENV", loader.ENV_FILE_ENV,       # posées par le CLI (--env, --env-file,
+              "HYDRA_SECRETS_FILE"):                 # --secrets-file)
         os.environ.pop(k, None)

@@ -162,7 +162,16 @@ export interface SecretsInfo {
   file: string                 // chemin affiché (relatif au projet si possible)
   external: boolean            // fichier désigné par HYDRA_SECRETS_FILE
   exists: boolean
-  secrets: { name: string; overridden_by?: string | null }[]
+  secrets: { name: string; overridden_by?: string | null; scope?: string }[]
+  env?: string | null          // environnement demandé
+  env_file?: string | null     // .hydra/secrets.<env>
+}
+
+/** Variables globales (~/.hydra/env, ~/.hydra/env.<env>), partagées par tous les projets. */
+export interface GlobalEnvFile { name: string; vars: Record<string, string>; file: string }
+export interface GlobalEnvInfo { home: string; common: GlobalEnvFile; environments: GlobalEnvFile[] }
+export interface EnvNameInfo {
+  name: string; global_vars: number; params: number; secrets: number; in_global: boolean; in_project: boolean
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────
@@ -209,7 +218,7 @@ export const api = {
     start:   (body: { workflow_path: string; env?: string; step?: string }) => post<Run>('/runs', body),
     startInline: (body: { hdr_content: string; job_name?: string; work_dir?: string; env?: string; preview_up_to?: number }) =>
                   post<Run>('/runs/inline', body),
-    startAction: (body: { node_type: string; command: string; working_dir?: string; timeout?: number; job_name?: string; params?: Record<string, string> }) =>
+    startAction: (body: { node_type: string; command: string; working_dir?: string; timeout?: number; job_name?: string; params?: Record<string, string>; env?: string }) =>
                   post<Run>('/runs/inline/action', body),
     peek: (body: { dest: Record<string, unknown>; limit: number; work_dir?: string }) =>
                   post<{ columns: string[]; rows: Record<string, unknown>[]; error: string | null }>('/runs/peek', body),
@@ -274,12 +283,26 @@ export const api = {
   },
 
   secrets: {
-    list:   (projectId: string) =>
-      get<SecretsInfo>(`/secrets?project_id=${encodeURIComponent(projectId)}`),
-    set:    (projectId: string, name: string, value: string) =>
-      put<SecretsInfo>('/secrets', { project_id: projectId, name, value }),
-    remove: (projectId: string, name: string) =>
-      del<SecretsInfo>(`/secrets/${encodeURIComponent(name)}?project_id=${encodeURIComponent(projectId)}`),
+    list:   (projectId: string, env?: string | null) =>
+      get<SecretsInfo>(`/secrets?project_id=${encodeURIComponent(projectId)}${env ? `&env=${encodeURIComponent(env)}` : ''}`),
+    set:    (projectId: string, name: string, value: string, env?: string | null) =>
+      put<SecretsInfo>('/secrets', { project_id: projectId, name, value, env: env || null }),
+    remove: (projectId: string, name: string, env?: string | null) =>
+      del<SecretsInfo>(`/secrets/${encodeURIComponent(name)}?project_id=${encodeURIComponent(projectId)}${env ? `&env=${encodeURIComponent(env)}` : ''}`),
+  },
+
+  globalEnv: {
+    get:    () => get<GlobalEnvInfo>('/global-env'),
+    names:  (projectId?: string) =>
+      get<EnvNameInfo[]>(`/global-env/names${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`),
+    create: (name: string, projectId?: string) =>
+      post<GlobalEnvInfo>('/global-env/environments', { name, project_id: projectId ?? null }),
+    rename: (name: string, newName: string, projectId?: string) =>
+      put<GlobalEnvInfo>(`/global-env/environments/${encodeURIComponent(name)}`, { new_name: newName, project_id: projectId ?? null }),
+    remove: (name: string, projectId?: string) =>
+      del<GlobalEnvInfo>(`/global-env/environments/${encodeURIComponent(name)}${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`),
+    setVars: (env: string | null, vars: Record<string, string>) =>
+      put<GlobalEnvInfo>('/global-env/vars', { env, vars }),
   },
 
   parameters: {

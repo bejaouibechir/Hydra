@@ -22,6 +22,7 @@ router = APIRouter()
 class SecretInfo(BaseModel):
     name: str
     overridden_by: Optional[str] = None     # variable d'environnement prioritaire
+    scope: str = "common"                   # "common" ou le nom de l'environnement
 
 
 class SecretsResponse(BaseModel):
@@ -29,12 +30,15 @@ class SecretsResponse(BaseModel):
     external: bool                          # True : fichier désigné par HYDRA_SECRETS_FILE
     exists: bool
     secrets: List[SecretInfo]
+    env: Optional[str] = None               # environnement demandé
+    env_file: Optional[str] = None          # .hydra/secrets.<env>
 
 
 class SecretSet(BaseModel):
     project_id: str
     name: str
     value: str
+    env: Optional[str] = None               # None : secrets communs
 
 
 def _root(project_id: str) -> Path:
@@ -43,8 +47,24 @@ def _root(project_id: str) -> Path:
     return store._resolve_project_path(project_id)
 
 
-def _describe(root: Path) -> SecretsResponse:
+def _norm_env(env: Optional[str]) -> Optional[str]:
+    return None if env in (None, "", "default") else env
+
+
+def _target(root: Path, env: Optional[str]) -> Path:
+    from hydra_etl.internal.config.secrets import env_secrets_file
+    env = _norm_env(env)
+    if not env:
+        return secrets_file_for(root)
+    try:
+        return env_secrets_file(root, env)
+    except ValueError as e:
+        raise HTTPException(422, detail=str(e))
+
+
+def _describe(root: Path, env: Optional[str] = None) -> SecretsResponse:
     import os
+    env = _norm_env(env)
     f = secrets_file_for(root)
     try:
         shown = f.resolve().relative_to(root.resolve()).as_posix()
@@ -56,30 +76,48 @@ def _describe(root: Path) -> SecretsResponse:
             names = list(load_secrets_file(f))
         except SecretResolutionError as e:
             raise HTTPException(422, detail=str(e))
+    infos = [SecretInfo(name=n, overridden_by=env_override(n)) for n in names]
+    env_file = None
+    if env:
+        ef = _target(root, env)
+        env_file = f".hydra/{ef.name}"
+        env_names: List[str] = []
+        if ef.is_file():
+            try:
+                env_names = list(load_secrets_file(ef))
+            except SecretResolutionError as e:
+                raise HTTPException(422, detail=str(e))
+        infos = [i for i in infos if i.name not in env_names] + [
+            SecretInfo(name=n, overridden_by=env_override(n), scope=env) for n in env_names]
+        infos.sort(key=lambda i: i.name)
     return SecretsResponse(
         file=shown, external=bool(os.environ.get(SECRETS_FILE_ENV)), exists=f.is_file(),
-        secrets=[SecretInfo(name=n, overridden_by=env_override(n)) for n in names],
+        secrets=infos, env=env, env_file=env_file,
     )
 
 
 @router.get("", response_model=SecretsResponse)
-def list_secrets(project_id: str = Query(...)):
-    return _describe(_root(project_id))
+def list_secrets(project_id: str = Query(...), env: Optional[str] = None):
+    return _describe(_root(project_id), env)
 
 
 @router.put("", response_model=SecretsResponse)
 def put_secret(body: SecretSet):
     root = _root(body.project_id)
     try:
-        set_secret(secrets_file_for(root), body.name, body.value)
+        set_secret(_target(root, body.env), body.name, body.value)
     except SecretResolutionError as e:
         raise HTTPException(422, detail=str(e))
-    return _describe(root)
+    return _describe(root, body.env)
 
 
 @router.delete("/{name}", response_model=SecretsResponse)
-def remove_secret(name: str, project_id: str = Query(...)):
+def remove_secret(name: str, project_id: str = Query(...), env: Optional[str] = None):
     root = _root(project_id)
-    if not delete_secret(secrets_file_for(root), name):
+    try:
+        found = delete_secret(_target(root, env), name)
+    except SecretResolutionError as e:
+        raise HTTPException(422, detail=str(e))
+    if not found:
         raise HTTPException(404, detail=f"Secret '{name}' not found")
-    return _describe(root)
+    return _describe(root, env)

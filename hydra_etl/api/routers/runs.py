@@ -33,8 +33,14 @@ def _now() -> str:
 # Execution asynchrone (thread background) -- Workflow complet
 # ---------------------------------------------------------------------------
 
+def _norm_env(env: Optional[str]) -> Optional[str]:
+    """'default' / '' : aucun environnement (comportement sans --env)."""
+    return None if env in (None, "", "default") else env
+
+
 def _execute_workflow(run_id: str, workflow_path: str, step: Optional[str], env: Optional[str] = None) -> None:
     """Execute le workflow dans un thread -- met a jour le store a la fin."""
+    env = _norm_env(env)
     from hydra_etl.workflow.parser import load_workflow
     from hydra_etl.workflow.runner import WorkflowRunner
 
@@ -238,7 +244,8 @@ def _resolve_paths_in_section(section: dict, base: "Path") -> dict:
     return resolved
 
 
-def _execute_inline_job(run_id: str, hdr_content: str, job_name: str, work_dir: Optional[str], preview_up_to: Optional[int] = None) -> None:
+def _execute_inline_job(run_id: str, hdr_content: str, job_name: str, work_dir: Optional[str],
+                        preview_up_to: Optional[int] = None, env: Optional[str] = None) -> None:
     """Convertit un .hdr en job temporaire et l\'execute via JobExecutor."""
     import shutil
     import tempfile
@@ -326,6 +333,7 @@ def _execute_inline_job(run_id: str, hdr_content: str, job_name: str, work_dir: 
             job_dir=tmp_dir,
             root_dir=root,
             path_base=Path(work_dir) if work_dir else None,
+            env=_norm_env(env),
         )
         result = executor.run()
 
@@ -415,7 +423,8 @@ def run_inline_job(body: InlineJobRequest, background_tasks: BackgroundTasks):
         started_at=_now(),
     )
     store.save_run(run)
-    background_tasks.add_task(_execute_inline_job, run_id, body.hdr_content, job_name, body.work_dir, body.preview_up_to)
+    background_tasks.add_task(_execute_inline_job, run_id, body.hdr_content, job_name, body.work_dir,
+                              body.preview_up_to, body.env)
     return run
 
 
@@ -476,6 +485,7 @@ def run_inline_action(body: ActionNodeRequest, background_tasks: BackgroundTasks
         body.timeout or 60,
         body.job_name or body.node_type,
         body.params,
+        body.env,
     )
     return run
 
@@ -551,9 +561,17 @@ def _execute_action_node(
     timeout: int,
     job_name: str,
     params: Optional[dict] = None,
+    env: Optional[str] = None,
 ) -> None:
     """Execute une commande shell et stocke stdout dans output_text."""
     import subprocess
+
+    # Variables globales de l'environnement actif (~/.hydra/env, env.<env>)
+    try:
+        from hydra_etl.internal.config.loader import apply_global_env
+        apply_global_env(_norm_env(env))
+    except Exception:
+        pass
 
     run = store.get_run(run_id)
     if not run:

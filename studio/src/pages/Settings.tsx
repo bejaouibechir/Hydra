@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Globe, FolderCog } from 'lucide-react'
+import EnvironmentsManager from '@/components/settings/EnvironmentsManager'
 
 export interface AppSettings {
   autosave_enabled: boolean
@@ -80,10 +81,11 @@ export function GlobalSettings() {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 520 }}>
+    <div className="card" style={{ maxWidth: 720 }}>
       <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Global settings</h2>
       <p className="text-slate-400 text-sm" style={{ marginBottom: 20 }}>
-        Hydra Studio editor preferences, for every project. Kept in this browser only.
+        Settings for every project. The editor preferences are kept in this browser; the environments are
+        saved on this machine.
       </p>
 
       <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
@@ -107,6 +109,7 @@ export function GlobalSettings() {
           rows (default: 10) — used when you right-click a destination and select “View data”.
         </span>
       </div>
+      <EnvironmentsManager />
       <label style={{ display: 'block', fontSize: 13, fontWeight: 600, margin: '22px 0 6px' }}>
         Job files — automatic sync with the disk
       </label>

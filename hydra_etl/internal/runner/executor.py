@@ -109,7 +109,14 @@ class JobExecutor:
         except Exception as e:
             logger.warning(f"Could not load the global environment variables: {e}")
         try:
-            root_env_path = self.root_dir / ".env" if (self.root_dir / ".env").exists() else None
+            # .env du projet : root_dir, sinon la racine du projet (dossier qui
+            # contient .hydra/) — `hdrctl run jobs/x` a root_dir = jobs/.
+            from hydra_etl.internal.config.secrets import _project_root
+            candidates = [self.root_dir]
+            proj_root = _project_root(self.job_dir) or _project_root(self.root_dir)
+            if proj_root is not None:
+                candidates.append(proj_root)
+            root_env_path = next((d / ".env" for d in candidates if (d / ".env").is_file()), None)
             job_env_path = self.job_dir / ".env" if (self.job_dir / ".env").exists() else None
             
             env_report = load_env_layers(

@@ -2409,6 +2409,316 @@ def cmd_job_detach(name: str, workflow: Optional[str], project: Optional[str]) -
     click.echo()
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# hdrctl env | param | secret — environnements, variables, paramètres, secrets
+# ═══════════════════════════════════════════════════════════════════════
+
+def _optional_project(project: Optional[str]) -> Optional[Path]:
+    """Projet courant s'il y en a un (les variables globales n'en ont pas besoin)."""
+    from hydra_etl.workflow.project import ProjectError, require_project
+    try:
+        return require_project(project)
+    except ProjectError:
+        if project:
+            error_box(t("workflow.not_in_project", path=str(Path(project).resolve())))
+            sys.exit(1)
+        return None
+
+
+def _admin_call(fn, *args, **kwargs):
+    from hydra_etl.internal.config.env_admin import EnvAdminError
+    try:
+        return fn(*args, **kwargs)
+    except EnvAdminError as e:
+        error_box(str(e))
+        sys.exit(1)
+
+
+def _env_option(help_key: str):
+    return click.option("--env", "env_name", default=None, metavar="NAME", help=t(help_key))
+
+
+@cli.group("env", invoke_without_command=False, help=t("help.env.docstring"))
+@_lang_option
+def cmd_env() -> None:
+    """Groupe env."""
+    pass
+
+
+@cmd_env.command("list", help=t("help.env.list.docstring"))
+@_lang_option
+@_project_option
+def cmd_env_list(project: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import global_vars, list_environments
+    from hydra_etl.internal.config.loader import hydra_home
+    root = _optional_project(project)
+    items = _admin_call(list_environments, root)
+    info(t("env.list.title", home=c(C.DM, str(hydra_home())))
+         + (f"  {c(C.DM, t('env.list.project', path=str(root)))}" if root else ""))
+    click.echo(c(C.DM, "  " + "─" * 56))
+    common = len(global_vars(None))
+    click.echo(f"  {c(C.WH, t('env.list.common').ljust(16))}  {t('env.list.vars', n=common)}")
+    if not items:
+        info(t("env.list.none"))
+    for it in items:
+        parts = [t("env.list.vars", n=it.global_vars) if it.global_file else c(C.DM, t("env.list.no_vars"))]
+        if root:
+            parts.append(t("env.list.params", n=it.params) if it.project_file else c(C.DM, t("env.list.no_params")))
+            parts.append(t("env.list.secrets", n=it.secrets) if it.secrets_file else c(C.DM, t("env.list.no_secrets")))
+        click.echo(f"  {c(C.CY, it.name.ljust(16))}  " + c(C.DM, " · ").join(parts))
+    click.echo()
+    active = os.environ.get("HYDRA_ENV")
+    if active:
+        info(t("env.list.active", name=active))
+    info(t("env.list.hint"))
+    click.echo()
+
+
+@cmd_env.command("show", help=t("help.env.show.docstring"))
+@_lang_option
+@click.argument("name", required=False)
+def cmd_env_show(name: Optional[str]) -> None:
+    from hydra_etl.internal.config.loader import global_env_file
+    from hydra_etl.internal.config.env_admin import global_vars
+    values = _admin_call(global_vars, name)
+    path = _admin_call(global_env_file, name)
+    info(t("env.show.title", scope=name or t("env.list.common")) + f"  {c(C.DM, str(path))}")
+    click.echo(c(C.DM, "  " + "─" * 56))
+    if not values:
+        info(t("env.show.none"))
+    width = max((len(k) for k in values), default=0)
+    for k, v in values.items():
+        click.echo(f"  {c(C.WH, k.ljust(width))}  {v}")
+    click.echo()
+
+
+@cmd_env.command("create", help=t("help.env.create.docstring"))
+@_lang_option
+@click.argument("name")
+@_project_option
+@click.option("--global-only", is_flag=True, default=False, help=t("help.env.global_only"))
+def cmd_env_create(name: str, project: Optional[str], global_only: bool) -> None:
+    from hydra_etl.internal.config.env_admin import create_environment
+    root = _optional_project(project)
+    created = _admin_call(create_environment, name, root, global_only=global_only)
+    success_box(t("env.create.success", name=name))
+    for p in created:
+        info(t("env.created_file", path=str(p)))
+    click.echo()
+
+
+@cmd_env.command("rename", help=t("help.env.rename.docstring"))
+@_lang_option
+@click.argument("old")
+@click.argument("new")
+@_project_option
+def cmd_env_rename(old: str, new: str, project: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import rename_environment
+    root = _optional_project(project)
+    moves = _admin_call(rename_environment, old, new, root)
+    success_box(t("env.rename.success", old=old, new=new))
+    for s, d in moves:
+        info(f"{s.name} → {d}")
+    info(t("env.rename.note"))
+    click.echo()
+
+
+@cmd_env.command("delete", help=t("help.env.delete.docstring"))
+@_lang_option
+@click.argument("name")
+@_project_option
+@click.option("--keep-secrets", is_flag=True, default=False, help=t("help.env.keep_secrets"))
+@click.option("-y", "--yes", is_flag=True, default=False, help=t("help.env.yes"))
+def cmd_env_delete(name: str, project: Optional[str], keep_secrets: bool, yes: bool) -> None:
+    from hydra_etl.internal.config.env_admin import delete_environment
+    root = _optional_project(project)
+    if not yes and not click.confirm(t("env.delete.confirm", name=name), default=False):
+        info(t("env.cancelled"))
+        return
+    paths, saved = _admin_call(delete_environment, name, root, keep_secrets=keep_secrets)
+    success_box(t("env.delete.success", name=name))
+    for p in paths:
+        info(t("env.deleted_file", path=str(p)))
+    if saved:
+        info(t("env.backup", path=str(saved)))
+    click.echo()
+
+
+@cmd_env.command("set", help=t("help.env.set.docstring"))
+@_lang_option
+@click.argument("key")
+@click.argument("value")
+@_env_option("help.env.set.env")
+def cmd_env_set(key: str, value: str, env_name: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import set_global_var
+    path = _admin_call(set_global_var, env_name, key, value)
+    ok(t("env.set.success", var=key, scope=env_name or t("env.list.common"), path=str(path)))
+
+
+@cmd_env.command("unset", help=t("help.env.unset.docstring"))
+@_lang_option
+@click.argument("key")
+@_env_option("help.env.set.env")
+def cmd_env_unset(key: str, env_name: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import unset_global_var
+    if not _admin_call(unset_global_var, env_name, key):
+        error_box(t("env.unset.not_found", var=key, scope=env_name or t("env.list.common")))
+        sys.exit(1)
+    ok(t("env.unset.success", var=key, scope=env_name or t("env.list.common")))
+
+
+# ── param ──────────────────────────────────────────────────────────────
+
+@cli.group("param", invoke_without_command=False, help=t("help.param.docstring"))
+@_lang_option
+def cmd_param() -> None:
+    """Groupe param."""
+    pass
+
+
+def _short(v) -> str:
+    import json as _json
+    if v is None:
+        return "—"
+    s = v if isinstance(v, str) else _json.dumps(v, ensure_ascii=False)
+    return s if len(s) <= 24 else s[:21] + "…"
+
+
+@cmd_param.command("list", help=t("help.param.list.docstring"))
+@_lang_option
+@_project_option
+@_env_option("help.param.list.env")
+def cmd_param_list(project: Optional[str], env_name: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import read_parameters
+    root = _project_or_exit(project)
+    view = _admin_call(read_parameters, root)
+    envs = [env_name] if env_name else sorted(view.environments)
+    info(t("param.list.title", name=c(C.CY, root.name)) + f"  {c(C.DM, str(root))}")
+    names = list(view.declarations) + sorted(
+        {n for e in view.environments.values() for n in e} - set(view.declarations))
+    if not names:
+        info(t("param.list.none"))
+        click.echo()
+        return
+    headers = [t("param.col.name"), t("param.col.type"), t("param.col.default")] + envs
+    rows = []
+    for n in names:
+        d = view.declarations.get(n)
+        typ = (d or {}).get("type", "any") if d else c(C.YL, t("param.undeclared"))
+        default = _short((d or {}).get("default")) if d else "—"
+        if d and d.get("required"):
+            default += " *"
+        cells = [n, str(typ), default]
+        for e in envs:
+            vals = view.environments.get(e, {})
+            cells.append(_short(vals[n]) if n in vals else c(C.DM, "·"))
+        rows.append(cells)
+    import re as _re
+    plain = lambda s: _re.sub(r"\033\[[0-9;]*m", "", s)
+    widths = [max(len(plain(r[i])) for r in rows + [headers]) for i in range(len(headers))]
+    click.echo(c(C.DM, "  " + "  ".join(h.ljust(widths[i]) for i, h in enumerate(headers))))
+    for r in rows:
+        click.echo("  " + "  ".join(r[i] + " " * (widths[i] - len(plain(r[i]))) for i in range(len(r))))
+    click.echo()
+    info(t("param.list.legend"))
+    click.echo()
+
+
+@cmd_param.command("set", help=t("help.param.set.docstring"))
+@_lang_option
+@click.argument("name")
+@click.argument("value", required=False)
+@_project_option
+@_env_option("help.param.set.env")
+@click.option("--type", "typ", default=None,
+              type=click.Choice(["string", "int", "float", "bool", "json", "any"]), help=t("help.param.type"))
+@click.option("--description", default=None, help=t("help.param.description"))
+@click.option("--required/--optional", "required", default=None, help=t("help.param.required"))
+def cmd_param_set(name: str, value: Optional[str], project: Optional[str], env_name: Optional[str],
+                  typ: Optional[str], description: Optional[str], required: Optional[bool]) -> None:
+    from hydra_etl.internal.config.env_admin import set_parameter
+    root = _project_or_exit(project)
+    path = _admin_call(set_parameter, root, name, value, env_name, typ=typ,
+                       description=description, required=required)
+    ok(t("param.set.success", name=name, scope=env_name or t("param.default_scope"),
+         path=str(path.relative_to(root))))
+
+
+@cmd_param.command("unset", help=t("help.param.unset.docstring"))
+@_lang_option
+@click.argument("name")
+@_project_option
+@_env_option("help.param.unset.env")
+def cmd_param_unset(name: str, project: Optional[str], env_name: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import unset_parameter
+    root = _project_or_exit(project)
+    changed = _admin_call(unset_parameter, root, name, env_name)
+    ok(t("param.unset.success", name=name, files=", ".join(str(p.relative_to(root)) for p in changed)))
+
+
+# ── secret ─────────────────────────────────────────────────────────────
+
+@cli.group("secret", invoke_without_command=False, help=t("help.secret.docstring"))
+@_lang_option
+def cmd_secret() -> None:
+    """Groupe secret."""
+    pass
+
+
+@cmd_secret.command("list", help=t("help.secret.list.docstring"))
+@_lang_option
+@_project_option
+@_env_option("help.secret.list.env")
+def cmd_secret_list(project: Optional[str], env_name: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import list_secrets, secrets_path
+    root = _project_or_exit(project)
+    entries = _admin_call(list_secrets, root, env_name)
+    info(t("secret.list.title", name=c(C.CY, root.name)) + f"  {c(C.DM, str(secrets_path(root)))}")
+    if env_name:
+        info(t("secret.list.env_file", env=env_name, path=str(_admin_call(secrets_path, root, env_name))))
+    click.echo(c(C.DM, "  " + "─" * 56))
+    if not entries:
+        info(t("secret.list.none"))
+    width = max((len(e.name) for e in entries), default=0)
+    for e in entries:
+        extra = f"  {c(C.YL, t('secret.list.overridden', var=e.overridden_by))}" if e.overridden_by else ""
+        click.echo(f"  {c(C.WH, e.name.ljust(width))}  {c(C.DM, e.scope)}  {c(C.DM, '••••••')}{extra}")
+    click.echo()
+
+
+@cmd_secret.command("set", help=t("help.secret.set.docstring"))
+@_lang_option
+@click.argument("name")
+@_project_option
+@_env_option("help.secret.set.env")
+@click.option("--stdin", "from_stdin", is_flag=True, default=False, help=t("help.secret.stdin"))
+def cmd_secret_set(name: str, project: Optional[str], env_name: Optional[str], from_stdin: bool) -> None:
+    from hydra_etl.internal.config.env_admin import set_secret_value
+    root = _project_or_exit(project)
+    if from_stdin:
+        value = sys.stdin.readline().rstrip("\r\n")
+    else:
+        value = click.prompt(t("secret.set.prompt", name=name), hide_input=True,
+                             confirmation_prompt=t("secret.set.confirm"))
+    if value == "":
+        error_box(t("secret.set.empty"))
+        sys.exit(1)
+    path = _admin_call(set_secret_value, root, name, value, env_name)
+    ok(t("secret.set.success", name=name, path=str(path)))
+
+
+@cmd_secret.command("delete", help=t("help.secret.delete.docstring"))
+@_lang_option
+@click.argument("name")
+@_project_option
+@_env_option("help.secret.set.env")
+def cmd_secret_delete(name: str, project: Optional[str], env_name: Optional[str]) -> None:
+    from hydra_etl.internal.config.env_admin import delete_secret_value
+    root = _project_or_exit(project)
+    path = _admin_call(delete_secret_value, root, name, env_name)
+    ok(t("secret.delete.success", name=name, path=str(path)))
+
+
 @cli.command("serve", help="Start the Hydra API and the Studio.")
 @_lang_option
 @click.option("--host", default="127.0.0.1", show_default=True, help="Listen address.")

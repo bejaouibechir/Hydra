@@ -10,6 +10,8 @@ import EmptyState from '@/components/ui/EmptyState'
 import Spinner from '@/components/ui/Spinner'
 import Modal from '@/components/ui/Modal'
 import { projectSettingsPath, rememberProject } from '@/lib/lastProject'
+import EnvSelector from '@/components/EnvSelector'
+import { envForRun } from '@/lib/activeEnv'
 import * as yaml from 'js-yaml'
 import { sectionYamlsToJobModel, jobModelToFlow, type JobSectionYamls } from '@/lib/hdrSerializer'
 import { buildWorkflowLayout, type ImportStep } from '@/lib/workflowImport'
@@ -262,7 +264,7 @@ export default function ProjectDetail() {
       setRunErrors(null)
       const c = await api.projects.check(projectId!)
       if (!c.ok) { setRunErrors(c.errors); return null }
-      return api.runs.start({ workflow_path: project.data!.path })
+      return api.runs.start({ workflow_path: project.data!.path, env: envForRun(projectId) })
     },
     onSuccess: r => { if (r) navigate(`/runs/${r.run_id}`) },
     onError: e => setRunErrors([(e as Error).message]),
@@ -339,8 +341,11 @@ export default function ProjectDetail() {
     : t === 'webhook' ? <Webhook size={16} style={{ color: '#8b5cf6' }} />
     : <GitBranch size={16} style={{ color: '#8b5cf6' }} />
 
+  // Boutons de l'en-tête : une seule ligne de texte, hauteur réduite
+  const headerBtn: React.CSSProperties = { whiteSpace: 'nowrap', height: 34, padding: '0 14px', fontSize: 13 }
+
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
         <Link to="/overview" className="flex items-center gap-1 hover:opacity-70 transition-opacity">
@@ -350,25 +355,21 @@ export default function ProjectDetail() {
         <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{project.data.name}</span>
       </div>
 
-      <div className="page-header">
-        <div>
-          <div className="flex items-center gap-3">
-            <img src="/Hydra.png" alt="" style={{ width: 30, height: 30, objectFit: 'contain' }} />
-            <div>
-              <h1 className="page-title" style={{ margin: 0 }}>{project.data.name}</h1>
-              <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'monospace', margin: 0 }}>
-                {project.data.path}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {workflows.data?.length ?? 0} workflow{(workflows.data?.length ?? 0) > 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
+      {/* En-tête : identité du projet à gauche, actions sur une ligne à droite */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
+        <img src="/Hydra.png" alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <h1 className="page-title" style={{ margin: 0 }}>{project.data.name}</h1>
+          <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '2px 0 0' }}>
+            <span style={{ fontFamily: 'monospace' }}>{project.data.path}</span>
+            <span style={{ margin: '0 6px' }}>·</span>
+            {workflows.data?.length ?? 0} workflow{(workflows.data?.length ?? 0) > 1 ? 's' : ''}
+          </p>
           {project.data.description && (
-            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{project.data.description}</p>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)', margin: '4px 0 0' }}>{project.data.description}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {/* Import Workflow depuis un dossier (webkitdirectory) */}
           <input
             ref={importRef}
@@ -379,34 +380,44 @@ export default function ProjectDetail() {
             webkitdirectory=""
             mozdirectory=""
           />
-          <Link to={projectSettingsPath(projectId!)} className="btn-secondary" data-testid="project-settings-link"
-            title="Execution order (stages, delays, loops, fallbacks) and Check">
-            <FolderCog size={15} /> Project settings
+          <button className="btn-secondary" style={headerBtn} onClick={() => importRef.current?.click()} disabled={importMut.isPending}>
+            <Upload size={14} /> {importMut.isPending ? 'Importing…' : 'Import workflow'}
+          </button>
+          <Link to={projectSettingsPath(projectId!)} className="btn-secondary" style={headerBtn} data-testid="project-settings-link"
+            title="Execution order, parameters and secrets of the project">
+            <FolderCog size={14} /> Project settings
           </Link>
+          <button className="btn-primary" style={headerBtn} onClick={() => setShowCreate(true)}>
+            <Plus size={14} /> New workflow
+          </button>
           <button className="btn-primary" onClick={() => runProject.mutate()} data-testid="run-project"
             disabled={runProject.isPending || (workflows.data?.length ?? 0) === 0}
-            style={{ background: 'var(--success)', borderColor: 'var(--success)' }}
+            style={{ ...headerBtn, background: 'var(--success)', borderColor: 'var(--success)' }}
             title="Check the project, then run every active workflow in the order of workflows/thread.yaml (like hdrctl run)">
-            {runProject.isPending ? <Spinner size="sm" /> : <Play size={15} fill="currentColor" />} Run project
-          </button>
-          <button className="btn-secondary" onClick={() => importRef.current?.click()} disabled={importMut.isPending}>
-            <Upload size={15} /> {importMut.isPending ? 'Importing…' : 'Import workflow'}
-          </button>
-          <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus size={16} /> New workflow
+            {runProject.isPending ? <Spinner size="sm" /> : <Play size={14} fill="currentColor" />} Run project
           </button>
         </div>
-        {importError && (
-          <p className="text-xs mt-1 text-right" style={{ color: 'var(--error)' }}>{importError}</p>
-        )}
-        {runErrors && (
-          <div data-testid="run-project-errors" className="text-xs mt-1" style={{ color: 'var(--error)' }}>
-            {runErrors.map((e, i) => <div key={i} style={{ fontFamily: 'monospace' }}>✗ {e}</div>)}
-            <Link to={projectSettingsPath(projectId!)} style={{ color: 'var(--primary)' }}>Open Project settings</Link>
-          </div>
-        )}
       </div>
 
+      {/* Barre d'environnement : s'applique aux runs lancés depuis Studio */}
+      <div data-testid="project-env-bar"
+        style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '8px 14px',
+          marginBottom: 20, borderRadius: 10, border: '1px solid var(--bg-border)', background: 'var(--bg-card)' }}>
+        <EnvSelector projectId={projectId} />
+        <span className="text-xs" style={{ color: 'var(--text-muted)', flex: 1, minWidth: 220 }}>
+          Runs started from Studio use this environment: its global variables, parameter values and secrets.
+        </span>
+      </div>
+
+      {importError && (
+        <p className="text-xs" style={{ color: 'var(--error)', margin: '-10px 0 12px' }}>{importError}</p>
+      )}
+      {runErrors && (
+        <div data-testid="run-project-errors" className="text-xs" style={{ color: 'var(--error)', margin: '-10px 0 12px' }}>
+          {runErrors.map((e, i) => <div key={i} style={{ fontFamily: 'monospace' }}>✗ {e}</div>)}
+          <Link to={projectSettingsPath(projectId!)} style={{ color: 'var(--primary)' }}>Open Project settings</Link>
+        </div>
+      )}
 
       {orderError && <p className="text-xs" style={{ color: 'var(--error)', textAlign: 'center', margin: '0 0 10px' }}>{orderError}</p>}
       {workflows.isLoading

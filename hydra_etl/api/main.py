@@ -31,6 +31,7 @@ from hydra_etl.api.routers import (
     parameters,
     secrets,
     thread,
+    global_env,
 )
 
 
@@ -85,6 +86,7 @@ app.include_router(terminal.router,     prefix="/api/terminal",     tags=["Termi
 app.include_router(transform.router,    prefix="/api/transform",    tags=["Transform"])
 app.include_router(parameters.router,   prefix="/api/parameters",   tags=["Parameters"])
 app.include_router(secrets.router,      prefix="/api/secrets",      tags=["Secrets"])
+app.include_router(global_env.router,   prefix="/api/global-env",   tags=["Environments"])
 
 # Studio — TOUJOURS en dernier : le montage racine capterait sinon les routes
 # ci-dessus. Sans bundle, l'API reste entièrement fonctionnelle.

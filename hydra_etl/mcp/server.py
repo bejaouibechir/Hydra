@@ -792,6 +792,73 @@ def build_server() -> Any:
             out.append("\nOK — no cycle, every called project found.")
         return "\n".join(out)
 
+    # -- Déclencheurs de projet (lecture seule) -------------------------------
+
+    @server.tool(
+        description=(
+            "Show the triggers of a Hydra project (triggers.yaml), read-only: "
+            "each trigger with its type and event (cron, interval, file, marker, "
+            "source_change, webhook, after_project), what it runs (environment, "
+            "workflows), its next run for cron and interval, its last run from "
+            "the history, then the problems that `hdrctl trigger validate` would "
+            "report. Token values are never returned (names only). Call this "
+            "before writing or changing triggers.yaml, and after, to check it."
+        )
+    ,
+        annotations=_annot(**LECTURE, title="Read-only"))
+    def hydra_project_triggers(project_path: str = ".") -> str:
+        from datetime import datetime, timezone
+        from hydra_etl.triggers.core import check_triggers, last_runs
+        from hydra_etl.triggers.engine import next_time
+        from hydra_etl.triggers.models import TriggerFileError, load_triggers
+        try:
+            root = safe_path(project_path)
+        except ValueError as exc:
+            return f"REFUSED — {exc}"
+        if not (root / ".hydra").is_dir():
+            return (f"Not a Hydra project: {project_path} (no .hydra/ folder). "
+                    "Give the folder that contains .hydra/.")
+        try:
+            tf = load_triggers(root)
+        except TriggerFileError as exc:
+            return "triggers.yaml is invalid:\n" + "\n".join(f"  - {e}" for e in exc.errors)
+        if not tf.triggers:
+            return (f"Project: {root.name}\nNo trigger (no triggers.yaml, or an empty one). "
+                    "Triggers run the project at a time, on a file, a source change, a webhook "
+                    "or after another project; they run inside hdrctl watch / hdrctl serve.")
+        check = check_triggers(root, tf)
+        last = last_runs(root)
+        now = datetime.now(timezone.utc)
+        out = [f"Project: {root.name}", "", "Triggers:"]
+        for t in tf.triggers:
+            state = "on" if t.enabled else "off"
+            out.append(f"  [{state}] {t.name} ({t.type}): {t.when()}")
+            out.append(f"      runs: {', '.join(t.workflows) if t.workflows else 'thread.yaml'}"
+                       f" · env: {t.env or 'from watch/serve'} · overlap: {t.overlap}"
+                       + (f" · retry: {t.retry.max} x {t.retry.delay}" if t.retry else ""))
+            if t.type == "webhook":
+                out.append(f"      token: secret '{str(t.token).strip()[9:-1]}' (value never shown)")
+            if t.enabled and t.type in ("cron", "interval"):
+                try:
+                    nxt = next_time(t, now)
+                    if t.type == "cron" and nxt:
+                        out.append(f"      next run: {nxt.astimezone().strftime('%Y-%m-%d %H:%M')}")
+                except Exception:  # noqa: BLE001
+                    pass
+            e = last.get(t.name)
+            if e:
+                out.append(f"      last run: {e.get('status')} at {e.get('at')} ({e.get('origin')})"
+                           + (f" — {e.get('error')}" if e.get("error") else ""))
+        if check.errors:
+            out.append("\nErrors (hdrctl trigger validate fails):")
+            out.extend(f"  - {x}" for x in check.errors)
+        if check.warnings:
+            out.append("\nWarnings:")
+            out.extend(f"  - {x}" for x in check.warnings)
+        if not check.errors:
+            out.append("\nOK — triggers valid.")
+        return "\n".join(out)
+
     # -- Voir les données ----------------------------------------------------
 
     @server.tool(

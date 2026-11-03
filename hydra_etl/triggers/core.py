@@ -138,7 +138,7 @@ def check_triggers(root: Path, tf: Optional[TriggerFile] = None) -> TriggerCheck
             name = str(t.token).strip()[len("${SECRET:"):-1]
             if not _secret_known(root, name):
                 res.warnings.append(f"{where}: secret '{name}' is not set yet "
-                                    f"(hdrctl secret set {name})")
+                                    f"(hdrctl trigger token {t.name})")
         if t.type == "after_project":
             try:
                 other = resolve_project(t.project, root, t.ref)
@@ -154,6 +154,40 @@ def check_triggers(root: Path, tf: Optional[TriggerFile] = None) -> TriggerCheck
         res.errors.append("after_project loop: " + " → ".join(names)
                           + " (each end would start the next one forever)")
     return res
+
+
+# ── Jeton d'un webhook ─────────────────────────────────────────────────────
+
+class TokenExists(Exception):
+    """Le secret du jeton existe déjà (rotate=False)."""
+
+
+def token_secret(t: ProjectTrigger) -> str:
+    """Nom du secret désigné par `token: ${SECRET:nom}`."""
+    return str(t.token).strip()[len("${SECRET:"):-1]
+
+
+def token_is_set(root: Path, t: ProjectTrigger) -> bool:
+    return t.type == "webhook" and _secret_known(Path(root), token_secret(t))
+
+
+def create_token(root: Path, t: ProjectTrigger, env: Optional[str] = None,
+                 rotate: bool = False) -> "tuple[str, str, Path]":
+    """Crée (ou remplace) le jeton d'un déclencheur webhook : valeur aléatoire écrite
+    comme secret (.hydra/secrets, ou .hydra/secrets.<env>). Rend (valeur, secret, fichier).
+    La valeur n'est rendue qu'ici : elle n'est jamais relue ni affichée ailleurs."""
+    import secrets as _secrets
+    from hydra_etl.internal.config import env_admin as ea
+    if t.type != "webhook":
+        raise ValueError(f"'{t.name}' is not a webhook trigger")
+    secret = token_secret(t)
+    scope = env or t.env
+    existing = {s.name for s in ea.list_secrets(Path(root), scope) if s.scope == (scope or "common")}
+    if secret in existing and not rotate:
+        raise TokenExists(f"secret '{secret}' is already set")
+    value = _secrets.token_urlsafe(32)
+    path = ea.set_secret_value(Path(root), secret, value, scope)
+    return value, secret, path
 
 
 # ── Historique ─────────────────────────────────────────────────────────────
@@ -210,6 +244,57 @@ def last_runs(root: Path) -> Dict[str, Dict[str, Any]]:
     return out
 
 
+# ── Fins de projet (after_project) ─────────────────────────────────────────
+
+ENDS_FILE = "ends.jsonl"
+
+
+def ends_file(root: Path) -> Path:
+    return Path(root) / HISTORY_DIR / ENDS_FILE
+
+
+def record_end(root: Path, success: bool, workflows: List[str], duration: float,
+               env: Optional[str] = None) -> None:
+    """Note la fin d'un run de projet dans .hydra/triggers/ends.jsonl (1000 dernières)."""
+    f = ends_file(root)
+    entry = {"ts": time.time(), "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+             "status": "success" if success else "failed", "workflows": workflows,
+             "duration": round(duration, 2), "env": env}
+    with _HISTORY_LOCK:
+        try:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            ign = f.parent / ".gitignore"
+            if not ign.exists():
+                ign.write_text("*\n", encoding="utf-8")
+            with f.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry) + "\n")
+            if f.stat().st_size > 300_000:
+                lines = f.read_text(encoding="utf-8").splitlines()[-HISTORY_KEEP:]
+                tmp = f.with_suffix(".tmp")
+                tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                os.replace(tmp, f)
+        except OSError as e:
+            log.warning("project end not recorded (%s): %s", f, e)
+
+
+def read_ends(root: Path, after_ts: float = 0.0) -> List[Dict[str, Any]]:
+    """Fins de projet notées après `after_ts` (secondes epoch), dans l'ordre."""
+    f = ends_file(root)
+    out = []
+    try:
+        lines = f.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return []
+    for line in lines:
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if float(e.get("ts") or 0) > after_ts:
+            out.append(e)
+    return out
+
+
 # ── Lancement ──────────────────────────────────────────────────────────────
 
 @dataclass
@@ -224,18 +309,21 @@ class FireResult:
 
 def fire(root: Path, trig: ProjectTrigger, *, origin: str = "manual", env: Optional[str] = None,
          detail: Optional[str] = None, retry: bool = True,
-         stop: Optional[threading.Event] = None, logger: Any = None) -> FireResult:
+         stop: Optional[threading.Event] = None, logger: Any = None,
+         extra_params: Optional[Dict[str, Any]] = None) -> FireResult:
     """Lance le projet comme le déclencheur `trig` : son env (sinon `env`),
     ses workflows, params, overlap, timeout ; relance après échec (`retry`).
     Toujours dans un processus séparé : plusieurs déclencheurs peuvent tourner
-    en même temps dans hdrctl watch / serve."""
+    en même temps dans hdrctl watch / serve. extra_params : paramètres posés par
+    l'événement (trigger.file, trigger.files…), ajoutés à ceux du déclencheur."""
     from hydra_etl.workflow.models import WorkflowStep
     from hydra_etl.workflow.subprojects import run_project_step
     from hydra_etl.workflow.thread import parse_delay
     root = Path(root).resolve()
     lg = logger or log
+    params = {**(trig.params or {}), **(extra_params or {})}
     step = WorkflowStep(name=trig.name, type="project", project=str(root),
-                        env=trig.env or "inherit", params=trig.params or None,
+                        env=trig.env or "inherit", params=params or None,
                         workflows=trig.workflows, timeout=trig.timeout,
                         overlap=trig.overlap, isolation="subprocess")
     attempts = 1 + (trig.retry.max if (retry and trig.retry) else 0)
@@ -243,9 +331,10 @@ def fire(root: Path, trig: ProjectTrigger, *, origin: str = "manual", env: Optio
     t0 = time.monotonic()
     res = FireResult(trig.name, "failed")
     for attempt in range(1, attempts + 1):
-        out = run_project_step(step, {"project": str(root), "params": dict(trig.params or {})},
+        out = run_project_step(step, {"project": str(root), "params": dict(params)},
                                caller_root=root, caller_env=env,
-                               call_stack=[[f"trigger:{trig.name}", []]], parallel=True, log=lg)
+                               call_stack=[[f"trigger:{trig.name}", []]], parallel=True, log=lg,
+                               detach=True)
         res = FireResult(trig.name, out.status if out.status in ("success", "skipped") else
                          ("success" if out.success else "failed"),
                          out.error, list(out.lines), time.monotonic() - t0, attempt)

@@ -51,8 +51,9 @@ def open_project(body: ProjectOpenRequest):
     # Les workflows `trigger: schedule` du projet ouvert sont planifiés tout de
     # suite (sinon seulement au prochain démarrage de hdrctl serve).
     try:
-        from hydra_etl.api import scheduler
+        from hydra_etl.api import scheduler, trigger_service
         scheduler.sync_all()
+        trigger_service.sync()           # ses déclencheurs (triggers.yaml) aussi
     except Exception:  # noqa: BLE001 — la planification ne doit pas empêcher l'ouverture
         pass
     return proj
@@ -82,6 +83,15 @@ def set_card_order(project_id: str, body: CardOrder):
         raise HTTPException(status_code=409, detail=str(e))  # dossier introuvable
 
 
+def _sync_triggers() -> None:
+    """Un projet retiré de la liste n'a plus ses déclencheurs suivis par serve."""
+    try:
+        from hydra_etl.api import trigger_service
+        trigger_service.sync()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @router.post("/{project_id}/unlist", response_model=MessageResponse)
 def unlist_project(project_id: str):
     """Retire UNIQUEMENT le raccourci de la liste — ne touche JAMAIS au disk.
@@ -91,6 +101,7 @@ def unlist_project(project_id: str):
     obsolète, l'appel échoue en 404 au lieu de supprimer des fichiers).
     """
     store.delete_project(project_id, remove_files=False)
+    _sync_triggers()
     return {"message": f"Project '{project_id}' retiré de la liste (fichiers intacts)"}
 
 
@@ -99,6 +110,7 @@ def delete_project(project_id: str, remove_files: bool = True):
     """remove_files=False → retire le raccourci seul ; True → + dossier disk.
     Idempotent : ne renvoie jamais 404 — le retrait est toujours effectif."""
     store.delete_project(project_id, remove_files=remove_files)
+    _sync_triggers()
     return {"message": f"Project '{project_id}' deleted (files={'yes' if remove_files else 'kept'})"}
 
 

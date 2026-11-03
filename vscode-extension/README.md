@@ -18,6 +18,7 @@ exist — remains the job of `hdrctl validate`.
 | `destinations.yaml` | load modes, `key` required in `upsert` mode, `batch_size` bounds |
 | `pipeline.yaml` | `from` / `to` required |
 | `transformations.yaml` | all 20 operations and their parameters, with allowed values |
+| `triggers.yaml` | project triggers: `cron` (5-field expression, `timezone`), `interval`, `file`, `marker`, `source_change`, `webhook` (token as a `${SECRET:…}` reference only), `after_project`; keys allowed per type, paths kept inside the project, no secret in `params` |
 | `workflow.yaml` | steps (`job`, `action`, `project`), dependencies, built-in actions, retry policy, sub-project steps (`project`, `ref`, `env`, `params`, `variables`, `workflows`, `outputs`, `isolation`, `timeout`, `overlap`; no secret passed), `cron` required in `schedule` mode |
 | `parameters.yaml` | parameter declarations: `type`, `default`, `required`, `description`, valid names |
 | `environments/<env>.yaml` | parameter values of one environment (dev, prod…) |
@@ -39,7 +40,7 @@ its explanation.
 missing required field, unsatisfied conditional constraint. Errors are
 underlined in the editor and listed in the Problems panel.
 
-**Snippets.** 43 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
+**Snippets.** 51 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
 produces a complete MySQL source, cursor on the first field to fill, Tab to move
 on, dropdown menus on fixed-value fields.
 
@@ -79,7 +80,7 @@ cd vscode-extension
 python build_vsix.py
 ```
 
-This produces `hydra-etl-0.1.8.vsix`. The script needs neither Node, npm nor
+This produces `hydra-etl-0.1.9.vsix`. The script needs neither Node, npm nor
 `vsce`: a `.vsix` is a ZIP archive, and `build_vsix.py` assembles it with the
 Python standard library.
 
@@ -91,7 +92,7 @@ Python standard library.
 ### 3. Install
 
 ```powershell
-code --install-extension hydra-etl-0.1.8.vsix
+code --install-extension hydra-etl-0.1.9.vsix
 ```
 
 Without the command line: `Ctrl+Shift+X` → `...` menu at the top of the panel →
@@ -215,7 +216,7 @@ vscode-extension/
 │   ├── environment.schema.json
 │   └── secrets-settings.schema.json
 ├── snippets/
-│   └── hydra.json                43 snippets
+│   └── hydra.json                51 snippets
 └── examples/                     test sandbox, excluded from the package
     ├── valid_job/
     ├── valid_workflow/

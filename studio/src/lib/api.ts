@@ -189,6 +189,26 @@ export interface EnvNameInfo {
   name: string; global_vars: number; params: number; secrets: number; in_global: boolean; in_project: boolean
 }
 
+// ── Triggers (triggers.yaml, Hydra 0.19) ─────────────────────────────────────
+
+export interface TriggerRun {
+  at: string; trigger: string; type?: string; origin: string; status: 'success' | 'failed' | 'skipped'
+  attempt?: number; env?: string | null; duration?: number; error?: string | null; detail?: string | null
+}
+export interface TriggerInfo {
+  name: string; type: string; enabled: boolean; when: string; description?: string | null
+  env?: string | null; workflows?: string[] | null
+  next?: string | null; running: boolean; note?: string | null; last?: TriggerRun | null
+  webhook?: string | null; token_set?: boolean | null
+  config: Record<string, unknown> & { name: string; type: string }
+}
+export interface TriggersInfo {
+  file: string; exists: boolean; invalid?: boolean
+  triggers: TriggerInfo[]; errors: string[]; warnings: string[]
+  workflows: string[]; sources: { job: string; ids: string[] }[]
+}
+export interface TriggerToken { trigger: string; token: string; secret: string; file: string; url: string; header: string }
+
 // ── Projects ─────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -217,6 +237,19 @@ export const api = {
       post<{ ok: boolean; error?: string | null }>(`/projects/${id}/conditions/check`, { when }),
     /** Ordre des cartes de workflows (visuel seulement, .hydra/project.json). */
     saveCardOrder: (id: string, order: string[]) => put<{ order: string[] }>(`/projects/${id}/card-order`, { order }),
+  },
+
+  /** Déclencheurs de projet (triggers.yaml) : liste, enregistrement, jeton, lancement, historique. */
+  triggers: {
+    list:    (projectId: string)              => get<TriggersInfo>(`/projects/${projectId}/triggers`),
+    save:    (projectId: string, triggers: Record<string, unknown>[]) =>
+                                               put<TriggersInfo>(`/projects/${projectId}/triggers`, { triggers }),
+    fire:    (projectId: string, name: string) =>
+                                               post<{ trigger: string; status: string }>(`/projects/${projectId}/triggers/${encodeURIComponent(name)}/fire`, {}),
+    token:   (projectId: string, name: string, rotate = false, env?: string | null) =>
+                                               post<TriggerToken>(`/projects/${projectId}/triggers/${encodeURIComponent(name)}/token`, { rotate, env: env || null }),
+    history: (projectId: string, name?: string, limit = 30) =>
+                                               get<TriggerRun[]>(`/projects/${projectId}/triggers/history?limit=${limit}${name ? `&name=${encodeURIComponent(name)}` : ''}`),
   },
 
   workflows: {

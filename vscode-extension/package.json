@@ -2,7 +2,7 @@
   "name": "hydra-etl",
   "displayName": "HYDRA ETL",
   "description": "Autocompletion, validation and snippets for HYDRA ETL manifests — jobs and workflows.",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "publisher": "hydraetl",
   "author": {
     "name": "Bechir Bejaoui"
@@ -103,6 +103,15 @@
           "**/.hydra/secrets.yml"
         ],
         "url": "./schemas/secrets-settings.schema.json"
+      },
+      {
+        "fileMatch": [
+          "triggers.yaml",
+          "triggers.yml",
+          "**/triggers.yaml",
+          "**/triggers.yml"
+        ],
+        "url": "./schemas/triggers.schema.json"
       }
     ],
     "snippets": [

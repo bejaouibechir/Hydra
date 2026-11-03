@@ -1,0 +1,36 @@
+version: "1.0"
+triggers:
+  - name: nightly
+    type: cron
+    cron: "0 2 * * *"
+    timezone: Europe/Paris
+    env: prod
+    workflows: [ingest, report]
+    retry: {max: 2, delay: 5m}
+  - name: every_15m
+    type: interval
+    every: 15m
+    enabled: false
+  - name: new_orders
+    type: file
+    path: inbox/*.csv
+    events: [added, modified]
+    debounce: 2s
+  - name: ready_flag
+    type: marker
+    path: inbox/READY
+    consume: true
+  - name: orders_changed
+    type: source_change
+    source: {job: jobs/ingest, id: orders, check: max, column: updated_at}
+    every: 1m
+  - name: on_push
+    type: webhook
+    token: ${SECRET:trigger.on_push.token}
+    overlap: wait
+    timeout: 30m
+  - name: after_crm
+    type: after_project
+    project: ../crm
+    "on": failure
+    params: {mode: recovery}

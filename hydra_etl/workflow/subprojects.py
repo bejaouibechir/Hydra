@@ -405,8 +405,10 @@ def _release(target: Path) -> None:
 
 def run_project_step(step: Any, resolved: Dict[str, Any], *, caller_root: Path,
                      caller_env: Optional[str], call_stack: List[Any], parallel: bool,
-                     log: Any) -> ProjectOutcome:
-    """Lance le projet d'un step type: project."""
+                     log: Any, detach: bool = False) -> ProjectOutcome:
+    """Lance le projet d'un step type: project. detach (déclencheurs) : le
+    sous-processus est hors du groupe du terminal — un Ctrl+C sur hdrctl watch
+    ne l'interrompt pas, l'arrêt propre attend sa fin."""
     t0 = _time.monotonic()
 
     def fail(msg: str, lines: Optional[List[str]] = None) -> ProjectOutcome:
@@ -458,8 +460,11 @@ def run_project_step(step: Any, resolved: Dict[str, Any], *, caller_root: Path,
             return fail(f"project {name}: timed out after {step.timeout} (waiting for its lock)")
         vfile = _variables_file(variables)
         try:
-            run = _run_subprocess if isolation == "subprocess" else _run_inprocess
-            out = run(step, target, env, params, vfile, stack + [key], log, left)
+            if isolation == "subprocess":
+                out = _run_subprocess(step, target, env, params, vfile, stack + [key], log, left,
+                                      detach=detach)
+            else:
+                out = _run_inprocess(step, target, env, params, vfile, stack + [key], log, left)
         finally:
             if vfile is not None:
                 try:
@@ -563,7 +568,7 @@ def write_outputs(runner: Any, result: Any) -> None:
 
 def _run_subprocess(step: Any, target: Path, env: Optional[str], params: Dict[str, Any],
                     vfile: Optional[Path], stack: List[Any], log: Any,
-                    timeout: Optional[float]) -> ProjectOutcome:
+                    timeout: Optional[float], detach: bool = False) -> ProjectOutcome:
     import subprocess
     import sys
     import tempfile
@@ -589,8 +594,14 @@ def _run_subprocess(step: Any, target: Path, env: Optional[str], params: Dict[st
     child.setdefault("PYTHONIOENCODING", "utf-8")
     try:
         try:
+            extra: Dict[str, Any] = {}
+            if detach:
+                if os.name == "nt":
+                    extra["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+                else:
+                    extra["start_new_session"] = True
             proc = subprocess.run(cmd, cwd=str(target), env=child, capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", timeout=timeout)
+                                  encoding="utf-8", errors="replace", timeout=timeout, **extra)
         except subprocess.TimeoutExpired as e:
             def _txt(b: Any) -> str:
                 return b.decode("utf-8", "replace") if isinstance(b, bytes) else (b or "")

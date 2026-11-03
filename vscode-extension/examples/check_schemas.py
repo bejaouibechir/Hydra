@@ -36,6 +36,7 @@ MAPPING = {
     "thread.yaml": "workflow.schema.json",
     "parameters.yaml": "parameters.schema.json",
     "secrets.yaml": "secrets-settings.schema.json",
+    "triggers.yaml": "triggers.schema.json",
 }
 # Files matched by their folder (any name): environments/<env>.yaml
 FOLDER_MAPPING = {

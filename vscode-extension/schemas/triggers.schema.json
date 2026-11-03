@@ -1,0 +1,841 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hydraetl.com/schemas/triggers-v1.json",
+  "title": "Hydra — triggers.yaml",
+  "description": "Project triggers (Hydra 0.19): run the project at a time, every N minutes, when a file arrives, when a source changes, on a webhook call or after another project. Run by hdrctl watch and hdrctl serve; hdrctl trigger fire runs one now.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "default": "1.0",
+      "description": "Hydra DSL version."
+    },
+    "triggers": {
+      "type": "array",
+      "description": "The triggers of the project.",
+      "items": {
+        "$ref": "#/definitions/trigger"
+      }
+    }
+  },
+  "definitions": {
+    "trigger": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Trigger name, unique in the file. Used by hdrctl trigger fire/history and in the webhook address. Quote names YAML reads as booleans (on, off, yes, no).",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.\\-]*$",
+          "examples": [
+            "nightly",
+            "new_orders",
+            "on_push"
+          ]
+        },
+        "type": {
+          "description": "The event that starts the project.",
+          "type": "string",
+          "enum": [
+            "cron",
+            "interval",
+            "file",
+            "marker",
+            "source_change",
+            "webhook",
+            "after_project"
+          ],
+          "enumDescriptions": [
+            "cron — at given times (cron expression). Key: cron, timezone.",
+            "interval — every N seconds/minutes/hours. Key: every.",
+            "file — a file matching path is added (or modified). Keys: path, events, debounce, every.",
+            "marker — a marker file appears (e.g. inbox/READY); removed before the run unless consume: false. Keys: path, consume, every.",
+            "source_change — a source of a job changes (count, max, checksum). Keys: source, every.",
+            "webhook — an HTTP call with the trigger's token (hdrctl serve). Key: token.",
+            "after_project — the end of another project. Keys: project, ref, on."
+          ]
+        },
+        "description": {
+          "description": "Free text.",
+          "type": "string"
+        },
+        "enabled": {
+          "description": "false keeps the trigger without running it.",
+          "type": "boolean",
+          "default": true
+        },
+        "env": {
+          "description": "Environment of the run. Default: the environment of hdrctl watch / serve (--env, HYDRA_ENV).",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_\\-]*$",
+          "examples": [
+            "prod",
+            "dev"
+          ]
+        },
+        "workflows": {
+          "description": "Workflows to run, in this order. Default: the project's thread.yaml.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.\\-]*$"
+          },
+          "examples": [
+            [
+              "ingest",
+              "report"
+            ]
+          ]
+        },
+        "params": {
+          "description": "Parameters given to the run (like -P). The event adds trigger.file, trigger.files, trigger.value, trigger.previous, trigger.project, trigger.status. No secret here.",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.\\-]+$"
+          },
+          "additionalProperties": {
+            "not": {
+              "type": "string",
+              "pattern": "\\$\\{SECRET:"
+            }
+          }
+        },
+        "overlap": {
+          "description": "The project is already running (.hydra/run.lock).",
+          "type": "string",
+          "enum": [
+            "skip",
+            "wait",
+            "fail"
+          ],
+          "default": "skip",
+          "enumDescriptions": [
+            "skip — do not start (default).",
+            "wait — wait for the end, up to timeout.",
+            "fail — record a failure."
+          ]
+        },
+        "timeout": {
+          "description": "Maximum duration of the run: 30s, 5m, 1h or seconds.",
+          "oneOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
+          ]
+        },
+        "retry": {
+          "description": "Run again after a failure (E3).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 1,
+              "description": "Retries after the first failure (1–10)."
+            },
+            "delay": {
+              "description": "Wait before each retry (default 1m).",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+                }
+              ]
+            }
+          },
+          "examples": [
+            {
+              "max": 2,
+              "delay": "5m"
+            }
+          ]
+        },
+        "cron": {
+          "description": "type: cron. Five fields: minute hour day month weekday. *, lists, ranges, steps (*/15), names (mon-fri, jan); 0 or 7 = Sunday.",
+          "type": "string",
+          "pattern": "^\\S+(\\s+\\S+){4}$",
+          "examples": [
+            "0 2 * * *",
+            "*/15 * * * *",
+            "30 8 * * mon-fri"
+          ]
+        },
+        "timezone": {
+          "description": "type: cron. IANA time zone; default: the machine's.",
+          "type": "string",
+          "examples": [
+            "Europe/Paris",
+            "UTC"
+          ]
+        },
+        "every": {
+          "description": "interval: the period. file / marker: how often the folder is checked (default 5s). source_change: how often the source is measured (default 1m).",
+          "oneOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
+          ]
+        },
+        "path": {
+          "description": "file / marker: path or glob, relative to the project root, inside it (no '..'). ** for subfolders.",
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$)).+$",
+          "examples": [
+            "inbox/*.csv",
+            "inbox/**/*.json",
+            "inbox/READY"
+          ]
+        },
+        "events": {
+          "description": "type: file. Default [added].",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "added",
+              "modified"
+            ]
+          },
+          "examples": [
+            [
+              "added",
+              "modified"
+            ]
+          ]
+        },
+        "debounce": {
+          "description": "type: file. The file must stay unchanged this long before it is taken (default 2s).",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*\\d+(\\.\\d+)?\\s*([mM][sS]|[sSmMhH])?\\s*$"
+            }
+          ]
+        },
+        "consume": {
+          "description": "type: marker. false keeps the marker file after the run starts (default: removed).",
+          "type": "boolean",
+          "default": true
+        },
+        "source": {
+          "description": "type: source_change. The source measured.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "job",
+            "id"
+          ],
+          "properties": {
+            "job": {
+              "type": "string",
+              "description": "Job folder, relative to the project root.",
+              "examples": [
+                "jobs/ingest"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "description": "Source id in its sources.yaml."
+            },
+            "check": {
+              "type": "string",
+              "enum": [
+                "count",
+                "max",
+                "checksum"
+              ],
+              "default": "count",
+              "enumDescriptions": [
+                "count — number of rows.",
+                "max — largest value of column.",
+                "checksum — fingerprint of the content."
+              ]
+            },
+            "column": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "description": "check: max — the column."
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "check": {
+                    "const": "max"
+                  }
+                },
+                "required": [
+                  "check"
+                ]
+              },
+              "then": {
+                "required": [
+                  "column"
+                ]
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "column"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "token": {
+          "description": "type: webhook. A secret reference only; create the value with hdrctl trigger token NAME.",
+          "type": "string",
+          "pattern": "^\\$\\{SECRET:[A-Za-z0-9_.\\-]+\\}$",
+          "examples": [
+            "${SECRET:trigger.on_push.token}"
+          ]
+        },
+        "project": {
+          "description": "type: after_project. The project whose end is awaited: folder relative to this project (ref: path) or Studio workspace name (ref: name).",
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "../crm"
+          ]
+        },
+        "ref": {
+          "description": "type: after_project. How project is read.",
+          "type": "string",
+          "enum": [
+            "path",
+            "name"
+          ],
+          "default": "path"
+        },
+        "on": {
+          "description": "type: after_project. Which end starts this project.",
+          "type": "string",
+          "enum": [
+            "success",
+            "failure",
+            "any"
+          ],
+          "default": "success"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "cron"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "cron"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "consume"
+                  ]
+                },
+                {
+                  "required": [
+                    "debounce"
+                  ]
+                },
+                {
+                  "required": [
+                    "events"
+                  ]
+                },
+                {
+                  "required": [
+                    "every"
+                  ]
+                },
+                {
+                  "required": [
+                    "on"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
+                  ]
+                },
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "token"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "interval"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "every"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "consume"
+                  ]
+                },
+                {
+                  "required": [
+                    "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "debounce"
+                  ]
+                },
+                {
+                  "required": [
+                    "events"
+                  ]
+                },
+                {
+                  "required": [
+                    "on"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
+                  ]
+                },
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "timezone"
+                  ]
+                },
+                {
+                  "required": [
+                    "token"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "file"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "path"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "consume"
+                  ]
+                },
+                {
+                  "required": [
+                    "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "on"
+                  ]
+                },
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "timezone"
+                  ]
+                },
+                {
+                  "required": [
+                    "token"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "marker"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "path"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "debounce"
+                  ]
+                },
+                {
+                  "required": [
+                    "events"
+                  ]
+                },
+                {
+                  "required": [
+                    "on"
+                  ]
+                },
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "timezone"
+                  ]
+                },
+                {
+                  "required": [
+                    "token"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "source_change"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "source"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "consume"
+                  ]
+                },
+                {
+                  "required": [
+                    "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "debounce"
+                  ]
+                },
+                {
+                  "required": [
+                    "events"
+                  ]
+                },
+                {
+                  "required": [
+                    "on"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
+                  ]
+                },
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "timezone"
+                  ]
+                },
+                {
+                  "required": [
+                    "token"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "webhook"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "token"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "consume"
+                  ]
+                },
+                {
+                  "required": [
+                    "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "debounce"
+                  ]
+                },
+                {
+                  "required": [
+                    "events"
+                  ]
+                },
+                {
+                  "required": [
+                    "every"
+                  ]
+                },
+                {
+                  "required": [
+                    "on"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
+                  ]
+                },
+                {
+                  "required": [
+                    "project"
+                  ]
+                },
+                {
+                  "required": [
+                    "ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "timezone"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "after_project"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "project"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "consume"
+                  ]
+                },
+                {
+                  "required": [
+                    "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "debounce"
+                  ]
+                },
+                {
+                  "required": [
+                    "events"
+                  ]
+                },
+                {
+                  "required": [
+                    "every"
+                  ]
+                },
+                {
+                  "required": [
+                    "path"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "timezone"
+                  ]
+                },
+                {
+                  "required": [
+                    "token"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

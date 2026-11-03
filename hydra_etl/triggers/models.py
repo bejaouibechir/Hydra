@@ -67,17 +67,10 @@ def _delay(value: Any, what: str, positive: bool = True) -> float:
 
 
 def check_cron(expr: str, timezone: Optional[str] = None) -> None:
-    """Expression cron à 5 champs (vérifiée par APScheduler s'il est installé)."""
-    if len(str(expr).split()) != 5:
-        raise ValueError(f"cron '{expr}': 5 fields expected (minute hour day month weekday)")
-    try:
-        from apscheduler.triggers.cron import CronTrigger
-    except ImportError:  # extra [server] absent : contrôle de forme seulement
-        return
-    try:
-        CronTrigger.from_crontab(str(expr), timezone=timezone)
-    except Exception as e:  # noqa: BLE001
-        raise ValueError(f"cron '{expr}': {e}") from None
+    """Expression cron à 5 champs et fuseau (même analyseur que hdrctl watch)."""
+    from hydra_etl.triggers.cron import parse_cron, zone
+    parse_cron(expr)
+    zone(timezone)
 
 
 class RetryOnFailure(BaseModel):
@@ -178,6 +171,8 @@ class ProjectTrigger(BaseModel):
                 check_cron(self.cron, self.timezone)
             except ValueError as e:
                 raise ValueError(f"trigger '{n}': {e}") from None
+        elif self.timezone is not None:
+            raise ValueError(f"trigger '{n}': timezone does not apply to type {t}")
         if self.path is not None:
             p = str(self.path).replace("\\", "/")
             if p.startswith("/") or re.match(r"^[A-Za-z]:", p) or ".." in p.split("/"):
@@ -275,3 +270,62 @@ def load_triggers(root: Path) -> TriggerFile:
         return TriggerFile(**data)
     except ValidationError as e:
         raise TriggerFileError(_messages(e)) from None
+
+
+# ── Écriture (Studio) ───────────────────────────────────────────────────────
+
+_ORDER = ("name", "type", "description", "enabled",
+          "cron", "timezone", "every", "path", "events", "debounce", "consume", "source",
+          "token", "project", "ref", "on",
+          "env", "workflows", "params", "overlap", "timeout", "retry")
+_DEFAULTS = {"enabled": True, "overlap": "skip"}
+FILE_HEADER = ("# Project triggers (Hydra 0.19) — run by `hdrctl watch` and `hdrctl serve`;\n"
+               "# `hdrctl trigger fire NAME` runs one now. Written by Hydra Studio.\n")
+
+
+def trigger_to_dict(t: ProjectTrigger) -> Dict[str, Any]:
+    """Déclencheur → dict YAML : clés dans l'ordre de lecture, sans les valeurs par défaut."""
+    raw = t.model_dump(exclude_none=True)
+    out: Dict[str, Any] = {}
+    for k in _ORDER:
+        if k not in raw or raw[k] == _DEFAULTS.get(k, object()):
+            continue
+        v = raw[k]
+        if k == "source":
+            v = {kk: vv for kk, vv in v.items() if vv is not None and not (kk == "check" and vv == "count")}
+        out[k] = v
+    return out
+
+
+def _flow(v: Any) -> str:
+    """Valeur YAML sur une ligne (chaînes citées si besoin : 'on', ${SECRET:…}, *)."""
+    if isinstance(v, (dict, list)):
+        return yaml.safe_dump(v, default_flow_style=True, sort_keys=False, allow_unicode=True,
+                              width=10_000).strip()
+    return yaml.safe_dump([v], default_flow_style=True, allow_unicode=True, width=10_000).strip()[1:-1]
+
+
+def dump_triggers(tf: TriggerFile) -> str:
+    """Un bloc par déclencheur, une clé par ligne ; listes et petits dicts sur une ligne."""
+    lines = [FILE_HEADER.rstrip("\n"), f'version: "{tf.version or "1.0"}"']
+    if not tf.triggers:
+        return "\n".join(lines + ["triggers: []", ""])
+    lines.append("triggers:")
+    for i, t in enumerate(tf.triggers):
+        if i:
+            lines.append("")
+        for j, (k, v) in enumerate(trigger_to_dict(t).items()):
+            text = f"{_flow(k)}: {_flow(v)}"
+            lines.append(("  - " if j == 0 else "    ") + text)
+    return "\n".join(lines) + "\n"
+
+
+def save_triggers(root: Path, tf: TriggerFile) -> Path:
+    """Écrit triggers.yaml (copie de l'ancien dans ~/.hydra/_backups ; écriture atomique).
+    Une liste vide écrit `triggers: []` : le fichier n'est jamais supprimé."""
+    from hydra_etl.internal.config.env_admin import backup_files
+    from hydra_etl.internal.fs_atomic import atomic_write_text
+    path = triggers_file(root)
+    backup_files([path], "triggers")
+    atomic_write_text(path, dump_triggers(tf))
+    return path

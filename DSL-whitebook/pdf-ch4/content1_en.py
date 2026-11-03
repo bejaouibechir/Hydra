@@ -217,6 +217,68 @@ R("a project cannot call itself, directly or through others; more than 5 levels 
 ("h3", "hdrctl run -w: run only some workflows"),
 ("code", "hdrctl run ../crm_sync -w ingest -w report --env prod"),
 R("runs the listed workflows of a project, in order, from the command line."),
+
+("h2", "1.5 Project triggers: triggers.yaml" + NEW),
+P("triggers.yaml, at the root of a project, starts the whole project (its thread.yaml, or the workflows listed) when an event happens. A workflow trigger: starts one workflow; a project trigger starts the project. They run inside hdrctl watch and hdrctl serve."),
+("h3", "triggers, name, type"),
+("code", '''version: "1.0"
+triggers:
+  - name: nightly         # unique name
+    type: cron            # cron | interval | file | marker | source_change | webhook | after_project'''),
+R("lists the triggers; type selects the event and its keys (a key of another type is refused)."),
+("h3", "cron, timezone: at given times"),
+("code", '''type: cron
+cron: "0 2 * * *"         # minute hour day month weekday; */15, mon-fri, jan…
+timezone: Europe/Paris    # default: the machine's time'''),
+R("runs the project when the time matches. Runs missed while nothing was watching are not replayed."),
+("h3", "every: interval"),
+("code", '''type: interval
+every: 15m                # 30s, 5m, 1h or seconds'''),
+R("runs the project at a regular period."),
+("h3", "path, events, debounce: a file arrives"),
+("code", '''type: file
+path: inbox/*.csv         # inside the project; ** for subfolders
+events: [added, modified] # default [added]
+debounce: 2s              # unchanged this long before it is taken (default 2s)
+every: 5s                 # how often the folder is checked (default 5s)'''),
+R("runs the project for new or changed files; files arriving together give one run, which receives {{ param:trigger.file }} and {{ param:trigger.files }}."),
+("h3", "marker, consume: a marker file appears"),
+("code", '''type: marker
+path: inbox/READY
+consume: true             # removed before the run (default); false keeps it'''),
+R("runs the project when another system says the data is ready."),
+("h3", "source: a source changes"),
+("code", '''type: source_change
+source: {job: jobs/ingest, id: orders, check: count}   # count | max (+ column) | checksum
+every: 1m                 # default 1m'''),
+R("measures a source of a job (built as in a run); the first measure is the reference, a different one starts the project with {{ param:trigger.value }} and {{ param:trigger.previous }}."),
+("h3", "token: webhook"),
+("code", '''type: webhook
+token: ${SECRET:trigger.on_push.token}   # a secret reference only
+# hdrctl trigger token on_push  → creates the value, shown once
+# POST /api/projects/<id>/triggers/on_push/webhook   X-Hydra-Token: <token>'''),
+R("lets another system start the project through hdrctl serve; a wrong token gets 401 and nothing from the request reaches the project."),
+("h3", "project, on: after another project"),
+("code", '''type: after_project
+project: ../crm           # ref: path (default) or ref: name
+on: success               # success | failure | any'''),
+R("starts the project when another one ends, whatever started it; the run receives {{ param:trigger.project }} and {{ param:trigger.status }}. A loop a → b → a is refused."),
+("h3", "env, workflows, params, overlap, timeout, retry, enabled"),
+("code", '''env: prod                 # default: --env / HYDRA_ENV of watch or serve
+workflows: [ingest]       # default: thread.yaml
+params: {mode: full}      # like -P; no secret
+overlap: skip             # skip (default) | wait | fail
+timeout: 1h
+retry: {max: 2, delay: 5m}
+enabled: false'''),
+R("set what runs and how; the project always runs in its own process, under .hydra/run.lock, and every run is recorded in .hydra/triggers/history.jsonl."),
+("h3", "hdrctl trigger, hdrctl watch"),
+("code", '''hdrctl trigger validate        # keys, cron, workflows, sources, secrets, loops
+hdrctl trigger list            # triggers and their last run
+hdrctl trigger fire nightly    # run one now
+hdrctl trigger history
+hdrctl watch --env prod        # run the triggers until Ctrl+C'''),
+R("hdrctl watch runs the triggers without Studio; hdrctl serve runs the same engine for the projects of the Studio list."),
 ]
 
 CH2 = [

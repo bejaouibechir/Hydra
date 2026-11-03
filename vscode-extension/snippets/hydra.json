@@ -492,6 +492,104 @@
     ]
   },
 
+  "Hydra — triggers.yaml": {
+    "prefix": "htriggers",
+    "description": "triggers.yaml with one cron trigger",
+    "body": [
+      "version: \"1.0\"",
+      "triggers:",
+      "  - name: \"${1:nightly}\"",
+      "    type: cron",
+      "    cron: \"${2|0 2 * * *,0 8 * * mon-fri,*/15 * * * *|}\"",
+      "    workflows: [${3}]",
+      "$0"
+    ]
+  },
+
+  "Hydra — project trigger: cron": {
+    "prefix": "hptrig-cron",
+    "description": "Run the project at given times",
+    "body": [
+      "- name: \"${1:nightly}\"",
+      "  type: cron",
+      "  cron: \"${2|0 2 * * *,0 8 * * mon-fri,*/15 * * * *|}\"",
+      "  timezone: ${3:Europe/Paris}",
+      "  env: ${4:prod}",
+      "$0"
+    ]
+  },
+
+  "Hydra — project trigger: interval": {
+    "prefix": "hptrig-interval",
+    "description": "Run the project every N minutes",
+    "body": [
+      "- name: \"${1:every_15m}\"",
+      "  type: interval",
+      "  every: ${2:15m}",
+      "$0"
+    ]
+  },
+
+  "Hydra — project trigger: file": {
+    "prefix": "hptrig-file",
+    "description": "Run the project when a file arrives",
+    "body": [
+      "- name: \"${1:new_orders}\"",
+      "  type: file",
+      "  path: ${2:inbox/*.csv}",
+      "  events: [${3|added,added\\, modified|}]",
+      "  debounce: ${4:2s}",
+      "$0"
+    ]
+  },
+
+  "Hydra — project trigger: marker": {
+    "prefix": "hptrig-marker",
+    "description": "Run the project when a marker file appears",
+    "body": [
+      "- name: \"${1:ready}\"",
+      "  type: marker",
+      "  path: ${2:inbox/READY}",
+      "  consume: ${3|true,false|}",
+      "$0"
+    ]
+  },
+
+  "Hydra — project trigger: source change": {
+    "prefix": "hptrig-source",
+    "description": "Run the project when a source changes",
+    "body": [
+      "- name: \"${1:orders_changed}\"",
+      "  type: source_change",
+      "  source: {job: ${2:jobs/ingest}, id: ${3:orders}, check: ${4|count,checksum|}}",
+      "  every: ${5:1m}",
+      "$0"
+    ]
+  },
+
+  "Hydra — project trigger: webhook": {
+    "prefix": "hptrig-webhook",
+    "description": "Run the project on an HTTP call with a token (hdrctl trigger token NAME)",
+    "body": [
+      "- name: \"${1:on_push}\"",
+      "  type: webhook",
+      "  token: \\${SECRET:trigger.${1:on_push}.token}",
+      "$0"
+    ]
+  },
+
+  "Hydra — project trigger: after another project": {
+    "prefix": "hptrig-after",
+    "description": "Run the project when another one ends",
+    "body": [
+      "- name: \"${1:after_crm}\"",
+      "  type: after_project",
+      "  project: ${2:../crm}",
+      "  on: ${3|success,failure,any|}",
+      "$0"
+    ]
+  },
+
   "Hydra — full parameters.yaml": {
     "prefix": "hparams",
     "description": "parameters.yaml with one parameter (type, default, description)",

@@ -1,0 +1,23 @@
+# This file contains DELIBERATE errors.
+triggers:
+  - name: no_cron
+    type: cron                 # ERROR 1 — cron is required
+  - name: bad_mix
+    type: interval
+    every: 5m
+    path: inbox/*.csv          # ERROR 2 — path does not apply to interval
+  - name: plain_token
+    type: webhook
+    token: abc123              # ERROR 3 — a ${SECRET:...} reference only
+  - name: escape
+    type: file
+    path: ../other/*.csv       # ERROR 4 — must stay inside the project
+  - name: max_without_column
+    type: source_change
+    source: {job: jobs/ingest, id: orders, check: max}   # ERROR 5 — column required
+  - name: hourly
+    type: hourly               # ERROR 6 — unknown type
+  - name: secret_param
+    type: interval
+    every: 1h
+    params: {pw: "${SECRET:db}"}   # ERROR 7 — no secret in params

@@ -654,3 +654,90 @@ hdrctl run ../crm_sync -w ingest -w report --env prod
 `-w` (repeatable) runs only these workflows, in order.
 
 > **[LAB lab-03-05 · Killercoda]** **Master and sub-projects** — A master calls two projects in dev and prod, reads back a published parameter, then a cycle is introduced and refused by `hdrctl workflow validate`.
+
+---
+
+# Hydra DSL - Project triggers
+
+*Hydra 0.19.0+.* `triggers.yaml`, at the root of a project, starts the **whole project** — its `thread.yaml`, or the `workflows` listed — when an event happens. A workflow `trigger:` starts one workflow; a project trigger starts the project.
+
+```yaml
+# triggers.yaml
+version: "1.0"
+triggers:
+  - name: nightly
+    type: cron
+    cron: "0 2 * * *"
+    timezone: Europe/Paris
+    env: prod
+    workflows: [ingest, report]
+    retry: {max: 2, delay: 5m}
+
+  - name: new_orders
+    type: file
+    path: inbox/*.csv
+    events: [added, modified]
+
+  - name: on_push
+    type: webhook
+    token: ${SECRET:trigger.on_push.token}
+```
+
+> **[FIGURE fig-03-09 · diagram]** Events on the left (clock, file, database, HTTP call, end of another project) → `triggers.yaml` → the project run in its own process → the history.
+
+## Types
+
+| `type`          | Starts the project when…                          | Keys                                                  |
+| --------------- | ------------------------------------------------- | ----------------------------------------------------- |
+| `cron`          | the time matches a cron expression                | `cron`, `timezone`                                    |
+| `interval`      | every period                                      | `every`                                               |
+| `file`          | a file matching `path` is added (or modified)     | `path`, `events`, `debounce`, `every`                 |
+| `marker`        | a marker file appears (removed before the run)    | `path`, `consume`, `every`                            |
+| `source_change` | a source of a job changes                         | `source: {job, id, check, column}`, `every`           |
+| `webhook`       | an HTTP call brings the trigger's token           | `token`                                               |
+| `after_project` | another project ends                              | `project`, `ref`, `on`                                |
+
+## Common keys
+
+| Key           | Default          | Description                                                                 |
+| ------------- | ---------------- | --------------------------------------------------------------------------- |
+| `name`        | –                | Unique name. Required                                                       |
+| `enabled`     | `true`           | `false` keeps the trigger without running it                                |
+| `env`         | watch / serve    | Environment of the run; default: `--env` / `HYDRA_ENV` of `hdrctl watch` or `serve` |
+| `workflows`   | thread.yaml      | Workflows to run, in this order                                             |
+| `params`      | –                | Parameters of the run (like `-P`); no secret                                |
+| `overlap`     | `skip`           | Project already running: `skip` · `wait` · `fail`                           |
+| `timeout`     | –                | Maximum duration: `30s`, `5m`, `1h`                                         |
+| `retry`       | –                | `{max: 1–10, delay}`: run again after a failure                             |
+
+## Values given to the run
+
+| Parameter                          | Set by                       |
+| ---------------------------------- | ---------------------------- |
+| `{{ param:trigger.file }}`, `{{ param:trigger.files }}` | `file`, `marker`: the first file, all files (comma-separated) |
+| `{{ param:trigger.value }}`, `{{ param:trigger.previous }}` | `source_change`: the new and the previous measure |
+| `{{ param:trigger.project }}`, `{{ param:trigger.status }}` | `after_project`: the project that ended and how |
+
+## Rules for project triggers
+
+- **Time.** `cron` has five fields (minute hour day month weekday), with `*`, lists, ranges, steps (`*/15`) and names (`mon-fri`, `jan`); `0` or `7` is Sunday. When both day-of-month and day-of-week are set, either one matches. Runs missed while nothing was watching are not replayed.
+- **Files.** `path` stays inside the project (`**` for subfolders). The folder is checked every `every` (default 5s); a file is taken once unchanged for `debounce` (default 2s). Files already there at start do not trigger. Files arriving together start one run; a file arriving during a run starts the next one.
+- **Data.** `check: count` (rows), `max` (largest value of `column`) or `checksum`, measured every `every` (default 1m). The first measure is the reference. On PostgreSQL, MySQL/MariaDB and SQL Server, `count` and `max` are a single SQL query.
+- **Webhook.** `token` is a `${SECRET:…}` reference only. `hdrctl trigger token <name>` creates the value (shown once). The caller sends `POST /api/projects/<id>/triggers/<name>/webhook` with `X-Hydra-Token: <token>`; a wrong token gets 401. Nothing from the request reaches the project.
+- **End of another project.** Every project run notes its end in `.hydra/triggers/ends.jsonl`, whatever started it. `on: success` (default), `failure` or `any`. A loop (`a → b → a`) is refused.
+- **Safety.** The project always runs in its own process, under `.hydra/run.lock`; a trigger still running is not started again. Every run is recorded in `.hydra/triggers/history.jsonl`.
+
+## Commands
+
+```bash
+hdrctl trigger validate          # checks keys, cron, workflows, sources, secrets, loops
+hdrctl trigger list              # triggers and their last run
+hdrctl trigger fire nightly      # run one now (any type)
+hdrctl trigger token on_push     # create the webhook token
+hdrctl trigger history nightly
+hdrctl watch [PROJECT]... --env prod   # run the triggers until Ctrl+C
+```
+
+`hdrctl serve` runs the same engine for every project of the Studio list.
+
+> **[LAB lab-03-06 · Killercoda]** **A project that runs itself** — A cron trigger, a file dropped in `inbox/`, a webhook called with `curl`, and a second project started at the end of the first, all followed in `hdrctl watch`.

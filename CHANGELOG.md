@@ -56,6 +56,71 @@ and versions follow [Semantic Versioning](https://semver.org/).
   projects they call, the job and source of `source_change`, the secret of a webhook (warning), and refuses
   `after_project` loops (`a → b → a`). `fire` runs the project now as the trigger would, with its retries
   (`--no-retry`). Every run is recorded in `.hydra/triggers/history.jsonl` (last 1000, not versioned).
+- `hdrctl watch [PROJECT]... [--env]` runs the triggers of one or more projects (lot 2.2: `cron` and
+  `interval`; the other types are loaded, checked and listed as not watched yet — `hdrctl trigger fire`
+  runs them). It prints each trigger with its next run, then every start and end; a change to
+  `triggers.yaml` is picked up without restarting (an invalid file keeps the previous triggers running).
+  A trigger still running is not started again (the missed run is recorded as `skipped`); runs missed while
+  watch was stopped are not replayed. Ctrl+C stops starting new runs and waits for the running projects
+  (they run in their own process group, out of reach of the Ctrl+C); a second Ctrl+C stops at once.
+- `hdrctl watch` also watches files (lot 2.3): `file` (a file matching `path` is added or, with
+  `events: [added, modified]`, modified) and `marker` (a marker file such as `inbox/READY` appears; it is
+  removed before the run, `consume: false` keeps it). The folder is checked every `every` (default 5s); a
+  file is taken once it has stayed unchanged for `debounce` (default 2s), so a file still being copied is not
+  read half-written. Files already there when watch starts do not trigger; a file deleted then created again
+  does. Files arriving together start one run, which receives the parameters `{{ param:trigger.file }}` (the
+  first) and `{{ param:trigger.files }}` (all, comma-separated). A file arriving during a run is not lost: it
+  starts the next run once this one ends. `path` accepts `**` for subfolders. Remote folders (SFTP, S3) share
+  the same file-event interface and will come later.
+- `hdrctl watch` also watches data (lot 2.4): a `source_change` trigger measures a source of one of the
+  project's jobs every `every` (default 1m) — `check: count` (rows), `max` (largest value of `column`, numbers
+  compared as numbers, dates and text as text) or `checksum` — and starts the project when the value changes.
+  The first measure is the reference; the run receives `{{ param:trigger.value }}` and
+  `{{ param:trigger.previous }}`. The source is built as in a run (parameters, secrets, environment). On
+  PostgreSQL, MySQL/MariaDB and SQL Server, `count` and `max` are a single `SELECT COUNT(*)` / `SELECT MAX(col)`
+  on the table or the query of `extract`; a file source with `checksum` hashes the file; other cases read
+  the rows. A measure runs apart from the engine (a slow database does not hold up the other triggers); a
+  failed measure is reported and the reference kept; a change during a run starts the next run.
+- Project webhooks and the trigger engine in `hdrctl serve` (lot 2.5). `hdrctl trigger token <name>
+  [--env] [--rotate]` creates the token of a `webhook` trigger: a random value saved as the secret named by
+  its `token:` (`.hydra/secrets`, or `.hydra/secrets.<env>`), shown once with the address to call. A caller
+  starts the project with `POST /api/projects/{id}/triggers/{name}/webhook` and the header
+  `X-Hydra-Token: <token>` (or `Authorization: Bearer <token>`): the token is compared in constant time; a
+  missing or wrong token gets 401, an unknown or non-webhook trigger 404, a token not set yet 503; nothing
+  from the request is passed to the project. Also `GET /api/projects/{id}/triggers` (triggers, next run,
+  last run, problems), `GET …/triggers/history` and `POST …/triggers/{name}/fire` (run now, any type; 409
+  if already running). `hdrctl serve` now runs the same engine as `hdrctl watch` for every project of the
+  Studio list (followed when a project is opened or removed); environment: the trigger's `env:`, else
+  `HYDRA_ENV`. Keep `hdrctl serve` on `127.0.0.1` unless a reverse proxy with HTTPS stands in front of it.
+- `after_project` triggers are watched (lot 2.6): the end of another project starts this one, according to
+  `on: success` (default), `failure` or `any`. Every project run — `hdrctl run`, Studio, a trigger, a
+  `type: project` step — now notes its end in `.hydra/triggers/ends.jsonl` (status, workflows, duration,
+  environment; last 1000, not versioned), read by `hdrctl watch` and `hdrctl serve` every 5s, whichever
+  process ran the project. Ends older than the start of the engine are ignored; ends during a run of the
+  watching project give one more run, with the most recent end. The run receives
+  `{{ param:trigger.project }}` and `{{ param:trigger.status }}`. Loops (`a → b → a`) are refused by
+  `hdrctl trigger validate` and are not watched.
+- VS Code extension 0.1.9: `triggers.yaml` — the seven types and their keys, a key of another type refused,
+  `path` kept inside the project, `token` as a `${SECRET:…}` reference only, `check: max` requires `column`;
+  snippets `htriggers` and `hptrig-cron`, `-interval`, `-file`, `-marker`, `-source`, `-webhook`, `-after`.
+- MCP: `hydra_project_triggers` (read-only) — the triggers of a project, what they run, the next run of a
+  cron trigger, the last runs and the problems; a webhook token by its secret name only.
+- Studio — **Project settings › Triggers** (step 3): the triggers of the project with their event, what they
+  run, environment, next run, running state and last run (refreshed every 5s); add or edit a trigger in a
+  form per type (cron presets and time zone, interval, file path and events, marker, source chosen among
+  the project's jobs, webhook token reference, project to wait for and `on`), with environment, workflows,
+  parameters, overlap, timeout and retries; enable/disable, delete, **Run now**; create or replace a webhook
+  token (shown once, with PowerShell and curl calls); history of the runs. Each change writes
+  `triggers.yaml` (comments are not kept; the previous file is copied to `~/.hydra/_backups`); an invalid
+  trigger or a change that `hdrctl trigger validate` would refuse is not written.
+- API: `PUT /api/projects/{id}/triggers` (write triggers.yaml, 422 with the problems) and
+  `POST /api/projects/{id}/triggers/{name}/token` (`rotate`, `env`; 409 if a token exists).
+  `GET …/triggers` also returns each trigger's `config`, `token_set`, and the project's workflows and job
+  sources.
+- Cron expressions are read by Hydra itself (no extra package): `*`, lists, ranges, steps, month and day
+  names, 0 or 7 for Sunday; as in cron, when both day-of-month and day-of-week are set, either one matches.
+  `timezone` takes an IANA name (`Europe/Paris`; `tzdata` is now installed with Hydra on Windows);
+  without it, the machine's time.
 - API: `POST /api/projects/{id}/project-step` — what a `type: project` step would call (parameters,
   workflows, environments of the called project) and the problems it would create.
 - VS Code extension 0.1.8: `type: project` in `workflow.yaml` — its keys, completion and hover help, `project`
@@ -82,6 +147,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - White paper (FR/EN, `DSL-whitebook/`): chapter 1 gets **1.4 Sub-projects: type: project**; `type`,
   `params` and `undo` mention project steps; chapters 1 to 4 regenerated, each starting on a new page.
   `03-workflows.md`: new *Sub-projects* section. README: sub-projects in *Workflows*.
+- White paper (FR/EN): **1.5 Project triggers: triggers.yaml**. `03-workflows.md`: new *Project triggers*
+  section. README: *Project triggers* in *Workflows*.
 
 ## [0.18.0] — 2026-11-02
 

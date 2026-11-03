@@ -122,6 +122,7 @@ server is a different piece of work.
 | `hydra_run_workflow` | execute a workflow, optionally in an environment (`env`) |
 | `hydra_project_settings` | environments, parameters and secrets of a project — **names only** for secrets and variables |
 | `hydra_project_calls` | projects called by `type: project` steps — tree, missing projects, cycles |
+| `hydra_project_triggers` | triggers of a project (triggers.yaml): event, what runs, next and last run, problems — token **names only** |
 | `hydra_preview_data` | columns and first rows of a CSV, JSON or Parquet file |
 | `hydra_check_job` | does the job match what the user asked? |
 | `hydra_find_example` | the closest real job, as a starting point |
@@ -131,7 +132,7 @@ The DSL tools read the specification generated from the engine's own code
 
 ## Beyond writing jobs
 
-Six tools close the loop between *writing* a pipeline and *understanding* it.
+Seven tools close the loop between *writing* a pipeline and *understanding* it.
 
 **`hydra_preview_data`** shows the real column names and the first rows — call
 it before writing a `select`, so the assistant stops guessing, and after a run,
@@ -164,6 +165,11 @@ called projects with the workflows they run, then what would stop the run — a
 project not found, a cycle (`a → b → a`), more than 5 levels — and the calls
 computed at run time. The assistant calls it before adding a project step and
 after writing one.
+
+**`hydra_project_triggers`** lists the triggers of a project (`triggers.yaml`): each one with its
+event (cron, interval, file, marker, source change, webhook, end of another project), what it runs, the
+next run of a cron trigger and the last run recorded, then what `hdrctl trigger validate` would report.
+A webhook token is shown by its secret name only.
 
 **`hydra_run_job`** reports what was produced: rows, columns, and a warning
 when zero rows were written, which usually means a filter is too strict or a

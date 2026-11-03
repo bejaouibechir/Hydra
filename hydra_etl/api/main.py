@@ -32,14 +32,20 @@ from hydra_etl.api.routers import (
     secrets,
     thread,
     global_env,
+    triggers,
 )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Démarre/arrête le scheduler des triggers `schedule` avec l'API."""
-    from hydra_etl.api import scheduler
+    from hydra_etl.api import scheduler, trigger_service
     scheduler.start()
+    try:
+        trigger_service.start()          # déclencheurs de projet (triggers.yaml)
+    except Exception:  # noqa: BLE001 — l'API démarre même si un triggers.yaml est illisible
+        import logging
+        logging.getLogger("hydra.triggers.serve").exception("trigger engine not started")
     try:
         from hydra_etl.api import demo
         demo.seed_on_first_run()
@@ -48,6 +54,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        trigger_service.shutdown()
         scheduler.shutdown()
 
 
@@ -73,6 +80,7 @@ app.add_middleware(
 app.include_router(health.router,       tags=["Health"])
 app.include_router(projects.router,     prefix="/api/projects",     tags=["Projects"])
 app.include_router(thread.router,       prefix="/api/projects",     tags=["Projects"])
+app.include_router(triggers.router,     prefix="/api/projects",     tags=["Triggers"])
 app.include_router(workflows.router,    prefix="/api/workflows",    tags=["Workflows"])
 app.include_router(runs.router,         prefix="/api/runs",         tags=["Runs"])
 app.include_router(environments.router, prefix="/api/environments", tags=["Environments"])

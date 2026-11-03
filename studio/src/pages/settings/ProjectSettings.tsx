@@ -3,7 +3,8 @@
  *
  * Réglages du projet courant, écrits dans les fichiers du projet :
  * l'ordre d'exécution des workflows (workflows/thread.yaml) avec ses étapes,
- * délais, boucles et fallbacks (ThreadEditor : Define, Preview, Check).
+ * délais, boucles et fallbacks (ThreadEditor : Define, Preview, Check) ;
+ * paramètres, secrets ; déclencheurs du projet (triggers.yaml, TriggersPanel).
  *
  * Projet courant : celui de l'URL (/settings/project/:projectId, ouvert par
  * le bouton « Project settings » de la page du projet) ; sinon le dernier
@@ -12,19 +13,21 @@
 import { useEffect } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, FolderOpen, Layers, SlidersHorizontal, KeyRound } from 'lucide-react'
+import { ChevronLeft, FolderOpen, Layers, SlidersHorizontal, KeyRound, Zap } from 'lucide-react'
 import { api } from '@/lib/api'
 import { forgetProject, lastProject, projectSettingsPath, rememberProject } from '@/lib/lastProject'
 import ThreadEditor from '@/components/project/ThreadEditor'
 import ParametersPanel from '@/components/canvas/ParametersPanel'
 import SecretsPanel from '@/components/canvas/SecretsPanel'
+import TriggersPanel from '@/components/settings/TriggersPanel'
 import EnvSelector from '@/components/EnvSelector'
 
-type Tab = 'order' | 'parameters' | 'secrets'
+type Tab = 'order' | 'parameters' | 'secrets' | 'triggers'
 const TABS: { id: Tab; label: string; icon: typeof Layers; note: string }[] = [
   { id: 'order', label: 'Execution order', icon: Layers, note: 'Saved in workflows/thread.yaml, for everyone who opens the project.' },
   { id: 'parameters', label: 'Parameters', icon: SlidersHorizontal, note: 'Saved in parameters.yaml and environments/<env>.yaml, for everyone who opens the project.' },
   { id: 'secrets', label: 'Secrets', icon: KeyRound, note: 'Saved in .hydra/secrets and .hydra/secrets.<env>, ignored by git: on this machine only.' },
+  { id: 'triggers', label: 'Triggers', icon: Zap, note: 'Saved in triggers.yaml: what starts the whole project (time, file, data change, webhook, end of another project).' },
 ]
 import Spinner from '@/components/ui/Spinner'
 
@@ -36,7 +39,7 @@ export default function ProjectSettings() {
   const { projectId } = useParams<{ projectId?: string }>()
   const navigate = useNavigate()
   const [sp, setSp] = useSearchParams()
-  const tab: Tab = (['order', 'parameters', 'secrets'] as Tab[]).includes(sp.get('tab') as Tab) ? sp.get('tab') as Tab : 'order'
+  const tab: Tab = (['order', 'parameters', 'secrets', 'triggers'] as Tab[]).includes(sp.get('tab') as Tab) ? sp.get('tab') as Tab : 'order'
   const setTab = (t: Tab) => setSp(t === 'order' ? {} : { tab: t }, { replace: true })
   const projects = useQuery({ queryKey: ['projects'], queryFn: api.projects.list })
   const project = useQuery({
@@ -130,6 +133,7 @@ export default function ProjectSettings() {
       </div>
       {tab === 'parameters' && <div className="card"><ParametersPanel projectId={p.id} /></div>}
       {tab === 'secrets' && <div className="card"><SecretsPanel projectId={p.id} /></div>}
+      {tab === 'triggers' && <div className="card"><TriggersPanel projectId={p.id} /></div>}
       {tab === 'order' && (workflows.isLoading
         ? <div className="flex justify-center py-10"><Spinner /></div>
         : (workflows.data?.length ?? 0) === 0

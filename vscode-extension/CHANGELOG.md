@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.1.9
+
+Project triggers of Hydra ETL 0.19.
+
+- `triggers.yaml`: `cron` (`cron`, `timezone`), `interval` (`every`), `file` (`path`, `events`,
+  `debounce`, `every`), `marker` (`path`, `consume`, `every`), `source_change` (`source: {job, id,
+  check, column}`, `every`), `webhook` (`token`, a `${SECRET:…}` reference only), `after_project`
+  (`project`, `ref`, `on`); common keys `env`, `workflows`, `params`, `overlap`, `timeout`, `retry`,
+  `enabled`, `description`. A key of another type is refused; `path` must stay inside the project;
+  `check: max` requires `column`; no `${SECRET:…}` in `params`.
+- Snippets: `htriggers`, `hptrig-cron`, `hptrig-interval`, `hptrig-file`, `hptrig-marker`,
+  `hptrig-source`, `hptrig-webhook`, `hptrig-after`.
+
 ## 0.1.8
 
 Sub-project steps of Hydra ETL 0.19.

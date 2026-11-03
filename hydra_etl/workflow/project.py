@@ -744,9 +744,17 @@ class ProjectRunner:
                 self._emit(on_event, "delay", {"seconds": st.delay_seconds, "stage": stage_no})
                 self._sleep(st.delay_seconds)
             pc += 1
-        return ProjectResult(project=self.plan.root.name,
-                             success=not any(r.status == FAILED for r in runs),
-                             duration=time.monotonic() - t0, runs=runs)
+        result = ProjectResult(project=self.plan.root.name,
+                               success=not any(r.status == FAILED for r in runs),
+                               duration=time.monotonic() - t0, runs=runs)
+        # Fin du projet, lue par les déclencheurs after_project d'autres projets
+        # (quel que soit le lanceur : CLI, Studio, déclencheur, step type: project).
+        try:
+            from hydra_etl.triggers.core import record_end
+            record_end(self.plan.root, result.success, [r.name for r in runs], result.duration, self.env)
+        except Exception:  # noqa: BLE001 — ne jamais faire échouer un run pour ça
+            pass
+        return result
 
 
 # ---------------------------------------------------------------------------

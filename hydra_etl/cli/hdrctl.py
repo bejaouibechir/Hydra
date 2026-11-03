@@ -2870,6 +2870,46 @@ def cmd_trigger_fire(name: str, project: Optional[str], env_name: Optional[str],
     click.echo()
 
 
+@cmd_trigger.command("token", help=t("help.trigger.token.docstring"))
+@_lang_option
+@click.argument("name")
+@_project_option
+@click.option("--env", "env_name", default=None, metavar="NAME", help=t("help.trigger.token.env"))
+@click.option("--rotate", is_flag=True, default=False, help=t("help.trigger.token.rotate"))
+def cmd_trigger_token(name: str, project: Optional[str], env_name: Optional[str], rotate: bool) -> None:
+    import json as _json
+    from hydra_etl.internal.config import env_admin as ea
+    root = _project_or_exit(project)
+    tf = _load_triggers_or_exit(root)
+    tr = tf.get(name)
+    if tr is None or tr.type != "webhook":
+        error_box(t("trigger.token.not_webhook", name=name))
+        hooks = ", ".join(x.name for x in tf.triggers if x.type == "webhook") or "—"
+        info(t("trigger.token.webhooks", names=hooks))
+        sys.exit(1)
+    from hydra_etl.triggers.core import TokenExists, create_token
+    try:
+        value, secret, path = create_token(root, tr, env=env_name, rotate=rotate)
+    except TokenExists:
+        error_box(t("trigger.token.exists", secret=str(tr.token).strip()[9:-1]))
+        info(t("trigger.token.rotate_hint", name=name))
+        sys.exit(1)
+    except ea.EnvAdminError as e:
+        error_box(str(e))
+        sys.exit(1)
+    try:
+        pid = _json.loads((root / ".hydra" / "project.json").read_text(encoding="utf-8-sig")).get("id") or "<PROJECT_ID>"
+    except (OSError, ValueError):
+        pid = "<PROJECT_ID>"
+    success_box(t("trigger.token.saved", secret=secret, path=str(path)))
+    info(t("trigger.token.once"))
+    click.echo(f"\n    {c(C.WH, value)}\n")
+    info(t("trigger.token.call"))
+    click.echo(f"    POST http://127.0.0.1:5678/api/projects/{pid}/triggers/{name}/webhook")
+    click.echo(f"    X-Hydra-Token: <token>")
+    click.echo()
+
+
 @cmd_trigger.command("history", help=t("help.trigger.history.docstring"))
 @_lang_option
 @click.argument("name", required=False)
@@ -2891,6 +2931,98 @@ def cmd_trigger_history(name: Optional[str], project: Optional[str], limit: int)
         if e.get("error"):
             line += f"  {c(C.RD, str(e.get('error'))[:120])}"
         click.echo(line)
+    click.echo()
+
+
+@cli.command("watch", help=t("help.watch.docstring"))
+@_lang_option
+@click.argument("projects", nargs=-1, metavar="[PROJECT]...")
+@click.option("--env", "env_name", default=None, metavar="NAME", help=t("help.watch.env"))
+def cmd_watch(projects: tuple, env_name: Optional[str]) -> None:
+    """Fait tourner les déclencheurs (triggers.yaml) d'un ou plusieurs projets."""
+    import time as _time
+    from hydra_etl.triggers.engine import TriggerEngine
+    from hydra_etl.workflow.project import ProjectError, require_project
+
+    print_banner()
+    env_name = env_name or os.environ.get("HYDRA_ENV") or None
+    roots = []
+    for p in (projects or (None,)):
+        try:
+            roots.append(require_project(p))
+        except ProjectError as e:
+            error_box(t("watch.not_project", path=str(p or Path.cwd())))
+            for msg in e.errors:
+                err_line(f"  — {msg}")
+            sys.exit(1)
+
+    def stamp() -> str:
+        return c(C.DM, _time.strftime("%Y-%m-%d %H:%M:%S"))
+
+    def fmt_next(dt) -> str:
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M") if dt else "—"
+
+    def on_event(e: dict) -> None:
+        k = e.get("kind")
+        who = f"{e.get('project')}/{c(C.CY, str(e.get('trigger')))}"
+        if k == "loaded":
+            info(t("watch.loaded", project=c(C.WH, str(e["project"]))))
+            for w in e.get("warnings") or []:
+                click.echo(f"    {c(C.YL, '⚠')}  {w}")
+            if not e.get("triggers"):
+                info("    " + t("trigger.list.none"))
+            for d in e.get("triggers") or []:
+                if d["note"]:
+                    click.echo(f"    {c(C.DM, '·')} {c(C.CY, d['trigger'].ljust(18))} {c(C.DM, d['note'])}")
+                else:
+                    when = (t('watch.polled', s=f"{d['poll']:g}") if d.get('poll') is not None
+                            else t('watch.next', at=fmt_next(d['next'])))
+                    click.echo(f"    {c(C.GR, '●')} {c(C.CY, d['trigger'].ljust(18))} {d['when']}  "
+                               f"{c(C.DM, when)}")
+        elif k == "error":
+            click.echo(f"  {stamp()} {c(C.RD, '✗')} {t('watch.file_error', project=e['project'])}: {e['error']}")
+            if e.get("kept"):
+                info("    " + t("watch.kept", names=", ".join(e["kept"])))
+        elif k == "started":
+            click.echo(f"  {stamp()} {c(C.CY, '▶')} {who}  {c(C.DM, str(e.get('detail') or e.get('when')))}"
+                       f"  env: {e.get('env') or 'none'}")
+        elif k == "finished":
+            st = e.get("status")
+            if st == "success":
+                click.echo(f"  {stamp()} {c(C.GR, '✓')} {who}  {e['duration']:.1f}s")
+            elif st == "skipped":
+                click.echo(f"  {stamp()} {c(C.YL, '⏭')} {who}  {e.get('error') or ''}")
+            else:
+                att = f" ({t('watch.attempts', n=e.get('attempts'))})" if (e.get("attempts") or 1) > 1 else ""
+                click.echo(f"  {stamp()} {c(C.RD, '✗')} {who}{att}  {e.get('error') or ''}")
+                for line in (e.get("lines") or [])[-8:]:
+                    click.echo(f"       {c(C.DM, '│')} {line}")
+        elif k == "skipped":
+            click.echo(f"  {stamp()} {c(C.YL, '⏭')} {who}  {e.get('error')}")
+        elif k == "measured":
+            click.echo(f"  {stamp()} {c(C.DM, '·')} {who}  {c(C.DM, t('watch.measured', value=e.get('value')))}")
+        elif k == "stopping":
+            info(t("watch.stopping", names=", ".join(e.get("running") or [])))
+
+    engine = TriggerEngine(env=env_name, origin="watch", on_event=on_event)
+    info(t("watch.title", env=env_name or "none"))
+    click.echo(c(C.DM, "  " + "─" * 56))
+    for r in roots:
+        engine.add_project(r)
+    click.echo()
+    info(t("watch.running"))
+    engine.start()
+    try:
+        while True:
+            _time.sleep(0.5)
+    except KeyboardInterrupt:
+        click.echo()
+        try:
+            engine.stop(wait=None)
+        except KeyboardInterrupt:
+            info(t("watch.forced"))
+            sys.exit(130)
+    success_box(t("watch.stopped"))
     click.echo()
 
 

@@ -471,6 +471,55 @@ Studio (drop a project from the **Projects** section of the palette) and the MCP
 `isolation: subprocess` runs it in a separate process. `hdrctl run <project> -w <workflow>` runs only
 some workflows of a project.
 
+**Project triggers.** `triggers.yaml`, at the root of a project, starts the whole project (its
+`thread.yaml`, or the `workflows` listed) when something happens:
+
+```yaml
+version: "1.0"
+triggers:
+  - name: nightly
+    type: cron                    # at given times
+    cron: "0 2 * * *"
+    timezone: Europe/Paris
+    env: prod
+    retry: {max: 2, delay: 5m}    # run again after a failure
+  - name: new_orders
+    type: file                    # a file arrives: {{ param:trigger.file }}
+    path: inbox/*.csv
+  - name: ready
+    type: marker                  # a marker file appears (removed before the run)
+    path: inbox/READY
+  - name: orders_changed
+    type: source_change           # a source changes: count, max(column) or checksum
+    source: {job: jobs/ingest, id: orders, check: count}
+    every: 1m
+  - name: on_push
+    type: webhook                 # an HTTP call with a token
+    token: ${SECRET:trigger.on_push.token}
+  - name: after_crm
+    type: after_project           # another project ends (on: success | failure | any)
+    project: ../crm
+```
+
+Also `interval` (`every: 15m`). Each trigger may set `env`, `workflows`, `params`, `timeout`, `retry`
+and `overlap` (`skip` by default: a project already running is not started twice).
+
+```bash
+hdrctl trigger validate             # keys, cron, workflows, sources, secrets, after_project loops
+hdrctl trigger list                 # each trigger, with its last run
+hdrctl trigger fire nightly         # run it now
+hdrctl trigger token on_push        # create the webhook token (a project secret), shown once
+hdrctl watch --env prod             # run the triggers of this project (or several) until Ctrl+C
+hdrctl trigger history
+```
+
+`hdrctl watch` runs the triggers without Studio (on a server, as a service); `hdrctl serve` runs the same
+engine for every project of the Studio list. In Studio, **Project settings › Triggers** lists them with their next and last run,
+edits them in a form, runs one now and creates webhook tokens. A webhook is called with
+`POST /api/projects/<id>/triggers/<name>/webhook` and the header `X-Hydra-Token: <token>`. Every run is
+recorded in `.hydra/triggers/history.jsonl`; the project runs in its own process, so a first Ctrl+C on
+`hdrctl watch` waits for the running projects. Remote folders (SFTP, S3) for file triggers are planned.
+
 An edge is a **dependency**, not a pipe: it decides *when* a job runs, never what data reaches it.
 Steps that share no dependency run in parallel.
 
@@ -673,7 +722,7 @@ Measured on 2 CPUs / 8 GB (orders → customers join → revenue by country and 
 ## VS Code extension
 
 Completion and validation for Hydra manifests inside the editor, without installing Hydra: job files,
-workflows (including `type: project` steps), `parameters.yaml`, `environments/<env>.yaml` and `.hydra/secrets.yaml`.
+workflows (including `type: project` steps), `triggers.yaml`, `parameters.yaml`, `environments/<env>.yaml` and `.hydra/secrets.yaml`.
 Download the `.vsix` from the [latest release](https://github.com/bejaouibechir/Hydra/releases/latest),
 or build it yourself from [`vscode-extension/`](vscode-extension/) (`python build_vsix.py`, no Node required).
 

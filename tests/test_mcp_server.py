@@ -340,3 +340,28 @@ def test_project_calls_refuses_outside_and_non_project(call):
     assert "Not a Hydra project" in call("hydra_project_calls", project_path="plain")
     _sub(call.workspace, "solo")
     assert "calls no other project" in call("hydra_project_calls", project_path="solo")
+
+
+# --- Déclencheurs de projet (0.19) -------------------------------------------
+
+def test_project_triggers(call):
+    ws = call.workspace
+    root = _sub(ws, "shop")
+    (root / "triggers.yaml").write_text(
+        "triggers:\n"
+        "  - {name: nightly, type: cron, cron: '0 2 * * *', env: prod, workflows: [main]}\n"
+        "  - {name: on_push, type: webhook, token: '${SECRET:trigger.on_push.token}'}\n"
+        "  - {name: broken, type: interval, every: 1m, workflows: [nope]}\n")
+    (root / ".hydra" / "secrets").write_text("trigger.on_push.token=SUPER-SECRET-TOKEN\n")
+    out = call("hydra_project_triggers", project_path="shop")
+    assert "nightly (cron): cron 0 2 * * *" in out and "next run:" in out and "env: prod" in out
+    assert "secret 'trigger.on_push.token'" in out and "SUPER-SECRET-TOKEN" not in out
+    assert "workflow(s) not found: nope" in out
+
+
+def test_project_triggers_none_invalid_refused(call):
+    _sub(call.workspace, "plain")
+    assert "No trigger" in call("hydra_project_triggers", project_path="plain")
+    (call.workspace / "plain" / "triggers.yaml").write_text("triggers:\n  - {name: x, type: cron}\n")
+    assert "requires 'cron'" in call("hydra_project_triggers", project_path="plain")
+    assert call("hydra_project_triggers", project_path="../..").startswith("REFUS")

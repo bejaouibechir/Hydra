@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-11-04
+
 ### Added
 
 - Workflow step `type: project`: a workflow of a "master" project runs another project (its `thread.yaml`, or

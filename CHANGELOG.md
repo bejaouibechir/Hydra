@@ -7,6 +7,18 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **SQLite connector** (`type: sqlite`), source and destination, built in: `sqlite3` is part of Python, nothing to
+  install, no server. `connection.path` is the database file, relative to the job folder. Source: `table` or
+  `query`; a missing file is an error and is never created by a read or by `hdrctl test`. Destination: the file
+  and the table are created at the first batch (types from the data; in `upsert` the key becomes the primary
+  key); `append`, `replace`, `upsert` (`INSERT … ON CONFLICT … DO UPDATE`, primary key or unique index required
+  on an existing table, with the `CREATE UNIQUE INDEX` to run in the error). All-or-nothing by default in the
+  three modes (one transaction, table creation included; `load.atomic: false` commits batch by batch).
+  `rollback: true` undoes a SQLite load; `source_change` triggers count and max with one SQL query. The
+  database uses the WAL journal, so a job can read one table while it writes another in the same file.
+
 ## [0.19.1] — 2026-11-05
 
 ### Fixed

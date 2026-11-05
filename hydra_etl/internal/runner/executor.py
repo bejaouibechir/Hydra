@@ -905,7 +905,7 @@ class JobExecutor:
         # path_base == job_dir en mode CLI ; == dossier job d\'origine en mode Studio inline.
         # parquet en fait partie : sans job_dir, son instanciation échoue, ce qui
         # rendait le format inutilisable comme sortie intermédiaire.
-        if ctype in ("csv", "json", "parquet"):
+        if ctype in ("csv", "json", "parquet", "sqlite"):
             config["job_dir"] = str(self.path_base)
         
         # 3. Instancier via le registry

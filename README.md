@@ -257,6 +257,8 @@ readable and run without extra infrastructure.
 | <img src="assets/connectors/csv.png" alt="" width="40"><br>CSV | <img src="assets/connectors/json.png" alt="" width="40"><br>JSON | <img src="assets/connectors/parquet.png" alt="" width="40"><br>Parquet | <img src="assets/connectors/mysql.png" alt="" width="40"><br>MySQL / MariaDB | <img src="assets/connectors/postgresql.png" alt="" width="40"><br>PostgreSQL | <img src="assets/connectors/sqlserver.png" alt="" width="40"><br>SQL Server | <img src="assets/connectors/mongo.png" alt="" width="40"><br>MongoDB | <img src="assets/connectors/api.png" alt="" width="40"><br>Web API |
 |:--------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:------------------------------------------------------------------:|
 
+Also **SQLite**, built in: nothing to install (Hydra 0.20+).
+
 **Transformation engines:** pandas and DuckDB.
 
 ---
@@ -327,6 +329,7 @@ costs nothing:
 | MySQL / MariaDB | one transaction (DELETE, InnoDB table) | `atomic: true` | `atomic: true` |
 | CSV | temporary file, then swapped | back to the original size | — |
 | Parquet | temporary file, then swapped | temporary file, then swapped | — |
+| SQLite | one transaction | one transaction | one transaction |
 
 `atomic: true` makes `append` / `upsert` into a database one transaction too (longer locks, a
 larger database log: fine for medium volumes); `atomic: false` goes back to batch-by-batch

@@ -24,6 +24,9 @@ env:
     tests/test_mcp_server.py
     tests/test_api_studio.py
     tests/test_postgresql_upsert_key_validation.py
+    tests/test_sqlite_connector.py
+    tests/test_aggregate_numeric.py
+    tests/test_workflow_action_output.py
 
 jobs:
   tests:

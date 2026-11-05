@@ -164,7 +164,7 @@ def check(prompt: str, files: Dict[str, str], docs: Dict[str, Any]) -> List[str]
         "parquet": "parquet", "postgres": "postgres", "postgresql": "postgres",
         "mysql": "mysql", "mariadb": "mariadb", "mongo": "mongodb",
         "sql server": "sqlserver", "sqlserver": "sqlserver", "mssql": "sqlserver",
-        "mongodb": "mongodb", "csv": "csv", "json": "json",
+        "mongodb": "mongodb", "csv": "csv", "json": "json", "sqlite": "sqlite",
         "api web": "web_api", "api": "web_api",
     }
     used = {v.get("type") for v in list(sources.values()) + list(dests.values())

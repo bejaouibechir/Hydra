@@ -12,6 +12,7 @@ from .json_connector import JSONConnector
 from .mysql_mariadb_connector import MySQLMariaDBConnector
 from .postgresql_connector import PostgreSQLConnector
 from .sqlserver_connector import SQLServerConnector
+from .sqlite_connector import SQLiteConnector
 
 # Import MongoDB connector -- optionnel (dependance pymongo)
 try:
@@ -93,6 +94,7 @@ CONNECTOR_REGISTRY: Dict[str, ConnectorFactory] = {
     "postgres": _build_db_connector(PostgreSQLConnector),
     "sqlserver": _build_db_connector(SQLServerConnector),
     "mssql": _build_db_connector(SQLServerConnector),
+    "sqlite": _build_db_connector(SQLiteConnector),
 }
 
 # Enregistrement conditionnel des connecteurs a dependances optionnelles

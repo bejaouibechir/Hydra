@@ -6,9 +6,9 @@
 
 Version du produit : **0.19.1**
 
-## Connecteurs (11)
+## Connecteurs (12)
 
-`csv`, `json`, `mariadb`, `mongodb`, `mssql`, `mysql`, `parquet`, `postgres`, `postgresql`, `sqlserver`, `web_api`
+`csv`, `json`, `mariadb`, `mongodb`, `mssql`, `mysql`, `parquet`, `postgres`, `postgresql`, `sqlite`, `sqlserver`, `web_api`
 
 > `postgres`/`postgresql` et `mysql`/`mariadb` sont des alias.
 > `mongodb`, `parquet` et `web_api` ne s'enregistrent qu'avec leur extra
@@ -91,6 +91,7 @@ Version du produit : **0.19.1**
 | `parquet` | `append`, `replace` |
 | `postgres` | `append`, `replace`, `upsert` |
 | `postgresql` | `append`, `replace`, `upsert` |
+| `sqlite` | `append`, `replace`, `upsert` |
 | `sqlserver` | `append`, `replace`, `upsert` |
 
 > En base, `append` annulable exige `load.key` : seules des clés neuves

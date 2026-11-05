@@ -11,6 +11,7 @@
     "parquet",
     "postgres",
     "postgresql",
+    "sqlite",
     "sqlserver",
     "web_api"
   ],

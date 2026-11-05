@@ -72,6 +72,7 @@ sources:
 | `postgresql`, `postgres` | ✔    | ✔     | `pip install "hydra-etl[postgres]"` |
 | `sqlserver`, `mssql`     | ✔    | ✔     | `pip install "hydra-etl[mssql]"`    |
 | `mongodb`                | ✔    | ✔     | `pip install "hydra-etl[mongodb]"`  |
+| `sqlite`                 | ✔    | ✔     | built in (Hydra 0.20+)              |
 
 An unknown type stops the job with the list of supported types:
 
@@ -275,6 +276,41 @@ sources:
 ![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\02-jobs-part1\23.png)
 
  A MySQL and a PostgreSQL server are running. Read a whole table with `table`, then only the last 7 days with `query`.
+
+---
+
+## SQLite source and destination
+
+*Hydra 0.20+.* SQLite is part of Python: nothing to install, no server. `connection.path` is the database file, relative to the job folder.
+
+```yaml
+sources:
+  app:
+    type: sqlite
+    connection:
+      path: ../../data/app.db
+    extract:
+      table: orders                 # or query: "SELECT ..."
+```
+
+```yaml
+destinations:
+  warehouse:
+    type: sqlite
+    connection:
+      path: ../../outputs/warehouse.db
+    load:
+      table: orders
+      mode: upsert                  # append | replace | upsert
+      key: [order_id]
+```
+
+- A source file that does not exist is an error; it is never created by a read.
+- A destination file and table are created at the first batch, with types taken from the data (`INTEGER`, `REAL`, `TEXT`, `BLOB`). In `upsert`, the key becomes the primary key.
+- `upsert` on an existing table needs a primary key or a unique index on exactly the `key` columns; the error gives the `CREATE UNIQUE INDEX` to run.
+- All-or-nothing by default in the three modes: one transaction for the job, table creation included. `load.atomic: false` commits batch by batch.
+- `rollback: true` undoes a SQLite load like the other databases.
+- The database uses the WAL journal, so a job can read one table while it writes another in the same file.
 
 ---
 

@@ -33,9 +33,9 @@ UNDOABLE = {
     "csv": {"replace", "append"},
     "parquet": {"replace", "append"},
     **{t: {"replace", "append", "upsert"} for t in
-       ("postgresql", "postgres", "mysql", "mariadb", "sqlserver", "mssql")},
+       ("postgresql", "postgres", "mysql", "mariadb", "sqlserver", "mssql", "sqlite")},
 }
-DB_TYPES = {"postgresql", "postgres", "mysql", "mariadb", "sqlserver", "mssql"}
+DB_TYPES = {"postgresql", "postgres", "mysql", "mariadb", "sqlserver", "mssql", "sqlite"}
 
 
 # ── Vérification avant le run ──────────────────────────────────────────────

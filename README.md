@@ -78,6 +78,10 @@ hdrctl run my_project/jobs/job1        # run one job alone
 
 A project is a set of workflows; a workflow is a set of jobs and actions.
 
+A complete example, files only, runs in a few seconds:
+[`examples/end-to-end-retail`](examples/end-to-end-retail): a master project runs two sub-projects
+in parallel, reads back their results, then ranks the top customers with a job and writes a report.
+
 `init` scaffolds a full project:
 
 ```
@@ -220,7 +224,8 @@ No Node, no build step, no database, no message broker. Python 3.9+ on Linux, ma
   across dev, staging and production.
 - **Two engines per operation.** pandas or DuckDB, chosen step by step, with optional Rust acceleration
   (see [Native acceleration](#native-acceleration-optional)).
-- **AI-ready.** An MCP server lets Claude, Cursor or VS Code write pipelines that Hydra validates.
+- **AI-ready, whatever the model.** An MCP server lets any MCP client (Claude, Cursor, VS Code…) write
+  pipelines, and Hydra refuses to run them until they are valid: the guarantee does not depend on the model.
 
 <p>
   <img src="assets/3/validate-before-run.svg" alt="Validation before execution" width="49%">
@@ -254,10 +259,10 @@ readable and run without extra infrastructure.
 
 **Connectors** (sources and destinations):
 
-| <img src="assets/connectors/csv.png" alt="" width="40"><br>CSV | <img src="assets/connectors/json.png" alt="" width="40"><br>JSON | <img src="assets/connectors/parquet.png" alt="" width="40"><br>Parquet | <img src="assets/connectors/mysql.png" alt="" width="40"><br>MySQL / MariaDB | <img src="assets/connectors/postgresql.png" alt="" width="40"><br>PostgreSQL | <img src="assets/connectors/sqlserver.png" alt="" width="40"><br>SQL Server | <img src="assets/connectors/mongo.png" alt="" width="40"><br>MongoDB | <img src="assets/connectors/api.png" alt="" width="40"><br>Web API |
-|:--------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:------------------------------------------------------------------:|
+| <img src="assets/connectors/csv.png" alt="" width="40"><br>CSV | <img src="assets/connectors/json.png" alt="" width="40"><br>JSON | <img src="assets/connectors/parquet.png" alt="" width="40"><br>Parquet | <img src="assets/connectors/mysql.png" alt="" width="40"><br>MySQL / MariaDB | <img src="assets/connectors/postgresql.png" alt="" width="40"><br>PostgreSQL | <img src="assets/connectors/sqlserver.png" alt="" width="40"><br>SQL Server | <img src="assets/connectors/sqlite.png" alt="" width="40"><br>SQLite | <img src="assets/connectors/mongo.png" alt="" width="40"><br>MongoDB | <img src="assets/connectors/api.png" alt="" width="40"><br>Web API |
+|:--------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:------------------------------------------------------------------:|:--------------------------------------------------------------:|
 
-Also **SQLite**, built in: nothing to install (Hydra 0.20+).
+CSV, JSON and SQLite are built in; the other connectors are one `pip install` extra away.
 
 **Transformation engines:** pandas and DuckDB.
 
@@ -596,7 +601,7 @@ placeholder and produce different results.
 The base install is the engine and the CLI. Everything else is opt-in.
 
 ```bash
-pip install hydra-etl                  # engine + CLI
+pip install hydra-etl                  # engine + CLI (CSV, JSON and SQLite built in)
 pip install "hydra-etl[server]"        # + API + Studio
 pip install "hydra-etl[postgres]"      # + PostgreSQL driver
 pip install "hydra-etl[mssql]"         # + Microsoft SQL Server driver

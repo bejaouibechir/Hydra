@@ -1,0 +1,7 @@
+# Faulty: no connection, so no database file.
+version: "1.0"
+destinations:
+  warehouse:
+    type: sqlite
+    load:
+      table: orders

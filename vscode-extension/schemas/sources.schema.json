@@ -38,11 +38,21 @@
       "allOf": [
         {
           "if": {
-            "properties": { "type": { "enum": ["mysql", "mariadb", "postgresql", "postgres"] } },
+            "properties": { "type": { "enum": ["mysql", "mariadb", "postgresql", "postgres", "sqlserver", "mssql"] } },
             "required": ["type"]
           },
           "then": {
             "properties": { "connection": { "$ref": "#/definitions/sqlConnection" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "sqlite" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["connection"],
+            "properties": { "connection": { "$ref": "#/definitions/sqliteConnection" } }
           }
         },
         {
@@ -79,6 +89,9 @@
             "mariadb",
             "postgresql",
             "postgres",
+            "sqlserver",
+            "mssql",
+            "sqlite",
             "mongodb",
             "web_api"
           ],
@@ -90,6 +103,9 @@
             "MariaDB database (same connector as MySQL).",
             "PostgreSQL database.",
             "Alias for postgresql.",
+            "Microsoft SQL Server database (optional dependency: pymssql).",
+            "Alias for sqlserver.",
+            "SQLite database file, built in: connection.path is the file (Hydra ETL 0.20+).",
             "MongoDB database (optional dependency: pymongo).",
             "Paginated HTTP API (optional dependency: requests)."
           ]
@@ -132,6 +148,22 @@
         }
       },
       "additionalProperties": true
+    },
+
+    "sqliteConnection": {
+      "type": "object",
+      "description": "SQLite database file. Built in: nothing to install, no server.",
+      "anyOf": [{ "required": ["path"] }, { "required": ["database"] }],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Database file, relative to the job folder (or absolute). A source file must exist; a destination file is created at the first batch.",
+          "examples": ["../../data/app.db", "../../outputs/warehouse.db"]
+        },
+        "database": { "type": "string", "minLength": 1, "description": "Alias for 'path'." }
+      }
     },
 
     "mongoConnection": {

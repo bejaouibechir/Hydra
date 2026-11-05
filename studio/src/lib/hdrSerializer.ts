@@ -119,6 +119,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   source_mysql:    'mysql',
   source_postgres: 'postgresql',
   source_sqlserver:'sqlserver',
+  source_sqlite:   'sqlite',
   source_mongodb:  'mongodb',
   source_api:      'web_api',
   dest_csv:        'csv',
@@ -127,6 +128,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   dest_mysql:      'mysql',
   dest_postgres:   'postgresql',
   dest_sqlserver:  'sqlserver',
+  dest_sqlite:     'sqlite',
   dest_mongodb:    'mongodb',
 }
 
@@ -135,6 +137,7 @@ const CONNECTOR_TO_SOURCE_NODE: Record<string, string> = {
   mysql: 'source_mysql', mariadb: 'source_mysql',
   postgresql: 'source_postgres', postgres: 'source_postgres',
   sqlserver: 'source_sqlserver', mssql: 'source_sqlserver',
+  sqlite: 'source_sqlite',
   mongodb: 'source_mongodb', web_api: 'source_api',
 }
 
@@ -143,6 +146,7 @@ const CONNECTOR_TO_DEST_NODE: Record<string, string> = {
   mysql: 'dest_mysql', mariadb: 'dest_mysql',
   postgresql: 'dest_postgres', postgres: 'dest_postgres',
   sqlserver: 'dest_sqlserver', mssql: 'dest_sqlserver',
+  sqlite: 'dest_sqlite',
   mongodb: 'dest_mongodb',
 }
 
@@ -260,6 +264,11 @@ export function flowToHdr(
     // Nettoyer les undefined
     Object.keys(extract).forEach(k => extract[k] === undefined && delete extract[k])
 
+    if (connType === 'sqlite') {
+      const sq = _sqliteSource(cfg, 1000)
+      sources[sid] = { type: connType, connection: sq.connection, extract: sq.extract }
+      continue
+    }
     sources[sid] = { type: connType, connection, extract }
   }
 
@@ -325,6 +334,11 @@ export function flowToHdr(
         : { table: cfg.path ?? '', mode: cfg.mode ?? 'replace' }
     Object.keys(load).forEach(k => load[k] === undefined && delete load[k])
 
+    if (connType === 'sqlite') {
+      const sq = _sqliteDest(cfg)
+      destinations[did] = { type: connType, connection: sq.connection, load: sq.load }
+      continue
+    }
     destinations[did] = { type: connType, connection, load }
   }
 
@@ -565,6 +579,28 @@ function _orderToUi(v: unknown): string {
   }).join(', ')
 }
 
+/** load.key d'un nœud SQLite : "a, b" -> ['a', 'b'] ; vide -> undefined (la valeur du fichier est gardée). */
+function _keyList(v: unknown): string[] | undefined {
+  if (Array.isArray(v)) return v.map(String).filter(Boolean)
+  if (typeof v !== 'string' || !v.trim()) return undefined
+  return v.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+/** Source / destination SQLite : connection.path, table ou query, mode, key, atomic. */
+function _sqliteSource(cfg: Record<string, unknown>, batch_size: number | undefined) {
+  const extract: Record<string, unknown> = cfg.query
+    ? { query: cfg.query, batch_size }
+    : { table: cfg.table ?? '', batch_size }
+  if (batch_size === undefined) delete extract.batch_size
+  return { connection: { path: cfg.path ?? '' }, extract }
+}
+function _sqliteDest(cfg: Record<string, unknown>) {
+  const load: Record<string, unknown> = { table: cfg.table ?? '', mode: cfg.mode ?? 'replace', ..._atomicLoad(cfg) }
+  const key = _keyList(cfg.key)
+  if (key && key.length) load.key = key
+  return { connection: { path: cfg.path ?? '' }, load }
+}
+
 function _sourceToParams(src: HdrSource): Record<string, unknown> {
   const conn = src.connection ?? {}
   const ext  = src.extract   ?? {}
@@ -572,6 +608,9 @@ function _sourceToParams(src: HdrSource): Record<string, unknown> {
 
   if (['csv', 'json', 'parquet'].includes(type)) {
     return { path: ext.table ?? ext.file ?? '', delimiter: conn.delimiter }
+  }
+  if (type === 'sqlite') {
+    return { path: (conn as Record<string, unknown>).path ?? '', table: ext.table ?? '', query: ext.query ?? '' }
   }
   if (type === 'mongodb') {
     return { uri: conn.uri, database: conn.database, collection: ext.collection, filter: ext.filter ? JSON.stringify(ext.filter) : '' }
@@ -592,6 +631,12 @@ function _destToParams(dest: HdrDest): Record<string, unknown> {
 
   if (['csv', 'json', 'parquet'].includes(type)) {
     return { path: load.table ?? load.file ?? '', mode: load.mode ?? 'replace' }
+  }
+  if (type === 'sqlite') {
+    const k = (load as Record<string, unknown>).key
+    return { path: (conn as Record<string, unknown>).path ?? '', table: load.table, mode: load.mode ?? 'replace',
+             key: Array.isArray(k) ? k.join(', ') : (k ?? ''),
+             atomic: load.atomic === true ? 'yes' : load.atomic === false ? 'no' : 'default' }
   }
   if (type === 'mongodb') {
     return { uri: conn.uri, database: conn.database, collection: load.collection, mode: load.mode ?? 'replace' }
@@ -759,6 +804,14 @@ export function flowToJobModel(
         : connType === 'web_api' ? { endpoint: cfg.url ?? '', batch_size }
           : { table: cfg.path ?? '', batch_size })
     Object.keys(extract).forEach(k => extract[k] === undefined && delete extract[k])
+    if (connType === 'sqlite') {
+      const sq = _sqliteSource(cfg, batch_size)
+      const ex = _mergeKeep(orig.extract, sq.extract)
+      // table et query s'excluent : garder celle que le nœud définit
+      if (cfg.query) delete ex.table; else delete ex.query
+      sources[key] = { type: connType, connection: _mergeKeep(orig.connection, sq.connection), extract: ex }
+      continue
+    }
     sources[key] = { type: connType, connection, extract }
   }
   if (Object.keys(sources).length === 0) {
@@ -824,6 +877,13 @@ export function flowToJobModel(
         : { table: cfg.path ?? '', mode: cfg.mode ?? 'replace' })
     Object.keys(load).forEach(k => load[k] === undefined && delete load[k])
     Object.keys(connection).forEach(k => connection[k] === undefined && delete connection[k])
+    if (connType === 'sqlite') {
+      const sq = _sqliteDest(cfg)
+      const ld = _mergeKeep(orig.load, sq.load)
+      Object.keys(ld).forEach(k => ld[k] === undefined && delete ld[k])
+      destinations[key] = { type: connType, connection: _mergeKeep(orig.connection, sq.connection), load: ld }
+      continue
+    }
     destinations[key] = { type: connType, connection, load }
   }
   if (Object.keys(destinations).length === 0) {
@@ -920,7 +980,9 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
     const params: Record<string, unknown> = {
       ...src.connection,
       ...src.extract,
-      path: (src.extract?.table as string) ?? (src.connection as Record<string, unknown> | undefined)?.uri,
+      path: src.type === 'sqlite'
+        ? (src.connection as Record<string, unknown> | undefined)?.path
+        : (src.extract?.table as string) ?? (src.connection as Record<string, unknown> | undefined)?.uri,
       _key: key,
       _orig: JSON.stringify({ connection: src.connection ?? {}, extract: src.extract ?? {} }),
       ...(key === srcKeys[0] && model.transformations.engine ? { _engine: model.transformations.engine } : {}),

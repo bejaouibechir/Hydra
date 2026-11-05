@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.1.10
+
+SQLite connector of Hydra ETL 0.20.
+
+- `sources.yaml` and `destinations.yaml`: `type: sqlite`, with `connection.path` (or its alias
+  `database`) required; a server key such as `host` or `port` is refused. `sqlserver` and its alias
+  `mssql` are now in the list of types too, with the SQL connection keys.
+- Snippets: `hsrc-sqlite`, `hdst-sqlite`.
+
 ## 0.1.9
 
 Project triggers of Hydra ETL 0.19.

@@ -393,3 +393,64 @@ describe('hdrSerializer — cross join, text_to_rows, window', () => {
     expect(flowToJobModel(j, edges, 'job1').transformations.steps[0]).toEqual({ join: { right: 'cal', how: 'left', key: 'id' } })
   })
 })
+
+/**
+ * SQLite (0.20) : connection.path (fichier), table ou query, et en destination
+ * mode, key (upsert) et atomic. Le chemin vient de connection.path, pas de la
+ * table comme pour les fichiers CSV / JSON / Parquet.
+ */
+describe('hdrSerializer — SQLite', () => {
+  const modelLite: HydraJobModel = {
+    name: 'sqlite_job',
+    sources: {
+      app: { type: 'sqlite', connection: { path: '../../data/app.db' }, extract: { table: 'orders' } },
+      recent: { type: 'sqlite', connection: { path: '../../data/app.db' }, extract: { query: 'SELECT * FROM orders WHERE day > 3' } },
+    },
+    transformations: { steps: [] },
+    destinations: {
+      dw: {
+        type: 'sqlite',
+        connection: { path: '../../outputs/dw.db' },
+        load: { table: 'orders', mode: 'upsert', key: ['order_id', 'line'], atomic: false },
+      },
+    },
+    pipeline: { from: 'app', to: 'dw' },
+  }
+
+  it('mappe sqlite vers les nœuds SQLite', () => {
+    const { nodes } = jobModelToFlow(modelLite)
+    const byLabel = Object.fromEntries(nodes.map(n => [n.data.label, n.data.nodeType]))
+    expect(byLabel.app).toBe('source_sqlite')
+    expect(byLabel.dw).toBe('dest_sqlite')
+  })
+
+  it('le formulaire reçoit le fichier, la table, la clé et le tout ou rien', () => {
+    const { nodes } = jobModelToFlow(modelLite)
+    const src = nodes.find(n => n.data.label === 'app')!.data.params as Record<string, unknown>
+    expect(src.path).toBe('../../data/app.db')
+    expect(src.table).toBe('orders')
+    const dst = nodes.find(n => n.data.label === 'dw')!.data.params as Record<string, unknown>
+    expect(dst.path).toBe('../../outputs/dw.db')
+    expect(dst.key).toBe('order_id, line')
+    expect(dst.atomic).toBe('no')
+  })
+
+  it('canvas -> YAML : connection.path, key en liste, table XOR query', () => {
+    const { nodes, edges } = jobModelToFlow(modelLite)
+    const back = flowToJobModel(nodes, edges, 'sqlite_job')
+    expect(back.sources.app.connection).toEqual({ path: '../../data/app.db' })
+    expect(back.sources.app.extract.table).toBe('orders')
+    expect(back.sources.app.extract.query).toBeUndefined()
+    expect(back.sources.recent.extract.query).toBe('SELECT * FROM orders WHERE day > 3')
+    expect(back.sources.recent.extract.table).toBeUndefined()
+    expect(back.destinations.dw.connection).toEqual({ path: '../../outputs/dw.db' })
+    expect(back.destinations.dw.load).toMatchObject({ table: 'orders', mode: 'upsert', key: ['order_id', 'line'], atomic: false })
+  })
+
+  it('un round-trip YAML complet ne perd rien', () => {
+    const back = sectionYamlsToJobModel(jobModelToSectionYamls(modelLite), 'sqlite_job')
+    expect(back).not.toBeNull()
+    expect(back!.destinations.dw.load.key).toEqual(['order_id', 'line'])
+    expect(back!.sources.recent.extract.query).toContain('SELECT')
+  })
+})

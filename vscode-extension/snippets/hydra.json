@@ -65,6 +65,19 @@
     ]
   },
 
+  "Hydra — SQLite source": {
+    "prefix": "hsrc-sqlite",
+    "description": "SQLite source (built in, nothing to install)",
+    "body": [
+      "src_${1:name}:",
+      "  type: sqlite",
+      "  connection:",
+      "    path: ${2:../../data/app.db}",
+      "  extract:",
+      "    ${3|table,query|}: ${4:orders}",
+      "$0"
+    ]
+  },
   "Hydra — MongoDB source": {
     "prefix": "hsrc-mongo",
     "description": "MongoDB source with schema inference",
@@ -157,6 +170,21 @@
     ]
   },
 
+  "Hydra — SQLite destination": {
+    "prefix": "hdst-sqlite",
+    "description": "SQLite destination: file and table created at the first batch, all-or-nothing by default",
+    "body": [
+      "dst_${1:name}:",
+      "  type: sqlite",
+      "  connection:",
+      "    path: ${2:../../outputs/warehouse.db}",
+      "  load:",
+      "    table: ${3:orders}",
+      "    mode: ${4|upsert,append,replace|}",
+      "    key: [${5:id}]",
+      "$0"
+    ]
+  },
   "Hydra — pipeline.yaml": {
     "prefix": "hpipeline",
     "description": "Wire a source to a destination",

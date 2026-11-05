@@ -1,0 +1,14 @@
+version: "1.0"
+sources:
+  app:
+    type: sqlite
+    connection:
+      path: ../../data/app.db
+    extract:
+      table: orders
+  recent:
+    type: sqlite
+    connection:
+      path: ../../data/app.db
+    extract:
+      query: "SELECT * FROM orders WHERE order_date >= '2026-11-01'"

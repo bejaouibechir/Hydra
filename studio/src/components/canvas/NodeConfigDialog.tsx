@@ -68,6 +68,11 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'table',    label: 'Table',       type: 'text' },
     { key: 'query',    label: 'SQL query',   type: 'textarea' },
   ],
+  source_sqlite: [
+    { key: 'path',  label: 'Database file', type: 'text', placeholder: '../../data/app.db', required: true, browseType: 'file', browseExt: '.db' },
+    { key: 'table', label: 'Table',         type: 'text' },
+    { key: 'query', label: 'SQL query',     type: 'textarea' },
+  ],
   source_mongodb:  [
     { key: 'uri',        label: 'MongoDB URI', type: 'text', placeholder: 'mongodb://localhost:27017', required: true },
     { key: 'database',   label: 'Database',        type: 'text', required: true },
@@ -112,6 +117,13 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'table',    label: 'Table',       type: 'text',   required: true },
     { key: 'mode',     label: 'Mode',        type: 'select', options: ['append', 'replace', 'upsert'] },
     { key: 'atomic',   label: 'All-or-nothing (default: replace only)', type: 'select', options: ['default', 'yes', 'no'] },
+  ],
+  dest_sqlite: [
+    { key: 'path',   label: 'Database file (created if missing)', type: 'text', placeholder: '../../outputs/app.db', required: true, browseType: 'save_file', browseExt: '.db' },
+    { key: 'table',  label: 'Table (created if missing)', type: 'text', required: true },
+    { key: 'mode',   label: 'Mode',   type: 'select', options: ['append', 'replace', 'upsert'] },
+    { key: 'key',    label: 'Key columns for upsert (comma-separated)', type: 'text', placeholder: 'order_id' },
+    { key: 'atomic', label: 'All-or-nothing (default: yes, every mode)', type: 'select', options: ['default', 'yes', 'no'] },
   ],
   dest_mongodb:  [
     { key: 'uri',        label: 'MongoDB URI', type: 'text', required: true },
@@ -258,7 +270,7 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
 const SHELL_ACTION_TYPES = new Set(['action_powershell', 'action_bash', 'action_ssh'])
 
 // Sources DB — choix mutuellement exclusif Table / SQL query
-const DB_SOURCE_TYPES = new Set(['source_mysql', 'source_postgres', 'source_sqlserver'])
+const DB_SOURCE_TYPES = new Set(['source_mysql', 'source_postgres', 'source_sqlserver', 'source_sqlite'])
 
 // ── Couleur par catégorie ─────────────────────────────────────────────────────
 

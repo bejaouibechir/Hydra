@@ -18,6 +18,14 @@ and versions follow [Semantic Versioning](https://semver.org/).
   three modes (one transaction, table creation included; `load.atomic: false` commits batch by batch).
   `rollback: true` undoes a SQLite load; `source_change` triggers count and max with one SQL query. The
   database uses the WAL journal, so a job can read one table while it writes another in the same file.
+- Studio — **SQLite** source and destination nodes in the palette: database file, table or SQL query; in
+  destination, mode, key columns for `upsert` and all-or-nothing. Read from and written to the YAML files like
+  the other nodes; **View data** reads the destination table. The node catalogue of the API (`/api/nodes`) lists
+  SQLite, and its descriptions are in English. The data viewer also reads SQL Server destinations (it fell back
+  to CSV).
+- VS Code extension 0.1.10: `type: sqlite` in `sources.yaml` and `destinations.yaml` (`connection.path`
+  required, server keys refused), `sqlserver` / `mssql` in the list of types; snippets `hsrc-sqlite`,
+  `hdst-sqlite`.
 
 ## [0.19.1] — 2026-11-05
 

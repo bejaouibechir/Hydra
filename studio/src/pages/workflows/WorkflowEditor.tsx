@@ -174,6 +174,7 @@ function makeFlowNode(nodeType: string, position: { x: number; y: number }): Nod
 const DEST_TYPE: Record<string, string> = {
   dest_csv: 'csv', dest_json: 'json', dest_parquet: 'parquet',
   dest_mysql: 'mysql', dest_postgres: 'postgresql', dest_mongodb: 'mongodb',
+  dest_sqlserver: 'sqlserver', dest_sqlite: 'sqlite',
 }
 
 // ── DataViewerModal — visionneuse top N (lecture directe de la destination) ──
@@ -1539,6 +1540,8 @@ function WorkflowEditorInner() {
       const dest: Record<string, unknown> = isDb
         ? connType === 'mongodb'
           ? { type: connType, connection: { uri: cfg.uri ?? 'mongodb://localhost:27017', database: cfg.database ?? '' }, table: cfg.collection ?? '' }
+          : connType === 'sqlite'
+          ? { type: connType, connection: { path: cfg.path ?? '' }, table: cfg.table ?? '' }
           : { type: connType, connection: { host: cfg.host ?? 'localhost', port: cfg.port ?? (connType === 'postgresql' ? 5432 : 3306), database: cfg.database ?? '', user: cfg.user ?? '', password: cfg.password ?? '' }, table: cfg.table ?? '' }
         : { type: connType, path: cfg.path ?? '', delimiter: cfg.delimiter }
       // Même résolution de work_dir que « Run Job »

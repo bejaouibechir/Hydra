@@ -18,13 +18,14 @@ def _build_catalogue() -> List[NodeInfo]:
 
     # --- Sources / Destinations (connecteurs) ---
     connector_defs = [
-        ("csv",        "CSV",              "Lire/écrire des fichiers CSV"),
-        ("json",       "JSON",             "Lire/écrire des fichiers JSON"),
-        ("mysql",      "MySQL / MariaDB",  "Connecteur MySQL et MariaDB"),
-        ("postgresql", "PostgreSQL",       "Connecteur PostgreSQL"),
-        ("sqlserver",  "SQL Server",       "Connecteur Microsoft SQL Server"),
-        ("mongodb",    "MongoDB",          "Connecteur MongoDB"),
-        ("web_api",    "Web API",          "Appels HTTP GET/POST (REST)"),
+        ("csv",        "CSV",              "Read and write CSV files"),
+        ("json",       "JSON",             "Read and write JSON files"),
+        ("mysql",      "MySQL / MariaDB",  "MySQL and MariaDB connector"),
+        ("postgresql", "PostgreSQL",       "PostgreSQL connector"),
+        ("sqlserver",  "SQL Server",       "Microsoft SQL Server connector"),
+        ("sqlite",     "SQLite",           "SQLite database file, built in"),
+        ("mongodb",    "MongoDB",          "MongoDB connector"),
+        ("web_api",    "Web API",          "HTTP GET/POST calls (REST)"),
     ]
 
     for cid, cname, cdesc in connector_defs:

@@ -535,6 +535,8 @@ def peek_destination(body: PeekRequest):
         config = {"type": ctype}
         if d.get("connection"):
             config["connection"] = d["connection"]
+        if ctype == "sqlite" and body.work_dir:
+            config["job_dir"] = body.work_dir          # path relatif au dossier du job
         conn = build_connector(name="peek", config=config)
         table = d.get("table") or d.get("collection")
         rows = []

@@ -1,0 +1,10 @@
+version: "1.0"
+destinations:
+  warehouse:
+    type: sqlite
+    connection:
+      path: ../../outputs/warehouse.db
+    load:
+      table: orders
+      mode: upsert
+      key: [order_id]

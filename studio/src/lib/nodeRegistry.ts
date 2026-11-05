@@ -47,6 +47,7 @@ const NODES: HydraNodeDef[] = [
   { type: 'source_mysql',    label: 'MySQL',      category: 'source', color: '#10b981', icon: 'MySQL',           description: 'MySQL/MariaDB query',  maxInputs: 0 },
   { type: 'source_postgres', label: 'PostgreSQL', category: 'source', color: '#10b981', icon: 'PostgreSQL',      description: 'PostgreSQL query',     maxInputs: 0 },
   { type: 'source_sqlserver',label: 'SQL Server', category: 'source', color: '#10b981', icon: 'Database',        description: 'SQL Server query',     maxInputs: 0 },
+  { type: 'source_sqlite',   label: 'SQLite',     category: 'source', color: '#10b981', icon: 'Database',        description: 'SQLite table or query (built in)', maxInputs: 0 },
   { type: 'source_mongodb',  label: 'MongoDB',    category: 'source', color: '#10b981', icon: 'Container',       description: 'MongoDB collection',     maxInputs: 0 },
   { type: 'source_api',      label: 'Web API',    category: 'source', color: '#10b981', icon: 'Globe',           description: 'REST HTTP call',        maxInputs: 0 },
 
@@ -79,6 +80,7 @@ const NODES: HydraNodeDef[] = [
   { type: 'dest_mysql',    label: 'MySQL',      category: 'destination', color: '#f59e0b', icon: 'MySQL',           description: 'Inserts into MySQL',        maxOutputs: 0 },
   { type: 'dest_postgres', label: 'PostgreSQL', category: 'destination', color: '#f59e0b', icon: 'PostgreSQL',      description: 'Inserts into PostgreSQL',   maxOutputs: 0 },
   { type: 'dest_sqlserver',label: 'SQL Server', category: 'destination', color: '#f59e0b', icon: 'Database',        description: 'Inserts into SQL Server',   maxOutputs: 0 },
+  { type: 'dest_sqlite',   label: 'SQLite',     category: 'destination', color: '#f59e0b', icon: 'Database',        description: 'Writes a SQLite table (built in)', maxOutputs: 0 },
   { type: 'dest_mongodb',  label: 'MongoDB',    category: 'destination', color: '#f59e0b', icon: 'Container',       description: 'Inserts into MongoDB',      maxOutputs: 0 },
 
   // Nœud Job (canvas workflow uniquement — ouvre le canvas job en double-clic)

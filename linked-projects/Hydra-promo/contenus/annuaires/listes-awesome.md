@@ -133,7 +133,10 @@ Appended at the end of the section per CONTRIBUTING. Disclosure: I'm the author.
 
 | Liste                    | PR ouverte | Lien PR                                                          | Statut                                                                 |
 | ------------------------ | ---------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| awesome-mcp-servers      | 19/09      | https://github.com/punkpeye/awesome-mcp-servers/pull/14699       | Ouverte — **verrou levé le 21/09 : note Glama 83 %**. Reste à coller le badge (code dans l'onglet GitHub Badge de l'admin Glama) |
-| awesome-data-engineering | 19/09      | https://github.com/igorbarinov/awesome-data-engineering/pull/371 | Ouverte                                                                |
-| awesome-pipeline         | 19/09      | https://github.com/pditommaso/awesome-pipeline/pull/246          | Ouverte                                                                |
-| awesome-duckdb           | 19/09      | https://github.com/davidgasquez/awesome-duckdb/pull/353          | Ouverte                                                                |
+| awesome-mcp-servers      | 19/09      | https://github.com/punkpeye/awesome-mcp-servers/pull/14699       | Ouverte. Conflit résolu le 04/11 (script `fix_pr_14699.py`), PR propre, commentaire de relance posté le 04/11 |
+| awesome-data-engineering | 19/09      | https://github.com/igorbarinov/awesome-data-engineering/pull/371 | Ouverte, sans conflit. Mainteneur inactif depuis le 07/09. Relance le 05/11 ; ne pas relancer avant début décembre |
+| awesome-pipeline         | 19/09      | https://github.com/pditommaso/awesome-pipeline/pull/246          | ✅ Fusionnée le 19/09                                                   |
+| awesome-duckdb           | 19/09      | https://github.com/davidgasquez/awesome-duckdb/pull/353          | ✅ Fusionnée le 21/09                                                   |
+| awesome-bigdata          | 04/11      | https://github.com/oxnr/awesome-bigdata/pull/409                 | Ouverte, sans conflit. Section Data Ingestion (entre HIHO et ingestr). Titre et description à corriger (texte de la PR kelvins collé par erreur) |
+| awesome-dataops          | —          | —                                                                | À ouvrir : section Data Workflow, entre Dagster et Luigi               |
+| mcpservers.org           | —          | formulaire https://mcpservers.org/submit                         | À soumettre (gratuit, examen sous 2 semaines)                          |

@@ -1,0 +1,7 @@
+version: "1.0"
+destinations:
+  revenue_by_day:
+    type: parquet
+    load:
+      table: ../../outputs/revenue_by_day.parquet
+      mode: replace

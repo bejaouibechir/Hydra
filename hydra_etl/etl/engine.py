@@ -62,13 +62,13 @@ class Engine:
 
         job_path = Path(job_dir).expanduser().resolve()
         if not job_path.exists() or not job_path.is_dir():
-            raise ValueError(f"Engine.run: job_dir invalide: {str(job_path)!r}")
+            raise ValueError(f"Engine.run: invalid job_dir: {str(job_path)!r}")
 
         root_path: Optional[Path] = None
         if root_dir is not None:
             root_path = Path(root_dir).expanduser().resolve()
             if not root_path.exists() or not root_path.is_dir():
-                raise ValueError(f"Engine.run: root_dir invalide: {str(root_path)!r}")
+                raise ValueError(f"Engine.run: invalid root_dir: {str(root_path)!r}")
 
         # IMPORTANT : le JobExecutor attend 'override_os' (pas override_os_env)
         executor = JobExecutor(job_dir=job_path, root_dir=root_path, override_os=override_os)

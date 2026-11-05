@@ -909,10 +909,14 @@ class WorkflowRunner:
         """Log un message."""
         message = params.get("message", f"Step '{step.name}' executed")
         step_log.info(f"[{step.name}] {message}")
+        # Le message est aussi la sortie du step : affiché sous le step par
+        # `hdrctl run` (comme la sortie d'une action script), et conservé
+        # dans le résultat du run (API, Studio).
         return StepResult(
             step_name=step.name,
             success=True,
             duration=time.monotonic() - start,
+            output=[str(message)],
         )
 
     def _action_set_param(

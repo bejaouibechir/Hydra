@@ -130,7 +130,7 @@ def test_script_missing_input_column(engine, df):
             "code": "x = does_not_exist * 2",
         },
     }
-    with pytest.raises(ValueError, match="input inexistantes"):
+    with pytest.raises(ValueError, match="unknown input columns"):
         engine.apply_step(df, step)
 
 
@@ -143,7 +143,7 @@ def test_script_output_not_defined(engine, df):
             "code": "other = price * 2",  # 'total' jamais defini
         },
     }
-    with pytest.raises(ValueError, match="non definie"):
+    with pytest.raises(ValueError, match="is not set by the code"):
         engine.apply_step(df, step)
 
 

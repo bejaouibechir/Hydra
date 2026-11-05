@@ -86,7 +86,7 @@ def parse_env_text(text: str) -> Dict[str, str]:
 
         if "=" not in line:
             raise EnvFileParseError(
-                f"Ligne .env invalide (pas de '=') à la ligne {lineno}: {raw_line}"
+                f"Invalid .env line (no '=') at line {lineno}: {raw_line}"
             )
 
         key, value = line.split("=", 1)
@@ -95,7 +95,7 @@ def parse_env_text(text: str) -> Dict[str, str]:
 
         if not key:
             raise EnvFileParseError(
-                f"Clé .env vide à la ligne {lineno}: {raw_line}"
+                f"Empty .env key at line {lineno}: {raw_line}"
             )
 
         out[key] = value

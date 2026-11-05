@@ -1,0 +1,21 @@
+version: "1.0"
+workflow:
+  name: ingest
+  description: Clean the raw orders, then compute the revenue per day
+  steps:
+    - name: clean_orders
+      type: job
+      job: ../jobs/clean_orders
+
+    - name: revenue_by_day
+      type: job
+      job: ../jobs/revenue_by_day
+      depends_on: [clean_orders]
+
+    - name: publish_batch
+      type: action
+      action: set_param
+      params:
+        name: batch_label
+        value: "sales-{{ param:run_date }}"
+      depends_on: [revenue_by_day]

@@ -136,7 +136,7 @@ class TestCastOpAliases:
         assert cfg.steps[0].params.mapping == {"x": "int", "y": "float", "z": "str"}
 
     def test_invalid_type_raises(self, parser):
-        with pytest.raises(Exception, match="invalide"):
+        with pytest.raises(Exception, match="invalid"):
             parser.parse({"steps": [{"cast": {"mapping": {"x": "bigint"}}}]})
 
     def test_alias_executed_correctly_by_engine(self, engine):
@@ -297,7 +297,7 @@ class TestTransformParserEdgeCases:
         return TransformParser()
 
     def test_unknown_op_raises(self, parser):
-        with pytest.raises(Exception, match="inconnue|unknown"):
+        with pytest.raises(Exception, match="(?i)inconnue|unknown"):
             parser.parse({"steps": [{"explode": {"column": "x"}}]})
 
     def test_step_with_two_keys_raises(self, parser):

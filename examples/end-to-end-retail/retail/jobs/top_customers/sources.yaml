@@ -1,0 +1,10 @@
+version: "1.0"
+sources:
+  orders:
+    type: csv
+    extract:
+      table: ../../../sales/outputs/orders_clean.csv
+  customers:
+    type: csv
+    extract:
+      table: ../../../customers/outputs/customers_clean.csv

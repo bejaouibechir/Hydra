@@ -71,7 +71,7 @@ def _execute_workflow(run_id: str, workflow_path: str, step: Optional[str], env:
         if step:
             step_names = [s.name for s in wf_def.steps]
             if step not in step_names:
-                raise ValueError(f"Step \'{step}\' introuvable dans le workflow")
+                raise ValueError(f"Step '{step}' not found in the workflow")
             cut = step_names.index(step) + 1
             wf_def.steps = wf_def.steps[:cut]
 
@@ -269,7 +269,7 @@ def _execute_inline_job(run_id: str, hdr_content: str, job_name: str, work_dir: 
     try:
         doc = yaml.safe_load(hdr_content)
         if not doc or "job" not in doc:
-            raise ValueError("Format HDR invalide : cle \'job:\' attendue")
+            raise ValueError("Invalid HDR format: a 'job:' key is expected")
 
         job = doc["job"]
         effective_name = job.get("name", job_name)
@@ -383,7 +383,7 @@ def run_workflow(body: RunRequest, background_tasks: BackgroundTasks):
     """Lance l\'execution d\'un workflow (asynchrone)."""
     wf_path = Path(body.workflow_path)
     if not wf_path.exists():
-        raise HTTPException(status_code=404, detail=f"Chemin introuvable : {body.workflow_path}")
+        raise HTTPException(status_code=404, detail=f"Path not found: {body.workflow_path}")
 
     wf_name = wf_path.stem if wf_path.is_file() else wf_path.name
 
@@ -432,7 +432,7 @@ def run_inline_job(body: InlineJobRequest, background_tasks: BackgroundTasks):
 def run_workflow_step(body: RunRequest, background_tasks: BackgroundTasks):
     """Lance le workflow jusqu\'au step indique dans body.step."""
     if not body.step:
-        raise HTTPException(status_code=400, detail="Le champ \'step\' est requis pour /runs/step")
+        raise HTTPException(status_code=400, detail="The 'step' field is required for /runs/step")
     return run_workflow(body, background_tasks)
 
 
@@ -452,7 +452,7 @@ def list_runs(workflow_name: Optional[str] = None):
 def get_run(run_id: str):
     run = store.get_run(run_id)
     if not run:
-        raise HTTPException(status_code=404, detail=f"Run {run_id} introuvable")
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     return run
 
 
@@ -594,9 +594,9 @@ def _execute_action_node(
         is_windows = sys.platform == "win32"
 
         if node_type == "action_powershell" and not is_windows:
-            raise ValueError("Le noeud PowerShell n\'est pas disponible sur Linux/macOS. Utilisez le noeud Bash.")
+            raise ValueError("The PowerShell node is not available on Linux/macOS. Use the Bash node.")
         if node_type == "action_bash" and is_windows:
-            raise ValueError("Le noeud Bash n\'est pas disponible sur Windows. Utilisez le noeud PowerShell.")
+            raise ValueError("The Bash node is not available on Windows. Use the PowerShell node.")
 
         if node_type == "action_powershell":
             args = ["powershell.exe", "-NonInteractive", "-Command", command]
@@ -628,7 +628,7 @@ def _execute_action_node(
             if file_path:
                 # Mode fichier — exécuter directement le .py existant
                 if not _os.path.isfile(file_path):
-                    raise ValueError(f"Fichier introuvable : {file_path}")
+                    raise ValueError(f"File not found: {file_path}")
                 proc = subprocess.run(
                     [interpreter, file_path],
                     capture_output=True, text=True,
@@ -671,9 +671,9 @@ def _execute_action_node(
             port     = int(p.get("port", 22) or 22)
 
             if not host:
-                raise ValueError("SSH : le champ \'host\' est requis.")
+                raise ValueError("SSH: the 'host' field is required.")
             if not username:
-                raise ValueError("SSH : le champ \'username\' est requis.")
+                raise ValueError("SSH: the 'username' field is required.")
 
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -713,7 +713,7 @@ def _execute_action_node(
                 try:
                     extra_headers = _json.loads(raw_headers)
                 except Exception:
-                    raise ValueError(f"Headers JSON invalide : {raw_headers}")
+                    raise ValueError(f"Invalid headers JSON: {raw_headers}")
 
             # Encoder le body
             body_bytes: bytes | None = None
@@ -721,7 +721,7 @@ def _execute_action_node(
                 try:
                     _json.loads(raw_body)  # validation
                 except Exception:
-                    raise ValueError(f"Body JSON invalide : {raw_body}")
+                    raise ValueError(f"Invalid body JSON: {raw_body}")
                 body_bytes = raw_body.encode("utf-8")
                 extra_headers.setdefault("Content-Type", "application/json")
 
@@ -739,7 +739,7 @@ def _execute_action_node(
             error       = f"HTTP {status_code}" if not success else None
 
         else:
-            raise ValueError(f"Type de noeud action inconnu : {node_type}")
+            raise ValueError(f"Unknown action node type: {node_type}")
 
         from datetime import datetime as _dt
         t1  = _now()

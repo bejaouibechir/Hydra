@@ -1,0 +1,12 @@
+version: "1.0"
+steps:
+  - cast:
+      mapping:
+        amount: float
+  - aggregate:
+      by: [order_date]
+      agg:
+        revenue: {func: sum, col: amount}
+        orders: {func: count, col: order_id}
+  - sort:
+      by: [order_date]

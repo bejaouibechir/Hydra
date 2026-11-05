@@ -1,0 +1,6 @@
+version: "1.0"
+parameters:
+  run_date:
+    type: str
+    required: true
+    description: Business day being processed, given by the calling project.

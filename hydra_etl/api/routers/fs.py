@@ -87,10 +87,10 @@ def fs_list(
             p = p.resolve()
         p = p.resolve()
     except Exception as exc:  # chemin invalide
-        raise HTTPException(status_code=400, detail=f"Chemin invalide : {exc}")
+        raise HTTPException(status_code=400, detail=f"Invalid path: {exc}")
 
     if not p.is_dir():
-        raise HTTPException(status_code=404, detail=f"Dossier introuvable : {p}")
+        raise HTTPException(status_code=404, detail=f"Folder not found: {p}")
 
     ext = ext.lower().strip()
     entries: list[dict] = []

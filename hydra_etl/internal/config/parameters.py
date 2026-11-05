@@ -52,7 +52,7 @@ def coerce_value(value: Any, typ: str, name: str = "") -> Any:
             return str(value)
         if t == "int":
             if isinstance(value, bool):
-                raise ValueError("bool n'est pas un int")
+                raise ValueError("a boolean is not an int")
             return int(value)
         if t == "float":
             return float(value)
@@ -64,7 +64,7 @@ def coerce_value(value: Any, typ: str, name: str = "") -> Any:
                 return True
             if s in ("false", "0", "no", "off"):
                 return False
-            raise ValueError(f"'{value}' n'est pas un booléen")
+            raise ValueError(f"'{value}' is not a boolean")
         if t == "json":
             if isinstance(value, (dict, list)):
                 return value
@@ -73,7 +73,7 @@ def coerce_value(value: Any, typ: str, name: str = "") -> Any:
         return value
     except (ValueError, TypeError, json.JSONDecodeError) as e:
         raise ParameterError(
-            f"paramètre '{name}': valeur {value!r} non convertible en {t}: {e}"
+            f"parameter '{name}': value {value!r} cannot be converted to {t}: {e}"
         ) from None
 
 

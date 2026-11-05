@@ -1,0 +1,41 @@
+customer_id,name,country,segment
+1,BOB 1,France,pro
+2,david 2,Germany,retail
+3,BOB 3,Tunisia,retail
+4,Gina  4,France,retail
+5,BOB 5,Germany,retail
+6,  alice  6,Tunisia,retail
+7,Gina  7,Germany,pro
+8,Emma 8,France,retail
+9,Gina  9,Spain,pro
+10,Chloé  10,Germany,pro
+11,BOB 11,France,pro
+12,BOB 12,Spain,pro
+13,Emma 13,France,pro
+14,BOB 14,Italy,retail
+15,Emma 15,Tunisia,pro
+16,david 16,France,retail
+17,david 17,Spain,retail
+18,david 18,France,pro
+19,Emma 19,Italy,pro
+20,Chloé  20,Spain,pro
+21,david 21,Spain,retail
+22,Chloé  22,Tunisia,retail
+23,Chloé  23,Italy,pro
+24,Emma 24,Tunisia,retail
+25,farid 25,France,retail
+26,  alice  26,Spain,pro
+27,Emma 27,France,retail
+28,farid 28,Germany,pro
+29,Gina  29,Italy,retail
+30,Emma 30,Germany,retail
+31,Emma 31,Tunisia,pro
+32,Gina  32,Spain,retail
+33,Chloé  33,Tunisia,pro
+34,BOB 34,France,retail
+35,Chloé  35,Germany,pro
+36,BOB 36,Italy,pro
+37,hugo 37,Tunisia,pro
+38,  alice  38,France,pro
+39,farid 39,France,pro
+40,Gina  40,Germany,pro

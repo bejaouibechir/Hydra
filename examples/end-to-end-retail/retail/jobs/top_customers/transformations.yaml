@@ -1,0 +1,24 @@
+version: "1.0"
+steps:
+  - cast:
+      mapping:
+        amount: float
+  - aggregate:
+      by: [customer_id]
+      agg:
+        revenue: {func: sum, col: amount}
+        orders: {func: count, col: order_id}
+  - join:
+      right: customers
+      key: customer_id
+      how: left
+  - window:
+      order_by: [{col: revenue, desc: true}]
+      columns:
+        rank: {func: rank}
+  - filter:
+      expr: "rank <= 10"
+  - select:
+      columns: [rank, customer_id, name, country, segment, orders, revenue]
+  - sort:
+      by: [rank]

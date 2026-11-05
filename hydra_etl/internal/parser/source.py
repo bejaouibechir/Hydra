@@ -149,7 +149,7 @@ class ExtractConfig(BaseModel):
     @model_validator(mode="after")
     def _check_table_or_query_or_collection(self):
         if not self.table and not self.query and not self.collection:
-            raise ValueError("extract doit définir 'table', 'query' ou 'collection'")
+            raise ValueError("extract must define 'table', 'query' or 'collection'")
         return self
 
 
@@ -191,7 +191,7 @@ class SourcesConfig(BaseModel):
     @classmethod
     def _at_least_one_source(cls, v: Dict[str, SourceDefinition]) -> Dict[str, SourceDefinition]:
         if not v:
-            raise ValueError("sources.yaml ne contient aucune source")
+            raise ValueError("sources.yaml has no source")
         return v
 
 

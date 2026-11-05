@@ -75,7 +75,7 @@ def save_parameters(body: ParametersPayload) -> ParametersResponse:
         if not root.exists():
             raise HTTPException(
                 status_code=400,
-                detail=f"Dossier projet introuvable sur disk : {root}",
+                detail=f"Project folder not found on disk: {root}",
             )
         atomic_write_text(
             root / "parameters.yaml",

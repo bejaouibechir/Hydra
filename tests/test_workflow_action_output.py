@@ -2,7 +2,8 @@
 
 Le runner remonte le stdout/stderr d'une action python/bash/powershell dans
 StepResult.output, et la CLI l'affiche sous la ligne du step. Les autres types
-de steps (job, log, delay...) restent inchangés.
+de steps (job, delay...) restent inchangés ; une action log a pour sortie
+son message (0.19.1).
 """
 from __future__ import annotations
 
@@ -57,16 +58,52 @@ def test_output_is_empty_for_non_script_steps(tmp_path):
           trigger:
             type: manual
           steps:
-            - name: "note"
+            - name: "pause"
               type: action
-              action: log
+              action: delay
               params:
-                message: "nothing to show"
+                seconds: 0
               depends_on: []
         """), encoding="utf-8")
     result = WorkflowRunner(load_workflow(wf), base_dir=tmp_path).run()
     assert result.success
     assert result.steps[0].output == []
+
+
+def test_log_message_is_the_step_output(tmp_path):
+    """0.19.1 : le message d'une action log est la sortie du step (il n'était
+    écrit que dans le logger, donc invisible dans `hdrctl run`)."""
+    wf = tmp_path / "workflow.yaml"
+    wf.write_text(textwrap.dedent("""\
+        workflow:
+          name: "t"
+          steps:
+            - name: "note"
+              type: action
+              action: log
+              params:
+                message: "Nightly run for 2026-11-04"
+        """), encoding="utf-8")
+    result = WorkflowRunner(load_workflow(wf), base_dir=tmp_path).run()
+    assert result.success
+    assert result.steps[0].output == ["Nightly run for 2026-11-04"]
+
+
+def test_cli_shows_the_log_message_under_the_step(runner, tmp_path):
+    wf = tmp_path / "workflow.yaml"
+    wf.write_text(textwrap.dedent("""\
+        workflow:
+          name: "t"
+          steps:
+            - name: "note"
+              type: action
+              action: log
+              params:
+                message: "Nightly run for 2026-11-04"
+        """), encoding="utf-8")
+    res = runner.invoke(cli, ["workflow", "run", str(wf)])
+    assert res.exit_code == 0, res.output
+    assert "Nightly run for 2026-11-04" in res.output
 
 
 def test_cli_shows_the_output_under_the_step(runner, tmp_path):

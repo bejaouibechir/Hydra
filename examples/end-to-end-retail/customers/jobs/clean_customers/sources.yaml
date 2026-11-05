@@ -1,0 +1,6 @@
+version: "1.0"
+sources:
+  raw_customers:
+    type: csv
+    extract:
+      table: ../../../data/customers.csv

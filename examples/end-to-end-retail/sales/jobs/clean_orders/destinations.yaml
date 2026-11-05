@@ -1,0 +1,7 @@
+version: "1.0"
+destinations:
+  orders_clean:
+    type: csv
+    load:
+      table: ../../outputs/orders_clean.csv
+      mode: replace

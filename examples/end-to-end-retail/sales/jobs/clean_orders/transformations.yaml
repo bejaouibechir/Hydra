@@ -1,0 +1,10 @@
+version: "1.0"
+steps:
+  - deduplicate:
+      columns: [order_id]
+  - cast:
+      mapping:
+        quantity: int
+        amount: float
+  - filter:
+      expr: "status == 'paid' and amount > 0"

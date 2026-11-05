@@ -1,0 +1,12 @@
+{
+  "id": "15552e49",
+  "name": "sales",
+  "description": "",
+  "created_at": "2026-11-05T08:41:22.605665+00:00",
+  "conventions": {
+    "data_dir": "Data",
+    "output_dir": "outputs"
+  },
+  "workflows": [],
+  "jobs": []
+}

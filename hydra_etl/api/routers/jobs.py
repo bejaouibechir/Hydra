@@ -40,7 +40,7 @@ def get_job_files(project_id: str, name: str):
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
     job_dir = Path(proj.path) / "jobs" / name
     if not job_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"Job '{name}' introuvable dans {proj.path}/jobs/")
+        raise HTTPException(status_code=404, detail=f"Job '{name}' not found in {proj.path}/jobs/")
 
     def _read(fname: str) -> str:
         f = job_dir / fname

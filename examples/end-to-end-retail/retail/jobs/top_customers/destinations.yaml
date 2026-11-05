@@ -1,0 +1,7 @@
+version: "1.0"
+destinations:
+  top_customers:
+    type: csv
+    load:
+      table: ../../outputs/top_customers.csv
+      mode: replace

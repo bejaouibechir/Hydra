@@ -178,7 +178,7 @@ def test_colonne_absente_garde_le_message_dorigine(tmp_path: Path, monkeypatch):
     job = _job(tmp_path, [{"select": {"columns": ["order_id", "colonne_absente"]}}])
     res = JobExecutor(job_dir=job).run()
     assert res.success is False
-    assert "colonnes inexistantes" in (res.error or "")
+    assert "unknown columns" in (res.error or "")
 
 
 def test_connecteur_csv_projette_reellement(tmp_path: Path):

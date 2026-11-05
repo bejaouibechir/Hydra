@@ -83,7 +83,7 @@ def _validate_script_ast(code: str) -> None:
     try:
         tree = ast.parse(code, mode="exec")
     except SyntaxError as e:
-        raise ValueError(f"script: erreur de syntaxe: {e}") from None
+        raise ValueError(f"script: syntax error: {e}") from None
 
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -125,8 +125,8 @@ def _coerce_output(series: pd.Series, typ: str, col: str = "") -> pd.Series:
             return pd.to_datetime(series, errors="raise")
     except Exception as ex:
         raise ValueError(
-            f"script: colonne de sortie '{col}' non convertible vers '{typ}' "
-            f"(valeur ex.: {series.iloc[0]!r}) : {ex}"
+            f"script: output column '{col}' cannot be converted to '{typ}' "
+            f"(example value: {series.iloc[0]!r}): {ex}"
         ) from None
     return series
 
@@ -185,7 +185,7 @@ class PandasEngine(TransformEngine):
         """
         if not isinstance(dataset, pd.DataFrame):
             raise ValueError(
-                f"PandasEngine attend un pandas.DataFrame, reçu {type(dataset).__name__}"
+                f"PandasEngine expects a pandas.DataFrame, got {type(dataset).__name__}"
             )
 
         ns = self._normalize_step(step)
@@ -229,11 +229,11 @@ class PandasEngine(TransformEngine):
             ValueError: Si la liste d'étapes est vide ou si une étape échoue
         """
         if not steps:
-            raise ValueError("Pipeline vide : au moins une transformation requise")
+            raise ValueError("Empty pipeline: at least one transformation is required")
 
         if not isinstance(steps, list):
             raise ValueError(
-                f"steps doit être une liste, reçu {type(steps).__name__}"
+                f"steps must be a list, got {type(steps).__name__}"
             )
 
         df = dataset
@@ -244,7 +244,7 @@ class PandasEngine(TransformEngine):
                 df = result.output
                 all_stats.append({"index": idx, "stats": result.stats})
             except ValueError as e:
-                raise ValueError(f"Erreur à l'étape {idx}/{len(steps)}: {e}") from None
+                raise ValueError(f"Step {idx}/{len(steps)}: {e}") from None
 
         return StepResult(output=df, stats={"steps": all_stats})
 
@@ -261,13 +261,13 @@ class PandasEngine(TransformEngine):
         - {"select": {...}}
         """
         if not isinstance(step, dict):
-            raise ValueError(f"Step doit être un dict, reçu {type(step).__name__}")
+            raise ValueError(f"A step must be a mapping, got {type(step).__name__}")
 
         # Format normalisé : {"op": ..., "params": ...}
         if "op" in step:
             op = step["op"]
             if not isinstance(op, str):
-                raise ValueError(f"op doit être un string, reçu {type(op).__name__}")
+                raise ValueError(f"op must be a string, got {type(op).__name__}")
 
             return _NormalizedStep(
                 op=op.lower(),
@@ -277,7 +277,7 @@ class PandasEngine(TransformEngine):
         # Format DSL : {"select": {...}}
         if len(step) != 1:
             raise ValueError(
-                f"Step invalide : doit contenir 1 clé (opération), trouvé {len(step)}"
+                f"Invalid step: it must have exactly 1 key (the operation), found {len(step)}"
             )
 
         op = next(iter(step))
@@ -285,7 +285,7 @@ class PandasEngine(TransformEngine):
 
         if not isinstance(params, dict):
             raise ValueError(
-                f"Paramètres de '{op}' doivent être un dict, reçu {type(params).__name__}"
+                f"The parameters of '{op}' must be a mapping, got {type(params).__name__}"
             )
 
         return _NormalizedStep(op=op.lower(), params=params)
@@ -335,8 +335,8 @@ class PandasEngine(TransformEngine):
             return apply_pandas(df, step.params)
 
         raise ValueError(
-            f"Opération inconnue: {step.op}. "
-            f"Opérations disponibles : select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script, text_to_rows, window"
+            f"Unknown operation: {step.op}. "
+            f"Available operations: select, rename, cast, filter, calculate, sort, deduplicate, fill_null, trim, aggregate, join, clean, pivot, unpivot, transpose, merge, union, script, text_to_rows, window"
         )
 
     # --------------------------------------------------
@@ -353,15 +353,15 @@ class PandasEngine(TransformEngine):
         cols = p.get("columns")
 
         if not cols:
-            raise ValueError("select.columns requis et ne peut pas être vide")
+            raise ValueError("select.columns is required and cannot be empty")
 
         if not isinstance(cols, list):
             raise ValueError(
-                f"select.columns doit être une liste, reçu {type(cols).__name__}"
+                f"select.columns must be a list, got {type(cols).__name__}"
             )
 
         if not all(isinstance(c, str) for c in cols):
-            raise ValueError("select.columns doit contenir uniquement des strings")
+            raise ValueError("select.columns must contain strings only")
 
         # Déduplication tout en préservant l'ordre
         cols = list(dict.fromkeys(cols))
@@ -369,8 +369,8 @@ class PandasEngine(TransformEngine):
         missing = [c for c in cols if c not in df.columns]
         if missing:
             raise ValueError(
-                f"select : colonnes inexistantes {missing}. "
-                f"Colonnes disponibles : {list(df.columns)}"
+                f"select: unknown columns {missing}. "
+                f"Available columns: {list(df.columns)}"
             )
 
         return lazy_copy(df.loc[:, cols])
@@ -385,18 +385,18 @@ class PandasEngine(TransformEngine):
         mapping = p.get("mapping")
 
         if not mapping:
-            raise ValueError("rename.mapping requis et ne peut pas être vide")
+            raise ValueError("rename.mapping is required and cannot be empty")
 
         if not isinstance(mapping, dict):
             raise ValueError(
-                f"rename.mapping doit être un dict, reçu {type(mapping).__name__}"
+                f"rename.mapping must be a mapping, got {type(mapping).__name__}"
             )
 
         missing = [c for c in mapping.keys() if c not in df.columns]
         if missing:
             raise ValueError(
-                f"rename : colonnes inexistantes {missing}. "
-                f"Colonnes disponibles : {list(df.columns)}"
+                f"rename: unknown columns {missing}. "
+                f"Available columns: {list(df.columns)}"
             )
 
         return df.rename(columns=mapping)
@@ -412,11 +412,11 @@ class PandasEngine(TransformEngine):
         mapping = p.get("mapping")
 
         if not mapping:
-            raise ValueError("cast.mapping requis et ne peut pas être vide")
+            raise ValueError("cast.mapping is required and cannot be empty")
 
         if not isinstance(mapping, dict):
             raise ValueError(
-                f"cast.mapping doit être un dict, reçu {type(mapping).__name__}"
+                f"cast.mapping must be a mapping, got {type(mapping).__name__}"
             )
 
         out = lazy_copy(df)
@@ -424,13 +424,13 @@ class PandasEngine(TransformEngine):
         for col, typ in mapping.items():
             if col not in out.columns:
                 raise ValueError(
-                    f"cast : colonne inexistante '{col}'. "
-                    f"Colonnes disponibles : {list(out.columns)}"
+                    f"cast: unknown column '{col}'. "
+                    f"Available columns: {list(out.columns)}"
                 )
 
             if not isinstance(typ, str):
                 raise ValueError(
-                    f"cast : type pour '{col}' doit être un string, reçu {type(typ).__name__}"
+                    f"cast: the type of '{col}' must be a string, got {type(typ).__name__}"
                 )
 
             t = typ.lower()
@@ -453,8 +453,8 @@ class PandasEngine(TransformEngine):
 
                 else:
                     raise ValueError(
-                        f"Type non supporté : '{typ}'. "
-                        f"Types disponibles : int, float, str, bool, datetime"
+                        f"Unsupported type: '{typ}'. "
+                        f"Available types: int, float, str, bool, datetime"
                     )
 
             except ValueError as e:
@@ -462,11 +462,11 @@ class PandasEngine(TransformEngine):
                 if "Type non supporté" in str(e):
                     raise
                 raise ValueError(
-                    f"cast : échec conversion colonne='{col}' vers type='{typ}' : {e}"
+                    f"cast: cannot convert column='{col}' to type='{typ}': {e}"
                 ) from None
             except Exception as e:
                 raise ValueError(
-                    f"cast : échec conversion colonne='{col}' vers type='{typ}' : {e}"
+                    f"cast: cannot convert column='{col}' to type='{typ}': {e}"
                 ) from None
 
         return out
@@ -481,16 +481,16 @@ class PandasEngine(TransformEngine):
         expr = p.get("expr")
 
         if not expr:
-            raise ValueError("filter.expr requis et ne peut pas être vide")
+            raise ValueError("filter.expr is required and cannot be empty")
 
         if not isinstance(expr, str):
             raise ValueError(
-                f"filter.expr doit être un string, reçu {type(expr).__name__}"
+                f"filter.expr must be a string, got {type(expr).__name__}"
             )
 
         expr = expr.strip()
         if not expr:
-            raise ValueError("filter.expr ne peut pas être un string vide")
+            raise ValueError("filter.expr cannot be an empty string")
 
         engine = choose_expr_engine(df, expr)
         if engine != "python":
@@ -502,7 +502,7 @@ class PandasEngine(TransformEngine):
             return lazy_copy(df.query(expr, engine="python"))
         except Exception as e:
             raise ValueError(
-                f"filter : expression invalide '{expr}'. Erreur : {e}"
+                f"filter: invalid expression '{expr}'. Error: {e}"
             ) from None
 
     def _op_union(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
@@ -512,7 +512,7 @@ class PandasEngine(TransformEngine):
         """
         right_rows = p.get("_right_rows")
         if right_rows is None:
-            raise ValueError("union: source non chargee (doit etre execute via le runner).")
+            raise ValueError("union: source not loaded (the step must run through the job runner).")
         distinct = bool(p.get("distinct", False))
         other = pd.DataFrame(list(right_rows))
         result = pd.concat([df, other], ignore_index=True, sort=False)
@@ -546,26 +546,26 @@ class PandasEngine(TransformEngine):
         mode = str(p.get("mode", "vectorized")).lower()
 
         if not isinstance(inputs, list):
-            raise ValueError("script.inputs doit etre une liste de colonnes")
+            raise ValueError("script.inputs must be a list of columns")
         if not isinstance(outputs, dict) or not outputs:
-            raise ValueError("script.outputs requis (dict {colonne: type} non vide)")
+            raise ValueError("script.outputs is required (a non-empty mapping {column: type})")
         if not code or not isinstance(code, str):
-            raise ValueError("script.code requis (chaine non vide)")
+            raise ValueError("script.code is required (a non-empty string)")
         if mode not in ("vectorized", "row"):
-            raise ValueError(f"script.mode invalide: {mode} (vectorized|row)")
+            raise ValueError(f"script.mode invalid: {mode} (vectorized|row)")
 
         missing = [c for c in inputs if c not in df.columns]
         if missing:
             raise ValueError(
-                f"script: colonnes input inexistantes {missing}. "
-                f"Colonnes disponibles : {list(df.columns)}"
+                f"script: unknown input columns {missing}. "
+                f"Available columns: {list(df.columns)}"
             )
 
         _validate_script_ast(code)
         try:
             compiled = compile(code, "<hydra-script>", "exec")
         except Exception as ex:
-            raise ValueError(f"script: compilation impossible: {ex}") from None
+            raise ValueError(f"script: cannot compile: {ex}") from None
 
         g = _script_globals()
         g["params"] = dict(p.get("_params") or {})  # parametres (lecture seule)
@@ -579,12 +579,12 @@ class PandasEngine(TransformEngine):
                     exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
             except Exception as ex:
                 _emit_script_output(_buf)
-                raise ValueError(f"script: erreur d'execution: {ex}") from None
+                raise ValueError(f"script: runtime error: {ex}") from None
             _emit_script_output(_buf)
             for col, typ in outputs.items():
                 if col not in local_ns:
                     raise ValueError(
-                        f"script: colonne de sortie '{col}' non definie par le code"
+                        f"script: output column '{col}' is not set by the code"
                     )
                 out[col] = _coerce_output(pd.Series(local_ns[col], index=out.index), typ, col)
             return out
@@ -599,11 +599,11 @@ class PandasEngine(TransformEngine):
                     try:
                         exec(compiled, g, local_ns)  # noqa: S102 - sandbox controle
                     except Exception as ex:
-                        raise ValueError(f"script: erreur d'execution (mode row): {ex}") from None
+                        raise ValueError(f"script: runtime error (row mode): {ex}") from None
                     for col in outputs:
                         if col not in local_ns:
                             raise ValueError(
-                                f"script: colonne de sortie '{col}' non definie par le code"
+                                f"script: output column '{col}' is not set by the code"
                             )
                         collected[col].append(local_ns[col])
         finally:
@@ -623,18 +623,18 @@ class PandasEngine(TransformEngine):
         """
         right_rows = p.get("_right_rows")
         if right_rows is None:
-            raise ValueError("merge: source non chargee (doit etre execute via le runner).")
+            raise ValueError("merge: source not loaded (the step must run through the job runner).")
         key = p.get("key")
         if not key:
-            raise ValueError("merge.key requis (cle d'appariement)")
+            raise ValueError("merge.key is required (the matching key)")
         keys = [key] if isinstance(key, str) else list(key)
         delete_unmatched = bool(p.get("delete_unmatched", False))
         source_df = pd.DataFrame(list(right_rows))
         for k in keys:
             if k not in df.columns:
-                raise ValueError(f"merge: cle '{k}' absente de la cible")
+                raise ValueError(f"merge: key '{k}' missing from the target")
             if k not in source_df.columns:
-                raise ValueError(f"merge: cle '{k}' absente de la source")
+                raise ValueError(f"merge: key '{k}' missing from the source")
         combined = pd.concat([df, source_df], ignore_index=True, sort=False)
         result = combined.drop_duplicates(subset=keys, keep="last")
         if delete_unmatched:
@@ -653,7 +653,7 @@ class PandasEngine(TransformEngine):
         out = lazy_copy(df)
         if idx:
             if idx not in out.columns:
-                raise ValueError(f"transpose: index_col '{idx}' inexistante. Disponibles: {list(out.columns)}")
+                raise ValueError(f"transpose: unknown index_col '{idx}'. Available columns: {list(out.columns)}")
             out = out.set_index(idx)
         t = out.T
         t.index.name = header_name
@@ -671,7 +671,7 @@ class PandasEngine(TransformEngine):
         targets = cols if cols else [c for c in out.columns if out[c].dtype == object]
         for c in targets:
             if c not in out.columns:
-                raise ValueError(f"clean: colonne '{c}' inexistante. Disponibles: {list(out.columns)}")
+                raise ValueError(f"clean: unknown column '{c}'. Available columns: {list(out.columns)}")
 
             def _cl(v):
                 if not isinstance(v, str):
@@ -708,7 +708,7 @@ class PandasEngine(TransformEngine):
             ]
             return res.reset_index(drop=True)
         except Exception as e:
-            raise ValueError(f"pivot: erreur lors du pivot: {e}") from None
+            raise ValueError(f"pivot: {e}") from None
 
     def _op_unpivot(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """
@@ -731,7 +731,7 @@ class PandasEngine(TransformEngine):
                 value_name=value_name,
             )
         except Exception as e:
-            raise ValueError(f"unpivot: erreur lors du melt: {e}") from None
+            raise ValueError(f"unpivot: {e}") from None
 
     def _op_join(self, df: pd.DataFrame, p: Dict[str, Any]) -> pd.DataFrame:
         """
@@ -743,12 +743,12 @@ class PandasEngine(TransformEngine):
         right_rows = p.get("_right_rows")
         if right_rows is None:
             raise ValueError(
-                "join: source de reference non chargee. "
-                "Le step 'join' doit etre execute via le runner (source 'right' requise)."
+                "join: reference source not loaded. "
+                "The 'join' step must run through the job runner (a 'right' source is required)."
             )
         how = p.get("how", "inner")
         if how not in ("inner", "left", "right", "outer", "cross"):
-            raise ValueError(f"join.how invalide: {how} (inner|left|right|outer|cross)")
+            raise ValueError(f"join.how invalid: {how} (inner|left|right|outer|cross)")
         right_df = pd.DataFrame(list(right_rows))
         if how == "cross":
             return self._cross_join(df, right_df, p)
@@ -769,13 +769,13 @@ class PandasEngine(TransformEngine):
 
         key = p.get("key")
         if not key:
-            raise ValueError("join: 'key' (ou 'left_key' + 'right_key') requis")
+            raise ValueError("join: 'key' (or 'left_key' + 'right_key') is required")
         keys = [key] if isinstance(key, str) else list(key)
         for k in keys:
             if k not in df.columns:
-                raise ValueError(f"join: cle '{k}' absente du flux gauche")
+                raise ValueError(f"join: key '{k}' missing from the left side")
             if k not in right_df.columns:
-                raise ValueError(f"join: cle '{k}' absente de la source de reference")
+                raise ValueError(f"join: key '{k}' missing from the reference source")
         return df.merge(right_df, on=keys, how=how, suffixes=("", "_r"))
 
     # Garde-fou du produit cartésien : lignes produites au plus (forçable par max_rows)
@@ -814,29 +814,29 @@ class PandasEngine(TransformEngine):
         expr = p.get("expr")
 
         if not col:
-            raise ValueError("calculate.column requis et ne peut pas être vide")
+            raise ValueError("calculate.column is required and cannot be empty")
 
         if not expr:
-            raise ValueError("calculate.expr requis et ne peut pas être vide")
+            raise ValueError("calculate.expr is required and cannot be empty")
 
         if not isinstance(col, str):
             raise ValueError(
-                f"calculate.column doit être un string, reçu {type(col).__name__}"
+                f"calculate.column must be a string, got {type(col).__name__}"
             )
 
         if not isinstance(expr, str):
             raise ValueError(
-                f"calculate.expr doit être un string, reçu {type(expr).__name__}"
+                f"calculate.expr must be a string, got {type(expr).__name__}"
             )
 
         col = col.strip()
         expr = expr.strip()
 
         if not col:
-            raise ValueError("calculate.column ne peut pas être un string vide")
+            raise ValueError("calculate.column cannot be an empty string")
 
         if not expr:
-            raise ValueError("calculate.expr ne peut pas être un string vide")
+            raise ValueError("calculate.expr cannot be an empty string")
 
         engine = choose_expr_engine(df, expr)
         out = lazy_copy(df)
@@ -850,7 +850,7 @@ class PandasEngine(TransformEngine):
             out[col] = out.eval(expr, engine="python")
         except Exception as e:
             raise ValueError(
-                f"calculate : expression invalide '{expr}'. Erreur : {e}"
+                f"calculate: invalid expression '{expr}'. Error: {e}"
             ) from None
 
         return out
@@ -868,7 +868,7 @@ class PandasEngine(TransformEngine):
         """
         by = p.get("by")
         if not by:
-            raise ValueError("sort.by requis (liste de colonnes)")
+            raise ValueError("sort.by is required (a list of columns)")
         if isinstance(by, str):
             by = [by]
         ascending = p.get("ascending", True)
@@ -994,19 +994,19 @@ class PandasEngine(TransformEngine):
         """
         by = p.get("by")
         if not by:
-            raise ValueError("aggregate.by requis (liste de colonnes non vide)")
+            raise ValueError("aggregate.by is required (a non-empty list of columns)")
         if isinstance(by, str):
             by = [by]
         if not all(c in df.columns for c in by):
             missing = [c for c in by if c not in df.columns]
             raise ValueError(
-                f"aggregate.by : colonnes inexistantes {missing}. "
-                f"Colonnes disponibles : {list(df.columns)}"
+                f"aggregate.by: unknown columns {missing}. "
+                f"Available columns: {list(df.columns)}"
             )
 
         agg_config = p.get("agg")
         if not agg_config or not isinstance(agg_config, dict):
-            raise ValueError("aggregate.agg requis (dict non vide)")
+            raise ValueError("aggregate.agg is required (a non-empty mapping)")
 
         # Mapping func aliases
         _FUNC_ALIASES = {"avg": "mean"}
@@ -1023,21 +1023,33 @@ class PandasEngine(TransformEngine):
                 src_col = out_col
             else:
                 raise ValueError(
-                    f"aggregate.agg.{out_col}: format invalide. "
-                    f"Attendu: dict {{func, col}} ou string func."
+                    f"aggregate.agg.{out_col}: invalid format. "
+                    f"Expected {{func, col}} or a function name."
                 )
             if src_col not in df.columns:
                 raise ValueError(
-                    f"aggregate.agg.{out_col}: colonne source '{src_col}' inexistante. "
-                    f"Colonnes disponibles : {list(df.columns)}"
+                    f"aggregate.agg.{out_col}: unknown source column '{src_col}'. "
+                    f"Available columns: {list(df.columns)}"
                 )
+            # sum / mean sur du texte : pandas concatène les chaînes ("19.9" +
+            # "49.9" -> "19.949.9") au lieu d'additionner. Une colonne lue d'un
+            # CSV sans `cast` est du texte : on refuse plutôt que de produire
+            # un total faux sans le dire.
+            if func in ("sum", "mean"):
+                col = df[src_col]
+                if col.dtype.kind not in "iufb" and col.notna().any():
+                    raise ValueError(
+                        f"aggregate.agg.{out_col}: {func} needs a numeric column "
+                        f"('{src_col}' is {col.dtype}). Add a cast step before aggregate, "
+                        f"for example: cast: {{mapping: {{{src_col}: float}}}}"
+                    )
             pandas_agg[out_col] = (src_col, func)
 
         try:
             result = df.groupby(by, as_index=False).agg(**pandas_agg)
             return result.reset_index(drop=True)
         except Exception as e:
-            raise ValueError(f"aggregate: erreur lors de l'agregation: {e}") from None
+            raise ValueError(f"aggregate: {e}") from None
 
     # --------------------------------------------------
     # Helpers
@@ -1125,15 +1137,15 @@ class PandasEngine(TransformEngine):
                     return True
                 if v == 0:
                     return False
-                raise ValueError(f"Valeur numerique {v} non convertible en bool (attendu 0 ou 1)")
+                raise ValueError(f"Numeric value {v} cannot be converted to bool (expected 0 or 1)")
             if isinstance(v, str):
                 s = v.strip().lower()
                 if s in TRUE_VALS:
                     return True
                 if s in FALSE_VALS:
                     return False
-                raise ValueError(f"String '{v}' non convertible en bool")
-            raise ValueError(f"Type {type(v).__name__} non convertible en bool")
+                raise ValueError(f"String '{v}' cannot be converted to bool")
+            raise ValueError(f"Type {type(v).__name__} cannot be converted to bool")
 
         # `normalize` est une fonction Python : l'appeler une fois par ligne coûte
         # cher. Une colonne booléenne n'a en pratique qu'une poignée de valeurs

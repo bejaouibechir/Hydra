@@ -1,0 +1,8 @@
+# Hydra: never commit secrets
+.hydra/secrets
+.hydra/secrets.*
+!.hydra/secrets.yaml
+!.hydra/*.sops.*
+.env
+.env.*
+!.env.example

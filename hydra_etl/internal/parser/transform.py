@@ -21,7 +21,7 @@ class SelectOp(BaseModel):
     def _non_empty_columns(cls, v: List[str]) -> List[str]:
         cleaned = [c.strip() for c in v if isinstance(c, str)]
         if not cleaned or any(not c for c in cleaned):
-            raise ValueError("select.columns doit contenir des noms de colonnes non vides")
+            raise ValueError("select.columns must contain non-empty column names")
         seen = set()
         uniq: List[str] = []
         for c in cleaned:
@@ -40,7 +40,7 @@ class RenameOp(BaseModel):
         cleaned: Dict[str, str] = {}
         for old, new in v.items():
             if not isinstance(old, str) or not isinstance(new, str):
-                raise ValueError("rename.mapping doit etre un dict str->str")
+                raise ValueError("rename.mapping must be a mapping str -> str")
             old2, new2 = old.strip(), new.strip()
             if not old2 or not new2:
                 raise ValueError("rename.mapping ne peut pas contenir de cles/valeurs vides")
@@ -58,13 +58,13 @@ class CastOp(BaseModel):
         cleaned: Dict[str, str] = {}
         for col, typ in v.items():
             if not isinstance(col, str) or not isinstance(typ, str):
-                raise ValueError("cast.mapping doit etre un dict str->str")
+                raise ValueError("cast.mapping must be a mapping str -> str")
             col2, typ2 = col.strip(), typ.strip().lower()
             if not col2 or not typ2:
                 raise ValueError("cast.mapping ne peut pas contenir de cles/valeurs vides")
             if typ2 not in allowed:
                 raise ValueError(
-                    f"type de cast invalide: {typ2} (attendu: {sorted(allowed)})"
+                    f"invalid cast type: {typ2} (expected: {sorted(allowed)})"
                 )
             cleaned[col2] = typ2
         return cleaned
@@ -168,7 +168,7 @@ class JoinOp(BaseModel):
     def _valid_how(cls, v: str) -> str:
         allowed = {"inner", "left", "right", "outer", "cross"}
         if v not in allowed:
-            raise ValueError(f"join.how invalide: {v} (attendu: {sorted(allowed)})")
+            raise ValueError(f"join.how invalid: {v} (expected: {sorted(allowed)})")
         return v
 
     @field_validator("key", "left_key", "right_key")
@@ -178,11 +178,11 @@ class JoinOp(BaseModel):
             return v
         if isinstance(v, str):
             if not v.strip():
-                raise ValueError("join: cle vide")
+                raise ValueError("join: empty key")
             return v
         if isinstance(v, list) and v and all(isinstance(x, str) and x.strip() for x in v):
             return v
-        raise ValueError("join: cle doit etre une colonne (str) ou une liste de colonnes non vides")
+        raise ValueError("join: the key must be a column (str) or a non-empty list of columns")
 
     @field_validator("max_rows")
     @classmethod
@@ -203,7 +203,7 @@ class JoinOp(BaseModel):
         has_single = self.key is not None
         has_pair = self.left_key is not None and self.right_key is not None
         if not has_single and not has_pair:
-            raise ValueError("join: fournir 'key' (colonne commune) ou 'left_key' + 'right_key'")
+            raise ValueError("join: give 'key' (a common column) or 'left_key' + 'right_key'")
         return self
 
     @field_validator("right")
@@ -216,7 +216,7 @@ class JoinOp(BaseModel):
             return v
         if isinstance(v, dict) and v.get("type"):
             return v
-        raise ValueError("join.right doit etre un id de source (str) ou une source inline (dict avec 'type')")
+        raise ValueError("join.right must be a source id (str) or an inline source (a mapping with 'type')")
 
 
 class CleanOp(BaseModel):
@@ -228,7 +228,7 @@ class CleanOp(BaseModel):
     @classmethod
     def _valid_case(cls, v: str) -> str:
         if v not in ("none", "lower", "upper"):
-            raise ValueError("clean.case doit etre none|lower|upper")
+            raise ValueError("clean.case must be none, lower or upper")
         return v
 
 
@@ -267,7 +267,7 @@ class MergeOp(BaseModel):
             return v
         if isinstance(v, list) and v and all(isinstance(x, str) and x.strip() for x in v):
             return v
-        raise ValueError("merge.key doit etre une colonne (str) ou une liste non vide")
+        raise ValueError("merge.key must be a column (str) or a non-empty list")
 
     @field_validator("right")
     @classmethod
@@ -276,7 +276,7 @@ class MergeOp(BaseModel):
             return v
         if isinstance(v, dict) and v.get("type"):
             return v
-        raise ValueError("merge.right doit etre un id de source (str) ou une source inline (dict avec 'type')")
+        raise ValueError("merge.right must be a source id (str) or an inline source (a mapping with 'type')")
 
 
 class UnionOp(BaseModel):
@@ -291,7 +291,7 @@ class UnionOp(BaseModel):
             return v
         if isinstance(v, dict) and v.get("type"):
             return v
-        raise ValueError("union.right doit etre un id de source (str) ou une source inline (dict avec 'type')")
+        raise ValueError("union.right must be a source id (str) or an inline source (a mapping with 'type')")
 
 
 class ScriptOp(BaseModel):
@@ -344,14 +344,14 @@ class ScriptOp(BaseModel):
         cleaned: Dict[str, str] = {}
         for col, typ in v.items():
             if not isinstance(col, str) or not isinstance(typ, str):
-                raise ValueError("script.outputs doit etre un dict str->str")
+                raise ValueError("script.outputs must be a mapping str -> str")
             col2, typ2 = col.strip(), typ.strip().lower()
             if not col2:
-                raise ValueError("script.outputs: nom de colonne vide")
+                raise ValueError("script.outputs: empty column name")
             if typ2 not in allowed:
                 raise ValueError(
-                    f"script.outputs: type invalide '{typ2}' pour '{col2}' "
-                    f"(attendu: {sorted(allowed)})"
+                    f"script.outputs: invalid type '{typ2}' for '{col2}' "
+                    f"(expected: {sorted(allowed)})"
                 )
             cleaned[col2] = typ2
         if not cleaned:
@@ -610,24 +610,24 @@ class TransformParser:
 
         steps = data.get("steps")
         if not isinstance(steps, list):
-            raise ValueError("steps doit etre une liste")
+            raise ValueError("steps must be a list")
 
         converted_steps: List[Dict[str, Any]] = []
 
         for idx, step in enumerate(steps, start=1):
             if not isinstance(step, dict) or len(step) != 1:
                 raise ValueError(
-                    f"Step #{idx} invalide: chaque step doit etre un dict a 1 seule cle"
+                    f"Step #{idx} is invalid: each step must be a mapping with exactly 1 key"
                 )
 
             op = next(iter(step.keys()))
             params = step[op]
 
             if op not in _OP_MODEL_MAP:
-                raise ValueError(f"Operation inconnue: {op}")
+                raise ValueError(f"Unknown operation: {op}")
 
             if not isinstance(params, dict):
-                raise ValueError(f"Step '{op}' invalide: les parametres doivent etre un dictionnaire")
+                raise ValueError(f"Step '{op}' is invalid: its parameters must be a mapping")
 
             converted_steps.append({"op": op, "params": self._coerce_param_types(params)})
 

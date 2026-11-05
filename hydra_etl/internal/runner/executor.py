@@ -544,7 +544,7 @@ class JobExecutor:
         """Charge un fichier YAML et résout les variables ${ENV:...}."""
         if not path.exists():
             if required:
-                raise ValueError(f"JobExecutor: fichier requis manquant: {path}")
+                raise ValueError(f"Required file missing: {path}")
             return {}
 
         raw_text = read_yaml_text(path)
@@ -554,7 +554,7 @@ class JobExecutor:
             return {}
 
         if not isinstance(data, dict):
-            raise ValueError(f"JobExecutor: YAML invalide (dict attendu): {path}")
+            raise ValueError(f"Invalid YAML (a mapping is expected): {path}")
 
         # Regle 3.2 : on lit la version du format, on avertit, on n'echoue jamais.
         from hydra_etl.internal.dsl_version import check_dsl_version
@@ -563,12 +563,12 @@ class JobExecutor:
         try:
             data = self._secret_resolver.resolve(data)
         except Exception as e:
-            raise ValueError(f"JobExecutor: échec résolution variables dans {path}: {e}") from e
+            raise ValueError(f"Cannot resolve the variables in {path}: {e}") from e
 
         try:
             data = self._param_resolver.resolve(data)
         except Exception as e:
-            raise ValueError(f"JobExecutor: échec résolution paramètres dans {path}: {e}") from e
+            raise ValueError(f"Cannot resolve the parameters in {path}: {e}") from e
 
         return data
 
@@ -586,15 +586,15 @@ class JobExecutor:
             if isinstance(job_section, dict) and isinstance(job_section.get("pipeline"), dict):
                 pipe = job_section["pipeline"]
         if not isinstance(pipe, dict):
-            raise ValueError("JobExecutor: pipeline.yaml invalide (clé 'pipeline' dict attendue)")
+            raise ValueError("Invalid pipeline.yaml (a 'pipeline' mapping is expected)")
 
         src_id = pipe.get("from")
         dest_id = pipe.get("to")
 
         if not isinstance(src_id, str) or not src_id.strip():
-            raise ValueError("JobExecutor: pipeline.from manquant ou invalide")
+            raise ValueError("pipeline.from is missing or invalid")
         if not isinstance(dest_id, str) or not dest_id.strip():
-            raise ValueError("JobExecutor: pipeline.to manquant ou invalide")
+            raise ValueError("pipeline.to is missing or invalid")
 
         return src_id.strip(), dest_id.strip()
 
@@ -602,14 +602,14 @@ class JobExecutor:
         """Récupère la définition d'une source."""
         sources = getattr(sources_cfg, "sources", None)
         if not isinstance(sources, dict) or src_id not in sources:
-            raise ValueError(f"JobExecutor: source inconnue: '{src_id}'")
+            raise ValueError(f"Unknown source: '{src_id}'")
         return sources[src_id]
 
     def _get_dest_def(self, dests_cfg: Any, dest_id: str) -> Any:
         """Récupère la définition d'une destination."""
         dests = getattr(dests_cfg, "destinations", None)
         if not isinstance(dests, dict) or dest_id not in dests:
-            raise ValueError(f"JobExecutor: destination inconnue: '{dest_id}'")
+            raise ValueError(f"Unknown destination: '{dest_id}'")
         return dests[dest_id]
 
     # =========================================================================
@@ -698,7 +698,7 @@ class JobExecutor:
         elif hasattr(transforms_cfg, "dict"):
             config_dict = transforms_cfg.dict()
         else:
-            raise ValueError("JobExecutor: transforms_cfg n'est pas un modèle Pydantic valide")
+            raise ValueError("transforms_cfg is not a valid Pydantic model")
         
         steps_raw = config_dict.get("steps", [])
         if not steps_raw:
@@ -708,13 +708,13 @@ class JobExecutor:
         
         for step_dict in steps_raw:
             if not isinstance(step_dict, dict):
-                raise ValueError("JobExecutor: step transformation invalide (dict attendu)")
+                raise ValueError("Invalid transformation step (a mapping is expected)")
             
             op = step_dict.get("op")
             params = step_dict.get("params")
             
             if not isinstance(op, str) or not op.strip():
-                raise ValueError("JobExecutor: step.op invalide")
+                raise ValueError("Invalid step.op")
             
             if params is None:
                 params = {}
@@ -724,7 +724,7 @@ class JobExecutor:
             elif hasattr(params, "dict"):
                 params = params.dict()
             elif not isinstance(params, dict):
-                raise ValueError("JobExecutor: step.params invalide (dict attendu)")
+                raise ValueError("Invalid step.params (a mapping is expected)")
             
             steps_for_engine.append({op.strip(): params})
         
@@ -778,7 +778,7 @@ class JobExecutor:
                 with prof.span(f"{idx} {self._step_op_name(step)}"):
                     df = self._engine.apply_step(df, step).output
             except ValueError as e:
-                raise ValueError(f"Erreur à l'étape {idx}/{total}: {e}") from None
+                raise ValueError(f"Step {idx}/{total}: {e}") from None
         return df
 
     @staticmethod
@@ -833,7 +833,7 @@ class JobExecutor:
                 r_query = ext.get("query")
             else:
                 raise ValueError(
-                    f"JobExecutor: {op}.right doit etre un id de source declaree ou une source inline (dict avec 'type')"
+                    f"{op}.right must be a declared source id or an inline source (a mapping with 'type')"
                 )
 
             rows: List[Dict[str, Any]] = []
@@ -868,7 +868,7 @@ class JobExecutor:
             elif isinstance(connection, dict):
                 config["connection"] = connection
             else:
-                raise ValueError(f"JobExecutor: connection invalide pour '{name}' (dict attendu)")
+                raise ValueError(f"Invalid connection for '{name}' (a mapping is expected)")
         
         # 2b. Ajouter extract/load selon le rôle
         if is_source:
@@ -914,8 +914,8 @@ class JobExecutor:
         except ValueError as e:
             connector_role = "source" if is_source else "destination"
             raise ValueError(
-                f"JobExecutor: échec instanciation {connector_role} '{name}' (type='{ctype}'). "
-                f"Erreur: {e}"
+                f"Cannot create the {connector_role} '{name}' (type='{ctype}'). "
+                f"Error: {e}"
             ) from e
         
         return connector
@@ -936,7 +936,7 @@ class JobExecutor:
         """
         extract = getattr(src_def, "extract", None)
         if extract is None:
-            raise ValueError("JobExecutor: source.extract manquant")
+            raise ValueError("source extract is missing")
 
         table = getattr(extract, "table", None)
         query = getattr(extract, "query", None)
@@ -951,21 +951,21 @@ class JobExecutor:
 
         if not isinstance(batch_size, int) or not (100 <= batch_size <= 100_000):
             raise ValueError(
-                f"JobExecutor: source.extract.batch_size invalide ({batch_size}). "
-                f"Doit être entre 100 et 100,000."
+                f"source extract.batch_size is invalid ({batch_size}). "
+                f"It must be between 100 and 100,000."
             )
 
         if not table and not query:
-            raise ValueError("JobExecutor: source.extract doit définir 'table' ou 'query'")
+            raise ValueError("source extract must define 'table' or 'query'")
 
         if table is not None:
             if not isinstance(table, str) or not table.strip():
-                raise ValueError("JobExecutor: source.extract.table invalide")
+                raise ValueError("source extract.table is invalid")
             table = table.strip()
 
         if query is not None:
             if not isinstance(query, str):
-                raise ValueError("JobExecutor: source.extract.query invalide (str attendu)")
+                raise ValueError("source extract.query is invalid (a string is expected)")
             query = query.strip() if query.strip() else None
 
         return table, batch_size, query
@@ -974,17 +974,17 @@ class JobExecutor:
         """Extrait les paramètres de chargement depuis la définition destination."""
         load = getattr(dest_def, "load", None)
         if load is None:
-            raise ValueError("JobExecutor: destination.load manquant")
+            raise ValueError("destination load is missing")
 
         table = getattr(load, "table", None)
         mode = getattr(load, "mode", "append")
         key = getattr(load, "key", None)
 
         if not isinstance(table, str) or not table.strip():
-            raise ValueError("JobExecutor: destination.load.table manquant ou invalide")
+            raise ValueError("destination load.table is missing or invalid")
 
         if not isinstance(mode, str) or not mode.strip():
-            raise ValueError("JobExecutor: destination.load.mode invalide")
+            raise ValueError("destination load.mode is invalid")
 
         # Normalisation mode (support Enum LoadMode)
         if hasattr(mode, 'value'):
@@ -995,8 +995,8 @@ class JobExecutor:
         # Validation: mode supporté
         if mode_norm not in ("append", "replace", "upsert"):
             raise ValueError(
-                f"JobExecutor: destination.load.mode='{mode}' non supporté. "
-                f"Modes supportés : 'append', 'replace', 'upsert'."
+                f"destination load.mode='{mode}' is not supported. "
+                f"Supported modes: 'append', 'replace', 'upsert'."
             )
 
         return table.strip(), mode_norm, key

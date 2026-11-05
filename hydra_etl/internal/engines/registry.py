@@ -37,7 +37,7 @@ class EngineRegistry:
         if not key:
             raise ValueError("EngineRegistry.register: name ne peut pas être vide.")
         if not issubclass(engine_cls, TransformEngine):
-            raise TypeError("EngineRegistry.register: engine_cls doit hériter de TransformEngine.")
+            raise TypeError("EngineRegistry.register: engine_cls must inherit from TransformEngine.")
         self._engines[key] = engine_cls
 
     def get(self, name: str) -> Type[TransformEngine]:
@@ -47,7 +47,7 @@ class EngineRegistry:
         key = name.strip().lower()
         if key not in self._engines:
             known = ", ".join(sorted(self._engines.keys())) or "(aucun)"
-            raise KeyError(f"Engine inconnu: {name!r}. Connus: {known}")
+            raise KeyError(f"Unknown engine: {name!r}. Known: {known}")
         return self._engines[key]
 
     def create(self, name: str) -> TransformEngine:

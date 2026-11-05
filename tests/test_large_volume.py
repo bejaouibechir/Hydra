@@ -62,7 +62,7 @@ def test_requested_engine(monkeypatch):
     monkeypatch.setenv("HYDRA_ENGINE", "Pandas")
     assert lv.requested_engine("duckdb") == ("pandas", "HYDRA_ENGINE=pandas")   # variable prioritaire
     monkeypatch.setenv("HYDRA_ENGINE", "spark")
-    with pytest.raises(ValueError, match="inconnu"):
+    with pytest.raises(ValueError, match="unknown value"):
         lv.requested_engine()
 
 

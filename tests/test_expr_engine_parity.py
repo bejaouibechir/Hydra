@@ -240,7 +240,7 @@ def test_filter_donne_le_meme_resultat_avec_et_sans_numexpr(monkeypatch):
 def test_expression_invalide_garde_le_message_dorigine():
     df = _frame(N)
     engine = PandasEngine()
-    with pytest.raises(ValueError, match="filter : expression invalide"):
+    with pytest.raises(ValueError, match="filter: invalid expression"):
         engine.apply_step(df, {"filter": {"expr": "a * b + c * d - zzz > 0"}})
-    with pytest.raises(ValueError, match="calculate : expression invalide"):
+    with pytest.raises(ValueError, match="calculate: invalid expression"):
         engine.apply_step(df, {"calculate": {"column": "r", "expr": "a * b + zzz - d"}})

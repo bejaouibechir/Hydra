@@ -111,7 +111,7 @@ def test_select_missing_column_ko(engine, df_case):
     """Cas KO : colonne inexistante."""
     step = {"select": {"columns": ["id", "unknown"]}}
 
-    with pytest.raises(ValueError, match="colonnes inexistantes"):
+    with pytest.raises(ValueError, match="unknown columns"):
         engine.apply_step(df_case, step)
 
 
@@ -119,7 +119,7 @@ def test_select_empty_columns_ko(engine, df_case):
     """Cas KO : liste de colonnes vide."""
     step = {"select": {"columns": []}}
 
-    with pytest.raises(ValueError, match="ne peut pas être vide"):
+    with pytest.raises(ValueError, match="cannot be empty"):
         engine.apply_step(df_case, step)
 
 
@@ -127,7 +127,7 @@ def test_select_columns_not_list_ko(engine, df_case):
     """Cas KO : columns n'est pas une liste."""
     step = {"select": {"columns": "id"}}
 
-    with pytest.raises(ValueError, match="doit être une liste"):
+    with pytest.raises(ValueError, match="must be a list"):
         engine.apply_step(df_case, step)
 
 
@@ -135,7 +135,7 @@ def test_select_columns_not_strings_ko(engine, df_case):
     """Cas KO : columns contient des non-strings."""
     step = {"select": {"columns": ["id", 123]}}
 
-    with pytest.raises(ValueError, match="uniquement des strings"):
+    with pytest.raises(ValueError, match="strings only"):
         engine.apply_step(df_case, step)
 
 
@@ -171,7 +171,7 @@ def test_rename_missing_column_ko(engine, df_case):
     """Cas KO : colonne à renommer inexistante."""
     step = {"rename": {"mapping": {"unknown": "x"}}}
 
-    with pytest.raises(ValueError, match="colonnes inexistantes"):
+    with pytest.raises(ValueError, match="unknown columns"):
         engine.apply_step(df_case, step)
 
 
@@ -179,7 +179,7 @@ def test_rename_empty_mapping_ko(engine, df_case):
     """Cas KO : mapping vide."""
     step = {"rename": {"mapping": {}}}
 
-    with pytest.raises(ValueError, match="ne peut pas être vide"):
+    with pytest.raises(ValueError, match="cannot be empty"):
         engine.apply_step(df_case, step)
 
 
@@ -187,7 +187,7 @@ def test_rename_mapping_not_dict_ko(engine, df_case):
     """Cas KO : mapping n'est pas un dict."""
     step = {"rename": {"mapping": ["price", "unit_price"]}}
 
-    with pytest.raises(ValueError, match="doit être un dict"):
+    with pytest.raises(ValueError, match="must be a mapping"):
         engine.apply_step(df_case, step)
 
 
@@ -261,7 +261,7 @@ def test_cast_invalid_type_ko(engine, df_case):
     """Cas KO : type non supporté."""
     step = {"cast": {"mapping": {"price": "unsupported_type"}}}
 
-    with pytest.raises(ValueError, match="Type non supporté"):
+    with pytest.raises(ValueError, match="Unsupported type"):
         engine.apply_step(df_case, step)
 
 
@@ -269,7 +269,7 @@ def test_cast_missing_column_ko(engine, df_case):
     """Cas KO : colonne inexistante."""
     step = {"cast": {"mapping": {"unknown": "int"}}}
 
-    with pytest.raises(ValueError, match="colonne inexistante"):
+    with pytest.raises(ValueError, match="unknown column"):
         engine.apply_step(df_case, step)
 
 
@@ -289,7 +289,7 @@ def test_cast_empty_mapping_ko(engine, df_case):
     """Cas KO : mapping vide."""
     step = {"cast": {"mapping": {}}}
 
-    with pytest.raises(ValueError, match="ne peut pas être vide"):
+    with pytest.raises(ValueError, match="cannot be empty"):
         engine.apply_step(df_case, step)
 
 
@@ -343,7 +343,7 @@ def test_filter_invalid_expr_ko(engine, df_case):
     """Cas KO : expression invalide."""
     step = {"filter": {"expr": "price >>"}}
 
-    with pytest.raises(ValueError, match="expression invalide"):
+    with pytest.raises(ValueError, match="invalid expression"):
         engine.apply_step(df_case, step)
 
 
@@ -351,7 +351,7 @@ def test_filter_empty_expr_ko(engine, df_case):
     """Cas KO : expression vide."""
     step = {"filter": {"expr": ""}}
 
-    with pytest.raises(ValueError, match="ne peut pas être vide"):
+    with pytest.raises(ValueError, match="cannot be empty"):
         engine.apply_step(df_case, step)
 
 
@@ -359,7 +359,7 @@ def test_filter_expr_not_string_ko(engine, df_case):
     """Cas KO : expr n'est pas un string."""
     step = {"filter": {"expr": 123}}
 
-    with pytest.raises(ValueError, match="doit être un string"):
+    with pytest.raises(ValueError, match="must be a string"):
         engine.apply_step(df_case, step)
 
 
@@ -407,7 +407,7 @@ def test_calculate_invalid_expr_ko(engine, df_case):
     """Cas KO : expression invalide."""
     step = {"calculate": {"column": "total", "expr": "price **"}}
 
-    with pytest.raises(ValueError, match="expression invalide"):
+    with pytest.raises(ValueError, match="invalid expression"):
         engine.apply_step(df_case, step)
 
 
@@ -415,7 +415,7 @@ def test_calculate_empty_column_ko(engine, df_case):
     """Cas KO : nom de colonne vide."""
     step = {"calculate": {"column": "", "expr": "price * 2"}}
 
-    with pytest.raises(ValueError, match="ne peut pas être vide"):
+    with pytest.raises(ValueError, match="cannot be empty"):
         engine.apply_step(df_case, step)
 
 
@@ -423,7 +423,7 @@ def test_calculate_empty_expr_ko(engine, df_case):
     """Cas KO : expression vide."""
     step = {"calculate": {"column": "total", "expr": ""}}
 
-    with pytest.raises(ValueError, match="ne peut pas être vide"):
+    with pytest.raises(ValueError, match="cannot be empty"):
         engine.apply_step(df_case, step)
 
 
@@ -431,7 +431,7 @@ def test_calculate_column_not_string_ko(engine, df_case):
     """Cas KO : column n'est pas un string."""
     step = {"calculate": {"column": 123, "expr": "price * 2"}}
 
-    with pytest.raises(ValueError, match="doit être un string"):
+    with pytest.raises(ValueError, match="must be a string"):
         engine.apply_step(df_case, step)
 
 
@@ -469,7 +469,7 @@ def test_pipeline_single_step(engine, df_case):
 
 def test_pipeline_empty_steps_ko(engine, df_case):
     """Cas KO : pipeline vide."""
-    with pytest.raises(ValueError, match="Pipeline vide"):
+    with pytest.raises(ValueError, match="Empty pipeline"):
         engine.apply_pipeline(df_case, [])
 
 
@@ -480,13 +480,13 @@ def test_pipeline_stops_on_first_error(engine, df_case):
         {"filter": {"expr": "qty > 1"}},  # ← qty supprimée par select
     ]
 
-    with pytest.raises(ValueError, match="Erreur à l'étape 2/2"):
+    with pytest.raises(ValueError, match="Step 2/2"):
         engine.apply_pipeline(df_case, steps)
 
 
 def test_pipeline_not_list_ko(engine, df_case):
     """Cas KO : steps n'est pas une liste."""
-    with pytest.raises(ValueError, match="doit être une liste"):
+    with pytest.raises(ValueError, match="must be a list"):
         engine.apply_pipeline(df_case, {"select": {"columns": ["id"]}})
 
 
@@ -515,7 +515,7 @@ def test_step_format_normalized(engine, df_case):
 
 def test_step_not_dict_ko(engine, df_case):
     """Cas KO : step n'est pas un dict."""
-    with pytest.raises(ValueError, match="doit être un dict"):
+    with pytest.raises(ValueError, match="must be a mapping"):
         engine.apply_step(df_case, "invalid")
 
 
@@ -523,7 +523,7 @@ def test_step_multiple_ops_ko(engine, df_case):
     """Cas KO : step avec plusieurs opérations."""
     step = {"select": {"columns": ["id"]}, "filter": {"expr": "id > 1"}}
 
-    with pytest.raises(ValueError, match="doit contenir 1 clé"):
+    with pytest.raises(ValueError, match="exactly 1 key"):
         engine.apply_step(df_case, step)
 
 
@@ -531,7 +531,7 @@ def test_step_unknown_op_ko(engine, df_case):
     """Cas KO : opération inconnue."""
     step = {"unknown_op": {"param": "value"}}
 
-    with pytest.raises(ValueError, match="Opération non supportée"):
+    with pytest.raises(ValueError, match="Unknown operation"):
         engine.apply_step(df_case, step)
 
 
@@ -539,7 +539,7 @@ def test_step_params_not_dict_ko(engine, df_case):
     """Cas KO : params n'est pas un dict."""
     step = {"select": "id, price"}
 
-    with pytest.raises(ValueError, match="doivent être un dict"):
+    with pytest.raises(ValueError, match="must be a mapping"):
         engine.apply_step(df_case, step)
 
 
@@ -550,13 +550,13 @@ def test_step_params_not_dict_ko(engine, df_case):
 
 def test_apply_step_not_dataframe_ko(engine):
     """Cas KO : dataset n'est pas un DataFrame."""
-    with pytest.raises(ValueError, match="attend un pandas.DataFrame"):
+    with pytest.raises(ValueError, match="expects a pandas.DataFrame"):
         engine.apply_step([1, 2, 3], {"select": {"columns": ["id"]}})
 
 
 def test_apply_pipeline_not_dataframe_ko(engine):
     """Cas KO : dataset n'est pas un DataFrame."""
-    with pytest.raises(ValueError, match="attend un pandas.DataFrame"):
+    with pytest.raises(ValueError, match="expects a pandas.DataFrame"):
         engine.apply_pipeline([1, 2, 3], [{"select": {"columns": ["id"]}}])
 
 

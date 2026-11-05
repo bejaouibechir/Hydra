@@ -65,6 +65,8 @@ No other action exists.
     message: "Starting the load for {{ param:country }}"
 ```
 
+The message is shown under the step in `hdrctl run` and kept in the run result (Hydra 0.19.1+).
+
 ## delay
 
 | Parameter | Required | Default | Description |

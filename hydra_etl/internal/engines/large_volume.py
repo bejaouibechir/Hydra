@@ -62,11 +62,11 @@ def requested_engine(declared: Optional[str] = None) -> Tuple[str, str]:
     env = os.environ.get("HYDRA_ENGINE", "").strip().lower()
     if env:
         if env not in ENGINES:
-            raise ValueError(f"HYDRA_ENGINE='{env}' inconnu (attendu : {', '.join(ENGINES)})")
+            raise ValueError(f"HYDRA_ENGINE: unknown value '{env}' (expected: {', '.join(ENGINES)})")
         return env, f"HYDRA_ENGINE={env}"
     val = str(declared or "auto").strip().lower()
     if val not in ENGINES:
-        raise ValueError(f"engine: '{val}' inconnu (attendu : {', '.join(ENGINES)})")
+        raise ValueError(f"engine: unknown value '{val}' (expected: {', '.join(ENGINES)})")
     return val, f"engine: {val}"
 
 
@@ -380,7 +380,27 @@ class DuckGlobal:
         if op == "aggregate":
             for out, spec in (p.get("agg") or {}).items():
                 used.add(spec.get("col", out) if isinstance(spec, dict) else out)
-        return sql if used <= self._columns(rel) else None
+        if not used <= self._columns(rel):
+            return None
+        if op == "aggregate" and not self._sum_mean_on_numbers(p, rel):
+            return None   # sum/mean sur du texte : pandas refuse avec un message clair
+        return sql
+
+    _NUMERIC_TYPES = ("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UTINYINT", "USMALLINT",
+                      "UINTEGER", "UBIGINT", "UHUGEINT", "FLOAT", "DOUBLE", "BOOLEAN")
+
+    def _sum_mean_on_numbers(self, p: Dict[str, Any], rel: str) -> bool:
+        """Vrai si chaque sum / mean de l'agrégation porte sur une colonne numérique."""
+        types = {r[0]: str(r[1]).upper()
+                 for r in self.con.execute(f"DESCRIBE SELECT * FROM {rel}").fetchall()}
+        for out, spec in (p.get("agg") or {}).items():
+            func, src = ((str(spec.get("func", "sum")).lower(), spec.get("col", out))
+                         if isinstance(spec, dict) else (str(spec).lower(), out))
+            if func in ("sum", "mean", "avg"):
+                typ = types.get(src, "")
+                if not (typ in self._NUMERIC_TYPES or typ.startswith("DECIMAL")):
+                    return False
+        return True
 
     def _sql_raw(self, op: str, p: Dict[str, Any], rel: str) -> Optional[str]:
         if op == "aggregate":

@@ -24,17 +24,17 @@ router = APIRouter()
 def _argv(shell: str) -> list[str]:
     if shell == "powershell":
         if sys.platform != "win32":
-            raise RuntimeError("PowerShell disponible uniquement sur Windows")
+            raise RuntimeError("PowerShell is only available on Windows")
         return ["powershell.exe", "-NoLogo"]
     if shell == "cmd":
         if sys.platform != "win32":
-            raise RuntimeError("cmd disponible uniquement sur Windows")
+            raise RuntimeError("cmd is only available on Windows")
         return ["cmd.exe"]
     if shell == "bash":
         if sys.platform == "win32":
-            raise RuntimeError("Bash non disponible sur Windows")
+            raise RuntimeError("Bash is not available on Windows")
         return ["bash", "-i"]
-    raise ValueError(f"Shell inconnu : {shell}")
+    raise ValueError(f"Unknown shell: {shell}")
 
 
 @router.websocket("/ws")

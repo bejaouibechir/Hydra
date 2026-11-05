@@ -43,11 +43,11 @@ def open_project(body: ProjectOpenRequest):
     except store.NotAHydraProject:
         raise HTTPException(
             status_code=400,
-            detail="Ce dossier n'a pas la structure d'un projet Hydra "
-                   "(aucun workflow dans workflows/ ni job dans jobs/). "
-                   "Utilisez « Ouvrir un dossier local » pour l'adopter comme projet.")
+            detail="This folder does not have the structure of a Hydra ETL project "
+                   "(no workflow in workflows/ and no job in jobs/). "
+                   "Use 'Open a local folder' to adopt it as a project.")
     if not proj:
-        raise HTTPException(status_code=404, detail=f"Chemin introuvable : {body.path}")
+        raise HTTPException(status_code=404, detail=f"Path not found: {body.path}")
     # Les workflows `trigger: schedule` du projet ouvert sont planifiés tout de
     # suite (sinon seulement au prochain démarrage de hdrctl serve).
     try:

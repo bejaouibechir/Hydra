@@ -1,0 +1,6 @@
+version: "1.0"
+sources:
+  raw_orders:
+    type: csv
+    extract:
+      table: ../../../data/orders.csv

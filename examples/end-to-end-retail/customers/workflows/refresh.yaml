@@ -1,0 +1,8 @@
+version: "1.0"
+workflow:
+  name: refresh
+  description: Clean the customer reference data
+  steps:
+    - name: clean_customers
+      type: job
+      job: ../jobs/clean_customers

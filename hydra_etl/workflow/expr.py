@@ -132,7 +132,7 @@ def evaluate_bool(expr: str, params: Mapping[str, Any], env: Mapping[str, str]) 
     try:
         tree = ast.parse(tokenized, mode="eval")
     except SyntaxError as ex:
-        raise ValueError(f"expression invalide : {ex}") from None
+        raise ValueError(f"invalid expression: {ex}") from None
     for n in ast.walk(tree):
         if not isinstance(n, _ALLOWED_NODES):
             raise ValueError(f"expression not allowed: {type(n).__name__}")

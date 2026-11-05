@@ -94,7 +94,7 @@ class SecretResolver:
                 return self._get_secret(key)
 
             # Théoriquement impossible avec la regex actuelle
-            raise SecretResolutionError(f"Type de placeholder inconnu: {kind}")
+            raise SecretResolutionError(f"Unknown placeholder type: {kind}")
 
         # Remplacement global dans la chaîne
         return _PLACEHOLDER_RE.sub(repl, value)

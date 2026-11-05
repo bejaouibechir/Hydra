@@ -1,0 +1,4 @@
+# Run outputs
+*/outputs/
+*/.hydra/triggers/
+*/.hydra/run.lock

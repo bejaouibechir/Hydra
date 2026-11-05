@@ -1,0 +1,12 @@
+{
+  "id": "2f89cb80",
+  "name": "customers",
+  "description": "",
+  "created_at": "2026-11-05T08:41:23.085113+00:00",
+  "conventions": {
+    "data_dir": "Data",
+    "output_dir": "outputs"
+  },
+  "workflows": [],
+  "jobs": []
+}

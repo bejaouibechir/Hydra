@@ -85,7 +85,7 @@ class LoadConfig(BaseModel):
         if not self.table and self.collection:
             self.table = self.collection
         if not self.table:
-            raise ValueError("'table' (ou 'collection' pour MongoDB) est requis")
+            raise ValueError("'table' (or 'collection' for MongoDB) is required")
         return self
     
     @field_validator("table")

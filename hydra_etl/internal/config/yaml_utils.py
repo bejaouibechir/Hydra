@@ -32,6 +32,6 @@ def read_yaml_text(path: Path) -> str:
         except (UnicodeDecodeError, ValueError):
             continue
     raise ValueError(
-        f"Impossible de lire '{path.name}' : encodage non reconnu. "
-        f"Sauvegardez le fichier en UTF-8 sans BOM."
+        f"Cannot read '{path.name}': unknown encoding. "
+        f"Save the file as UTF-8 without BOM."
     )

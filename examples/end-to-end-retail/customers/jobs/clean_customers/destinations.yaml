@@ -1,0 +1,7 @@
+version: "1.0"
+destinations:
+  customers_clean:
+    type: csv
+    load:
+      table: ../../outputs/customers_clean.csv
+      mode: replace

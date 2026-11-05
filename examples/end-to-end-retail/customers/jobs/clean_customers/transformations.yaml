@@ -1,0 +1,4 @@
+version: "1.0"
+steps:
+  - clean:
+      columns: [name, country, segment]

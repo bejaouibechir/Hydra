@@ -1,0 +1,12 @@
+{
+  "id": "c32a765e",
+  "name": "retail",
+  "description": "",
+  "created_at": "2026-11-05T08:41:22.189516+00:00",
+  "conventions": {
+    "data_dir": "Data",
+    "output_dir": "outputs"
+  },
+  "workflows": [],
+  "jobs": []
+}

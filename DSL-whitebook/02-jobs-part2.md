@@ -392,6 +392,8 @@ Groups the rows and computes one value per group.
 
 Functions: `sum` · `count` · `mean` · `avg` (same as `mean`) · `min` · `max` · `first` · `last`.
 
+`sum` and `mean` need a numeric column. A column read from a CSV is text until it is cast: add a `cast` step before `aggregate`, otherwise the step fails with `sum needs a numeric column ('amount' is object)` (Hydra 0.19.1+; before, the values were silently concatenated).
+
 ### Example 1: long form
 
 ```yaml

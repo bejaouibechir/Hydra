@@ -37,15 +37,15 @@ def ref_bool(series: pd.Series) -> pd.Series:
                 return True
             if v == 0:
                 return False
-            raise ValueError(f"Valeur numerique {v} non convertible en bool (attendu 0 ou 1)")
+            raise ValueError(f"Numeric value {v} cannot be converted to bool (expected 0 or 1)")
         if isinstance(v, str):
             s = v.strip().lower()
             if s in TRUE_VALS:
                 return True
             if s in FALSE_VALS:
                 return False
-            raise ValueError(f"String '{v}' non convertible en bool")
-        raise ValueError(f"Type {type(v).__name__} non convertible en bool")
+            raise ValueError(f"String '{v}' cannot be converted to bool")
+        raise ValueError(f"Type {type(v).__name__} cannot be converted to bool")
 
     return series.map(normalize)
 
@@ -165,7 +165,7 @@ def test_op_cast_end_to_end():
 
 def test_op_cast_errors_keep_their_message():
     df = pd.DataFrame({"x": ["1", "deux"]})
-    with pytest.raises(ValueError, match="cast : échec conversion colonne='x' vers type='int'"):
+    with pytest.raises(ValueError, match="cast: cannot convert column='x' to type='int'"):
         ENGINE._op_cast(df, {"mapping": {"x": "int"}})
-    with pytest.raises(ValueError, match="non convertible en bool"):
+    with pytest.raises(ValueError, match="cannot be converted to bool"):
         ENGINE._op_cast(pd.DataFrame({"x": ["true", "zz"]}), {"mapping": {"x": "bool"}})

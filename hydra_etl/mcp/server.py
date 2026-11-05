@@ -126,20 +126,20 @@ def safe_path(relative: str) -> Path:
         return base
     if normalized.startswith("/") or (len(normalized) > 1 and normalized[1] == ":"):
         raise ValueError(
-            f"Chemin absolu refusé : {relative!r}. "
-            f"Donne un chemin relatif à {base}"
+            f"Absolute path refused: {relative!r}. "
+            f"Give a path relative to {base}"
         )
     if any(part == ".." for part in normalized.split("/")):
         raise ValueError(
-            f"Chemin hors de l'espace de travail : {relative!r}. "
-            f"Racine autorisée : {base}"
+            f"Path outside the workspace: {relative!r}. "
+            f"Allowed root: {base}"
         )
 
     target = (base / normalized).resolve()
     if base != target and base not in target.parents:
         raise ValueError(
-            f"Chemin hors de l'espace de travail : {relative!r}. "
-            f"Racine autorisée : {base}"
+            f"Path outside the workspace: {relative!r}. "
+            f"Allowed root: {base}"
         )
     return target
 

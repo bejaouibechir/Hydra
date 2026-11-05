@@ -1,0 +1,6 @@
+version: "1.0"
+parameters:
+  run_date:
+    type: str
+    default: "2026-11-04"
+    description: Business day processed by the nightly run.

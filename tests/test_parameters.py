@@ -36,7 +36,7 @@ def test_coerce_json():
     assert coerce_value('{"a": 1}', "json") == {"a": 1}
 
 def test_coerce_invalid_raises():
-    with pytest.raises(ParameterError, match="non convertible"):
+    with pytest.raises(ParameterError, match="cannot be converted"):
         coerce_value("abc", "int", "x")
 
 

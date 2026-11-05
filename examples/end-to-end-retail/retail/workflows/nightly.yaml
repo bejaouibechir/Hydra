@@ -1,0 +1,46 @@
+version: "1.0"
+workflow:
+  name: nightly
+  description: Run the sales and customers projects in parallel, then rank the top customers
+  steps:
+    - name: start
+      type: action
+      action: log
+      params:
+        message: "Nightly run for {{ param:run_date }}"
+
+    - name: sales
+      type: project
+      project: ../sales
+      params:
+        run_date: "{{ param:run_date }}"
+      outputs: [batch_label]
+      timeout: 10m
+      depends_on: [start]
+
+    - name: customers
+      type: project
+      project: ../customers
+      timeout: 10m
+      depends_on: [start]
+
+    - name: top_customers
+      type: job
+      job: ../jobs/top_customers
+      depends_on: [sales, customers]
+
+    - name: summary
+      type: action
+      action: python
+      params:
+        file_path: scripts/summary.py
+      depends_on: [top_customers]
+
+    - name: report
+      type: action
+      action: python
+      params:
+        script: |
+          print("Batch {{ project:sales.param.batch_label }}: sales {{ project:sales.status }}, "
+                "{{ project:sales.rows }} rows written; customers {{ project:customers.status }}")
+      depends_on: [summary]

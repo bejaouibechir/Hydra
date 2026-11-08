@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-SQL_TYPES = ("postgresql", "postgres", "mysql", "mariadb", "sqlserver", "mssql", "sqlite")
+SQL_TYPES = ("postgresql", "postgres", "mysql", "mariadb", "sqlserver", "mssql", "sqlite", "snowflake")
 FILE_TYPES = ("csv", "json", "parquet")
 _COLUMN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 

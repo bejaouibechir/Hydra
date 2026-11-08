@@ -1,0 +1,9 @@
+{
+  "id": "5f0a1b2c",
+  "name": "snowflake-to-postgres",
+  "description": "Move a Snowflake table to PostgreSQL without losing a row or breaking a type",
+  "created_at": "2026-11-08T15:30:00+00:00",
+  "conventions": {"data_dir": "Data", "output_dir": "outputs"},
+  "workflows": [],
+  "jobs": []
+}

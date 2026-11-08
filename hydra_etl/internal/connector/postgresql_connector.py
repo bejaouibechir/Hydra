@@ -34,6 +34,50 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 from hydra_etl.internal.connector.base_db_connector import BaseDBConnector, Batch
 
 
+def _pg_value(v: Any) -> Any:
+    """Valeur liable par psycopg2 : dict / list deviennent du JSON (colonne JSONB)."""
+    if isinstance(v, (dict, list)):
+        from psycopg2.extras import Json  # type: ignore
+        return Json(v)
+    return v
+
+
+def _pg_type(values: List[Any]) -> str:
+    """Type PostgreSQL fidèle aux valeurs d'une colonne (création automatique de table).
+
+    Entiers au-delà de 64 bits et décimaux exacts → NUMERIC (jamais de float) ;
+    date seule → DATE ; datetime avec fuseau → TIMESTAMPTZ ; dict / list → JSONB.
+    """
+    import datetime as _dt
+    import decimal as _dec
+    import numbers as _num
+    vals = [v for v in values if v is not None]
+    try:
+        import math
+        vals = [v for v in vals if not (isinstance(v, float) and math.isnan(v))]
+    except Exception:  # noqa: BLE001
+        pass
+    if not vals:
+        return "TEXT"
+    if all(isinstance(v, bool) for v in vals):
+        return "BOOLEAN"
+    if all(isinstance(v, _num.Integral) and not isinstance(v, bool) for v in vals):
+        return "BIGINT" if all(-2 ** 63 <= int(v) < 2 ** 63 for v in vals) else "NUMERIC"
+    if all(isinstance(v, (_dec.Decimal, _num.Integral)) and not isinstance(v, bool) for v in vals):
+        return "NUMERIC"
+    if all(isinstance(v, _num.Real) and not isinstance(v, (bool, _dec.Decimal)) for v in vals):
+        return "DOUBLE PRECISION"
+    if all(isinstance(v, _dt.datetime) for v in vals):
+        return "TIMESTAMPTZ" if all(v.tzinfo is not None for v in vals) else "TIMESTAMP"
+    if all(isinstance(v, _dt.date) and not isinstance(v, _dt.datetime) for v in vals):
+        return "DATE"
+    if all(isinstance(v, _dt.date) for v in vals):
+        return "TIMESTAMP"
+    if all(isinstance(v, (dict, list)) for v in vals):
+        return "JSONB"
+    return "TEXT"
+
+
 class PostgreSQLConnector(BaseDBConnector):
     """
     Connecteur PostgreSQL avec support upsert ON CONFLICT.
@@ -358,7 +402,15 @@ class PostgreSQLConnector(BaseDBConnector):
             else:
                 ctx["create"] = True          # table absente → créer au 1er lot
         if mode == "upsert":
-            self._validate_upsert_key(cursor=cur, schema=schema, table=table_name, key=key)
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = %s AND table_name = %s)",
+                (schema, table_name),
+            )
+            if cur.fetchone()["exists"]:
+                self._validate_upsert_key(cursor=cur, schema=schema, table=table_name, key=key)
+            else:
+                ctx["create"] = True          # table absente → créée au 1er lot, clé primaire = key
         return ctx
 
     def _load_write(self, cur, ctx, batch, *, commit):
@@ -367,7 +419,8 @@ class PostgreSQLConnector(BaseDBConnector):
             ctx["columns"] = self._infer_columns_from_batch(batch)
             if ctx["create"]:
                 # DDL transactionnel en PostgreSQL : annulé avec le reste en tout ou rien
-                self._auto_create_table(cur, schema, table_name, ctx["columns"], batch)
+                self._auto_create_table(cur, schema, table_name, ctx["columns"], batch,
+                                        key=ctx["key"] if mode == "upsert" else None)
                 commit()
                 ctx["create"] = False
             uc = ctx["update_columns"]
@@ -378,6 +431,7 @@ class PostgreSQLConnector(BaseDBConnector):
                         f"{self.__class__.__name__} [{self.name}]: "
                         f"update_columns cannot contain key columns: {overlap}"
                     )
+        self._check_int_ranges(cur, ctx, batch)
         if mode == "upsert":
             sql, values = self._build_upsert_sql(
                 schema=schema, table=table_name, columns=ctx["columns"], key=ctx["key"],
@@ -388,6 +442,38 @@ class PostgreSQLConnector(BaseDBConnector):
                 schema=schema, table=table_name, columns=ctx["columns"], batch=batch,
             )
         cur.executemany(sql, values)
+
+    _INT_RANGES = {"smallint": 2 ** 15, "integer": 2 ** 31, "bigint": 2 ** 63}
+
+    def _check_int_ranges(self, cur, ctx, batch) -> None:
+        """Avant d'écrire un lot : un entier qui ne tient pas dans une colonne
+        smallint / integer / bigint est signalé avec la colonne, la valeur et
+        la correction (au lieu de « bigint out of range » sans contexte)."""
+        if "int_cols" not in ctx:
+            cur.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = %s AND table_name = %s",
+                (ctx["schema"], ctx["table"]),
+            )
+            ctx["int_cols"] = {r["column_name"]: r["data_type"] for r in cur.fetchall()
+                               if r["data_type"] in self._INT_RANGES}
+        if not ctx["int_cols"]:
+            return
+        import numbers
+        for i, row in enumerate(batch, 1):
+            if not isinstance(row, dict):
+                continue
+            for col, dtype in ctx["int_cols"].items():
+                v = row.get(col)
+                if isinstance(v, numbers.Integral) and not isinstance(v, bool):
+                    lim = self._INT_RANGES[dtype]
+                    if not (-lim <= int(v) < lim):
+                        raise ValueError(
+                            f"{self.__class__.__name__} [{self.name}]: the value {v} (row {i} of the batch) "
+                            f"does not fit in column '{col}', which is {dtype} in "
+                            f"{ctx['schema']}.{ctx['table']}. Nothing of this batch was written. "
+                            f"Widen the column first, for example:\n"
+                            f"  ALTER TABLE {ctx['schema']}.{ctx['table']} ALTER COLUMN {col} TYPE NUMERIC(38,0);")
 
     # ── Annulation (rollback d'un workflow, voir undo.py) ──────────
     def _q_table(self, table: str) -> str:
@@ -539,31 +625,17 @@ class PostgreSQLConnector(BaseDBConnector):
         table: str,
         columns: List[str],
         batch: Batch,
+        key: Optional[List[str]] = None,
     ) -> None:
-        """Crée la table automatiquement depuis le premier batch (types inférés)."""
-        import datetime
-
-        # Inférer le type PG depuis la première valeur non-None de chaque colonne
-        def pg_type(col: str) -> str:
-            for row in batch:
-                v = row.get(col) if isinstance(row, dict) else None
-                if v is None:
-                    continue
-                if isinstance(v, bool):
-                    return "BOOLEAN"
-                if isinstance(v, int):
-                    return "BIGINT"
-                if isinstance(v, float):
-                    return "DOUBLE PRECISION"
-                if isinstance(v, (datetime.date, datetime.datetime)):
-                    return "TIMESTAMP"
-                return "TEXT"
-            return "TEXT"
-
+        """Crée la table depuis le premier lot : types déduits de toutes ses
+        valeurs (voir _pg_type) ; en upsert, la clé devient la clé primaire."""
         quoted_table = self._quote_identifier(schema, table)
+        rows = [r for r in batch if isinstance(r, dict)]
         col_defs = ", ".join(
-            f"{self._quote_column(c)} {pg_type(c)}" for c in columns
+            f"{self._quote_column(c)} {_pg_type([r.get(c) for r in rows])}" for c in columns
         )
+        if key:
+            col_defs += f", PRIMARY KEY ({', '.join(self._quote_column(k) for k in key)})"
         cursor.execute(f"CREATE TABLE IF NOT EXISTS {quoted_table} ({col_defs})")
 
     def _build_insert_sql(
@@ -599,7 +671,7 @@ class PostgreSQLConnector(BaseDBConnector):
                     f"{self.__class__.__name__} [{self.name}]: "
                     f"invalid row (expected dict), got {type(row).__name__}."
                 )
-            tup = tuple(row.get(c, None) for c in columns)
+            tup = tuple(_pg_value(row.get(c, None)) for c in columns)
             values.append(tup)
         
         return sql, values
@@ -681,7 +753,7 @@ DO UPDATE SET {update_pairs}
                     f"{self.__class__.__name__} [{self.name}]: "
                     f"invalid row (expected dict), got {type(row).__name__}."
                 )
-            tup = tuple(row.get(c, None) for c in columns)
+            tup = tuple(_pg_value(row.get(c, None)) for c in columns)
             values.append(tup)
         
         return sql, values
@@ -714,7 +786,7 @@ DO NOTHING
         
         values: List[Tuple[Any, ...]] = []
         for row in batch:
-            tup = tuple(row.get(c, None) for c in columns)
+            tup = tuple(_pg_value(row.get(c, None)) for c in columns)
             values.append(tup)
         
         return sql, values

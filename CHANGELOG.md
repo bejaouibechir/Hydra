@@ -26,6 +26,30 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - VS Code extension 0.1.10: `type: sqlite` in `sources.yaml` and `destinations.yaml` (`connection.path`
   required, server keys refused), `sqlserver` / `mssql` in the list of types; snippets `hsrc-sqlite`,
   `hdst-sqlite`.
+- **Snowflake connector** (`type: snowflake`), read-only source (`pip install "hydra-etl[snowflake]"`).
+  `connection`: `account`, `user`, `password` (or `private_key_file` / `authenticator`), `warehouse`,
+  `database`, `schema`, `role`. Source: `table` (`table`, `schema.table` or `database.schema.table`) or
+  `query`, which must start with SELECT, WITH, SHOW or DESCRIBE; `extract.limit` is applied. Values keep their
+  exact type: `NUMBER(p,0)` → integers, even beyond 64 bits; `NUMBER(p,s)` → exact decimals; `DATE` → dates;
+  `TIMESTAMP_NTZ` → timestamps without time zone; `TIMESTAMP_TZ` / `TIMESTAMP_LTZ` → timestamps with their time
+  zone; `VARIANT`, `OBJECT`, `ARRAY` → JSON values (`connection.json: text` keeps the JSON text).
+  `connection.column_case: lower` lowercases the column names (what PostgreSQL expects); two columns that only
+  differ by case are refused before any row is read. Reads Arrow batches when the driver provides them,
+  otherwise `fetchmany`, with the same values. Refused as a destination. Every query is tagged `hydra-etl`
+  (`QUERY_TAG`). `source_change` triggers count and max with one SQL query. An unknown account
+  (`404 Not Found` at login) gets a hint on the expected `connection.account` format.
+
+### Changed
+
+- PostgreSQL destination — a table created by Hydra ETL now gets exact types from all the values of the first
+  batch: exact decimals and integers beyond 64 bits → `NUMERIC` (decimals were `TEXT`), dates → `DATE` (were
+  `TIMESTAMP`), timestamps with a time zone → `TIMESTAMPTZ` (the time zone was dropped), dicts and lists →
+  `JSONB` (were refused). In `upsert`, a missing table is created with the key as primary key (the load used to
+  fail and ask for a `CREATE UNIQUE INDEX`); an existing table still needs a primary key or unique index on the
+  key. Existing tables are not changed.
+- PostgreSQL destination — an integer too large for a `smallint`, `integer` or `bigint` column is reported before
+  the batch is written, with the column, the value and the `ALTER TABLE … TYPE NUMERIC(38,0)` to run (the error
+  was `bigint out of range`, without the column).
 
 ## [0.19.1] — 2026-11-05
 

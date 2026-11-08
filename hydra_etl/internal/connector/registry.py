@@ -13,6 +13,7 @@ from .mysql_mariadb_connector import MySQLMariaDBConnector
 from .postgresql_connector import PostgreSQLConnector
 from .sqlserver_connector import SQLServerConnector
 from .sqlite_connector import SQLiteConnector
+from .snowflake_connector import SnowflakeConnector
 
 # Import MongoDB connector -- optionnel (dependance pymongo)
 try:
@@ -95,6 +96,8 @@ CONNECTOR_REGISTRY: Dict[str, ConnectorFactory] = {
     "sqlserver": _build_db_connector(SQLServerConnector),
     "mssql": _build_db_connector(SQLServerConnector),
     "sqlite": _build_db_connector(SQLiteConnector),
+    # Entrepot cloud (lecture seule ; pilote : hydra-etl[snowflake])
+    "snowflake": _build_db_connector(SnowflakeConnector),
 }
 
 # Enregistrement conditionnel des connecteurs a dependances optionnelles

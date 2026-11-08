@@ -42,6 +42,10 @@ def _build_catalogue() -> List[NodeInfo]:
             description=cdesc,
         ))
 
+    # Snowflake : source seulement (lecture seule)
+    nodes.append(NodeInfo(id="snowflake", name="Snowflake", category="source",
+                          description="Snowflake data warehouse (read-only source)"))
+
     # Parquet — optionnel selon pyarrow
     try:
         import pyarrow  # noqa: F401

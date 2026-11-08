@@ -1,0 +1,4 @@
+.hydra/secrets
+.hydra/undo
+demo/fakesnow-db/
+.env

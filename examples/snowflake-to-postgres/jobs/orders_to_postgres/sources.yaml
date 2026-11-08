@@ -1,0 +1,15 @@
+version: "1.0"
+sources:
+  snowflake_orders:
+    type: snowflake
+    connection:
+      account: "{{ env:SNOWFLAKE_ACCOUNT }}"
+      user: "{{ env:SNOWFLAKE_USER }}"
+      private_key_file: "{{ env:SNOWFLAKE_PRIVATE_KEY_FILE }}"   # key-pair authentication
+      warehouse: "{{ env:SNOWFLAKE_WAREHOUSE }}"
+      database: SALES
+      schema: PUBLIC
+      column_case: lower        # ORDER_ID -> order_id, what PostgreSQL expects
+    extract:
+      table: ORDERS
+      batch_size: 10000

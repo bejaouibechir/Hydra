@@ -1,0 +1,8 @@
+version: "1.0"
+workflow:
+  name: migrate
+  description: Copy SALES.PUBLIC.ORDERS from Snowflake to PostgreSQL
+  steps:
+    - name: orders
+      type: job
+      job: ../jobs/orders_to_postgres

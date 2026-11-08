@@ -1,0 +1,15 @@
+version: "1.0"
+destinations:
+  postgres_orders:
+    type: postgresql
+    connection:
+      host: "{{ env:PG_HOST }}"
+      port: "{{ env:PG_PORT }}"
+      user: "{{ env:PG_USER }}"
+      password: "{{ env:PG_PASSWORD }}"
+      database: "{{ env:PG_DATABASE }}"
+    load:
+      table: orders
+      mode: upsert              # re-running the job updates rows, never duplicates them
+      key: [order_id]           # becomes the primary key when Hydra ETL creates the table
+      atomic: true              # all or nothing: a failure leaves PostgreSQL as it was

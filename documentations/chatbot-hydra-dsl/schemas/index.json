@@ -14,7 +14,7 @@
     "ssh",
     "webhook"
   ],
-  "connectorCount": 12,
+  "connectorCount": 13,
   "connectors": [
     "csv",
     "json",
@@ -25,6 +25,7 @@
     "parquet",
     "postgres",
     "postgresql",
+    "snowflake",
     "sqlite",
     "sqlserver",
     "web_api"

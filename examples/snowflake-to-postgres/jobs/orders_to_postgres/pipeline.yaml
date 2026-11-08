@@ -1,0 +1,4 @@
+version: "1.0"
+pipeline:
+  from: snowflake_orders
+  to: postgres_orders

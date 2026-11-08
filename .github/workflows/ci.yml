@@ -27,6 +27,8 @@ env:
     tests/test_sqlite_connector.py
     tests/test_aggregate_numeric.py
     tests/test_workflow_action_output.py
+    tests/test_snowflake_connector.py
+    tests/test_postgresql_types.py
 
 jobs:
   tests:
@@ -51,6 +53,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,server,duckdb,parquet,http,mcp]"
+      - name: Install the Snowflake emulator (tests skip without it)
+        continue-on-error: true
+        run: python -m pip install "snowflake-connector-python[pandas]>=3.6" fakesnow
       - name: Smoke test
         run: hdrctl --version
       - name: Tests

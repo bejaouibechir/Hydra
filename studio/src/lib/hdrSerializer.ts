@@ -120,6 +120,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   source_postgres: 'postgresql',
   source_sqlserver:'sqlserver',
   source_sqlite:   'sqlite',
+  source_snowflake:'snowflake',
   source_mongodb:  'mongodb',
   source_api:      'web_api',
   dest_csv:        'csv',
@@ -138,6 +139,7 @@ const CONNECTOR_TO_SOURCE_NODE: Record<string, string> = {
   postgresql: 'source_postgres', postgres: 'source_postgres',
   sqlserver: 'source_sqlserver', mssql: 'source_sqlserver',
   sqlite: 'source_sqlite',
+  snowflake: 'source_snowflake',
   mongodb: 'source_mongodb', web_api: 'source_api',
 }
 
@@ -267,6 +269,11 @@ export function flowToHdr(
     if (connType === 'sqlite') {
       const sq = _sqliteSource(cfg, 1000)
       sources[sid] = { type: connType, connection: sq.connection, extract: sq.extract }
+      continue
+    }
+    if (connType === 'snowflake') {
+      const sf = _snowflakeSource(cfg, 1000)
+      sources[sid] = { type: connType, connection: sf.connection, extract: sf.extract }
       continue
     }
     sources[sid] = { type: connType, connection, extract }
@@ -601,6 +608,25 @@ function _sqliteDest(cfg: Record<string, unknown>) {
   return { connection: { path: cfg.path ?? '' }, load }
 }
 
+/** Source Snowflake (lecture seule) : clés de connexion non vides, table ou query. */
+const SNOWFLAKE_CONN_KEYS = ['account', 'user', 'password', 'private_key_file', 'warehouse',
+  'database', 'schema', 'role', 'column_case', 'json'] as const
+function _snowflakeSource(cfg: Record<string, unknown>, batch_size: number | undefined) {
+  const connection: Record<string, unknown> = {}
+  for (const k of SNOWFLAKE_CONN_KEYS) {
+    const v = cfg[k]
+    if (v !== undefined && v !== null && String(v).trim() !== '') connection[k] = v
+  }
+  // valeurs par défaut du connecteur : inutile de les écrire
+  if (connection.column_case === 'preserve') delete connection.column_case
+  if (connection.json === 'parse') delete connection.json
+  const extract: Record<string, unknown> = cfg.query
+    ? { query: cfg.query, batch_size }
+    : { table: cfg.table ?? '', batch_size }
+  if (batch_size === undefined) delete extract.batch_size
+  return { connection, extract }
+}
+
 function _sourceToParams(src: HdrSource): Record<string, unknown> {
   const conn = src.connection ?? {}
   const ext  = src.extract   ?? {}
@@ -611,6 +637,14 @@ function _sourceToParams(src: HdrSource): Record<string, unknown> {
   }
   if (type === 'sqlite') {
     return { path: (conn as Record<string, unknown>).path ?? '', table: ext.table ?? '', query: ext.query ?? '' }
+  }
+  if (type === 'snowflake') {
+    const c = conn as Record<string, unknown>
+    const out: Record<string, unknown> = { table: ext.table ?? '', query: ext.query ?? '' }
+    for (const k of SNOWFLAKE_CONN_KEYS) out[k] = c[k] ?? ''
+    if (!out.column_case) out.column_case = 'preserve'
+    if (!out.json) out.json = 'parse'
+    return out
   }
   if (type === 'mongodb') {
     return { uri: conn.uri, database: conn.database, collection: ext.collection, filter: ext.filter ? JSON.stringify(ext.filter) : '' }
@@ -810,6 +844,16 @@ export function flowToJobModel(
       // table et query s'excluent : garder celle que le nœud définit
       if (cfg.query) delete ex.table; else delete ex.query
       sources[key] = { type: connType, connection: _mergeKeep(orig.connection, sq.connection), extract: ex }
+      continue
+    }
+    if (connType === 'snowflake') {
+      const sf = _snowflakeSource(cfg, batch_size)
+      const ex = _mergeKeep(orig.extract, sf.extract)
+      if (cfg.query) delete ex.table; else delete ex.query
+      const cx = _mergeKeep(orig.connection, sf.connection)
+      // une clé vidée dans le formulaire disparaît du fichier (sauf les champs inconnus du nœud)
+      for (const k of SNOWFLAKE_CONN_KEYS) if (!(k in sf.connection)) delete cx[k]
+      sources[key] = { type: connType, connection: cx, extract: ex }
       continue
     }
     sources[key] = { type: connType, connection, extract }

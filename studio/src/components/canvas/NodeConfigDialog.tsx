@@ -73,6 +73,20 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'table', label: 'Table',         type: 'text' },
     { key: 'query', label: 'SQL query',     type: 'textarea' },
   ],
+  source_snowflake: [
+    { key: 'account',          label: 'Account',  type: 'text', placeholder: 'ORGNAME-ACCOUNTNAME  or  xy12345.eu-central-2.aws', required: true },
+    { key: 'user',             label: 'User',     type: 'text', required: true },
+    { key: 'private_key_file', label: 'Private key file (key-pair authentication)', type: 'text', placeholder: '~/.snowflake/rsa_key.p8', browseType: 'file', browseExt: '.p8' },
+    { key: 'password',         label: 'Password (if no key pair)', type: 'password' },
+    { key: 'warehouse',        label: 'Warehouse', type: 'text', placeholder: 'COMPUTE_WH' },
+    { key: 'database',         label: 'Database',  type: 'text', required: true },
+    { key: 'schema',           label: 'Schema',    type: 'text', placeholder: 'PUBLIC' },
+    { key: 'role',             label: 'Role',      type: 'text' },
+    { key: 'column_case',      label: 'Column names', type: 'select', options: ['preserve', 'lower'] },
+    { key: 'json',             label: 'VARIANT / OBJECT / ARRAY', type: 'select', options: ['parse', 'text'] },
+    { key: 'table',            label: 'Table',     type: 'text' },
+    { key: 'query',            label: 'SQL query (SELECT only)', type: 'textarea' },
+  ],
   source_mongodb:  [
     { key: 'uri',        label: 'MongoDB URI', type: 'text', placeholder: 'mongodb://localhost:27017', required: true },
     { key: 'database',   label: 'Database',        type: 'text', required: true },
@@ -270,7 +284,7 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
 const SHELL_ACTION_TYPES = new Set(['action_powershell', 'action_bash', 'action_ssh'])
 
 // Sources DB — choix mutuellement exclusif Table / SQL query
-const DB_SOURCE_TYPES = new Set(['source_mysql', 'source_postgres', 'source_sqlserver', 'source_sqlite'])
+const DB_SOURCE_TYPES = new Set(['source_mysql', 'source_postgres', 'source_sqlserver', 'source_sqlite', 'source_snowflake'])
 
 // ── Couleur par catégorie ─────────────────────────────────────────────────────
 
@@ -289,7 +303,7 @@ import {
   Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  Briefcase,
+  Briefcase, Snowflake,
 } from 'lucide-react'
 import { MySQLIcon, PostgreSQLIcon } from '@/components/icons/DatabaseIcons'
 
@@ -299,7 +313,7 @@ const LUCIDE: Record<string, React.ElementType> = {
   Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon,
+  MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon, Snowflake,
   Briefcase,
 }
 

@@ -38,6 +38,10 @@ and versions follow [Semantic Versioning](https://semver.org/).
   otherwise `fetchmany`, with the same values. Refused as a destination. Every query is tagged `hydra-etl`
   (`QUERY_TAG`). `source_change` triggers count and max with one SQL query. An unknown account
   (`404 Not Found` at login) gets a hint on the expected `connection.account` format.
+- Studio — **Snowflake** source node in the palette: account, user, private key file or password, warehouse,
+  database, schema, role, column names (`preserve` / `lower`), JSON columns (`parse` / `text`), table or SELECT
+  query. Read from and written to `sources.yaml` like the other nodes; a field emptied in the form is removed
+  from the file, and references such as `{{ env:SNOWFLAKE_ACCOUNT }}` are kept as written.
 
 ### Changed
 

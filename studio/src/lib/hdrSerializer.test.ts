@@ -454,3 +454,80 @@ describe('hdrSerializer — SQLite', () => {
     expect(back!.sources.recent.extract.query).toContain('SELECT')
   })
 })
+
+/**
+ * Snowflake (0.20) : source en lecture seule. Les clés de connexion du
+ * formulaire vont dans connection (vides retirées), table XOR query ; les
+ * références ({{ env:… }}) passent telles quelles.
+ */
+describe('hdrSerializer — Snowflake', () => {
+  const modelSf: HydraJobModel = {
+    name: 'sf_job',
+    sources: {
+      dwh: {
+        type: 'snowflake',
+        connection: {
+          account: '{{ env:SNOWFLAKE_ACCOUNT }}', user: 'HYDRA_SVC',
+          private_key_file: '{{ env:SNOWFLAKE_PRIVATE_KEY_FILE }}', warehouse: 'COMPUTE_WH',
+          database: 'SALES', schema: 'PUBLIC', column_case: 'lower',
+        },
+        extract: { table: 'ORDERS', batch_size: 10000 },
+      },
+      recent: {
+        type: 'snowflake',
+        connection: { account: 'acme', user: 'u', database: 'SALES', json: 'text' },
+        extract: { query: 'SELECT * FROM ORDERS WHERE AMOUNT > 100' },
+      },
+    },
+    transformations: { steps: [] },
+    destinations: {
+      pg: { type: 'postgresql', connection: { host: 'localhost', database: 'postgres', user: 'postgres' },
+            load: { table: 'orders', mode: 'upsert', key: ['order_id'] } },
+    },
+    pipeline: { from: 'dwh', to: 'pg' },
+  }
+
+  it('mappe snowflake vers le nœud Snowflake', () => {
+    const { nodes } = jobModelToFlow(modelSf)
+    const byLabel = Object.fromEntries(nodes.map(n => [n.data.label, n.data.nodeType]))
+    expect(byLabel.dwh).toBe('source_snowflake')
+  })
+
+  it('le formulaire reçoit compte, clé, base, casse et table', () => {
+    const { nodes } = jobModelToFlow(modelSf)
+    const p = nodes.find(n => n.data.label === 'dwh')!.data.params as Record<string, unknown>
+    expect(p.account).toBe('{{ env:SNOWFLAKE_ACCOUNT }}')
+    expect(p.private_key_file).toBe('{{ env:SNOWFLAKE_PRIVATE_KEY_FILE }}')
+    expect(p.database).toBe('SALES')
+    expect(p.column_case).toBe('lower')
+    expect(p.table).toBe('ORDERS')
+  })
+
+  it('canvas -> YAML : connexion intacte, table XOR query, pas de clé vide', () => {
+    const { nodes, edges } = jobModelToFlow(modelSf)
+    const back = flowToJobModel(nodes, edges, 'sf_job')
+    expect(back.sources.dwh.type).toBe('snowflake')
+    expect(back.sources.dwh.connection).toEqual(modelSf.sources.dwh.connection)
+    expect(back.sources.dwh.extract).toMatchObject({ table: 'ORDERS', batch_size: 10000 })
+    expect(back.sources.dwh.extract.query).toBeUndefined()
+    expect(back.sources.recent.connection).toEqual({ account: 'acme', user: 'u', database: 'SALES', json: 'text' })
+    expect(back.sources.recent.extract.query).toContain('SELECT')
+    expect(back.sources.recent.extract.table).toBeUndefined()
+  })
+
+  it('un champ vidé dans le formulaire disparaît du YAML', () => {
+    const { nodes, edges } = jobModelToFlow(modelSf)
+    const n = nodes.find(x => x.data.label === 'dwh')!
+    ;(n.data.params as Record<string, unknown>).schema = ''
+    const back = flowToJobModel(nodes, edges, 'sf_job')
+    expect(back.sources.dwh.connection.schema).toBeUndefined()
+    expect(back.sources.dwh.connection.account).toBe('{{ env:SNOWFLAKE_ACCOUNT }}')
+  })
+
+  it('un round-trip YAML complet ne perd rien', () => {
+    const back = sectionYamlsToJobModel(jobModelToSectionYamls(modelSf), 'sf_job')
+    expect(back).not.toBeNull()
+    expect(back!.sources.dwh.connection.column_case).toBe('lower')
+    expect(back!.sources.recent.extract.query).toContain('SELECT')
+  })
+})

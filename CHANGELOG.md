@@ -51,6 +51,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - VS Code extension 0.1.11: `type: snowflake` in `sources.yaml` (`account` and `user` required, unknown
   connection keys refused, `column_case` and `json` offered as lists, `extract.query` limited to SELECT /
   WITH / SHOW / DESCRIBE), refused in `destinations.yaml`; snippet `hsrc-snowflake`.
+- VS Code extension 0.1.12: `type: postgresql_cdc` / `postgres_cdc` in `sources.yaml` (`user`, `database`, `slot`,
+  `publication` required, slot and publication names checked, `create` and `snapshot` booleans, `extract.table`
+  required and `extract.query` refused), refused in `destinations.yaml`; snippet `hsrc-cdc`.
 
 ### Changed
 

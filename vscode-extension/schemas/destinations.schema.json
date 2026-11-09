@@ -56,6 +56,20 @@
         },
         {
           "if": {
+            "properties": { "type": { "enum": ["postgresql_cdc", "postgres_cdc"] } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "not": { "enum": ["postgresql_cdc", "postgres_cdc"] },
+                "description": "A CDC source cannot be a destination: write the changes with type: postgresql and mode: upsert."
+              }
+            }
+          }
+        },
+        {
+          "if": {
             "properties": { "type": { "const": "snowflake" } },
             "required": ["type"]
           },

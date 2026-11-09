@@ -78,6 +78,25 @@
       "$0"
     ]
   },
+  "Hydra — PostgreSQL CDC source": {
+    "prefix": "hsrc-cdc",
+    "description": "Changes of a PostgreSQL table (logical replication); write them with a PostgreSQL destination in upsert",
+    "body": [
+      "src_${1:name}:",
+      "  type: postgresql_cdc",
+      "  connection:",
+      "    host: \\${ENV:PG_HOST}",
+      "    port: \\${ENV:PG_PORT}",
+      "    user: \\${ENV:PG_USER}",
+      "    password: \\${ENV:PG_PASSWORD}",
+      "    database: ${2:shop}",
+      "    slot: ${3:hydra_orders}",
+      "    publication: ${4:hydra_orders}",
+      "  extract:",
+      "    table: ${5:public.orders}",
+      "$0"
+    ]
+  },
   "Hydra — Snowflake source": {
     "prefix": "hsrc-snowflake",
     "description": "Snowflake source, read-only (pip install \"hydra-etl[snowflake]\")",

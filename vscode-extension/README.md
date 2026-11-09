@@ -40,7 +40,7 @@ its explanation.
 missing required field, unsatisfied conditional constraint. Errors are
 underlined in the editor and listed in the Problems panel.
 
-**Snippets.** 54 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
+**Snippets.** 55 Emmet-style skeletons. Typing `hsrc-mysql` followed by Tab
 produces a complete MySQL source, cursor on the first field to fill, Tab to move
 on, dropdown menus on fixed-value fields.
 
@@ -216,7 +216,7 @@ vscode-extension/
 │   ├── environment.schema.json
 │   └── secrets-settings.schema.json
 ├── snippets/
-│   └── hydra.json                54 snippets
+│   └── hydra.json                55 snippets
 └── examples/                     test sandbox, excluded from the package
     ├── valid_job/
     ├── valid_workflow/

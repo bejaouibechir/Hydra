@@ -57,6 +57,30 @@
         },
         {
           "if": {
+            "properties": { "type": { "enum": ["postgresql_cdc", "postgres_cdc"] } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["connection"],
+            "properties": {
+              "connection": { "$ref": "#/definitions/postgresCdcConnection" },
+              "extract": {
+                "required": ["table"],
+                "not": { "required": ["query"] },
+                "properties": {
+                  "table": {
+                    "type": "string",
+                    "pattern": "^([A-Za-z_][A-Za-z0-9_$]*\\.)?[A-Za-z_][A-Za-z0-9_$]*$",
+                    "description": "Table whose changes are read: table or schema.table (a CDC source reads a table, not a query).",
+                    "examples": ["public.orders"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
             "properties": { "type": { "const": "snowflake" } },
             "required": ["type"]
           },
@@ -113,6 +137,8 @@
             "mssql",
             "sqlite",
             "snowflake",
+            "postgresql_cdc",
+            "postgres_cdc",
             "mongodb",
             "web_api"
           ],
@@ -128,6 +154,8 @@
             "Alias for sqlserver.",
             "SQLite database file, built in: connection.path is the file (Hydra ETL 0.20+).",
             "Snowflake, read-only source (Hydra ETL 0.20+; pip install \"hydra-etl[snowflake]\"). Exact numbers, dates, time zones and JSON.",
+            "Changes of a PostgreSQL table (inserts, updates, deletes) through logical replication (Hydra ETL 0.20+). Needs wal_level = logical and a role with REPLICATION.",
+            "Alias for postgresql_cdc.",
             "MongoDB database (optional dependency: pymongo).",
             "Paginated HTTP API (optional dependency: requests)."
           ]
@@ -185,6 +213,32 @@
           "examples": ["../../data/app.db", "../../outputs/warehouse.db"]
         },
         "database": { "type": "string", "minLength": 1, "description": "Alias for 'path'." }
+      }
+    },
+
+    "postgresCdcConnection": {
+      "type": "object",
+      "description": "PostgreSQL connection plus the replication slot and the publication. The slot only moves on after the destination has published, so a failed load reads the same changes again.",
+      "required": ["user", "database", "slot", "publication"],
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string", "examples": ["${ENV:PG_HOST}", "localhost"] },
+        "port": { "anyOf": [{ "type": "integer" }, { "type": "string" }], "default": 5432, "examples": [5432, "${ENV:PG_PORT}"] },
+        "user": { "type": "string", "minLength": 1, "description": "Role with the REPLICATION attribute (ALTER ROLE … REPLICATION).", "examples": ["${ENV:PG_USER}"] },
+        "password": { "type": "string", "description": "Never in plain text: use ${ENV:…}.", "examples": ["${ENV:PG_PASSWORD}"] },
+        "database": { "type": "string", "minLength": 1, "examples": ["shop"] },
+        "slot": {
+          "type": "string", "pattern": "^([a-z_][a-z0-9_]{0,62}|\\$\\{.+\\}|\\{\\{.+\\}\\})$",
+          "description": "Logical replication slot (pgoutput), one per job: lowercase letters, digits and '_'. Created at the first run unless create: false. Drop a slot that is no longer used: it keeps the server's WAL.",
+          "examples": ["hydra_orders"]
+        },
+        "publication": {
+          "type": "string", "pattern": "^([a-z_][a-z0-9_]{0,62}|\\$\\{.+\\}|\\{\\{.+\\}\\})$",
+          "description": "Publication that contains the table: lowercase letters, digits and '_'. Created at the first run unless create: false.",
+          "examples": ["hydra_orders"]
+        },
+        "create": { "type": "boolean", "default": true, "description": "Create the publication and the slot if they are missing." },
+        "snapshot": { "type": "boolean", "default": true, "description": "First run: copy the whole table, then read the changes." }
       }
     },
 

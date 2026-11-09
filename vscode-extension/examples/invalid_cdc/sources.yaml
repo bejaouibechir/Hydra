@@ -1,0 +1,12 @@
+# Faulty: no publication, a slot name PostgreSQL refuses, an unknown key, and a query instead of a table.
+version: "1.0"
+sources:
+  changes:
+    type: postgresql_cdc
+    connection:
+      user: app
+      database: shop
+      slot: Hydra-Orders
+      plugin: wal2json
+    extract:
+      query: SELECT * FROM orders

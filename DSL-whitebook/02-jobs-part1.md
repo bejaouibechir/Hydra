@@ -73,6 +73,8 @@ sources:
 | `sqlserver`, `mssql`     | ✔    | ✔     | `pip install "hydra-etl[mssql]"`    |
 | `mongodb`                | ✔    | ✔     | `pip install "hydra-etl[mongodb]"`  |
 | `sqlite`                 | ✔    | ✔     | built in (Hydra 0.20+)              |
+| `snowflake`              | ✔    | –     | `pip install "hydra-etl[snowflake]"` (Hydra 0.20+) |
+| `postgresql_cdc`, `postgres_cdc` | ✔ (changes) | – | `pip install "hydra-etl[postgres]"` (Hydra 0.20+) |
 
 An unknown type stops the job with the list of supported types:
 
@@ -311,6 +313,123 @@ destinations:
 - All-or-nothing by default in the three modes: one transaction for the job, table creation included. `load.atomic: false` commits batch by batch.
 - `rollback: true` undoes a SQLite load like the other databases.
 - The database uses the WAL journal, so a job can read one table while it writes another in the same file.
+
+---
+
+## Snowflake source
+
+*Hydra 0.20+, read-only.* `pip install "hydra-etl[snowflake]"`.
+
+```yaml
+sources:
+  snowflake_orders:
+    type: snowflake
+    connection:
+      account: "{{ env:SNOWFLAKE_ACCOUNT }}"            # ORGNAME-ACCOUNTNAME, or xy12345.eu-central-2.aws
+      user: "{{ env:SNOWFLAKE_USER }}"
+      private_key_file: "{{ env:SNOWFLAKE_PRIVATE_KEY_FILE }}"   # key pair; or password
+      warehouse: COMPUTE_WH
+      database: SALES
+      schema: PUBLIC
+      column_case: lower        # ORDER_ID -> order_id
+    extract:
+      table: ORDERS             # or query: "SELECT ..."
+```
+
+### Connection keys
+
+| Key | Description |
+| --- | --- |
+| `account` | Account identifier (`ORGNAME-ACCOUNTNAME`) or locator with its region (`xy12345.eu-central-2.aws`), without `https://` or `.snowflakecomputing.com`. Required. |
+| `user` | Snowflake user, ideally a service user that can only read. Required. |
+| `private_key_file` | Private key (PKCS#8, `.p8`) for key-pair authentication, recommended. `private_key_file_pwd` if the key is encrypted. |
+| `password` | Password, if no key pair. |
+| `warehouse`, `database`, `schema`, `role` | Where the queries run. |
+| `column_case` | `preserve` (default) or `lower`. Two columns that only differ by case are refused before any row is read. |
+| `json` | `parse` (default): `VARIANT`, `OBJECT`, `ARRAY` become JSON values; `text`: the JSON text. |
+
+### Types
+
+| Snowflake | Value read by Hydra | PostgreSQL column created |
+| --- | --- | --- |
+| `NUMBER(p,0)` | exact integer, even beyond 64 bits | `bigint` (`numeric` if the first batch already holds integers beyond 64 bits) |
+| `NUMBER(p,s)` | exact decimal | `numeric` |
+| `FLOAT` | float | `double precision` |
+| `DATE` | date | `date` |
+| `TIMESTAMP_NTZ` | timestamp without time zone | `timestamp` |
+| `TIMESTAMP_TZ`, `TIMESTAMP_LTZ` | timestamp with its time zone | `timestamptz` |
+| `VARIANT`, `OBJECT`, `ARRAY` | JSON value | `jsonb` |
+
+- `extract.query` must start with `SELECT`, `WITH`, `SHOW` or `DESCRIBE`: the source is read-only, and Snowflake cannot be a destination.
+- Every query is tagged `hydra-etl` (`QUERY_TAG`), so it can be found in Snowflake's query history.
+- A PostgreSQL column that already exists keeps its type. If a value does not fit (an integer too large for a `bigint`), the batch is refused before it is written, with the `ALTER TABLE` to run; with `atomic: true`, the destination stays as it was.
+
+Example: `examples/snowflake-to-postgres` in the Hydra ETL repository, with a local Snowflake emulator to try it without an account.
+
+---
+
+## PostgreSQL CDC source
+
+*Hydra 0.20+.* Reads the changes of a table (inserts, updates, deletes) through PostgreSQL's logical replication, in the order of the transactions. Written to a PostgreSQL destination in `upsert`, they keep a mirror of the table up to date.
+
+```yaml
+sources:
+  order_changes:
+    type: postgresql_cdc
+    connection:
+      host: "{{ env:PG_HOST }}"
+      port: 5432
+      user: "{{ env:PG_USER }}"          # role with REPLICATION
+      password: "{{ env:PG_PASSWORD }}"
+      database: shop
+      slot: hydra_orders                 # created at the first run
+      publication: hydra_orders          # created at the first run
+    extract:
+      table: public.orders
+```
+
+```yaml
+destinations:
+  mirror:
+    type: postgresql
+    connection:
+      host: "{{ env:PG_HOST }}"
+      user: "{{ env:PG_USER }}"
+      password: "{{ env:PG_PASSWORD }}"
+      database: analytics
+    load:
+      table: orders
+      mode: upsert
+      key: [order_id]
+      atomic: true
+```
+
+### Connection keys
+
+| Key | Description |
+| --- | --- |
+| `host`, `port`, `user`, `password`, `database` | As for a PostgreSQL source. The user needs the `REPLICATION` attribute. |
+| `slot` | Logical replication slot, one per job: lowercase letters, digits and `_`. |
+| `publication` | Publication that contains the table. |
+| `create` | `true` (default): create the slot and the publication if they are missing. `false`: they must exist. |
+| `snapshot` | `true` (default): the first run copies the whole table, then reads the changes. |
+
+### How it works
+
+1. **First run**: Hydra creates the publication and the slot, then reads the whole table.
+2. **Next runs**: only the changes since the last successful run.
+3. **Each row** carries the table's columns plus `_op` (`snapshot`, `insert`, `update`, `delete`), `_lsn` (position in the write-ahead log) and `_commit_time`.
+4. **In the destination**, in `upsert`: the last change of each key wins, deletes are applied by key, and `_op`, `_lsn`, `_commit_time` are not written. In `append`, every change is written with its three columns: a log of the changes.
+5. **Confirmation**: the changes are read without being consumed. The slot only moves on after the destination has published. A failed load reads the same changes again at the next run: nothing is lost, and the upsert applies them without duplicates.
+
+### Requirements and limits
+
+- `wal_level = logical` on the server (`ALTER SYSTEM SET wal_level = logical;` then a restart), PostgreSQL 11 or later.
+- The source table needs a primary key, so that updates and deletes are applied by key.
+- A slot keeps the server's write-ahead log until its changes are read. Drop a slot that is no longer used: `SELECT pg_drop_replication_slot('hydra_orders');`.
+- A workflow with `rollback: true` cannot use a CDC source: the slot is confirmed at the end of the job and cannot be moved back. Use `load.atomic: true`.
+
+Example: `examples/postgres-cdc-mirror` in the Hydra ETL repository: first copy, a day of changes, then a failure in the middle of the load that loses nothing.
 
 ---
 
@@ -580,13 +699,13 @@ load:
   atomic: true      # one transaction for the whole load
 ```
 
-> **[LAB lab-02-04 · Killercoda]** **Load modes and atomicity** — Load the same file three times with `append`, `replace` and `upsert`, then make a load fail halfway with and without `atomic: true`.
-
-> On a large `append` or `upsert`, `atomic: true` means one long transaction: more locks and a bigger database log. That is why it is off by default.
+[**[LAB lab-02-04 · Killercoda]** **Load modes and atomicity** ](https://killercoda.com/hydra-etl/scenario/11-load-modes-and-atomicity)
 
 <!-- REVIEW (décision G) : MongoDB en destination — le connecteur utilise les modes
      insert / upsert / replace et `upsert_key` (défaut _id). Correspondance avec
      load.mode / load.key à confirmer avant de publier un exemple. -->
+
+![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\02-jobs-part1\25.png)
 
 ---
 
@@ -635,9 +754,13 @@ pipeline:
   to: dwh_orders
 ```
 
-> **[FIGURE fig-02-06 · diagram]** One main flow (`from: orders`) going to the destination, and a second declared source (`customers`) entering on the side through a `join`.
+![The orders source selected by pipeline.from flows through a join to dwh_orders. The additional customers source enters the join as a side input.](02-jobs-part1/25.png)
 
-> **[GITHUB gh-02-03 · example]** **multi_source_job** — Job declaring two sources (`orders`, `customers`), one used by the pipeline and one by a `join`, with sample data.
+> Job declaring two sources (`orders`, `customers`), one used by the pipeline and one by a `join`, with sample data.
+
+[**[GITHUB gh-02-03 · example]** **multi_source_job** —](https://github.com/bejaouibechir/bejaouibechir.github.io/tree/main/codes/02-jobs-part1/multi_source_job)
+
+![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\02-jobs-part1\28.png)
 
 `orders` is the main flow. `customers` is not read by the pipeline itself: it is available to a `join`, `merge` or `union` in `transformations.yaml`.
 
@@ -687,6 +810,10 @@ hdrctl run jobs/products
 
 Every run updates the products whose `sku` already exists and inserts the new ones.
 
-> **[GITHUB gh-02-02 · example]** **csv_to_mysql_upsert** — Complete job of this page, with `data/products.csv`, a `docker-compose.yml` for MySQL, the secrets file template, and a README.
+[**[GITHUB gh-02-02 · example]** **— Complete job of this page**]([bejaouibechir.github.io/codes/02-jobs-part1/csv_to_mysql_upsert at main · bejaouibechir/bejaouibechir.github.io · GitHub](https://github.com/bejaouibechir/bejaouibechir.github.io/tree/main/codes/02-jobs-part1/csv_to_mysql_upsert))
 
-> **[LAB lab-02-05 · Killercoda]** **Build a complete job** — Write the four files of a CSV → MySQL job from scratch, run it twice, and check in MySQL that the second run updated instead of duplicating.
+![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\02-jobs-part1\26.png)
+
+[**[LAB lab-02-05 · Killercoda]** **Build a complete job**](https://killercoda.com/hydra-etl/scenario/12-build-a-complete-job)
+
+![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\02-jobs-part1\27.png)

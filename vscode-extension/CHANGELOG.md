@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.1.12
+
+PostgreSQL CDC source of Hydra ETL 0.20.
+
+- `sources.yaml`: `type: postgresql_cdc` (alias `postgres_cdc`), with `user`, `database`, `slot` and
+  `publication` required; slot and publication names checked (lowercase letters, digits, `_`); `create`
+  and `snapshot` offered as booleans; `extract.table` required, `extract.query` refused (a CDC source
+  reads a table). An unknown connection key is refused.
+- `destinations.yaml`: `type: postgresql_cdc` is refused (use `postgresql` in `upsert`).
+- Snippet: `hsrc-cdc`.
+
 ## 0.1.11
 
 Snowflake connector of Hydra ETL 0.20.

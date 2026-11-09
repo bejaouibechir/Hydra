@@ -1,0 +1,28 @@
+# PostgreSQL CDC source: the changes of public.orders, slot and publication created at the first run.
+version: "1.0"
+sources:
+  order_changes:
+    type: postgresql_cdc
+    connection:
+      host: ${ENV:PG_HOST}
+      port: 5432
+      user: ${ENV:PG_USER}
+      password: ${ENV:PG_PASSWORD}
+      database: shop
+      slot: hydra_orders
+      publication: hydra_orders
+    extract:
+      table: public.orders
+  item_changes:
+    type: postgres_cdc
+    connection:
+      host: "{{ env:PG_HOST }}"
+      user: "{{ env:PG_USER }}"
+      database: shop
+      slot: hydra_items
+      publication: hydra_items
+      create: false
+      snapshot: false
+    extract:
+      table: order_items
+      batch_size: 5000

@@ -1,0 +1,12 @@
+# Faulty: a CDC source cannot be a destination.
+version: "1.0"
+destinations:
+  mirror:
+    type: postgresql_cdc
+    connection:
+      user: app
+      database: analytics
+      slot: s
+      publication: p
+    load:
+      table: orders

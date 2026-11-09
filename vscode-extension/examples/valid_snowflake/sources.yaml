@@ -1,0 +1,28 @@
+# Snowflake source, key-pair authentication, lowercase column names for PostgreSQL.
+version: "1.0"
+sources:
+  snowflake_orders:
+    type: snowflake
+    connection:
+      account: ${ENV:SNOWFLAKE_ACCOUNT}
+      user: ${ENV:SNOWFLAKE_USER}
+      private_key_file: ${ENV:SNOWFLAKE_PRIVATE_KEY_FILE}
+      warehouse: COMPUTE_WH
+      database: SALES
+      schema: PUBLIC
+      column_case: lower
+      json: parse
+    extract:
+      table: ORDERS
+      batch_size: 10000
+  recent_orders:
+    type: snowflake
+    connection:
+      account: "{{ env:SNOWFLAKE_ACCOUNT }}"
+      user: "{{ env:SNOWFLAKE_USER }}"
+      password: "{{ env:SNOWFLAKE_PASSWORD }}"
+      database: SALES
+    extract:
+      query: |
+        WITH r AS (SELECT * FROM ORDERS WHERE AMOUNT > 100)
+        SELECT * FROM r

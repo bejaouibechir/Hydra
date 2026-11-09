@@ -1,0 +1,10 @@
+# Faulty: no user, an unknown option (casing), and a query that writes.
+version: "1.0"
+sources:
+  dwh:
+    type: snowflake
+    connection:
+      account: MYORG-MYACCOUNT
+      casing: lower
+    extract:
+      query: DELETE FROM ORDERS

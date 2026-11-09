@@ -78,6 +78,25 @@
       "$0"
     ]
   },
+  "Hydra — Snowflake source": {
+    "prefix": "hsrc-snowflake",
+    "description": "Snowflake source, read-only (pip install \"hydra-etl[snowflake]\")",
+    "body": [
+      "src_${1:name}:",
+      "  type: snowflake",
+      "  connection:",
+      "    account: \\${ENV:SNOWFLAKE_ACCOUNT}",
+      "    user: \\${ENV:SNOWFLAKE_USER}",
+      "    private_key_file: \\${ENV:SNOWFLAKE_PRIVATE_KEY_FILE}",
+      "    warehouse: ${2:COMPUTE_WH}",
+      "    database: ${3:SALES}",
+      "    schema: ${4:PUBLIC}",
+      "    column_case: ${5|lower,preserve|}",
+      "  extract:",
+      "    ${6|table,query|}: ${7:ORDERS}",
+      "$0"
+    ]
+  },
   "Hydra — MongoDB source": {
     "prefix": "hsrc-mongo",
     "description": "MongoDB source with schema inference",

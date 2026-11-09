@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.1.11
+
+Snowflake connector of Hydra ETL 0.20.
+
+- `sources.yaml`: `type: snowflake`, with `connection.account` and `connection.user` required; key-pair
+  (`private_key_file`) or password authentication, `warehouse`, `database`, `schema`, `role`;
+  `column_case` (`preserve` / `lower`) and `json` (`parse` / `text`) offered as lists. An unknown
+  connection key is refused, and `extract.query` must start with SELECT, WITH, SHOW or DESCRIBE
+  (read-only source).
+- `destinations.yaml`: `type: snowflake` is refused (Snowflake is a read-only source).
+- Snippet: `hsrc-snowflake`.
+
 ## 0.1.10
 
 SQLite connector of Hydra ETL 0.20.

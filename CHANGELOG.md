@@ -42,6 +42,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
   database, schema, role, column names (`preserve` / `lower`), JSON columns (`parse` / `text`), table or SELECT
   query. Read from and written to `sources.yaml` like the other nodes; a field emptied in the form is removed
   from the file, and references such as `{{ env:SNOWFLAKE_ACCOUNT }}` are kept as written.
+- VS Code extension 0.1.11: `type: snowflake` in `sources.yaml` (`account` and `user` required, unknown
+  connection keys refused, `column_case` and `json` offered as lists, `extract.query` limited to SELECT /
+  WITH / SHOW / DESCRIBE), refused in `destinations.yaml`; snippet `hsrc-snowflake`.
 
 ### Changed
 

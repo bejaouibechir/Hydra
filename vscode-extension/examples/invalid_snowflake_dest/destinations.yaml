@@ -1,0 +1,10 @@
+# Faulty: Snowflake is a read-only source, not a destination.
+version: "1.0"
+destinations:
+  dwh:
+    type: snowflake
+    connection:
+      account: MYORG-MYACCOUNT
+      user: HYDRA_SVC
+    load:
+      table: ORDERS

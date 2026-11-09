@@ -56,6 +56,20 @@
         },
         {
           "if": {
+            "properties": { "type": { "const": "snowflake" } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "not": { "const": "snowflake" },
+                "description": "Snowflake is a read-only source in Hydra ETL: it cannot be a destination."
+              }
+            }
+          }
+        },
+        {
+          "if": {
             "properties": { "type": { "const": "mongodb" } },
             "required": ["type"]
           },

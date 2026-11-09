@@ -57,6 +57,26 @@
         },
         {
           "if": {
+            "properties": { "type": { "const": "snowflake" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["connection"],
+            "properties": {
+              "connection": { "$ref": "#/definitions/snowflakeConnection" },
+              "extract": {
+                "properties": {
+                  "query": {
+                    "pattern": "^\\s*(\\(|[Ww][Ii][Tt][Hh]\\b|[Ss][Ee][Ll][Ee][Cc][Tt]\\b|[Ss][Hh][Oo][Ww]\\b|[Dd][Ee][Ss][Cc])",
+                    "description": "Read-only source: the query must start with SELECT, WITH, SHOW or DESCRIBE."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
             "properties": { "type": { "const": "mongodb" } },
             "required": ["type"]
           },
@@ -92,6 +112,7 @@
             "sqlserver",
             "mssql",
             "sqlite",
+            "snowflake",
             "mongodb",
             "web_api"
           ],
@@ -106,6 +127,7 @@
             "Microsoft SQL Server database (optional dependency: pymssql).",
             "Alias for sqlserver.",
             "SQLite database file, built in: connection.path is the file (Hydra ETL 0.20+).",
+            "Snowflake, read-only source (Hydra ETL 0.20+; pip install \"hydra-etl[snowflake]\"). Exact numbers, dates, time zones and JSON.",
             "MongoDB database (optional dependency: pymongo).",
             "Paginated HTTP API (optional dependency: requests)."
           ]
@@ -163,6 +185,46 @@
           "examples": ["../../data/app.db", "../../outputs/warehouse.db"]
         },
         "database": { "type": "string", "minLength": 1, "description": "Alias for 'path'." }
+      }
+    },
+
+    "snowflakeConnection": {
+      "type": "object",
+      "description": "Snowflake account (read-only source). Authenticate with a key pair (private_key_file) or a password; keep both out of the file with ${ENV:…} references.",
+      "required": ["account", "user"],
+      "additionalProperties": false,
+      "properties": {
+        "account": {
+          "type": "string", "minLength": 1,
+          "description": "Account identifier (ORGNAME-ACCOUNTNAME) or locator with its region (xy12345.eu-central-2.aws), without https:// or .snowflakecomputing.com.",
+          "examples": ["${ENV:SNOWFLAKE_ACCOUNT}", "MYORG-MYACCOUNT", "xy12345.eu-central-2.aws"]
+        },
+        "user": { "type": "string", "minLength": 1, "description": "Snowflake user, ideally a service user that can only read.", "examples": ["${ENV:SNOWFLAKE_USER}", "HYDRA_SVC"] },
+        "password": { "type": "string", "description": "Password. Never in plain text: use ${ENV:…}. Prefer a key pair.", "examples": ["${ENV:SNOWFLAKE_PASSWORD}"] },
+        "private_key_file": { "type": "string", "description": "Private key file (PKCS#8, .p8) for key-pair authentication.", "examples": ["${ENV:SNOWFLAKE_PRIVATE_KEY_FILE}", "~/.snowflake/rsa_key.p8"] },
+        "private_key_file_pwd": { "type": "string", "description": "Passphrase of an encrypted private key file.", "examples": ["${ENV:SNOWFLAKE_KEY_PASSPHRASE}"] },
+        "authenticator": { "type": "string", "description": "Authentication method other than password or key pair.", "examples": ["externalbrowser", "oauth"] },
+        "token": { "type": "string", "description": "OAuth token (with authenticator: oauth)." },
+        "warehouse": { "type": "string", "description": "Warehouse that runs the queries.", "examples": ["COMPUTE_WH"] },
+        "database": { "type": "string", "examples": ["SALES"] },
+        "schema": { "type": "string", "examples": ["PUBLIC"] },
+        "role": { "type": "string", "examples": ["HYDRA_READER"] },
+        "host": { "type": "string" },
+        "port": { "anyOf": [{ "type": "integer" }, { "type": "string" }] },
+        "protocol": { "type": "string", "enum": ["https", "http"] },
+        "login_timeout": { "anyOf": [{ "type": "integer" }, { "type": "string" }], "description": "Seconds." },
+        "network_timeout": { "anyOf": [{ "type": "integer" }, { "type": "string" }], "description": "Seconds." },
+        "client_session_keep_alive": { "type": "boolean" },
+        "session_parameters": { "type": "object", "description": "Snowflake session parameters. QUERY_TAG defaults to hydra-etl.", "additionalProperties": true },
+        "column_case": {
+          "type": "string", "enum": ["preserve", "lower"], "default": "preserve",
+          "description": "lower: ORDER_ID becomes order_id (what PostgreSQL expects). Two columns that only differ by case are refused before any row is read."
+        },
+        "json": {
+          "type": "string", "enum": ["parse", "text"], "default": "parse",
+          "description": "VARIANT, OBJECT and ARRAY columns: parse = JSON values (JSONB in PostgreSQL), text = JSON text."
+        },
+        "arrow": { "type": "boolean", "default": true, "description": "Read Arrow batches when the driver provides them (same values either way)." }
       }
     },
 

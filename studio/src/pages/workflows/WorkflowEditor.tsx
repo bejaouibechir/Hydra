@@ -35,7 +35,7 @@ import PropertiesPanel from '@/components/canvas/PropertiesPanel'
 import NodeContextMenu, { type ContextMenuState } from '@/components/canvas/NodeContextMenu'
 import NodeConfigDialog from '@/components/canvas/NodeConfigDialog'
 import YamlCodePanel from '@/components/canvas/YamlCodePanel'
-import TerminalPanel from '@/components/canvas/TerminalPanel'
+import TerminalTabs from '@/components/canvas/TerminalTabs'
 import ParametersPanel from '@/components/canvas/ParametersPanel'
 import SecretsPanel from '@/components/canvas/SecretsPanel'
 import LogViewer from '@/components/ui/LogViewer'
@@ -300,9 +300,14 @@ function WorkflowEditorInner() {
   const [viewer, setViewer] = useState<{ loading: boolean; error: string | null; cols: string[]; rows: Record<string, unknown>[] }>({ loading: false, error: null, cols: [], rows: [] })
   // Terminal intégré (bash / powershell)
   const [terminalShell, setTerminalShell] = useState<'powershell' | 'bash' | 'ssh' | null>(null)
+  // Terminaux en onglets : montés dès la 1re ouverture, gardés quand on passe sur LOGS…
+  const [termMounted, setTermMounted] = useState(false)
+  const [termRequest, setTermRequest] = useState<{ shell: 'powershell' | 'bash'; seq: number } | null>(null)
   const [bottomTab, setBottomTab] = useState<'logs' | 'params' | 'secrets' | 'terminal'>('logs')
   const { data: sysInfo } = useQuery({ queryKey: ['system-info'], queryFn: api.system.info, staleTime: Infinity })
   const defaultShell: 'powershell' | 'bash' = sysInfo?.is_windows ? 'powershell' : 'bash'
+  // L'onglet TERMINAL ouvert une fois : ses sessions restent vivantes quand on passe sur LOGS…
+  useEffect(() => { if (bottomTab === 'terminal') setTermMounted(true) }, [bottomTab])
 
   // ── Two-level canvas : Workflow ↔ Job ────────────────────────────────────
   type SceneMode = 'jobs' | 'workflow'
@@ -2240,7 +2245,7 @@ function WorkflowEditorInner() {
                 <>
                   <div style={{ width: 1, height: 16, background: 'var(--bg-border)' }} />
                   <button
-                    onClick={() => { setTerminalShell(sh); setBottomTab('terminal'); setLogsOpen(true) }}
+                    onClick={() => { setTerminalShell(sh); setTermRequest({ shell: sh === 'ssh' ? defaultShell : sh, seq: Date.now() }); setTermMounted(true); setBottomTab('terminal'); setLogsOpen(true) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       background: sh === 'powershell' ? 'rgba(37,99,235,0.15)' : 'rgba(22,163,74,0.15)',
@@ -2569,9 +2574,16 @@ function WorkflowEditorInner() {
           </div>
           {/* Contenu */}
           <div style={{ flex: 1, overflow: (bottomTab === 'params' || bottomTab === 'secrets') ? 'auto' : 'hidden', padding: bottomTab === 'terminal' ? 0 : '6px 10px' }}>
-            {bottomTab === 'terminal' ? (
-              <TerminalPanel shell={(terminalShell === 'ssh' ? null : terminalShell) ?? defaultShell} onClose={() => setBottomTab('logs')} />
-            ) : bottomTab === 'params' ? (
+            {(termMounted || bottomTab === 'terminal') && (
+              <div style={{ display: bottomTab === 'terminal' ? 'block' : 'none', height: '100%' }}>
+                <TerminalTabs
+                  defaultShell={(terminalShell === 'ssh' ? null : terminalShell) ?? defaultShell}
+                  request={termRequest}
+                  visible={bottomTab === 'terminal'}
+                  onClose={() => { setTermMounted(false); setTermRequest(null); setBottomTab('logs') }} />
+              </div>
+            )}
+            {bottomTab === 'terminal' ? null : bottomTab === 'params' ? (
               <ParametersPanel projectId={projectId} accent={'var(--primary)'} />
             ) : bottomTab === 'secrets' ? (
               <SecretsPanel projectId={projectId ?? ''} accent={'var(--primary)'} />

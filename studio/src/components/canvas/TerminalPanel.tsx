@@ -8,6 +8,10 @@ interface TerminalPanelProps {
   shell: 'powershell' | 'bash'
   initialCommand?: string
   onClose: () => void
+  /** Dans un onglet (TerminalTabs) : pas de barre de titre, la barre d'onglets la remplace. */
+  embedded?: boolean
+  /** Onglet visible : le terminal se redimensionne et prend le focus quand il le devient. */
+  active?: boolean
 }
 
 /** Construit l'URL WebSocket à partir de la même base que l'API HTTP
@@ -43,9 +47,10 @@ function defaultLogName(shell: string): string {
   return `terminal_${shell}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.log`
 }
 
-export default function TerminalPanel({ shell, initialCommand, onClose }: TerminalPanelProps) {
+export default function TerminalPanel({ shell, initialCommand, onClose, embedded = false, active = true }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const fitRef = useRef<FitAddon | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [saveDialog, setSaveDialog] = useState(false)
   const [fileName, setFileName] = useState('')
@@ -83,8 +88,28 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
 
     const fit   = new FitAddon()
     const links = new WebLinksAddon()
+    fitRef.current = fit
     term.loadAddon(fit)
     term.loadAddon(links)
+    // Raccourcis comme dans VS Code : Ctrl+V / Ctrl+Maj+V collent, Ctrl+C copie
+    // s'il y a une sélection (sinon il interrompt la commande, comme d'habitude),
+    // Ctrl+Maj+C copie.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown' || !(e.ctrlKey || e.metaKey)) return true
+      const k = e.key.toLowerCase()
+      if (k === 'v') {
+        e.preventDefault()
+        navigator.clipboard?.readText?.().then(t => { if (t) term.paste(t) }).catch(() => { /* refusé */ })
+        return false
+      }
+      if (k === 'c' && (e.shiftKey || term.hasSelection())) {
+        const sel = term.getSelection()
+        if (sel) navigator.clipboard?.writeText?.(sel).catch(() => { /* refusé */ })
+        term.clearSelection()
+        return false
+      }
+      return true
+    })
     term.open(containerRef.current)
     setTimeout(() => { try { fit.fit(); term.focus() } catch { /* noop */ } }, 0)
 
@@ -123,6 +148,13 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
     return () => { cleanup?.() }
   }, [connect])
 
+  // Onglet redevenu visible : la taille a pu changer pendant qu'il était caché
+  useEffect(() => {
+    if (!active) return
+    const t = setTimeout(() => { try { fitRef.current?.fit(); termRef.current?.focus() } catch { /* noop */ } }, 0)
+    return () => clearTimeout(t)
+  }, [active])
+
   // Fermer le menu contextuel au clic ailleurs / Échap
   useEffect(() => {
     if (!ctxMenu) return
@@ -142,6 +174,15 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
     const text = sel && sel.trim() ? sel : bufferText(term)
     try { await navigator.clipboard.writeText(text) } catch { /* clipboard indisponible */ }
     setCtxMenu(null)
+  }
+
+  const doPaste = async () => {
+    setCtxMenu(null)
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) termRef.current?.paste(text)
+    } catch { /* presse-papiers refusé par le navigateur */ }
+    termRef.current?.focus()
   }
 
   const doSave = () => {
@@ -175,7 +216,7 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
   // Rendu IMBRIQUÉ : remplit le volet de l'onglet (pas d'overlay flottant).
   return (
     <div style={{ height: '100%', width: '100%', background: '#0d1117', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-      <div style={{
+      {!embedded && <div style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 28, flexShrink: 0,
         background: '#161b22', borderBottom: '1px solid #30363d',
       }}>
@@ -196,7 +237,7 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
           background: 'transparent', border: 'none', cursor: 'pointer',
           color: '#8b949e', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1,
         }}>{'✕'}</button>
-      </div>
+      </div>}
       <div
         ref={containerRef}
         style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '6px' }}
@@ -207,7 +248,7 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
         }}
       />
 
-      {/* Menu contextuel : Clear / Copy / Save */}
+      {/* Menu contextuel : Clear / Copy / Paste / Save */}
       {ctxMenu && (
         <div
           style={{
@@ -226,6 +267,11 @@ export default function TerminalPanel({ shell, initialCommand, onClose }: Termin
             onMouseEnter={e => (e.currentTarget.style.background = '#21262d')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             📋 Copy
+          </button>
+          <button style={menuItemStyle} onClick={doPaste}
+            onMouseEnter={e => (e.currentTarget.style.background = '#21262d')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+            📥 Paste
           </button>
           <button style={menuItemStyle} onClick={doSave}
             onMouseEnter={e => (e.currentTarget.style.background = '#21262d')}

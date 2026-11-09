@@ -7,6 +7,14 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Studio — the terminal opens in **tabs**, as in VS Code: **+** opens a new terminal (pwsh or bash), × closes one,
+  and each session keeps running when another tab, or LOGS / PARAMETERS / SECRETS, is shown. The terminal button
+  of a PowerShell or Bash action opens a new tab.
+- Studio — **paste** in the terminal: Ctrl+V or Ctrl+Shift+V, and **Paste** in the right-click menu. Ctrl+C copies
+  when text is selected (otherwise it interrupts the command, as before); Ctrl+Shift+C copies.
+
 ## [0.20.0] — 2026-11-10
 
 ### Added

@@ -464,6 +464,8 @@ def _discover_disk_content(project_path: Path, project_id: str) -> None:
             wf_section = doc.get("workflow", {}) if isinstance(doc, dict) else {}
         except Exception:
             wf_section = {}
+        if not isinstance(wf_section, dict) or not wf_section:
+            continue                      # YAML invalide ou autre chose qu'un workflow
         trigger = wf_section.get("trigger") or {}
         wf_id = str(uuid.uuid4())[:8]
         wf = WorkflowResponse(
@@ -534,6 +536,12 @@ def list_workflows(project_id: str) -> List[WorkflowResponse]:
     project_path = _resolve_project_path(project_id)
     result: List[WorkflowResponse] = []
     seen: set = set()
+    # Workflows ajoutés sur le disque depuis l'ouverture du projet (hdrctl, git,
+    # méta Studio effacée) : enregistrés comme à l'ouverture, sans toucher au YAML.
+    try:
+        _discover_disk_content(project_path, project_id)
+    except Exception as exc:  # dossier en lecture seule : la liste reste lisible
+        logger.warning("workflows on disk not registered for %s: %s", project_path, exc)
 
     # Nouveau format : méta dans .hydra/workflows/
     meta_dir = project_path / ".hydra" / "workflows"

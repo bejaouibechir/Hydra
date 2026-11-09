@@ -31,6 +31,7 @@ env:
     tests/test_postgresql_types.py
     tests/test_postgresql_cdc.py
     tests/test_yaml_keep.py
+    tests/test_studio_adopt.py
 
 jobs:
   tests:

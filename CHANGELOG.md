@@ -89,6 +89,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
   rewritten at all; a changed file keeps, for every unchanged line, its original text (quotes, inline lists,
   end-of-line comments) and the comments above it. The `description` of a workflow is kept, and Studio no longer
   adds `trigger: {type: manual}` or `pipeline.name` to files that did not have them.
+- Studio — a workflow file added on disk after the project was opened (by `hdrctl`, `git pull`, or after Studio's
+  metadata was deleted) now appears in the project's list without reopening the project. A YAML file of
+  `workflows/` that is not a workflow is no longer listed as one.
 
 ## [0.19.1] — 2026-11-05
 

@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-11-10
+
 ### Added
 
 - **SQLite connector** (`type: sqlite`), source and destination, built in: `sqlite3` is part of Python, nothing to
@@ -38,16 +40,26 @@ and versions follow [Semantic Versioning](https://semver.org/).
   otherwise `fetchmany`, with the same values. Refused as a destination. Every query is tagged `hydra-etl`
   (`QUERY_TAG`). `source_change` triggers count and max with one SQL query. An unknown account
   (`404 Not Found` at login) gets a hint on the expected `connection.account` format.
+- **PostgreSQL CDC source** (`type: postgresql_cdc`, alias `postgres_cdc`): the changes of a table (inserts,
+  updates, deletes) read by logical replication (`pgoutput` plugin, nothing to install on the server), in the order
+  of the transactions. `connection`: the usual PostgreSQL keys plus `slot` and `publication`, created at the first
+  run (`create: false` to require them); `extract.table`. The first run reads the whole table (`snapshot: false` to
+  skip it), the next runs only the changes. Each row carries `_op` (`snapshot`, `insert`, `update`, `delete`),
+  `_lsn` and `_commit_time`; values keep their PostgreSQL type (integers, exact decimals, dates, timestamps with
+  their time zone, JSON). The changes are read without being consumed, and the slot only moves on after the
+  destination has published (the job confirms the source at the end): a failed load reads the same changes again
+  at the next run. A workflow with `rollback: true` refuses a CDC source. Needs `wal_level = logical`, PostgreSQL 11+
+  and a role with `REPLICATION`. Example: `examples/postgres-cdc-mirror`.
+- PostgreSQL destination — in `upsert`, rows that carry `_op` (from a CDC source) are applied as changes: the last
+  change of each key in a batch wins, deletes are applied by key, an update whose large value was not changed
+  (TOAST) keeps the current value, and `_op`, `_lsn`, `_commit_time` are not written. In `append`, they are all
+  written (a log of the changes).
 - Studio — **Snowflake** source node in the palette: account, user, private key file or password, warehouse,
   database, schema, role, column names (`preserve` / `lower`), JSON columns (`parse` / `text`), table or SELECT
   query. Read from and written to `sources.yaml` like the other nodes; a field emptied in the form is removed
   from the file, and references such as `{{ env:SNOWFLAKE_ACCOUNT }}` are kept as written.
 - Studio — **PostgreSQL CDC** source node: host, port, database, user, password, table, replication slot,
   publication, and two yes / no lists (create slot and publication if missing; first run copies the whole table).
-- Studio — saving no longer damages the YAML files written by hand: a file whose content did not change is not
-  rewritten at all; a changed file keeps, for every unchanged line, its original text (quotes, inline lists,
-  end-of-line comments) and the comments above it. The `description` of a workflow is kept, and Studio no longer
-  adds `trigger: {type: manual}` or `pipeline.name` to files that did not have them.
 - VS Code extension 0.1.11: `type: snowflake` in `sources.yaml` (`account` and `user` required, unknown
   connection keys refused, `column_case` and `json` offered as lists, `extract.query` limited to SELECT /
   WITH / SHOW / DESCRIBE), refused in `destinations.yaml`; snippet `hsrc-snowflake`.
@@ -66,24 +78,17 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - PostgreSQL destination — an integer too large for a `smallint`, `integer` or `bigint` column is reported before
   the batch is written, with the column, the value and the `ALTER TABLE … TYPE NUMERIC(38,0)` to run (the error
   was `bigint out of range`, without the column).
-- **PostgreSQL CDC source** (`type: postgresql_cdc`, alias `postgres_cdc`): the changes of a table (inserts,
-  updates, deletes) read by logical replication (`pgoutput` plugin, nothing to install on the server), in the order
-  of the transactions. `connection`: the usual PostgreSQL keys plus `slot` and `publication`, created at the first
-  run (`create: false` to require them); `extract.table`. The first run reads the whole table (`snapshot: false` to
-  skip it), the next runs only the changes. Each row carries `_op` (`snapshot`, `insert`, `update`, `delete`),
-  `_lsn` and `_commit_time`; values keep their PostgreSQL type (integers, exact decimals, dates, timestamps with
-  their time zone, JSON). The changes are read without being consumed, and the slot only moves on after the
-  destination has published (the job confirms the source at the end): a failed load reads the same changes again
-  at the next run. A workflow with `rollback: true` refuses a CDC source. Needs `wal_level = logical`, PostgreSQL 11+
-  and a role with `REPLICATION`. Example: `examples/postgres-cdc-mirror`.
-- PostgreSQL destination — in `upsert`, rows that carry `_op` (from a CDC source) are applied as changes: the last
-  change of each key in a batch wins, deletes are applied by key, an update whose large value was not changed
-  (TOAST) keeps the current value, and `_op`, `_lsn`, `_commit_time` are not written. In `append`, they are all
-  written (a log of the changes).
 - PostgreSQL destination — rows are written in multi-row statements of 1,000 rows instead of one statement per
   row, in the three modes (in `upsert`, a batch that holds the same key twice is still written row by row, so the
   last row wins as before). In `append`, a missing table is now created at the first batch, as in `replace` and
   `upsert`.
+
+### Fixed
+
+- Studio — saving no longer damages the YAML files written by hand: a file whose content did not change is not
+  rewritten at all; a changed file keeps, for every unchanged line, its original text (quotes, inline lists,
+  end-of-line comments) and the comments above it. The `description` of a workflow is kept, and Studio no longer
+  adds `trigger: {type: manual}` or `pipeline.name` to files that did not have them.
 
 ## [0.19.1] — 2026-11-05
 

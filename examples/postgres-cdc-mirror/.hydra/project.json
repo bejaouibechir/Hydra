@@ -1,0 +1,23 @@
+{
+  "id": "7c3d9e10",
+  "name": "postgres-cdc-mirror",
+  "description": "Keep a PostgreSQL mirror of a table up to date from its changes (logical replication)",
+  "created_at": "2026-11-09T19:00:00+00:00",
+  "conventions": {
+    "data_dir": "Data",
+    "output_dir": "outputs"
+  },
+  "workflows": [
+    {
+      "id": "23fb11bf",
+      "name": "sync",
+      "file": "workflows/sync.yaml"
+    }
+  ],
+  "jobs": [
+    {
+      "name": "orders_mirror",
+      "path": "jobs/orders_mirror"
+    }
+  ]
+}

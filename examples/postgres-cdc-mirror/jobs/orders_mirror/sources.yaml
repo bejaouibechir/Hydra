@@ -1,0 +1,14 @@
+version: "1.0"
+sources:
+  order_changes:
+    type: postgresql_cdc
+    connection:
+      host: "{{ env:PG_HOST }}"
+      port: "{{ env:PG_PORT }}"
+      user: "{{ env:PG_USER }}"         # needs the REPLICATION attribute
+      password: "{{ env:PG_PASSWORD }}"
+      database: shop
+      slot: hydra_orders                # created at the first run
+      publication: hydra_orders         # created at the first run
+    extract:
+      table: public.orders

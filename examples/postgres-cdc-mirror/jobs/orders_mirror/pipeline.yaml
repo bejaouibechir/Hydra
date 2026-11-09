@@ -1,0 +1,4 @@
+version: "1.0"
+pipeline:
+  from: order_changes
+  to: mirror

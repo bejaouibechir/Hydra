@@ -391,6 +391,14 @@ class PostgreSQLConnector(BaseDBConnector):
         schema, table_name = self._parse_table(table)
         ctx = {"schema": schema, "table": table_name, "mode": mode, "key": key,
                "update_columns": update_columns, "columns": None, "create": False}
+        if mode == "append":
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = %s AND table_name = %s)",
+                (schema, table_name),
+            )
+            if not cur.fetchone()["exists"]:
+                ctx["create"] = True          # table absente → créée au 1er lot (comme replace / upsert)
         if mode == "replace":
             cur.execute(
                 "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
@@ -415,6 +423,13 @@ class PostgreSQLConnector(BaseDBConnector):
 
     def _load_write(self, cur, ctx, batch, *, commit):
         schema, table_name, mode = ctx["schema"], ctx["table"], ctx["mode"]
+        changes = None
+        if mode == "upsert" and batch and isinstance(batch[0], dict) and "_op" in batch[0]:
+            # lot d'une source CDC : suppressions et mises à jour partielles à part
+            batch, changes = self._split_changes(batch, ctx["key"])
+            if not batch:
+                self._apply_changes(cur, ctx, changes)
+                return
         if ctx["columns"] is None:
             ctx["columns"] = self._infer_columns_from_batch(batch)
             if ctx["create"]:
@@ -441,7 +456,93 @@ class PostgreSQLConnector(BaseDBConnector):
             sql, values = self._build_insert_sql(
                 schema=schema, table=table_name, columns=ctx["columns"], batch=batch,
             )
-        cur.executemany(sql, values)
+        self._write_rows(cur, sql, values, mode=mode, key=ctx["key"], columns=ctx["columns"])
+        if changes is not None:
+            self._apply_changes(cur, ctx, changes)
+
+    # ── Changements d'une source CDC (colonne _op) appliqués en upsert ──
+    _CDC_COLUMNS = ("_op", "_lsn", "_commit_time")
+
+    def _split_changes(self, batch, key):
+        """État final de chaque clé dans le lot (le dernier changement l'emporte) :
+        lignes à écrire en upsert, clés à supprimer, mises à jour partielles
+        (valeur TOAST inchangée, absente du journal)."""
+        from hydra_etl.internal.connector.postgresql_cdc_connector import UNCHANGED
+        final: Dict[tuple, Tuple[str, Dict[str, Any]]] = {}
+        for row in batch:
+            k = tuple(row.get(c) for c in key)
+            if any(v is None for v in k):
+                raise ValueError(
+                    f"{self.__class__.__name__} [{self.name}]: a change has no value for the key "
+                    f"{list(key)}; the source table needs a primary key (or REPLICA IDENTITY FULL)")
+            data = {c: v for c, v in row.items() if c not in self._CDC_COLUMNS}
+            if row.get("_op") == "delete":
+                final.pop(k, None)
+                final[k] = ("delete", data)
+                continue
+            if any(v is UNCHANGED for v in data.values()):
+                prev = final.get(k)
+                if prev is not None and prev[0] == "upsert":
+                    data = {c: (prev[1].get(c) if v is UNCHANGED else v) for c, v in data.items()}
+                    action = "upsert"
+                else:
+                    action = "partial"
+            else:
+                action = "upsert"
+            final.pop(k, None)
+            final[k] = (action, data)
+        upserts = [d for a, d in final.values() if a == "upsert"]
+        return upserts, {"delete": [k for k, (a, _) in final.items() if a == "delete"],
+                         "partial": [d for a, d in final.values() if a == "partial"]}
+
+    def _apply_changes(self, cur, ctx, changes) -> None:
+        from hydra_etl.internal.connector.postgresql_cdc_connector import UNCHANGED
+        if not changes["delete"] and not changes["partial"]:
+            return
+        if ctx.get("create"):
+            return                      # table pas encore créée : rien à supprimer ni à modifier
+        q = self._quote_identifier(ctx["schema"], ctx["table"])
+        key = ctx["key"]
+        if changes["delete"]:
+            from psycopg2.extras import execute_values  # type: ignore
+            cols = ", ".join(self._quote_column(k) for k in key)
+            if hasattr(cur, "mogrify"):
+                execute_values(cur, f"DELETE FROM {q} WHERE ({cols}) IN (VALUES %s)",
+                               changes["delete"], page_size=1000)
+            else:
+                cur.executemany(f"DELETE FROM {q} WHERE ({cols}) = ({', '.join(['%s'] * len(key))})",
+                                changes["delete"])
+        for row in changes["partial"]:
+            sets = [c for c, v in row.items() if c not in key and v is not UNCHANGED]
+            if not sets:
+                continue
+            sql = (f"UPDATE {q} SET " + ", ".join(f"{self._quote_column(c)} = %s" for c in sets)
+                   + " WHERE " + " AND ".join(f"{self._quote_column(k)} = %s" for k in key))
+            cur.execute(sql, [_pg_value(row[c]) for c in sets] + [row[k] for k in key])
+
+    _VALUES_RE = re.compile(r"VALUES\s*\(\s*(?:%s\s*,\s*)*%s\s*\)")
+
+    def _write_rows(self, cur, sql: str, values: List[Tuple[Any, ...]], *, mode: str,
+                    key: Optional[List[str]], columns: List[str]) -> None:
+        """Envoie un lot en quelques requêtes multi-lignes (execute_values,
+        1 000 lignes par requête) au lieu d'une requête par ligne.
+
+        Exception, pour garder exactement le même résultat : en upsert, un lot
+        qui contient deux fois la même clé passe ligne par ligne (une même
+        requête ne peut pas mettre à jour deux fois la même ligne)."""
+        if not values:
+            return
+        m = self._VALUES_RE.search(sql)
+        if m is None or not hasattr(cur, "mogrify"):     # curseur sans mogrify : doublure de test
+            cur.executemany(sql, values)
+            return
+        if mode == "upsert" and key:
+            idx = [columns.index(k) for k in key if k in columns]
+            if len(idx) == len(key) and len({tuple(v[i] for i in idx) for v in values}) != len(values):
+                cur.executemany(sql, values)
+                return
+        from psycopg2.extras import execute_values  # type: ignore
+        execute_values(cur, sql[:m.start()] + "VALUES %s" + sql[m.end():], values, page_size=1000)
 
     _INT_RANGES = {"smallint": 2 ** 15, "integer": 2 ** 31, "bigint": 2 ** 63}
 

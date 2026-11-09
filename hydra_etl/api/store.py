@@ -37,6 +37,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from hydra_etl.internal.fs_atomic import atomic_write_text
+from hydra_etl.api.yaml_keep import write_yaml_keeping
 from hydra_etl.api.models import (
     EnvironmentResponse,
     ProjectResponse,
@@ -822,7 +823,8 @@ def _materialize_jobs(project_path: Path, jobs: List[dict]) -> None:
             ("pipeline.yaml", "pipeline"),
         ):
             content = job.get(key) or ""
-            atomic_write_text(job_dir / fname, content)
+            # fichier inchangé : intact ; modifié : commentaires et mise en forme gardés
+            write_yaml_keeping(job_dir / fname, content, kind=key, job_name=name)
         _register_job_in_manifest(project_path, name, f"jobs/{name}")
 
 
@@ -866,7 +868,7 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
     # Persister le workflow.yaml sérialisé depuis le canvas
     if yaml_content and wf_file:
         wf_file.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(wf_file, yaml_content)
+        write_yaml_keeping(wf_file, yaml_content, kind="workflow")
 
     # Changement de trigger SANS re-sérialisation du canvas (ex. depuis la carte
     # projet) : on patche le bloc `trigger` du fichier YAML, qui est la source de
@@ -891,9 +893,10 @@ def update_workflow(project_id: str, workflow_id: str, patch: dict) -> Optional[
                 if wf_updated.trigger_type == "schedule" and wf_updated.cron:
                     trig["cron"] = wf_updated.cron
                 wf_sec["trigger"] = trig
-                atomic_write_text(
+                write_yaml_keeping(
                     wf_file,
                     yaml.dump(doc, default_flow_style=False, allow_unicode=True, sort_keys=False),
+                    kind="trigger",
                 )
                 if in_sync and (h := _sha256(wf_file)) is not None:
                     wf_updated.disk_hashes = {**(wf_updated.disk_hashes or {}), rel: h}

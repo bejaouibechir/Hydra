@@ -121,6 +121,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   source_sqlserver:'sqlserver',
   source_sqlite:   'sqlite',
   source_snowflake:'snowflake',
+  source_postgres_cdc: 'postgresql_cdc',
   source_mongodb:  'mongodb',
   source_api:      'web_api',
   dest_csv:        'csv',
@@ -140,6 +141,7 @@ const CONNECTOR_TO_SOURCE_NODE: Record<string, string> = {
   sqlserver: 'source_sqlserver', mssql: 'source_sqlserver',
   sqlite: 'source_sqlite',
   snowflake: 'source_snowflake',
+  postgresql_cdc: 'source_postgres_cdc', postgres_cdc: 'source_postgres_cdc',
   mongodb: 'source_mongodb', web_api: 'source_api',
 }
 
@@ -274,6 +276,11 @@ export function flowToHdr(
     if (connType === 'snowflake') {
       const sf = _snowflakeSource(cfg, 1000)
       sources[sid] = { type: connType, connection: sf.connection, extract: sf.extract }
+      continue
+    }
+    if (connType === 'postgresql_cdc') {
+      const cd = _cdcSource(cfg, undefined)
+      sources[sid] = { type: connType, connection: cd.connection, extract: cd.extract }
       continue
     }
     sources[sid] = { type: connType, connection, extract }
@@ -627,6 +634,26 @@ function _snowflakeSource(cfg: Record<string, unknown>, batch_size: number | und
   return { connection, extract }
 }
 
+/** Source PostgreSQL CDC : connexion PostgreSQL + slot / publication ; une table. */
+const CDC_CONN_KEYS = ['host', 'port', 'database', 'user', 'password', 'slot', 'publication', 'create', 'snapshot'] as const
+function _cdcSource(cfg: Record<string, unknown>, batch_size: number | undefined) {
+  const connection: Record<string, unknown> = {}
+  for (const k of CDC_CONN_KEYS) {
+    const v = cfg[k]
+    if (v === undefined || v === null || String(v).trim() === '') continue
+    if (k === 'create' || k === 'snapshot') {
+      // défaut du connecteur : oui ; seul « no » s'écrit
+      const off = v === 'no' || v === false || v === 'false'
+      if (off) connection[k] = false
+      continue
+    }
+    connection[k] = k === 'port' && /^\d+$/.test(String(v)) ? Number(v) : v
+  }
+  const extract: Record<string, unknown> = { table: cfg.table ?? '', batch_size }
+  if (batch_size === undefined) delete extract.batch_size
+  return { connection, extract }
+}
+
 function _sourceToParams(src: HdrSource): Record<string, unknown> {
   const conn = src.connection ?? {}
   const ext  = src.extract   ?? {}
@@ -637,6 +664,14 @@ function _sourceToParams(src: HdrSource): Record<string, unknown> {
   }
   if (type === 'sqlite') {
     return { path: (conn as Record<string, unknown>).path ?? '', table: ext.table ?? '', query: ext.query ?? '' }
+  }
+  if (type === 'postgresql_cdc' || type === 'postgres_cdc') {
+    const c = conn as Record<string, unknown>
+    const out: Record<string, unknown> = { table: ext.table ?? '' }
+    for (const k of CDC_CONN_KEYS) out[k] = c[k] ?? ''
+    out.create = c.create === false ? 'no' : 'yes'
+    out.snapshot = c.snapshot === false ? 'no' : 'yes'
+    return out
   }
   if (type === 'snowflake') {
     const c = conn as Record<string, unknown>
@@ -856,6 +891,15 @@ export function flowToJobModel(
       sources[key] = { type: connType, connection: cx, extract: ex }
       continue
     }
+    if (connType === 'postgresql_cdc' || connType === 'postgres_cdc') {
+      const cd = _cdcSource(cfg, batch_size)
+      const ex = _mergeKeep(orig.extract, cd.extract)
+      delete ex.query
+      const cx = _mergeKeep(orig.connection, cd.connection)
+      for (const k of CDC_CONN_KEYS) if (!(k in cd.connection)) delete cx[k]
+      sources[key] = { type: 'postgresql_cdc', connection: cx, extract: ex }
+      continue
+    }
     sources[key] = { type: connType, connection, extract }
   }
   if (Object.keys(sources).length === 0) {
@@ -1030,6 +1074,12 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
       _key: key,
       _orig: JSON.stringify({ connection: src.connection ?? {}, extract: src.extract ?? {} }),
       ...(key === srcKeys[0] && model.transformations.engine ? { _engine: model.transformations.engine } : {}),
+    }
+    if (src.type === 'postgresql_cdc' || src.type === 'postgres_cdc') {
+      // listes yes / no du formulaire (le connecteur vaut oui par défaut)
+      const c = (src.connection ?? {}) as Record<string, unknown>
+      params.create = c.create === false ? 'no' : 'yes'
+      params.snapshot = c.snapshot === false ? 'no' : 'yes'
     }
     nodes.push({
       id, type: 'hydraNode', position: { x, y: 100 },

@@ -1,0 +1,115 @@
+{
+  "id": "23fb11bf",
+  "name": "sync",
+  "project_id": "7c3d9e10",
+  "description": "Apply the changes of shop.orders to analytics.orders",
+  "trigger_type": "manual",
+  "cron": null,
+  "published": false,
+  "path": "C:\\Users\\DELL\\Desktop\\Hydra\\examples\\postgres-cdc-mirror\\workflows\\sync.yaml",
+  "layout": {
+    "nodes": [
+      {
+        "id": "orders",
+        "type": "hydraNode",
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "data": {
+          "label": "orders",
+          "nodeType": "job",
+          "stepName": "orders",
+          "jobPath": "../jobs/orders_mirror",
+          "enabled": true,
+          "jobRef": "orders_mirror"
+        }
+      }
+    ],
+    "edges": [],
+    "job_canvases": {
+      "orders_mirror": {
+        "nodes": [
+          {
+            "id": "imported_src_order_changes",
+            "type": "hydraNode",
+            "position": {
+              "x": 60,
+              "y": 100
+            },
+            "data": {
+              "nodeType": "source_postgres_cdc",
+              "label": "order_changes",
+              "params": {
+                "host": "{{ env:PG_HOST }}",
+                "port": "{{ env:PG_PORT }}",
+                "user": "{{ env:PG_USER }}",
+                "password": "{{ env:PG_PASSWORD }}",
+                "database": "shop",
+                "slot": "hydra_orders",
+                "publication": "hydra_orders",
+                "table": "public.orders",
+                "path": "public.orders",
+                "_key": "order_changes",
+                "_orig": "{\"connection\":{\"host\":\"{{ env:PG_HOST }}\",\"port\":\"{{ env:PG_PORT }}\",\"user\":\"{{ env:PG_USER }}\",\"password\":\"{{ env:PG_PASSWORD }}\",\"database\":\"shop\",\"slot\":\"hydra_orders\",\"publication\":\"hydra_orders\"},\"extract\":{\"table\":\"public.orders\"}}",
+                "create": "yes",
+                "snapshot": "yes"
+              }
+            },
+            "measured": {
+              "width": 54,
+              "height": 72
+            },
+            "selected": true
+          },
+          {
+            "id": "imported_dst_mirror",
+            "type": "hydraNode",
+            "position": {
+              "x": 320,
+              "y": 100
+            },
+            "data": {
+              "nodeType": "dest_postgres",
+              "label": "mirror",
+              "params": {
+                "host": "{{ env:PG_HOST }}",
+                "port": "{{ env:PG_PORT }}",
+                "database": "analytics",
+                "user": "{{ env:PG_USER }}",
+                "password": "{{ env:PG_PASSWORD }}",
+                "table": "orders",
+                "mode": "upsert",
+                "atomic": "yes",
+                "_key": "mirror",
+                "_orig": "{\"connection\":{\"host\":\"{{ env:PG_HOST }}\",\"port\":\"{{ env:PG_PORT }}\",\"user\":\"{{ env:PG_USER }}\",\"password\":\"{{ env:PG_PASSWORD }}\",\"database\":\"analytics\"},\"load\":{\"table\":\"orders\",\"mode\":\"upsert\",\"key\":[\"order_id\"],\"atomic\":true}}"
+              }
+            },
+            "measured": {
+              "width": 54,
+              "height": 72
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "imported_src_order_changes->imported_dst_mirror",
+            "source": "imported_src_order_changes",
+            "target": "imported_dst_mirror",
+            "animated": false
+          }
+        ]
+      }
+    },
+    "job_names": {
+      "orders_mirror": "orders_mirror"
+    }
+  },
+  "disk_hashes": {
+    "workflows/sync.yaml": "bbe0f9dffa86046f16aa950d4759a12f3d6663c7dceec389d3652ddc10320867",
+    "jobs/orders_mirror/sources.yaml": "e474b42a649e533e7a75a0d2dd6c3fe7a6f398381adef8707971a74da4655f6c",
+    "jobs/orders_mirror/transformations.yaml": "c8569a335566f81735bbce24e413810d1e997c9d6ab319fd3025cdb8384e1298",
+    "jobs/orders_mirror/destinations.yaml": "bb63179a7fe0885d9446bdb46f91f3672e3963e56e1e8533b99bf1cd860f4c5e",
+    "jobs/orders_mirror/pipeline.yaml": "76896b52cf03fbba99342e85f87874dd565b9823124fb070b9daaf2d1a6cd06b"
+  }
+}

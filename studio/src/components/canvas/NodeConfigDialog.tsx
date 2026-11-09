@@ -73,6 +73,18 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'table', label: 'Table',         type: 'text' },
     { key: 'query', label: 'SQL query',     type: 'textarea' },
   ],
+  source_postgres_cdc: [
+    { key: 'host',        label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
+    { key: 'port',        label: 'Port',        type: 'number', placeholder: '5432' },
+    { key: 'database',    label: 'Database',    type: 'text',   required: true },
+    { key: 'user',        label: 'User (with REPLICATION)', type: 'text', required: true },
+    { key: 'password',    label: 'Password',    type: 'password' },
+    { key: 'table',       label: 'Table',       type: 'text',   placeholder: 'public.orders', required: true },
+    { key: 'slot',        label: 'Replication slot',  type: 'text', placeholder: 'hydra_orders', required: true },
+    { key: 'publication', label: 'Publication', type: 'text',   placeholder: 'hydra_orders', required: true },
+    { key: 'create',      label: 'Create slot and publication if missing', type: 'select', options: ['yes', 'no'] },
+    { key: 'snapshot',    label: 'First run copies the whole table', type: 'select', options: ['yes', 'no'] },
+  ],
   source_snowflake: [
     { key: 'account',          label: 'Account',  type: 'text', placeholder: 'ORGNAME-ACCOUNTNAME  or  xy12345.eu-central-2.aws', required: true },
     { key: 'user',             label: 'User',     type: 'text', required: true },
@@ -303,7 +315,7 @@ import {
   Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  Briefcase, Snowflake,
+  Briefcase, Snowflake, History,
 } from 'lucide-react'
 import { MySQLIcon, PostgreSQLIcon } from '@/components/icons/DatabaseIcons'
 
@@ -313,7 +325,7 @@ const LUCIDE: Record<string, React.ElementType> = {
   Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon, Snowflake,
+  MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon, Snowflake, History,
   Briefcase,
 }
 

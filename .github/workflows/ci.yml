@@ -29,6 +29,8 @@ env:
     tests/test_workflow_action_output.py
     tests/test_snowflake_connector.py
     tests/test_postgresql_types.py
+    tests/test_postgresql_cdc.py
+    tests/test_yaml_keep.py
 
 jobs:
   tests:

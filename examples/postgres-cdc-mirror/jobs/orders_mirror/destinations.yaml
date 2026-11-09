@@ -1,0 +1,15 @@
+version: "1.0"
+destinations:
+  mirror:
+    type: postgresql
+    connection:
+      host: "{{ env:PG_HOST }}"
+      port: "{{ env:PG_PORT }}"
+      user: "{{ env:PG_USER }}"
+      password: "{{ env:PG_PASSWORD }}"
+      database: analytics
+    load:
+      table: orders
+      mode: upsert              # inserts and updates are upserted, deletes are applied
+      key: [order_id]
+      atomic: true              # all or nothing; the slot only moves on after a successful load

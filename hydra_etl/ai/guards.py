@@ -165,7 +165,7 @@ def check(prompt: str, files: Dict[str, str], docs: Dict[str, Any]) -> List[str]
         "mysql": "mysql", "mariadb": "mariadb", "mongo": "mongodb",
         "sql server": "sqlserver", "sqlserver": "sqlserver", "mssql": "sqlserver",
         "mongodb": "mongodb", "csv": "csv", "json": "json", "sqlite": "sqlite",
-        "snowflake": "snowflake",
+        "snowflake": "snowflake", "cdc": "postgresql_cdc",
         "api web": "web_api", "api": "web_api",
     }
     used = {v.get("type") for v in list(sources.values()) + list(dests.values())

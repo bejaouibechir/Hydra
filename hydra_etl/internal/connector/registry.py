@@ -14,6 +14,7 @@ from .postgresql_connector import PostgreSQLConnector
 from .sqlserver_connector import SQLServerConnector
 from .sqlite_connector import SQLiteConnector
 from .snowflake_connector import SnowflakeConnector
+from .postgresql_cdc_connector import PostgreSQLCDCConnector
 
 # Import MongoDB connector -- optionnel (dependance pymongo)
 try:
@@ -98,6 +99,9 @@ CONNECTOR_REGISTRY: Dict[str, ConnectorFactory] = {
     "sqlite": _build_db_connector(SQLiteConnector),
     # Entrepot cloud (lecture seule ; pilote : hydra-etl[snowflake])
     "snowflake": _build_db_connector(SnowflakeConnector),
+    # Changements d'une table PostgreSQL (réplication logique, source seulement)
+    "postgresql_cdc": _build_db_connector(PostgreSQLCDCConnector),
+    "postgres_cdc": _build_db_connector(PostgreSQLCDCConnector),
 }
 
 # Enregistrement conditionnel des connecteurs a dependances optionnelles

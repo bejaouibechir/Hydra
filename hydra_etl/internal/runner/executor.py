@@ -199,6 +199,13 @@ class JobExecutor:
 
             # 3) Instancier les connecteurs via le registry
             source_connector = self._build_connector(src_id, src_def, is_source=True)
+            if self._undo and callable(getattr(source_connector, "confirm_extract", None)):
+                # La lecture est confirmée à la source (slot CDC) dès la fin du job : un
+                # rollback du workflow annulerait la destination sans pouvoir la relire.
+                raise ValueError(
+                    f"source '{src_id}' confirms what it read at the end of the job (CDC slot), so "
+                    f"its workflow cannot use rollback: true; use load.atomic: true instead "
+                    f"(a failed load is read again at the next run)")
             dest_connector = self._build_connector(dest_id, dest_def, is_source=False)
 
             # 3-bis) Projection : ne lire que les colonnes dont le job se sert.
@@ -417,6 +424,16 @@ class JobExecutor:
             if session is not None:
                 with prof.span("load"):
                     session.publish()
+            # Source qui confirme sa lecture après une publication réussie (CDC :
+            # le slot de réplication n'avance qu'ici ; un échec avant fait relire).
+            confirm = getattr(source_connector, "confirm_extract", None)
+            if callable(confirm):
+                try:
+                    confirm()
+                except Exception as exc:  # noqa: BLE001 - données publiées : relues au prochain run
+                    logger.warning(f"Job '{self.job_id}': source '{src_id}' could not confirm what it "
+                                   f"read ({exc}); the same changes will be read again next run "
+                                   f"(upsert applies them without duplicates)")
 
             duration = time.monotonic() - start
 

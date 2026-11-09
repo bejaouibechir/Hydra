@@ -186,6 +186,9 @@ class _Cur:
     def fetchone(self):
         return self.answers.pop(0) if self.answers else None
 
+    def fetchall(self):
+        return []
+
     def close(self):
         pass
 

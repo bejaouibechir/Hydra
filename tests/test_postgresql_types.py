@@ -113,3 +113,39 @@ def test_integer_too_big_for_existing_column_is_explained_before_writing():
     cur.execute("DROP TABLE hydra_types_big")
     conn.commit()
     conn.close()
+
+
+def test_upsert_with_duplicate_keys_in_a_batch_keeps_the_last_row():
+    c = PostgreSQLConnector(name="pg", config={"type": "postgresql", **_cfg()})
+    conn = c._connect()
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS hydra_types_dup")
+    conn.commit()
+    rows = [{"id": i % 3, "v": i, "doc": {"i": i}} for i in range(9)]   # chaque clé trois fois
+    s = c.begin_load(table="hydra_types_dup", mode="upsert", key=["id"], atomic=True)
+    s.stage(rows)
+    s.publish()
+    cur.execute("SELECT id, v, doc->>'i' AS i FROM hydra_types_dup ORDER BY id")
+    assert [(r["id"], r["v"], r["i"]) for r in cur.fetchall()] == [(0, 6, "6"), (1, 7, "7"), (2, 8, "8")]
+    cur.execute("DROP TABLE hydra_types_dup")
+    conn.commit()
+    conn.close()
+
+
+def test_append_creates_a_missing_table_and_writes_many_rows():
+    c = PostgreSQLConnector(name="pg", config={"type": "postgresql", **_cfg()})
+    conn = c._connect()
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS hydra_types_app")
+    conn.commit()
+    s = c.begin_load(table="hydra_types_app", mode="append", atomic=True)
+    for start in (0, 2500):                                  # plus d'une requête multi-lignes par lot
+        s.stage([{"id": i, "amount": decimal.Decimal(i) / 100, "note": None if i % 2 else "x"}
+                 for i in range(start, start + 2500)])
+    s.publish()
+    cur.execute("SELECT count(*) AS n, sum(amount) AS s, count(note) AS notes FROM hydra_types_app")
+    r = cur.fetchone()
+    assert (r["n"], r["s"], r["notes"]) == (5000, decimal.Decimal("124975.00"), 2500)
+    cur.execute("DROP TABLE hydra_types_app")
+    conn.commit()
+    conn.close()

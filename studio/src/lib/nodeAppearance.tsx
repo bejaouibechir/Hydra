@@ -13,7 +13,7 @@ import {
   Fingerprint, FunctionSquare, GitMerge, Rows3, ListOrdered, FileCode2, Database,
   Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal, Server,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
-  Package, Briefcase, FolderGit2, Snowflake,
+  Package, Briefcase, FolderGit2, Snowflake, History,
 } from 'lucide-react'
 import { MySQLIcon, PostgreSQLIcon } from '@/components/icons/DatabaseIcons'
 import { getNode, type NodeCategory } from '@/lib/nodeRegistry'
@@ -26,7 +26,7 @@ export const NODE_ICONS: Record<string, React.ElementType> = {
   Webhook, MessageSquare, Mail, Terminal, Network, Code, Variable, Equal, Server,
   GitBranch, LayoutGrid, Clock, Scissors, Link2,
   Package, FolderGit2,
-  MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon, Snowflake,
+  MySQL: MySQLIcon, PostgreSQL: PostgreSQLIcon, Snowflake, History,
   Briefcase,
 }
 

@@ -1,0 +1,8 @@
+version: "1.0"
+workflow:
+  name: sync
+  description: Apply the changes of shop.orders to analytics.orders
+  steps:
+    - name: orders
+      type: job
+      job: ../jobs/orders_mirror

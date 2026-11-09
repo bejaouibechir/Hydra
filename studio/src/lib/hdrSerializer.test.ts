@@ -531,3 +531,79 @@ describe('hdrSerializer — Snowflake', () => {
     expect(back!.sources.recent.extract.query).toContain('SELECT')
   })
 })
+
+/**
+ * PostgreSQL CDC (0.20) : connexion PostgreSQL + slot / publication, une table ;
+ * create / snapshot valent oui par défaut, seul « no » s'écrit.
+ */
+describe('hdrSerializer — PostgreSQL CDC', () => {
+  const modelCdc: HydraJobModel = {
+    name: 'cdc_job',
+    sources: {
+      order_changes: {
+        type: 'postgresql_cdc',
+        connection: {
+          host: '{{ env:PG_HOST }}', port: '{{ env:PG_PORT }}', user: '{{ env:PG_USER }}',
+          password: '{{ env:PG_PASSWORD }}', database: 'shop', slot: 'hydra_orders', publication: 'hydra_orders',
+        },
+        extract: { table: 'public.orders' },
+      },
+      legacy: {
+        type: 'postgresql_cdc',
+        connection: { host: 'db', user: 'u', database: 'shop', slot: 's2', publication: 'p2', snapshot: false },
+        extract: { table: 'public.items', batch_size: 5000 },
+      },
+    },
+    transformations: { steps: [] },
+    destinations: {
+      mirror: { type: 'postgresql', connection: { host: 'db', database: 'analytics', user: 'u' },
+                load: { table: 'orders', mode: 'upsert', key: ['order_id'], atomic: true } },
+    },
+    pipeline: { from: 'order_changes', to: 'mirror' },
+  }
+
+  it('mappe postgresql_cdc vers le nœud PostgreSQL CDC', () => {
+    const { nodes } = jobModelToFlow(modelCdc)
+    const byLabel = Object.fromEntries(nodes.map(n => [n.data.label, n.data.nodeType]))
+    expect(byLabel.order_changes).toBe('source_postgres_cdc')
+  })
+
+  it('le formulaire reçoit slot, publication, table et les listes yes / no', () => {
+    const { nodes } = jobModelToFlow(modelCdc)
+    const p = nodes.find(n => n.data.label === 'order_changes')!.data.params as Record<string, unknown>
+    expect(p.slot).toBe('hydra_orders')
+    expect(p.publication).toBe('hydra_orders')
+    expect(p.table).toBe('public.orders')
+    expect(p.create).toBe('yes')
+    expect(p.snapshot).toBe('yes')
+    const q = nodes.find(n => n.data.label === 'legacy')!.data.params as Record<string, unknown>
+    expect(q.snapshot).toBe('no')
+  })
+
+  it('canvas -> YAML : connexion intacte, pas de query, défauts non écrits', () => {
+    const { nodes, edges } = jobModelToFlow(modelCdc)
+    const back = flowToJobModel(nodes, edges, 'cdc_job')
+    expect(back.sources.order_changes.type).toBe('postgresql_cdc')
+    expect(back.sources.order_changes.connection).toEqual(modelCdc.sources.order_changes.connection)
+    expect(back.sources.order_changes.extract.table).toBe('public.orders')
+    expect(back.sources.order_changes.extract.query).toBeUndefined()
+    expect(back.sources.legacy.connection.snapshot).toBe(false)
+    expect(back.sources.legacy.connection.create).toBeUndefined()
+    expect(back.sources.legacy.extract.batch_size).toBe(5000)
+  })
+
+  it('choisir « no » dans le formulaire écrit false', () => {
+    const { nodes, edges } = jobModelToFlow(modelCdc)
+    const n = nodes.find(x => x.data.label === 'order_changes')!
+    ;(n.data.params as Record<string, unknown>).create = 'no'
+    const back = flowToJobModel(nodes, edges, 'cdc_job')
+    expect(back.sources.order_changes.connection.create).toBe(false)
+  })
+
+  it('un round-trip YAML complet ne perd rien', () => {
+    const back = sectionYamlsToJobModel(jobModelToSectionYamls(modelCdc), 'cdc_job')
+    expect(back).not.toBeNull()
+    expect(back!.sources.order_changes.connection.slot).toBe('hydra_orders')
+    expect(back!.sources.legacy.connection.snapshot).toBe(false)
+  })
+})

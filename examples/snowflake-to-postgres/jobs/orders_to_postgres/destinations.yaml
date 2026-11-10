@@ -3,11 +3,11 @@ destinations:
   postgres_orders:
     type: postgresql
     connection:
-      host: "{{ env:PG_HOST }}"
-      port: "{{ env:PG_PORT }}"
-      user: "{{ env:PG_USER }}"
-      password: "{{ env:PG_PASSWORD }}"
-      database: "{{ env:PG_DATABASE }}"
+      host: "{{ env:DEMO_PG_HOST }}"
+      port: "{{ env:DEMO_PG_PORT }}"
+      user: "{{ env:DEMO_PG_USER }}"
+      password: "{{ env:DEMO_PG_PASSWORD }}"
+      database: "{{ env:DEMO_PG_DATABASE }}"
     load:
       table: orders
       mode: upsert              # re-running the job updates rows, never duplicates them

@@ -48,12 +48,14 @@ SNOWFLAKE_ACCOUNT=MYORG-MYACCOUNT
 SNOWFLAKE_USER=HYDRA_SVC
 SNOWFLAKE_PRIVATE_KEY_FILE=C:/Users/me/.snowflake/rsa_key.p8
 SNOWFLAKE_WAREHOUSE=COMPUTE_WH
-PG_HOST=127.0.0.1
-PG_PORT=5432
-PG_USER=postgres
-PG_PASSWORD=hydra
-PG_DATABASE=postgres
+DEMO_PG_HOST=127.0.0.1
+DEMO_PG_PORT=5432
+DEMO_PG_USER=postgres
+DEMO_PG_PASSWORD=hydra
+DEMO_PG_DATABASE=postgres
 ```
+
+The PostgreSQL variables are named `DEMO_PG_*` on purpose: a `PG_PORT` or `PG_USER` already set on your machine cannot interfere with the example.
 
 `SNOWFLAKE_ACCOUNT` is the account identifier shown in Snowsight (**Account** → **View account details**), or the locator with its region as in the Snowsight address (`xy12345.eu-central-2.aws`).
 
@@ -88,7 +90,7 @@ The first run creates the `orders` table with the types above and `order_id` as 
 
 ## Try it without a Snowflake account
 
-`demo/` uses [fakesnow](https://github.com/tekumara/fakesnow), an open-source Snowflake emulator that runs locally on DuckDB. Only the `PG_*` variables are needed in `.env`, then:
+`demo/` uses [fakesnow](https://github.com/tekumara/fakesnow), an open-source Snowflake emulator that runs locally on DuckDB. Only the `DEMO_PG_*` variables are needed in `.env`, then:
 
 ```bash
 pip install fakesnow

@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.1] — 2026-11-11
+
 ### Added
 
 - PostgreSQL CDC source — **the replication slot is checked before each run**: retained WAL, `wal_status` and

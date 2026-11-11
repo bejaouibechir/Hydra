@@ -26,6 +26,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -184,6 +185,8 @@ def _hdrctl(*args: str) -> tuple[bool, str]:
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
+    # Wide console: rich wraps long lines (paths) at 80 columns in a subprocess.
+    env["COLUMNS"] = "4000"
     # The CLI runs in the workspace: a path that something still resolves from
     # the current folder stays inside it (it used to land in the Hydra ETL
     # install folder). ROOT stays importable for a source checkout.
@@ -956,6 +959,8 @@ def build_server() -> Any:
             ok, output = _hdrctl("workflow", "validate", str(candidate))
             if not ok:
                 output = output.replace(str(candidate), workflow_path).replace(candidate.as_posix(), workflow_path)
+                # Windows may print the temp folder another way (8.3 short name RUNNER~1)
+                output = re.sub(r"[^\s'\"]*hydra_mcp_wf_[^\\/\s'\"]+[\\/]workflow\.yaml", workflow_path, output)
                 return ("REFUSED — nothing was written. The validator reports:\n"
                         + output)
             try:

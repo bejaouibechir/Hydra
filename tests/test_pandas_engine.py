@@ -392,6 +392,17 @@ def test_calculate_complex_expression(engine, df_case):
     assert abs(df.loc[0, "discount"] - expected) < 0.01
 
 
+def test_calculate_round(engine):
+    """round(x, n) works in calculate, as written in Python or SQL."""
+    df_in = pd.DataFrame({"revenue": [121151.6749, 2.005, 7.5], "qty": [3, 2, 4]})
+    out = engine.apply_step(df_in, {"calculate": {"column": "revenue", "expr": "round(revenue, 2)"}}).output
+    assert out["revenue"].tolist() == [121151.67, round(2.005, 2), 7.5]
+    out = engine.apply_step(df_in, {"calculate": {"column": "avg", "expr": "round(revenue / qty, 1) + 1"}}).output
+    assert out["avg"].tolist() == [round(121151.6749 / 3, 1) + 1, round(2.005 / 2, 1) + 1, 2.9]
+    out = engine.apply_step(df_in, {"calculate": {"column": "r", "expr": "round(revenue)"}}).output
+    assert out["r"].tolist() == [121152.0, 2.0, 8.0]
+
+
 def test_calculate_overwrite_existing_column(engine, df_case):
     """Calculate peut écraser une colonne existante."""
     step = {"calculate": {"column": "price", "expr": "qty * 2"}}
@@ -660,3 +671,9 @@ def test_step_result_contains_stats(engine, df_case):
     assert result.stats["rows_in"] == 3
     assert result.stats["rows_out"] == 2
     assert result.stats["rows_filtered"] == 1
+
+def test_filter_sql_null_tests(engine):
+    """`x is not null` / `x is null`, as written in SQL."""
+    df_in = pd.DataFrame({"price": [1.0, None, 3.0], "qty": [1, 2, 3]})
+    assert engine.apply_step(df_in, {"filter": {"expr": "price is not null"}}).output["qty"].tolist() == [1, 3]
+    assert engine.apply_step(df_in, {"filter": {"expr": "price IS NULL or qty > 2"}}).output["qty"].tolist() == [2, 3]

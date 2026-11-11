@@ -155,6 +155,9 @@ def _execute_project(run_id: str, root: str, env: Optional[str] = None) -> None:
                     state = "UNDONE" if sr.success else "UNDO FAILED"
                 logs.append(f"{state} {sr.step_name}" + (f": {sr.error}" if sr.error else ""))
                 logs.extend(f"  {ln}" for ln in (getattr(sr, "output", None) or []))
+                # avertissements du job (ex. slot CDC qui retient trop de WAL) : visibles dans Studio
+                logs.extend(f"  {' '.join(str(ln).split())}" for ln in (getattr(sr, "logs", None) or [])
+                            if str(ln).startswith("WARNING"))
         if r.status == INACTIVE:
             logs.append("inactive in workflows/thread.yaml")
         if r.status == NOT_RUN:

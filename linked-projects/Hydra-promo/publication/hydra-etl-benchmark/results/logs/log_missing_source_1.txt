@@ -1,0 +1,152 @@
+2026-10-28T19:16:35.560092Z [warning  ] Could not import graphviz. Rendering graph to the graphical format will not be possible. 
+You might need to install the graphviz package and necessary system packages.
+Run `pip install graphviz` to attempt to install it. [py.warnings] category=UserWarning filename=/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/cli/commands/dag_command.py lineno=57
+2026-10-28T19:16:35.833252Z [info     ] DAG bundles loaded: dags-folder [airflow.dag_processing.bundles.manager.DagBundlesManager] loc=manager.py:304
+2026-10-28T19:16:35.837517Z [info     ] Filling up the DagBag from /home/ubuntu/comparatif-orchestration/airbyte/dags [airflow.dag_processing.dagbag.BundleDagBag] loc=dagbag.py:460
+2026-10-28T19:16:35.867140Z [info     ] Bulk-writing dags to db        [airflow.serialization.definitions.dag] count=2 loc=dag.py:218
+2026-10-28T19:16:35.876482Z [info     ] get next_dagrun_info_v2        [airflow.serialization.definitions.dag] last_automated_run_info=None loc=dag.py:453 next_info=None
+2026-10-28T19:16:35.876642Z [info     ] setting next dagrun info       [airflow.models.dag] loc=dag.py:848 next_dagrun=None next_dagrun_create_after=None next_dagrun_data_interval_end=None next_dagrun_data_interval_start=None next_dagrun_partition_date=None next_dagrun_partition_key=None
+2026-10-28T19:16:35.877200Z [info     ] get next_dagrun_info_v2        [airflow.serialization.definitions.dag] last_automated_run_info=None loc=dag.py:453 next_info=None
+2026-10-28T19:16:35.877279Z [info     ] setting next dagrun info       [airflow.models.dag] loc=dag.py:848 next_dagrun=None next_dagrun_create_after=None next_dagrun_data_interval_end=None next_dagrun_data_interval_start=None next_dagrun_partition_date=None next_dagrun_partition_key=None
+2026-10-28T19:16:35.908314Z [info     ] DAG bundles loaded: dags-folder [airflow.dag_processing.bundles.manager.DagBundlesManager] loc=manager.py:304
+2026-10-28T19:16:35.910666Z [info     ] Filling up the DagBag from /home/ubuntu/comparatif-orchestration/airbyte/dags [airflow.dag_processing.dagbag.BundleDagBag] loc=dagbag.py:460
+2026-10-28T19:16:35.917276Z [info     ] Bulk-writing dags to db        [airflow.serialization.definitions.dag] count=2 loc=dag.py:218
+2026-10-28T19:16:35.918726Z [info     ] get next_dagrun_info_v2        [airflow.serialization.definitions.dag] last_automated_run_info=None loc=dag.py:453 next_info=None
+2026-10-28T19:16:35.918816Z [info     ] setting next dagrun info       [airflow.models.dag] loc=dag.py:848 next_dagrun=None next_dagrun_create_after=None next_dagrun_data_interval_end=None next_dagrun_data_interval_start=None next_dagrun_partition_date=None next_dagrun_partition_key=None
+2026-10-28T19:16:35.919283Z [info     ] get next_dagrun_info_v2        [airflow.serialization.definitions.dag] last_automated_run_info=None loc=dag.py:453 next_info=None
+2026-10-28T19:16:35.919356Z [info     ] setting next dagrun info       [airflow.models.dag] loc=dag.py:848 next_dagrun=None next_dagrun_create_after=None next_dagrun_data_interval_end=None next_dagrun_data_interval_start=None next_dagrun_partition_date=None next_dagrun_partition_key=None
+2026-10-28T19:16:35.930049Z [info     ] creating dag run               [airflow.serialization.definitions.dag] loc=dag.py:615 logical_date=DateTime(2026, 10, 28, 19, 16, 35, 832887, tzinfo=Timezone('UTC')) partition_key=None run_after=DateTime(2026, 10, 28, 19, 16, 35, 908109, tzinfo=Timezone('UTC')) run_id=manual__2026-10-28T19:16:35.908109+00:00
+2026-10-28T19:16:35.982973Z [info     ] Created dag run.               [airflow.models.dagrun] dagrun=<DagRun daily_revenue_safe @ 2026-10-28 19:16:35.832887+00:00: manual__2026-10-28T19:16:35.908109+00:00, state:running, queued_at: None. run_type: manual> loc=dagrun.py:2464
+2026-10-28T19:16:35.998751Z [info     ] [DAG TEST] starting task_id=clean map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1501
+2026-10-28T19:16:35.998969Z [info     ] [DAG TEST] running task <TaskInstance: daily_revenue_safe.clean manual__2026-10-28T19:16:35.908109+00:00 [TaskInstanceState.SCHEDULED] ti_id=01a183f1-5de8-79bc-93dc-344593f6b1b6> [airflow.sdk.definitions.dag] loc=dag.py:1504
+2026-10-28T19:16:36.163481Z [warning  ] Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead. [py.warnings] category=StarletteDeprecationWarning filename=/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/fastapi/testclient.py lineno=1
+2026-10-28T19:16:39.828410Z [info     ] Task started                   [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f1-6123-787a-98c8-d1ab0bf3190b hostname=hydraTest loc=task_instances.py:226 previous_state=queued ti_id=01a183f1-5de8-79bc-93dc-344593f6b1b6
+2026-10-28T19:16:39.830377Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f1-6123-787a-98c8-d1ab0bf3190b loc=task_instances.py:254 rows_affected=1 ti_id=01a183f1-5de8-79bc-93dc-344593f6b1b6
+2026-10-28T19:16:39.850802Z [info     ] Updating RenderedTaskInstanceFields [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f1-6d26-782a-8836-514da7e38033 field_count=3 loc=task_instances.py:1017 ti_id=01a183f1-5de8-79bc-93dc-344593f6b1b6
+2026-10-28T19:16:40.083497Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2232
+2026-10-28T19:16:40.084885Z [info     ] Done. Returned value was: None [airflow.task.operators.airflow.providers.standard.decorators.python._PythonDecoratedOperator] loc=python.py:233
+2026-10-28T19:16:40.084999Z [info     ] ::group::Post Execute          [task] loc=task_runner.py:1580
+2026-10-28T19:16:40.099465Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f1-6e15-7d3e-9de3-fd54c7114259 loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a183f1-5de8-79bc-93dc-344593f6b1b6
+2026-10-28T19:16:40.104827Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379
+2026-10-28T19:16:40.114759Z [info     ] [DAG TEST] end task task_id=clean map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563
+2026-10-28T19:16:40.122766Z [info     ] [DAG TEST] starting task_id=build_main map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1501
+2026-10-28T19:16:40.123015Z [info     ] [DAG TEST] running task <TaskInstance: daily_revenue_safe.build_main manual__2026-10-28T19:16:35.908109+00:00 [TaskInstanceState.SCHEDULED] ti_id=01a183f1-5de6-7700-a941-7bd0e1477c0c> [airflow.sdk.definitions.dag] loc=dag.py:1504
+2026-10-28T19:16:40.133722Z [info     ] Task started                   [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f1-6e3f-711d-97ce-30694a56f873 hostname=hydraTest loc=task_instances.py:226 previous_state=queued ti_id=01a183f1-5de6-7700-a941-7bd0e1477c0c
+2026-10-28T19:16:40.134472Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f1-6e3f-711d-97ce-30694a56f873 loc=task_instances.py:254 rows_affected=1 ti_id=01a183f1-5de6-7700-a941-7bd0e1477c0c
+2026-10-28T19:16:40.149204Z [info     ] Updating RenderedTaskInstanceFields [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f1-6e51-789e-bf0d-6fa01747f75b field_count=3 loc=task_instances.py:1017 ti_id=01a183f1-5de6-7700-a941-7bd0e1477c0c
+2026-10-28T19:16:40.155878Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2232
+2026-10-28T19:16:40.156456Z [info     ] Tmp dir root location: /tmp    [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:78
+2026-10-28T19:16:40.156685Z [info     ] Running command: ['/usr/bin/bash', '-c', 'cd /home/ubuntu/comparatif-orchestration/airbyte && python airbyte_sync.py orders_main && python airbyte_sync.py customers && (cd dbt && dbt run --profiles-dir . --threads 1) && python export.py /home/ubuntu/comparatif-orchestration/airbyte/staging/main'] [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:80
+2026-10-28T19:16:40.157096Z [info     ] Output:                        [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:92
+2026-10-28T19:16:40.418095Z [info     ] job 27 pending                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:16:45.430699Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:16:50.449362Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:16:55.459731Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:00.478618Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:05.488065Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:10.497743Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:15.507890Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:20.519968Z [info     ] status incomplete              [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:20.535643Z [info     ] FAILURE source | Something went wrong in the connector. See the logs for more details. | [Errno 2] No such file [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:20.535825Z [info     ] FAILURE source | Something went wrong within the source connector | Source process exited with non-zero exit code 1 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:20.552824Z [info     ] Command exited with return code 1 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:103
+2026-10-28T19:17:20.553140Z [error    ] Task failed with exception     [task] loc=task_runner.py:1651
+Traceback (most recent call last):
+  File "/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/sdk/execution_time/task_runner.py", line 1579, in _run_task_and_map_outcome
+    result = _execute_task(context=context, ti=ti, log=log)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/sdk/execution_time/task_runner.py", line 197, in wrapper
+    return f(*inner_args, **inner_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/sdk/execution_time/task_runner.py", line 2234, in _execute_task
+    result = _run_execute_callable(context, execute, task)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/sdk/execution_time/task_runner.py", line 197, in wrapper
+    return f(*inner_args, **inner_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/sdk/execution_time/task_runner.py", line 2187, in _run_execute_callable
+    result = ctx.run(execute, context=context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/sdk/bases/operator.py", line 462, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/bench-envs/airbyte/lib/python3.12/site-packages/airflow/providers/standard/operators/bash.py", line 225, in execute
+    raise AirflowException(
+airflow.sdk.exceptions.AirflowException: Bash command failed. The command returned a non-zero exit code 1.
+2026-10-28T19:17:20.554110Z [info     ] ::group::Post Execute          [task] loc=task_runner.py:1652
+2026-10-28T19:17:20.556030Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379
+2026-10-28T19:17:20.566101Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f2-0c2c-7ad5-aad8-6e5f663aaeb1 loc=task_instances.py:485 new_state=failed rows_affected=1 ti_id=01a183f1-5de6-7700-a941-7bd0e1477c0c
+2026-10-28T19:17:20.577961Z [info     ] [DAG TEST] end task task_id=build_main map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563
+2026-10-28T19:17:20.585992Z [info     ] [DAG TEST] starting task_id=build_backup map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1501
+2026-10-28T19:17:20.586091Z [info     ] [DAG TEST] running task <TaskInstance: daily_revenue_safe.build_backup manual__2026-10-28T19:16:35.908109+00:00 [TaskInstanceState.SCHEDULED] ti_id=01a183f1-5de7-7e47-98b7-5f4b9b713951> [airflow.sdk.definitions.dag] loc=dag.py:1504
+2026-10-28T19:17:20.597019Z [info     ] Task started                   [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f2-0c4e-736c-9594-59ceda0ba611 hostname=hydraTest loc=task_instances.py:226 previous_state=queued ti_id=01a183f1-5de7-7e47-98b7-5f4b9b713951
+2026-10-28T19:17:20.597835Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f2-0c4e-736c-9594-59ceda0ba611 loc=task_instances.py:254 rows_affected=1 ti_id=01a183f1-5de7-7e47-98b7-5f4b9b713951
+2026-10-28T19:17:20.611731Z [info     ] Updating RenderedTaskInstanceFields [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f2-0c5f-7003-814e-d3d94451f583 field_count=3 loc=task_instances.py:1017 ti_id=01a183f1-5de7-7e47-98b7-5f4b9b713951
+2026-10-28T19:17:20.618606Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2232
+2026-10-28T19:17:20.618950Z [info     ] Tmp dir root location: /tmp    [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:78
+2026-10-28T19:17:20.619110Z [info     ] Running command: ['/usr/bin/bash', '-c', 'cd /home/ubuntu/comparatif-orchestration/airbyte && python airbyte_sync.py orders_backup && python airbyte_sync.py customers && (cd dbt && dbt run --profiles-dir . --threads 1) && python export.py /home/ubuntu/comparatif-orchestration/airbyte/staging/backup'] [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:80
+2026-10-28T19:17:20.619497Z [info     ] Output:                        [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:92
+2026-10-28T19:17:20.922554Z [info     ] job 28 running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:25.945036Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:30.973420Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:35.999816Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:41.016640Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:46.106946Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:51.116473Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:17:56.127693Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:01.145875Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:06.157657Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:11.184832Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:16.194550Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:21.205390Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:26.214916Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:31.234043Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:36.256778Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:41.276515Z [info     ] status succeeded               [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:41.565272Z [info     ] job 29 pending                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:46.582270Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:51.596514Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:18:56.613862Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:01.624385Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:06.633922Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:11.643873Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:16.653331Z [info     ] status running                 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:21.663135Z [info     ] status succeeded               [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.106002Z [info     ] [0m19:19:23  Running with dbt=1.13.0-b1 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.321844Z [info     ] [0m19:19:23  Registered adapter: postgres=1.11.0 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.649512Z [info     ] [0m19:19:23  Found 4 models, 2 sources, 477 macros [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.651612Z [info     ] [0m19:19:23                   [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.651916Z [info     ] [0m19:19:23  Concurrency: 1 threads (target='dev') [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.652195Z [info     ] [0m19:19:23                   [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.740488Z [info     ] [0m19:19:23  1 of 2 START sql table model analytics.revenue_by_country ...................... [RUN] [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.922466Z [info     ] [0m19:19:23  1 of 2 OK created sql table model analytics.revenue_by_country ................. [[32mSELECT 8[0m in 0.18s] [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:23.924151Z [info     ] [0m19:19:23  2 of 2 START sql table model analytics.revenue_by_month ........................ [RUN] [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.036296Z [info     ] [0m19:19:24  2 of 2 OK created sql table model analytics.revenue_by_month ................... [[32mSELECT 9[0m in 0.11s] [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.045933Z [info     ] [0m19:19:24                   [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.046199Z [info     ] [0m19:19:24  Finished running 2 table models in 0 hours 0 minutes and 0.39 seconds (0.39s). [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.082392Z [info     ] [0m19:19:24                   [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.082671Z [info     ] [0m19:19:24  [32mCompleted successfully[0m [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.082922Z [info     ] [0m19:19:24                   [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.083193Z [info     ] [0m19:19:24  Done. PASS=2 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=2 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:99
+2026-10-28T19:19:24.823973Z [info     ] Command exited with return code 0 [airflow.task.hooks.airflow.providers.standard.hooks.subprocess.SubprocessHook] loc=subprocess.py:103
+2026-10-28T19:19:24.824325Z [info     ] ::group::Post Execute          [task] loc=task_runner.py:1580
+2026-10-28T19:19:24.824481Z [info     ] Pushing xcom                   [task] loc=task_runner.py:2280 ti=RuntimeTaskInstance(id=UUID('01a183f1-5de7-7e47-98b7-5f4b9b713951'), task_id='build_backup', dag_id='daily_revenue_safe', run_id='manual__2026-10-28T19:16:35.908109+00:00', try_number=1, dag_version_id=UUID('01a183c6-4f6c-754d-a269-92ae0a6432d2'), map_index=-1, hostname='hydraTest', context_carrier=None, queue='default', task=<Task(BashOperator): build_backup>, max_tries=0, start_date=datetime.datetime(2026, 10, 28, 19, 17, 20, 590251, tzinfo=datetime.timezone.utc), end_date=None, state=<TaskInstanceState.RUNNING: 'running'>, is_mapped=False, rendered_map_index=None, sentry_integration='')
+2026-10-28T19:19:24.846482Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f3-f1a6-7e45-be61-252c48ab9fc4 loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a183f1-5de7-7e47-98b7-5f4b9b713951
+2026-10-28T19:19:24.851835Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379
+2026-10-28T19:19:24.857750Z [info     ] [DAG TEST] end task task_id=build_backup map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563
+2026-10-28T19:19:24.864517Z [info     ] [DAG TEST] starting task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1501
+2026-10-28T19:19:24.864649Z [info     ] [DAG TEST] running task <TaskInstance: daily_revenue_safe.publish manual__2026-10-28T19:16:35.908109+00:00 [TaskInstanceState.SCHEDULED] ti_id=01a183f1-5de9-7afa-ab80-368959c1acf2> [airflow.sdk.definitions.dag] loc=dag.py:1504
+2026-10-28T19:19:24.875793Z [info     ] Task started                   [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f3-f1c5-71b8-8457-476a7ba7b265 hostname=hydraTest loc=task_instances.py:226 previous_state=queued ti_id=01a183f1-5de9-7afa-ab80-368959c1acf2
+2026-10-28T19:19:24.876611Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f3-f1c5-71b8-8457-476a7ba7b265 loc=task_instances.py:254 rows_affected=1 ti_id=01a183f1-5de9-7afa-ab80-368959c1acf2
+2026-10-28T19:19:24.890128Z [info     ] Updating RenderedTaskInstanceFields [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f3-f1d6-7cdb-95cd-35823e6c35f7 field_count=3 loc=task_instances.py:1017 ti_id=01a183f1-5de9-7afa-ab80-368959c1acf2
+2026-10-28T19:19:24.896835Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2232
+2026-10-28T19:19:24.897635Z [info     ] Done. Returned value was: backup [airflow.task.operators.airflow.providers.standard.decorators.python._PythonDecoratedOperator] loc=python.py:233
+2026-10-28T19:19:24.897723Z [info     ] ::group::Post Execute          [task] loc=task_runner.py:1580
+2026-10-28T19:19:24.897803Z [info     ] Pushing xcom                   [task] loc=task_runner.py:2280 ti=RuntimeTaskInstance(id=UUID('01a183f1-5de9-7afa-ab80-368959c1acf2'), task_id='publish', dag_id='daily_revenue_safe', run_id='manual__2026-10-28T19:16:35.908109+00:00', try_number=1, dag_version_id=UUID('01a183c6-4f6c-754d-a269-92ae0a6432d2'), map_index=-1, hostname='hydraTest', context_carrier=None, queue='default', task=<Task(_PythonDecoratedOperator): publish>, max_tries=0, start_date=datetime.datetime(2026, 10, 28, 19, 19, 24, 868779, tzinfo=datetime.timezone.utc), end_date=None, state=<TaskInstanceState.RUNNING: 'running'>, is_mapped=False, rendered_map_index=None, sentry_integration='')
+2026-10-28T19:19:24.915057Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a183f3-f1ec-7d6f-a509-4c36e6d82e0a loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a183f1-5de9-7afa-ab80-368959c1acf2
+2026-10-28T19:19:24.920116Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379
+2026-10-28T19:19:24.925952Z [info     ] [DAG TEST] end task task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563
+2026-10-28T19:19:24.927412Z [info     ] Marking run <DagRun daily_revenue_safe @ 2026-10-28 19:16:35.832887+00:00: manual__2026-10-28T19:16:35.908109+00:00, state:running, queued_at: None. run_type: manual> successful [airflow.models.dagrun.DagRun] loc=dagrun.py:1249
+2026-10-28T19:19:24.927907Z [info     ] DagRun Finished: dag_id=daily_revenue_safe, logical_date=2026-10-28 19:16:35.832887+00:00, run_id=manual__2026-10-28T19:16:35.908109+00:00, run_start_date=2026-10-28 19:16:35.832887+00:00, run_end_date=2026-10-28 19:19:24.927492+00:00, run_duration=169.094605, state=success, run_type=manual, data_interval_start=2026-10-28 19:16:35.832887+00:00, data_interval_end=2026-10-28 19:16:35.832887+00:00, [airflow.models.dagrun.DagRun] loc=dagrun.py:1315
+
+--- stderr ---

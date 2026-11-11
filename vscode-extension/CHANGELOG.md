@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.2.1
+
+- The search for the Python that runs the MCP server no longer blocks VS Code: it runs in the background and
+  only looks for Hydra ETL, without importing it (it imported pandas for every candidate, several seconds each).
+  The Python found is remembered for the next session. **Hydra ETL: Refresh the MCP servers** forgets it.
+
+## 0.2.0
+
+Hydra ETL in the agents of VS Code.
+
+- The Hydra ETL MCP server is offered to the agents of VS Code (GitHub Copilot in agent mode) for every
+  Hydra ETL folder of the workspace (`.hydra/`, `jobs/` or `workflows/`). No configuration in the usual case:
+  the Python that runs it is the first that can import Hydra ETL among `hydraEtl.mcp.python`, the `.venv` /
+  `venv` / `env` of the folder, the interpreter of the Python extension, `py -3`, `python`, `python3`. When
+  none works, VS Code shows the install command (`pip install "hydra-etl[mcp]"`).
+- Settings `hydraEtl.mcp.enabled` and `hydraEtl.mcp.python`; commands **Hydra ETL: Refresh the MCP servers**
+  and **Hydra ETL: Show the log**.
+- Needs VS Code 1.101 or later for the MCP server; the editing features keep working on older versions.
+
 ## 0.1.12
 
 PostgreSQL CDC source of Hydra ETL 0.20.

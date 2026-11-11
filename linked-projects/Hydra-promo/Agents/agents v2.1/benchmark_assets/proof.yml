@@ -1,0 +1,100 @@
+name: proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      proof_id:
+        description: "Dossier benchmarks/<proof_id>"
+        required: true
+      hydra_version:
+        description: "Version figée du paquet (ex. 0.11.4)"
+        required: true
+      runner:
+        description: "ubuntu-24.04 (code) ou bench-fixed (performance)"
+        required: true
+        default: "ubuntu-24.04"
+      content_hash:
+        description: "SHA-256 du contenu soumis (calculé par n8n)"
+        required: true
+  pull_request:
+    paths:
+      - "benchmarks/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proof-${{ github.event.inputs.proof_id || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-structure:
+    runs-on: ubuntu-24.04
+    outputs:
+      proof_id: ${{ steps.p.outputs.proof_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: p
+        run: |
+          PID="${{ github.event.inputs.proof_id }}"
+          if [ -z "$PID" ]; then
+            PID=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^benchmarks/' | grep -v '^benchmarks/tools' | cut -d/ -f2 | sort -u | head -1)
+          fi
+          test -n "$PID" || { echo "Aucun proof_id"; exit 1; }
+          test -f "benchmarks/$PID/claims.json" || { echo "claims.json manquant"; exit 1; }
+          test -f "benchmarks/$PID/contenu.md" || { echo "contenu.md manquant"; exit 1; }
+          python3 -c "import json; json.load(open('benchmarks/$PID/claims.json'))"
+          echo "proof_id=$PID" >> "$GITHUB_OUTPUT"
+
+  run-proof:
+    needs: validate-structure
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ github.event.inputs.runner || 'ubuntu-24.04' }}
+    timeout-minutes: 45
+    env:
+      HYDRA_VERSION: ${{ github.event.inputs.hydra_version || vars.HYDRA_VERSION }}
+      PYPI_PACKAGE: ${{ vars.PYPI_PACKAGE }}
+      CONTENT_HASH: ${{ github.event.inputs.content_hash }}
+      BENCH_RUNNER: ${{ github.event.inputs.runner == 'bench-fixed' && 'true' || 'false' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PROOF_ID: ${{ needs.validate-structure.outputs.proof_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer Hydra ETL (version figée)
+        run: |
+          test -n "$PYPI_PACKAGE" || { echo "vars.PYPI_PACKAGE non défini"; exit 1; }
+          test -n "$HYDRA_VERSION" || { echo "hydra_version non défini"; exit 1; }
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install "${PYPI_PACKAGE}==${HYDRA_VERSION}"
+          hdrctl --version || true
+
+      - name: Installer les dépendances de la preuve
+        run: |
+          . .venv/bin/activate
+          if [ -f "benchmarks/${PROOF_ID}/requirements.txt" ]; then
+            pip install -r "benchmarks/${PROOF_ID}/requirements.txt"
+          fi
+
+      - name: Exécuter les affirmations et produire le verdict
+        run: |
+          . .venv/bin/activate
+          python benchmarks/tools/verdict.py "benchmarks/${PROOF_ID}"
+
+      - name: Publier le dossier de preuve
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-${{ env.PROOF_ID }}
+          path: benchmarks/${{ env.PROOF_ID }}/
+          retention-days: 90

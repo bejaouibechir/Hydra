@@ -1,0 +1,38 @@
+[
+ {
+  "scenario": "normal",
+  "run": 1,
+  "exit_code": 0,
+  "seconds": 137.71,
+  "revenue_by_country": "main",
+  "revenue_by_month": "main",
+  "consistent": true
+ },
+ {
+  "scenario": "missing_source",
+  "run": 1,
+  "exit_code": 1,
+  "seconds": 89.28,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_amount",
+  "run": 1,
+  "exit_code": 1,
+  "seconds": 54.67,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_date",
+  "run": 1,
+  "exit_code": 1,
+  "seconds": 51.26,
+  "revenue_by_country": "previous",
+  "revenue_by_month": "previous",
+  "consistent": true
+ }
+]

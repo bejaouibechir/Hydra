@@ -33,7 +33,7 @@ warnings.filterwarnings(
 # ============================================================
 
 class SchemaFieldConfig(BaseModel):
-    """Configuration d'un champ dans le schéma source."""
+    """One field of the source schema."""
     name: str = Field(min_length=1)
     type: str = Field(min_length=1)
     path: Optional[str] = None
@@ -60,7 +60,7 @@ class SchemaFieldConfig(BaseModel):
 
 
 class SchemaConfig(BaseModel):
-    """Configuration du schéma pour sources atypiques."""
+    """Schema of a source without a fixed structure (MongoDB, for example)."""
     mode: str = Field(default="auto")
     fields: List[SchemaFieldConfig] = Field(default_factory=list)
     drift_policy: str = Field(default="warn")
@@ -100,14 +100,7 @@ class SchemaConfig(BaseModel):
 # ============================================================
 
 class ExtractConfig(BaseModel):
-    """
-    Décrit comment extraire depuis une source.
-
-    MVP :
-    - soit table
-    - soit query
-    - soit collection (MongoDB)
-    """
+    """How to read a source: table (a table or a file path), query (SQL) or collection (MongoDB)."""
     table: Optional[str] = None
     query: Optional[str] = None
     collection: Optional[str] = None  # MongoDB
@@ -158,15 +151,10 @@ class ExtractConfig(BaseModel):
 # ============================================================
 
 class SourceDefinition(BaseModel):
-    """
-    Définition d'une source.
+    """A source: its connector type, its connection and what to extract.
 
-    Exemples de type :
-    - mysql
-    - mariadb
-    - mongodb
-    - csv
-    - json
+    Types: see the list of connectors (csv, json, parquet, sqlite, mysql, mariadb,
+    postgresql, sqlserver, snowflake, postgresql_cdc, mongodb, web_api...).
     """
     model_config = {"protected_namespaces": ()}
 

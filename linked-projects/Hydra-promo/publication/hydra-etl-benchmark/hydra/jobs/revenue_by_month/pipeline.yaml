@@ -1,0 +1,3 @@
+pipeline:
+  from: orders
+  to: report

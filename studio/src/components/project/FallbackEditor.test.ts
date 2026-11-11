@@ -10,6 +10,11 @@ describe('conditionPart (assistant de condition)', () => {
     expect(conditionPart('file_size', 'bytes', 'in.csv', true, '<', '')).toBe("file_size('in.csv') < 1MB")
     expect(conditionPart('file_age', 'seconds', 'in.csv', false, '>', '2h')).toBe("file_age('in.csv') > 2h")
   })
+  it('fonctions texte (cdc.slot_status) : valeur entre guillemets, == ou != seulement', () => {
+    expect(conditionPart('cdc.slot_status', 'text', 'orders', false, '==', '')).toBe("cdc.slot_status('orders') == 'lost'")
+    expect(conditionPart('cdc.slot_status', 'text', 'orders', false, '!=', 'reserved')).toBe("cdc.slot_status('orders') != 'reserved'")
+    expect(conditionPart('cdc.slot_lag', 'bytes', 'orders', false, '>', '2GB')).toBe("cdc.slot_lag('orders') > 2GB")
+  })
   it('valeurs previous.*', () => {
     expect(conditionPart('previous.status', 'attr', '', false, '==', '')).toBe("previous.status == 'failed'")
     expect(conditionPart('previous.rows', 'attr', '', false, '<', '100')).toBe('previous.rows < 100')

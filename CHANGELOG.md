@@ -29,8 +29,62 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Studio — the terminal opens in **tabs**, as in VS Code: **+** opens a new terminal (pwsh or bash), × closes one,
   and each session keeps running when another tab, or LOGS / PARAMETERS / SECRETS, is shown. The terminal button
   of a PowerShell or Bash action opens a new tab.
+- Studio — a job written outside the Studio (by hand, `hdrctl`, an AI agent through the MCP server) is drawn
+  from `pipeline.from`, and the right source of a `join` / `merge` / `union` is linked to its step and selected
+  as its « Right source ». The flow started from the first source of the file and the join was not drawn.
 - Studio — **paste** in the terminal: Ctrl+V or Ctrl+Shift+V, and **Paste** in the right-click menu. Ctrl+C copies
   when text is selected (otherwise it interrupts the command, as before); Ctrl+Shift+C copies.
+- `hdrctl init .` accepts a folder that only holds a virtual environment (`.venv`, `venv`, `env`) or a git
+  repository: create the `.venv`, install Hydra ETL in it, then make the folder a project.
+- MCP server — `hydra_delete_job` removes a job without destroying it: the folder is moved to
+  `.hydra/trash/<date>/` and dropped from `.hydra/project.json`. Refused while a workflow still runs the job.
+- `hdrctl mcp setup` connects Claude Code to a project: it writes `.mcp.json` at the project root, with the
+  Python that runs `hdrctl` (no PATH issue), and keeps the other servers of an existing file.
+- MCP server — `hydra_preview_data` reads SQLite databases (`.db`, `.sqlite`): tables, columns with their SQL
+  types and row counts, and the first rows of a table (`table`). Opened read-only.
+- `calculate` accepts `round(x)` and `round(x, n)`, as written in Python or SQL (`expr: "round(revenue, 2)"`).
+  The expression engine had no `round` and refused it.
+
+### Changed
+
+- MCP server — every answer sent to the model is in English (`WRITTEN`, `REFUSED — nothing was written…`,
+  `RUN SUCCEEDED`, `FAILED`, `ALERTS`, `NO ALERT`, the output summary of a run, the data preview and the error
+  explanations); they were in French.
+- MCP server — `hydra_check_job` understands requests written in English as well as in French, and its alerts are
+  in English. Snowflake is no longer reported as unsupported.
+- MCP server — `hydra_list_operations` answers in English (`required:`), and the outputs of `hydra_run_job` and
+  `hydra_validate_job` show paths relative to the workspace: the absolute path of the user's folders is no longer
+  sent to the model.
+- MCP server — a refused job now says what is wrong and where (`sources.orders_db.extract: missing`) and shows
+  the expected shape of every refused manifest. The details of the validator were dropped: the model only read
+  `2 validation errors for SourcesConfig` and could not fix the job.
+- MCP server — `hydra_write_job` refuses a file path written from the project root instead of the job folder
+  (`data/products.csv` in `jobs/load` is read as `jobs/load/data/products.csv`) and gives the right path
+  (`../../data/products.csv`); same for an output that would land inside the job folder. A source file that does
+  not exist yet is reported, not refused (another job may create it). `hydra_write_workflow` does the same for
+  the job paths of a workflow, which are relative to the workflow's folder.
+- MCP server — `hydra_list_connectors` says which connectors can only read (`web_api`, `snowflake`, the CDC
+  sources). A refused workflow no longer shows the path of a temporary folder.
+- MCP server — `hydra_check_job` no longer reports an output file (`outputs/x.csv`) as the requested input, nor
+  asks for `deduplicate` when the destination is an upsert on a key.
+- `cast` accepts `integer`, `string`, `text`, `boolean`, `double`, `number` and `timestamp` again, as aliases of
+  `int`, `str`, `bool`, `float` and `datetime`.
+- CSV connector — a relative `base_path` is read from the project root (the folder that holds
+  `.hydra/project.json`), or from the job folder when the job is not in a project. It was read from the current
+  folder of the process: a job run by the MCP server read files in the Hydra ETL install folder, outside its
+  workspace. Jobs that rely on the old rule keep working, with a warning. The `canonical`, `tutorial` and
+  `workshops` examples now run from any folder.
+- MCP server — the CLI runs in the workspace, and a job whose files are outside the workspace is refused.
+- `join` / `merge` / `union` — a SQLite source written inline in the step (`right: {type: sqlite, ...}`) reads its
+  path from the job folder, like the sources of `sources.yaml`. It was read from the current folder: the same job
+  worked from the project root and failed elsewhere (the Studio). The MCP server checks these paths before
+  writing a job, and also knows the `database` key of a SQLite connection.
+- `filter` accepts `x is null` and `x is not null`, as written in SQL.
+- MCP server — `hydra_check_job` understands « update the existing rows » as a request for an upsert.
+- CSV connector — the "file not found" message is in English and explains that a relative path is read from the
+  job folder.
+- The descriptions of the DSL JSON schemas (`documentations/chatbot-hydra-dsl/schemas`), used by the VS Code
+  extension and the MCP server, are in English.
 
 ## [0.20.0] — 2026-11-10
 

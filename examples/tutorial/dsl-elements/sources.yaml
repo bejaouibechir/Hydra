@@ -3,7 +3,7 @@ sources:
   src_orders:
     type: csv
     connection:
-      base_path: "data/canonical"
+      base_path: "../../../data/canonical"
     extract:
       table: orders.csv
       batch_size: 10000
@@ -21,7 +21,7 @@ sources:
   src_orders_extra:
     type: csv
     connection:
-      base_path: "data/canonical"
+      base_path: "../../../data/canonical"
     extract:
       table: orders_extra.csv
       batch_size: 10000

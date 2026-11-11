@@ -137,6 +137,18 @@ class TestInit:
             assert Path(".hydra/project.json").is_file()
             assert Path("jobs/job1/pipeline.yaml").is_file()
 
+    def test_init_in_a_folder_holding_only_a_venv(self, runner, tmp_path):
+        """Create the .venv, install Hydra ETL in it, then `hdrctl init .`."""
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            Path("demo/.venv/Scripts").mkdir(parents=True)
+            Path("demo/.gitignore").write_text("mine\n", encoding="utf-8")
+            os.chdir("demo")
+            result = runner.invoke(cli, ["init", "."])
+            assert result.exit_code == 0, result.output
+            assert Path(".hydra/project.json").is_file() and Path(".venv/Scripts").is_dir()
+            assert Path(".gitignore").read_text(encoding="utf-8").startswith("mine\n")
+            Path("other.txt").write_text("x", encoding="utf-8")
+
     def test_init_default_path_is_current_dir(self, runner, tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
             Path("here").mkdir()

@@ -202,7 +202,7 @@ MAX_LOOP_TIMES = 1000
 
 
 class ThreadLoop(BaseModel):
-    """Boucle : rejouer la portion du thread qui va de `to` à `from`."""
+    """Loop: replay the part of the thread that goes from `to` to `from`."""
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     from_: str = Field(alias="from")
     to: str

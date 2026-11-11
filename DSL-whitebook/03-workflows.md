@@ -29,7 +29,7 @@ workflow:
       depends_on: [load_sales]
 ```
 
-> **[FIGURE fig-03-01 · diagram]** The workflow above drawn as a graph: a trigger (clock icon, 06:00) → `load_sales` (job box) → `notify` (action box).
+![The daily_sales workflow: a 06:00 schedule trigger starts the load_sales job, then the notify webhook action runs after load_sales completes.](03-workflows/31.png)
 
 ## Syntax
 
@@ -104,20 +104,20 @@ trigger:
 
 ## Syntax
 
-| Key          | Applies to     | Default | Description                                |
-| ------------ | -------------- | ------- | ------------------------------------------ |
-| `name`       | all            | –       | Unique name. Required                      |
-| `type`       | all            | –       | `job`, `action` or `project`. Required     |
-| `job`        | `type: job`    | –       | Path to the job folder                     |
-| `action`     | `type: action` | –       | Name of the action                         |
-| `params`     | `type: action`, `type: project` | – | Parameters of the action, or passed to the called project |
-| `project`    | `type: project` | –      | Called project (see *Sub-projects*)        |
-| `depends_on` | all            | `[]`    | Steps that must finish first               |
-| `on_failure` | all            | `fail`  | `fail` · `skip` · `continue`               |
-| `enabled`    | all            | `true`  | `false` skips the step                     |
-| `when`       | all            | –       | Run the step only if the condition is true |
-| `retry`      | all            | –       | Retry policy                               |
-| `undo`       | `type: action` | –       | How to reverse the action (rollback)       |
+| Key          | Applies to                      | Default | Description                                               |
+| ------------ | ------------------------------- | ------- | --------------------------------------------------------- |
+| `name`       | all                             | –       | Unique name. Required                                     |
+| `type`       | all                             | –       | `job`, `action` or `project`. Required                    |
+| `job`        | `type: job`                     | –       | Path to the job folder                                    |
+| `action`     | `type: action`                  | –       | Name of the action                                        |
+| `params`     | `type: action`, `type: project` | –       | Parameters of the action, or passed to the called project |
+| `project`    | `type: project`                 | –       | Called project (see *Sub-projects*)                       |
+| `depends_on` | all                             | `[]`    | Steps that must finish first                              |
+| `on_failure` | all                             | `fail`  | `fail` · `skip` · `continue`                              |
+| `enabled`    | all                             | `true`  | `false` skips the step                                    |
+| `when`       | all                             | –       | Run the step only if the condition is true                |
+| `retry`      | all                             | –       | Retry policy                                              |
+| `undo`       | `type: action`                  | –       | How to reverse the action (rollback)                      |
 
 ## Rules for steps
 
@@ -211,7 +211,7 @@ steps:
 
 The three loads run in parallel. `build_report` starts when all three are finished.
 
-> **[FIGURE fig-03-02 · diagram]** Example 2 as a graph on a time axis: three parallel boxes, then `build_report` starting when the last of them ends.
+![Three jobs load orders, customers and products in parallel; build_report starts after all three have finished.](03-workflows/32.png)
 
 ## Example 3: the classic mistake
 
@@ -252,7 +252,7 @@ Both steps start at the same time. Add `depends_on: [create_table]` to `load`.
   on_failure: continue      # a notification failure must not block the rest
 ```
 
-> **[FIGURE fig-03-03 · diagram]** The same 4-step graph shown three times, with step B failing: in `fail` everything after stops; in `skip` only B's descendants are greyed out; in `continue` B is red and its descendants still run.
+![The same four-step graph under fail, skip, and continue: B fails in each case; fail stops C and D, skip lets the independent C run but skips D, and continue runs both C and D.](03-workflows/33.png)
 
 ## enabled
 
@@ -371,7 +371,7 @@ steps:
     when: "{{ param:is_big }} == False"
 ```
 
-> **[FIGURE fig-03-04 · diagram]** `check_volume` as a diamond with two branches, `load_big` (taken) and `load_small` (skipped, greyed).
+![The check_volume condition routes a large input to load_big; load_small is skipped and greyed out.](03-workflows/34.png)
 
 ---
 
@@ -395,7 +395,7 @@ workflow:
 
 If `load_payments` fails, the load of `load_invoices` is undone.
 
-> **[FIGURE fig-03-05 · diagram]** A stack: steps pushed as they succeed (invoices, payments…), then, on failure, popped from top to bottom with an "undo" arrow on each.
+![Successful invoice and payment loads are pushed onto a stack; after a later step fails, rollback undoes payments first, then invoices.](03-workflows/35.png)
 
 ## What can be undone
 
@@ -474,7 +474,7 @@ thread:
       - name: build_reports
 ```
 
-> **[FIGURE fig-03-06 · diagram]** The thread above as three stages on a time axis: `load_referentials`, then `load_sales` and `load_stock` side by side, a 5-minute pause, then `build_reports`.
+![The thread runs load_referentials, then load_sales and load_stock in parallel, waits five minutes after both finish, and starts build_reports.](03-workflows/36.png)
 
 ## Stages
 
@@ -647,22 +647,22 @@ workflow:
       depends_on: [crm_sync]
 ```
 
-> **[FIGURE fig-03-08 · diagram]** A master project with two called projects; arrows labelled with what passes (environment name, params, variables) and a crossed-out padlock for secrets; the results flowing back (`status`, `rows`, `outputs`).
+![A master project calls CRM and billing projects, passing the environment name, parameters and variables; status, rows and selected outputs return, while secrets stay in each project.](03-workflows/37.png)
 
 ## Syntax
 
-| Key         | Default     | Description |
-| ----------- | ----------- | ----------- |
+| Key         | Default     | Description                                                                                                         |
+| ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
 | `project`   | –           | Called project: folder relative to the master's root (`ref: path`) or Studio workspace name (`ref: name`). Required |
-| `ref`       | `path`      | `path` (portable with git) · `name` |
-| `env`       | `inherit`   | Environment of the called project: `inherit` (same name, its own files) · `none` · a name |
-| `params`    | –           | Parameters given to the called project, with the rank of `-P` |
-| `variables` | –           | Environment variables lent for this run only |
-| `workflows` | thread.yaml | Workflows to run, in this order |
-| `outputs`   | –           | Parameters of the called project read back with `{{ project:STEP.param.NAME }}` |
-| `isolation` | `inprocess` | `inprocess` (same process, isolated environment) · `subprocess` (separate `hdrctl`) |
-| `timeout`   | –           | Maximum duration: `30s`, `5m`, `1h` or seconds |
-| `overlap`   | `wait`      | Project already running: `wait` · `skip` · `fail` |
+| `ref`       | `path`      | `path` (portable with git) · `name`                                                                                 |
+| `env`       | `inherit`   | Environment of the called project: `inherit` (same name, its own files) · `none` · a name                           |
+| `params`    | –           | Parameters given to the called project, with the rank of `-P`                                                       |
+| `variables` | –           | Environment variables lent for this run only                                                                        |
+| `workflows` | thread.yaml | Workflows to run, in this order                                                                                     |
+| `outputs`   | –           | Parameters of the called project read back with `{{ project:STEP.param.NAME }}`                                     |
+| `isolation` | `inprocess` | `inprocess` (same process, isolated environment) · `subprocess` (separate `hdrctl`)                                 |
+| `timeout`   | –           | Maximum duration: `30s`, `5m`, `1h` or seconds                                                                      |
+| `overlap`   | `wait`      | Project already running: `wait` · `skip` · `fail`                                                                   |
 
 ## What passes, what does not
 
@@ -673,12 +673,12 @@ workflow:
 
 ## Results
 
-| Placeholder                       | Value |
-| --------------------------------- | ----- |
-| `{{ project:STEP.status }}`       | `success` · `failed` · `skipped` |
-| `{{ project:STEP.rows }}`         | Rows written by the called project |
-| `{{ project:STEP.duration }}`     | Duration in seconds |
-| `{{ project:STEP.param.NAME }}`   | A parameter listed in `outputs` (`set_param`, `assign_param` or declared). Missing = step failed |
+| Placeholder                     | Value                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `{{ project:STEP.status }}`     | `success` · `failed` · `skipped`                                                                 |
+| `{{ project:STEP.rows }}`       | Rows written by the called project                                                               |
+| `{{ project:STEP.duration }}`   | Duration in seconds                                                                              |
+| `{{ project:STEP.param.NAME }}` | A parameter listed in `outputs` (`set_param`, `assign_param` or declared). Missing = step failed |
 
 ## Rules for sub-projects
 
@@ -727,40 +727,40 @@ triggers:
     token: ${SECRET:trigger.on_push.token}
 ```
 
-> **[FIGURE fig-03-09 · diagram]** Events on the left (clock, file, database, HTTP call, end of another project) → `triggers.yaml` → the project run in its own process → the history.
+![Clock, file, database, HTTP and project-completion events feed triggers.yaml, which starts the project in its own process and records the run in history.](03-workflows/38.png)
 
 ## Types
 
-| `type`          | Starts the project when…                          | Keys                                                  |
-| --------------- | ------------------------------------------------- | ----------------------------------------------------- |
-| `cron`          | the time matches a cron expression                | `cron`, `timezone`                                    |
-| `interval`      | every period                                      | `every`                                               |
-| `file`          | a file matching `path` is added (or modified)     | `path`, `events`, `debounce`, `every`                 |
-| `marker`        | a marker file appears (removed before the run)    | `path`, `consume`, `every`                            |
-| `source_change` | a source of a job changes                         | `source: {job, id, check, column}`, `every`           |
-| `webhook`       | an HTTP call brings the trigger's token           | `token`                                               |
-| `after_project` | another project ends                              | `project`, `ref`, `on`                                |
+| `type`          | Starts the project when…                       | Keys                                        |
+| --------------- | ---------------------------------------------- | ------------------------------------------- |
+| `cron`          | the time matches a cron expression             | `cron`, `timezone`                          |
+| `interval`      | every period                                   | `every`                                     |
+| `file`          | a file matching `path` is added (or modified)  | `path`, `events`, `debounce`, `every`       |
+| `marker`        | a marker file appears (removed before the run) | `path`, `consume`, `every`                  |
+| `source_change` | a source of a job changes                      | `source: {job, id, check, column}`, `every` |
+| `webhook`       | an HTTP call brings the trigger's token        | `token`                                     |
+| `after_project` | another project ends                           | `project`, `ref`, `on`                      |
 
 ## Common keys
 
-| Key           | Default          | Description                                                                 |
-| ------------- | ---------------- | --------------------------------------------------------------------------- |
-| `name`        | –                | Unique name. Required                                                       |
-| `enabled`     | `true`           | `false` keeps the trigger without running it                                |
-| `env`         | watch / serve    | Environment of the run; default: `--env` / `HYDRA_ENV` of `hdrctl watch` or `serve` |
-| `workflows`   | thread.yaml      | Workflows to run, in this order                                             |
-| `params`      | –                | Parameters of the run (like `-P`); no secret                                |
-| `overlap`     | `skip`           | Project already running: `skip` · `wait` · `fail`                           |
-| `timeout`     | –                | Maximum duration: `30s`, `5m`, `1h`                                         |
-| `retry`       | –                | `{max: 1–10, delay}`: run again after a failure                             |
+| Key         | Default       | Description                                                                         |
+| ----------- | ------------- | ----------------------------------------------------------------------------------- |
+| `name`      | –             | Unique name. Required                                                               |
+| `enabled`   | `true`        | `false` keeps the trigger without running it                                        |
+| `env`       | watch / serve | Environment of the run; default: `--env` / `HYDRA_ENV` of `hdrctl watch` or `serve` |
+| `workflows` | thread.yaml   | Workflows to run, in this order                                                     |
+| `params`    | –             | Parameters of the run (like `-P`); no secret                                        |
+| `overlap`   | `skip`        | Project already running: `skip` · `wait` · `fail`                                   |
+| `timeout`   | –             | Maximum duration: `30s`, `5m`, `1h`                                                 |
+| `retry`     | –             | `{max: 1–10, delay}`: run again after a failure                                     |
 
 ## Values given to the run
 
-| Parameter                          | Set by                       |
-| ---------------------------------- | ---------------------------- |
-| `{{ param:trigger.file }}`, `{{ param:trigger.files }}` | `file`, `marker`: the first file, all files (comma-separated) |
-| `{{ param:trigger.value }}`, `{{ param:trigger.previous }}` | `source_change`: the new and the previous measure |
-| `{{ param:trigger.project }}`, `{{ param:trigger.status }}` | `after_project`: the project that ended and how |
+| Parameter                                                   | Set by                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------- |
+| `{{ param:trigger.file }}`, `{{ param:trigger.files }}`     | `file`, `marker`: the first file, all files (comma-separated) |
+| `{{ param:trigger.value }}`, `{{ param:trigger.previous }}` | `source_change`: the new and the previous measure             |
+| `{{ param:trigger.project }}`, `{{ param:trigger.status }}` | `after_project`: the project that ended and how               |
 
 ## Rules for project triggers
 
@@ -784,4 +784,10 @@ hdrctl watch [PROJECT]... --env prod   # run the triggers until Ctrl+C
 
 `hdrctl serve` runs the same engine for every project of the Studio list.
 
-> **[LAB lab-03-06 · Killercoda]** **A project that runs itself** — A cron trigger, a file dropped in `inbox/`, a webhook called with `curl`, and a second project started at the end of the first, all followed in `hdrctl watch`.
+> A cron trigger, a file dropped in `inbox/`, a webhook called with `curl`, and a second project started at the end of the first, all followed in `hdrctl watch`.
+
+
+
+[**[LAB lab-03-06 · Killercoda]** **A project that runs itself** —](https://killercoda.com/hydra-etl/scenario/22-master-and-subprojects)
+
+![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\03-workflows\37.png)

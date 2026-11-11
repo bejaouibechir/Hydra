@@ -139,7 +139,7 @@ export interface ThreadInfo {
 
 /** Aide à l'écriture de `fallback.when` (GET /projects/{id}/conditions). */
 export interface ConditionHelp {
-  functions: { name: string; arg: 'source' | 'destination' | 'path' | 'url' | 'secret' | 'database'; returns: 'bool' | 'bytes' | 'seconds' | 'number'; help: string }[]
+  functions: { name: string; arg: 'source' | 'destination' | 'path' | 'url' | 'secret' | 'database'; returns: 'bool' | 'bytes' | 'seconds' | 'number' | 'text'; help: string }[]
   attributes: Record<string, string>      // previous.status, previous.rows
   sources: string[]                       // déclarées dans les jobs du projet
   destinations: string[]

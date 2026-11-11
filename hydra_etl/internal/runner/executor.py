@@ -842,7 +842,9 @@ class JobExecutor:
                 ext = right.get("extract") if isinstance(right.get("extract"), dict) else {}
                 if ext:
                     config["extract"] = ext
-                if rtype in ("csv", "json", "parquet"):
+                if rtype in ("csv", "json", "parquet", "sqlite"):
+                    # relative paths start from the job folder, like the sources of
+                    # sources.yaml (a sqlite path was read from the current folder)
                     config["job_dir"] = str(self.path_base)
                 conn = build_connector(name=f"{op}_right", config=config)
                 r_table = ext.get("table")

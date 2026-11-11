@@ -55,13 +55,17 @@ class CastOp(BaseModel):
     @classmethod
     def _valid_casts(cls, v: Dict[str, str]) -> Dict[str, str]:
         allowed = {"int", "float", "str", "bool", "date", "datetime"}
+        # the names people (and models) write for the same types
+        aliases = {"integer": "int", "string": "str", "text": "str", "boolean": "bool",
+                   "double": "float", "number": "float", "timestamp": "datetime"}
         cleaned: Dict[str, str] = {}
         for col, typ in v.items():
             if not isinstance(col, str) or not isinstance(typ, str):
                 raise ValueError("cast.mapping must be a mapping str -> str")
             col2, typ2 = col.strip(), typ.strip().lower()
+            typ2 = aliases.get(typ2, typ2)
             if not col2 or not typ2:
-                raise ValueError("cast.mapping ne peut pas contenir de cles/valeurs vides")
+                raise ValueError("cast.mapping cannot contain empty keys or values")
             if typ2 not in allowed:
                 raise ValueError(
                     f"invalid cast type: {typ2} (expected: {sorted(allowed)})"
@@ -123,33 +127,31 @@ class TrimOp(BaseModel):
 
 
 class AggregateOp(BaseModel):
-    """
-    Agrégation groupée.
+    """Grouped aggregation.
 
-    Params YAML:
-        by: [col1, col2]          # colonnes de groupement
+    YAML parameters:
+        by: [col1, col2]          # grouping columns
         agg:
           out_col: {func: sum, col: src_col}
           out_col2: {func: count, col: src_col2}
           out_col3: {func: mean, col: src_col3}
 
-    Fonctions supportées: sum, count, mean, avg, min, max, first, last
+    Supported functions: sum, count, mean, avg, min, max, first, last
     """
     by: List[str] = Field(min_length=1)
     agg: Dict[str, Any] = Field(min_length=1)
 
 
 class JoinOp(BaseModel):
-    """
-    Jointure avec une source de reference (2e flux).
+    """Join with a reference source (a second flow).
 
-    Params YAML:
+    YAML parameters:
         join:
-          right:                    # source de reference (comme une source)
+          right:                    # the reference source, declared like a source
             type: mysql
             connection: {...}
             extract: {table: departments}
-          key: email                # cle commune (str ou liste de str)
+          key: email                # common key (a string or a list of strings)
           how: left                 # inner | left | right | outer | cross
 
     how: cross: cartesian product (every row x every right row), no key;
@@ -220,7 +222,7 @@ class JoinOp(BaseModel):
 
 
 class CleanOp(BaseModel):
-    """Nettoie les colonnes texte : espaces (trim + multiples) + casse."""
+    """Cleans text columns: spaces (trim + repeated spaces) and case."""
     columns: Optional[List[str]] = None       # defaut: toutes les colonnes texte
     case: str = "none"                         # none | lower | upper
 
@@ -249,13 +251,13 @@ class UnpivotOp(BaseModel):
 
 
 class TransposeOp(BaseModel):
-    """Transpose lignes <-> colonnes (pandas .T)."""
+    """Transposes rows <-> columns (pandas .T)."""
     index_col: Optional[str] = None   # colonne dont les valeurs deviennent les en-tetes
     header_name: str = "column"       # nom de la colonne recevant les anciens en-tetes
 
 
 class MergeOp(BaseModel):
-    """Merge type SQL Server (upsert cible <- source, sur une cle)."""
+    """SQL Server style merge (upsert of the target from the source, on a key)."""
     right: Any                        # 2e source (id declare ou source inline)
     key: Any                          # cle d'appariement (str ou liste)
     delete_unmatched: bool = False    # supprime les lignes cible absentes de la source
@@ -280,7 +282,7 @@ class MergeOp(BaseModel):
 
 
 class UnionOp(BaseModel):
-    """Union / Union All : empile une 2e source (memes colonnes)."""
+    """Union / Union All: stacks a second source (same columns)."""
     right: Any                        # 2e source (id declare ou source inline)
     distinct: bool = False            # True = UNION (dedoublonne) ; False = UNION ALL
 
@@ -295,16 +297,15 @@ class UnionOp(BaseModel):
 
 
 class ScriptOp(BaseModel):
-    """
-    Transformation Python personnalisee (facon SSIS Script Component).
+    """Custom Python transformation (like an SSIS Script Component).
 
-    L'utilisateur declare un contrat colonnes input -> colonnes output et
-    fournit un extrait de code Python execute dans un environnement restreint.
+    The user declares a contract (input columns -> output columns) and gives a
+    Python snippet, run in a restricted environment.
 
-    Params YAML:
+    YAML parameters:
         script:
-          inputs: [price, quantity]      # colonnes lues (contrat)
-          outputs:                       # colonnes produites (+ type)
+          inputs: [price, quantity]      # columns read (contract)
+          outputs:                       # columns produced (+ type)
             total: float
             label: str
           mode: vectorized               # vectorized | row
@@ -313,12 +314,12 @@ class ScriptOp(BaseModel):
             label = "big" if total.iloc[0] > 100 else "small"
 
     Modes:
-    - vectorized : chaque colonne input est exposee comme pandas.Series ;
-                   le code doit affecter chaque colonne output (Series/scalaire).
-    - row        : le code s'execute ligne par ligne (facon SSIS
-                   ProcessInputRow) ; chaque colonne input est un scalaire.
+    - vectorized: each input column is a pandas.Series;
+                  the code must assign every output column (Series or scalar).
+    - row:        the code runs row by row (like SSIS ProcessInputRow);
+                  each input column is a scalar.
 
-    Types outputs autorises: int, float, str, bool, date, datetime, any.
+    Allowed output types: int, float, str, bool, date, datetime, any.
     """
     inputs: List[str] = Field(default_factory=list)
     outputs: Dict[str, str] = Field(min_length=1)
@@ -542,10 +543,10 @@ class TransformConfig(BaseModel):
     engine: Literal["auto", "pandas", "duckdb"] = Field(
         default="auto",
         description=(
-            "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf "
-            "au-delà de HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) où le moteur "
-            "gros volumes (pyarrow + DuckDB, extra hydra-etl[duckdb]) est utilisé. "
-            "pandas / duckdb : forcé. La variable HYDRA_ENGINE est prioritaire."
+            "Engine of the global operations (aggregate, sort). auto: pandas, except "
+            "beyond HYDRA_LARGE_VOLUME_ROWS estimated rows (2,000,000), where the "
+            "large-volume engine (pyarrow + DuckDB, extra hydra-etl[duckdb]) is used. "
+            "pandas / duckdb: forced. The HYDRA_ENGINE variable takes precedence."
         ),
     )
 

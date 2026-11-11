@@ -31,6 +31,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -51,6 +52,23 @@ def find_project_root(start: Path, max_levels: int = 6) -> Optional[Path]:
     d = Path(start).resolve()
     for _ in range(max_levels + 1):
         if is_project_root(d):
+            return d
+        if d.parent == d:
+            return None
+        d = d.parent
+    return None
+
+
+def project_root_for_paths(job_dir: Path) -> Optional[Path]:
+    """The project a job belongs to, for its relative `base_path`.
+
+    Only a folder with `.hydra/project.json` counts: `~/.hydra` holds the global
+    settings and does not make the home folder a project. The job folder may not
+    exist yet (the MCP server checks a job before writing it).
+    """
+    d = Path(os.path.normpath(Path(job_dir).absolute()))
+    for _ in range(8):
+        if (d / PROJECT_MARKER / "project.json").is_file():
             return d
         if d.parent == d:
             return None

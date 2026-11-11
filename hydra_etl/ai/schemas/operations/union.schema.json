@@ -1,7 +1,7 @@
 {
   "$id": "https://hydra.local/schemas/0.20.0/operations/union.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Union / Union All : empile une 2e source (memes colonnes).",
+  "description": "Union / Union All: stacks a second source (same columns).",
   "properties": {
     "distinct": {
       "default": false,

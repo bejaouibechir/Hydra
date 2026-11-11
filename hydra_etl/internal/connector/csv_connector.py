@@ -224,7 +224,30 @@ class CSVConnector(Connector):
         base_path: Optional[Path] = None
 
         if base_path_raw is not None:
-            base_path = Path(str(base_path_raw)).expanduser().resolve()
+            base_path = Path(str(base_path_raw)).expanduser()
+            if not base_path.is_absolute():
+                # Relative to the project root (the folder with .hydra/project.json),
+                # or to the job folder when the job is not in a project. It used to
+                # be read from the current folder of the process: jobs written that
+                # way keep working, with a warning (whitebook, decision E).
+                from hydra_etl.workflow.project import project_root_for_paths
+
+                anchor = project_root_for_paths(Path(job_dir)) if job_dir else None
+                anchor = anchor or (Path(job_dir) if job_dir else None)
+                ruled = (anchor / base_path).resolve() if anchor is not None else None
+                from_cwd = base_path.resolve()
+                if ruled is not None and ruled.is_dir():
+                    base_path = ruled
+                elif from_cwd.is_dir() and from_cwd != ruled:
+                    logger.warning(
+                        "CSVConnector: base_path '%s' is read from the current folder (%s). "
+                        "A relative base_path starts from the project root (the folder with "
+                        ".hydra/), or from the job folder outside a project.",
+                        base_path_raw, Path.cwd())
+                    base_path = from_cwd
+                else:
+                    base_path = ruled or from_cwd
+            base_path = base_path.resolve()
             if not base_path.exists():
                 raise ValueError(f"CSVConnector: base_path not found: {base_path}")
             if not base_path.is_dir():
@@ -809,10 +832,11 @@ class CSVConnector(Connector):
                 f"CSVConnector [{self.name}]: source file not found.\n"
                 f"  Requested path: {table}\n"
                 f"  Resolved path: {csv_path}\n"
-                f"  base_path effectif : {self._settings.base_path}\n"
-                f"  job_dir : {self._job_dir}\n"
+                f"  Base path: {self._settings.base_path}\n"
+                f"  Job folder: {self._job_dir}\n"
                 f"  Current dir: {Path.cwd()}\n"
-                f"  Hint: check that the file exists and that base_path is correct."
+                f"  Hint: a relative path is read from the job folder, not from the project root "
+                f"(a file in <project>/data is ../../data/<file> for a job in <project>/jobs/<job>)."
             )
         if not csv_path.is_file():
             raise ValueError(
@@ -961,8 +985,8 @@ class CSVConnector(Connector):
                 f"  Requested path: {table}\n"
                 f"  Resolved path: {csv_path}\n"
                 f"  Parent folder: {csv_path.parent} (exists: {csv_path.parent.exists()})\n"
-                f"  base_path effectif : {self._settings.base_path}\n"
-                f"  job_dir : {self._job_dir}\n"
+                f"  Base path: {self._settings.base_path}\n"
+                f"  Job folder: {self._job_dir}\n"
                 f"  Current dir: {Path.cwd()}\n"
                 f"  System error: {e}\n"
                 f"  Hint: the parent folder is created automatically; "

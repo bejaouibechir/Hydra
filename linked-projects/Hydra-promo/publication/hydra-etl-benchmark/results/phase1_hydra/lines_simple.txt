@@ -1,0 +1,12 @@
+   6  parameters.yaml
+   6  jobs/revenue_by_country/destinations.yaml
+   3  jobs/revenue_by_country/pipeline.yaml
+   9  jobs/revenue_by_country/sources.yaml
+  10  jobs/revenue_by_country/transformations.yaml
+   6  jobs/revenue_by_month/destinations.yaml
+   3  jobs/revenue_by_month/pipeline.yaml
+   9  jobs/revenue_by_month/sources.yaml
+   9  jobs/revenue_by_month/transformations.yaml
+  10  workflows/daily_revenue.yaml
+   5  workflows/thread.yaml
+  76  TOTAL (11 files)

@@ -24,13 +24,14 @@ from xml.sax.saxutils import escape
 ROOT = Path(__file__).resolve().parent
 
 # Directories and files kept out of the package (mirrors .vscodeignore)
-EXCLUDE_DIRS = {"examples", "node_modules", ".git", ".vscode", "__pycache__"}
+EXCLUDE_DIRS = {"examples", "node_modules", ".git", ".vscode", "__pycache__", "test"}
 EXCLUDE_FILES = {".vscodeignore", "build_vsix.py", "icon@256.png"}
 EXCLUDE_SUFFIXES = {".vsix", ".pyc"}
 
 CONTENT_TYPES = """<?xml version="1.0" encoding="utf-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="json" ContentType="application/json" />
+  <Default Extension="js" ContentType="application/javascript" />
   <Default Extension="md" ContentType="text/markdown" />
   <Default Extension="xml" ContentType="text/xml" />
   <Default Extension="vsixmanifest" ContentType="text/xml" />

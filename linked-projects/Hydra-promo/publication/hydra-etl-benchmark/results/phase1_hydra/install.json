@@ -1,0 +1,7 @@
+{
+ "stack": "Hydra ETL",
+ "install_seconds": 9.0,
+ "packages": 15,
+ "env_size_mb": 189.0,
+ "python": "3.12"
+}

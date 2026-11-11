@@ -1,0 +1,110 @@
+[
+ {
+  "scenario": "normal",
+  "run": 1,
+  "exit_code": 0,
+  "seconds": 15.35,
+  "revenue_by_country": "main",
+  "revenue_by_month": "main",
+  "consistent": true
+ },
+ {
+  "scenario": "normal",
+  "run": 2,
+  "exit_code": 0,
+  "seconds": 14.11,
+  "revenue_by_country": "main",
+  "revenue_by_month": "main",
+  "consistent": true
+ },
+ {
+  "scenario": "normal",
+  "run": 3,
+  "exit_code": 0,
+  "seconds": 14.14,
+  "revenue_by_country": "main",
+  "revenue_by_month": "main",
+  "consistent": true
+ },
+ {
+  "scenario": "missing_source",
+  "run": 1,
+  "exit_code": 0,
+  "seconds": 18.38,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "missing_source",
+  "run": 2,
+  "exit_code": 0,
+  "seconds": 17.11,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "missing_source",
+  "run": 3,
+  "exit_code": 0,
+  "seconds": 17.07,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_amount",
+  "run": 1,
+  "exit_code": 0,
+  "seconds": 23.4,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_amount",
+  "run": 2,
+  "exit_code": 0,
+  "seconds": 23.45,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_amount",
+  "run": 3,
+  "exit_code": 0,
+  "seconds": 23.56,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_date",
+  "run": 1,
+  "exit_code": 0,
+  "seconds": 23.49,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_date",
+  "run": 2,
+  "exit_code": 0,
+  "seconds": 23.53,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ },
+ {
+  "scenario": "bad_date",
+  "run": 3,
+  "exit_code": 0,
+  "seconds": 23.49,
+  "revenue_by_country": "backup",
+  "revenue_by_month": "backup",
+  "consistent": true
+ }
+]

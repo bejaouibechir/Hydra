@@ -1,0 +1,9 @@
+steps:
+  - filter: {expr: "status == 'paid'"}
+  - cast: {mapping: {amount: float, order_date: datetime}}
+  - calculate: {column: month, expr: "order_date.dt.strftime('%Y-%m')"}
+  - aggregate:
+      by: [month]
+      agg:
+        revenue: {func: sum, col: amount}
+  - sort: {by: [month]}

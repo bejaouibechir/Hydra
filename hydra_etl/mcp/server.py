@@ -45,7 +45,7 @@ except ModuleNotFoundError:                             # pragma: no cover
         from mcp.server.fastmcp import FastMCP as MCPServer   # SDK MCP 1.x
     except ModuleNotFoundError:
         raise SystemExit(
-            "Le SDK MCP est absent. Installez-le avec :\n"
+            "The MCP SDK is missing. Install it with:\n"
             "    pip install \"hydra-etl[mcp]\"\n"
         ) from None
 
@@ -148,8 +148,8 @@ def _spec(name: str) -> Any:
     path = SCHEMAS / name
     if not path.exists():
         raise FileNotFoundError(
-            f"Spécification absente : {name}. "
-            "Régénérez-la avec `python tools/spec_export.py`."
+            f"Specification missing: {name}. "
+            "Regenerate it with `python tools/spec_export.py`."
         )
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -184,9 +184,13 @@ def _hdrctl(*args: str) -> tuple[bool, str]:
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
+    # The CLI runs in the workspace: a path that something still resolves from
+    # the current folder stays inside it (it used to land in the Hydra ETL
+    # install folder). ROOT stays importable for a source checkout.
+    env["PYTHONPATH"] = os.pathsep.join(x for x in (str(ROOT), env.get("PYTHONPATH", "")) if x)
     proc = subprocess.run(
         [sys.executable, "-m", "hydra_etl.cli.hdrctl", *args],
-        cwd=str(ROOT), capture_output=True, text=True,
+        cwd=str(workspace()), capture_output=True, text=True,
         encoding="utf-8", errors="replace", env=env, timeout=600,
     )
     ok = proc.returncode == 0
@@ -196,10 +200,9 @@ def _hdrctl(*args: str) -> tuple[bool, str]:
         # vingt lignes « ok » et le compteur (qui annonce « 0 error(s) » tout
         # en signalant une erreur — anomalie A8 du produit) n'aident pas le
         # modele a se corriger : ils le desorientent.
-        errs = [l.strip()[4:].strip() if l.strip().startswith("err ") else l.strip()
-                for l in output.splitlines() if l.strip().startswith("err ")]
-        if errs:
-            output = "\n".join(f"- {e}" for e in errs)
+        report = _validation_report(output)
+        if report:
+            output = report
         else:
             output = "\n".join(
                 l for l in output.splitlines()
@@ -208,7 +211,279 @@ def _hdrctl(*args: str) -> tuple[bool, str]:
                 and "error(s) detected" not in l.lower()
                 and "devops edition" not in l.lower()
             )
-    return ok, output
+    return ok, _relative_paths(output)
+
+
+# Shown under a refused manifest: the shape the validator expects.
+EXPECTED_SHAPE = {
+    "sources.yaml": """version: "1.0"
+sources:
+  orders:                       # any name; pipeline.from and join.right use it
+    type: sqlite                # hydra_list_connectors gives every type
+    connection:
+      path: ../../data/app.db   # relative to the job folder
+    extract:
+      table: orders             # or query: SELECT ...""",
+    "transformations.yaml": """version: "1.0"
+steps:                          # ONE list, applied in order to the rows of pipeline.from
+  - filter:
+      expr: "status == 'ok'"
+  - join:
+      right: customers          # another source declared in sources.yaml
+      key: customer_id
+# every operation and its parameters: hydra_list_operations, hydra_describe_operation""",
+    "destinations.yaml": """version: "1.0"
+destinations:
+  report:                       # any name; pipeline.to uses it
+    type: csv
+    load:
+      table: ../../outputs/report.csv   # for a file: its path, relative to the job folder
+      mode: replace             # append | replace | upsert (upsert needs key: [...])""",
+    "pipeline.yaml": """version: "1.0"
+pipeline:                       # a mapping, not a list: one source -> steps -> one destination
+  from: orders                  # a source name (other sources come in through join)
+  to: report                    # a destination name""",
+}
+
+
+def _validation_report(output: str) -> str:
+    """Turns the CLI validation output into a report a model can act on.
+
+    The CLI prints pydantic's details (which field, what is wrong) on lines
+    that do not start with « err »: keeping only the « err » lines told the
+    model « 2 validation errors for SourcesConfig » and nothing else. Here each
+    problem is given with its location, and every refused manifest is followed
+    by the shape it must have.
+    """
+    import re
+
+    if " err " not in f" {output}" and "\nerr " not in output:
+        return ""
+    files: dict[str, list[str]] = {}
+    current = None
+    loc = None
+    for raw in output.splitlines():
+        line = raw.rstrip()
+        s = line.strip()
+        if not s or s.lower().startswith(("ok ", "for further information", "❌", "🔍")):
+            continue
+        if s.startswith("err "):
+            body = s[4:].strip()
+            m = re.match(r"^(\w+\.yaml)$", body)
+            if m:
+                current = m.group(1)
+                files.setdefault(current, [])
+                continue
+            m = re.match(r"^(\w+\.yaml)\s*:\s*(.+)$", body)
+            if m:
+                current = m.group(1)
+                files.setdefault(current, []).append(m.group(2))
+                continue
+            body = body.lstrip("→ ").strip()
+            if re.match(r"^\d+ validation errors? for \w+$", body):
+                continue
+            files.setdefault(current or "job", []).append(body)
+            continue
+        if not raw.startswith(" ") and re.match(r"^[\w.\[\]-]+$", s):
+            loc = s
+            continue
+        if loc and raw.startswith(" "):
+            msg = re.sub(r"\s*\[type=.*$", "", s)
+            hint = {"Field required": "missing",
+                    "Extra inputs are not permitted": "unknown key here"}.get(msg, msg)
+            files.setdefault(current or "job", []).append(f"{loc}: {hint}")
+            loc = None
+    if not any(files.values()):
+        return ""
+    out = []
+    for name, problems in files.items():
+        if not problems:
+            continue
+        out.append(f"{name}:")
+        out += [f"  - {p}" for p in problems]
+        if name in EXPECTED_SHAPE:
+            out.append("  Expected shape:")
+            out += ["    " + l for l in EXPECTED_SHAPE[name].splitlines()]
+    return "\n".join(out)
+
+
+# Connectors that only read (kept in sync by tests/test_mcp_server.py)
+SOURCE_ONLY = ("postgres_cdc", "postgresql_cdc", "snowflake", "web_api")
+
+FILE_TYPES = ("csv", "json", "parquet", "sqlite")
+
+
+def _rel(path: Path, start: Path) -> str:
+    return os.path.relpath(path, start).replace("\\", "/")
+
+
+def _inside(path: Path, root: Path) -> bool:
+    try:
+        Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
+        return True
+    except ValueError:
+        return False
+
+
+_BASE_MARK = "\x00base:"  # marks a path built from a base_path (see _file_paths)
+
+
+def _shown(p: str) -> str:
+    return p[len(_BASE_MARK):] if p.startswith(_BASE_MARK) else p
+
+
+def _at(base: Path, p: str) -> Path:
+    """base/p with the « .. » folded: the job folder may not exist yet.
+
+    A path built from a relative base_path starts from the project root."""
+    if p.startswith(_BASE_MARK):
+        from hydra_etl.workflow.project import project_root_for_paths
+
+        p = p[len(_BASE_MARK):]
+        if not Path(p).is_absolute():
+            base = project_root_for_paths(base) or base
+    return Path(os.path.normpath(base / p))
+
+
+def _file_paths(doc: dict, kind: str):
+    """(name, path) of the file sources or destinations of a manifest."""
+    for name, v in ((doc or {}).get(kind) or {}).items():
+        if not isinstance(v, dict) or v.get("type") not in FILE_TYPES:
+            continue
+        if v.get("type") == "sqlite":
+            p = (v.get("connection") or {}).get("path") or (v.get("connection") or {}).get("database")
+        else:
+            p = ((v.get("extract") if kind == "sources" else v.get("load")) or {}).get("table")
+            base = (v.get("connection") or {}).get("base_path") or v.get("base_path")
+            if isinstance(p, str) and isinstance(base, str) and base and "{{" not in base \
+                    and not Path(p).is_absolute():
+                # base_path: absolute, or from the project root (the job folder outside a project)
+                p = f"{_BASE_MARK}{base.rstrip('/')}/{p}"
+        if isinstance(p, str) and p and "{{" not in p and "*" not in p:
+            yield name, p
+
+
+def _misplaced_paths(job_dir: Path, sources: dict, destinations: dict) -> list:
+    """Paths written from the project root instead of the job folder.
+
+    `data/x.csv` in jobs/a is read as jobs/a/data/x.csv: the run fails, or an
+    output lands inside the job folder. Caught here, before anything is written.
+    """
+    root = workspace()
+    out = []
+    for kind, doc in (("sources", sources), ("destinations", destinations)):
+        for name, p in _file_paths(doc, kind):
+            full = Path(p) if Path(p).is_absolute() else _at(job_dir, p)
+            if not _inside(full, root):
+                out.append(f"{kind}.{name}: '{_shown(p)}' is outside the workspace; the files of a job must be "
+                           f"in it (data/, outputs/...), with paths relative to the job folder.")
+    if out:
+        return out
+    for name, p in _file_paths(sources, "sources"):
+        if p.startswith(_BASE_MARK):
+            continue  # base_path has its own rule (project root): only « outside » and « missing » apply
+        if not _at(job_dir, p).exists() and _at(root, p).exists():
+            out.append(f"sources.{name}: '{p}' would be read as {_rel(_at(job_dir, p), root)}, which does not "
+                       f"exist. Paths are relative to the job folder: write '{_rel(_at(root, p), job_dir)}'.")
+    for name, p in _file_paths(destinations, "destinations"):
+        if p.startswith(_BASE_MARK):
+            continue
+        if not _at(job_dir, p).parent.exists() and _at(root, p).parent.is_dir() and Path(p).parent != Path("."):
+            out.append(f"destinations.{name}: '{p}' would be written to {_rel(_at(job_dir, p), root)}. "
+                       f"Paths are relative to the job folder: write '{_rel(_at(root, p), job_dir)}'.")
+    return out
+
+
+def _with_inline_sources(sources: dict, transformations: dict) -> dict:
+    """sources.yaml plus the sources written inline in a join / merge / union step."""
+    out = {"sources": dict((sources or {}).get("sources") or {})}
+    t = transformations if isinstance(transformations, dict) else {}
+    steps = t.get("steps")
+    if steps is None and isinstance(t.get("transformations"), dict):
+        steps = t["transformations"].get("steps")
+    for i, st in enumerate(steps or [], start=1):
+        if not isinstance(st, dict):
+            continue
+        for op in ("join", "merge", "union"):
+            right = (st.get(op) or {}).get("right") if isinstance(st.get(op), dict) else None
+            if isinstance(right, dict) and right.get("type"):
+                out["sources"][f"(step {i} {op}.right)"] = right
+    return out
+
+
+def _missing_sources(job_dir: Path, sources: dict) -> list:
+    return [f"sources.{n}: {_rel(_at(job_dir, p), workspace())} does not exist yet "
+            f"(fine if another job creates it before this one runs)"
+            for n, p in _file_paths(sources, "sources") if not _at(job_dir, p).exists()]
+
+
+def _workflow_job_paths(wf_file: Path, doc: dict):
+    """Job paths of a workflow are relative to the workflow's folder."""
+    root, base = workspace(), wf_file.parent
+    wrong, notes = [], []
+    steps = ((doc.get("workflow") or {}).get("steps") or []) if isinstance(doc, dict) else []
+    for st in steps:
+        if not isinstance(st, dict) or st.get("type") != "job" or not isinstance(st.get("job"), str):
+            continue
+        j = st["job"]
+        if "{{" in j or Path(j).is_absolute() or _at(base, j).is_dir():
+            continue
+        if _at(root, j).is_dir():
+            wrong.append(f"step {st.get('name', '?')}: job '{j}' would be {_rel(_at(base, j), root)}, which does "
+                         f"not exist. Job paths are relative to the workflow's folder: write '{_rel(_at(root, j), base)}'.")
+        else:
+            notes.append(f"step {st.get('name', '?')}: job {_rel(_at(base, j), root)} does not exist yet")
+    return wrong, notes
+
+
+def _workflows_using(job_dir: Path) -> list:
+    """The workflows of the workspace that run this job folder."""
+    root = workspace()
+    target = Path(os.path.normpath(job_dir))
+    out = []
+    skip = {".hydra", ".git", ".venv", "venv", "env", "node_modules", "__pycache__", "outputs", "Data", "data"}
+    files = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [n for n in dirnames if n not in skip and not n.startswith(".")]
+        files += [Path(dirpath) / n for n in filenames if n.endswith((".yaml", ".yml"))]
+    for f in sorted(files):
+        try:
+            doc = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        except Exception:  # noqa: BLE001 — an unreadable file is not a workflow we can check
+            continue
+        steps = ((doc.get("workflow") or {}).get("steps") or []) if isinstance(doc, dict) else []
+        for st in steps:
+            j = st.get("job") if isinstance(st, dict) and st.get("type") == "job" else None
+            if isinstance(j, str) and "{{" not in j and _at(f.parent, j) == target:
+                out.append(_rel(f, root))
+                break
+    return out
+
+
+def _forget_job_in_project(root: Path, rel: str) -> None:
+    """Drops the job from .hydra/project.json (the list the Studio reads)."""
+    import json
+
+    f = root / ".hydra" / "project.json"
+    try:
+        doc = json.loads(f.read_text(encoding="utf-8-sig"))
+    except Exception:  # noqa: BLE001 — no project file, or not ours to fix
+        return
+    jobs = doc.get("jobs")
+    if isinstance(jobs, list):
+        keep = [j for j in jobs if not (isinstance(j, dict) and str(j.get("path", "")).replace("\\", "/") == rel)]
+        if len(keep) != len(jobs):
+            doc["jobs"] = keep
+            f.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _relative_paths(text: str) -> str:
+    """Shows workspace paths relative to it: the model does not need the
+    absolute path, and transcripts must not reveal the user's folders."""
+    root = workspace()
+    for form in {str(root), root.as_posix()}:
+        text = text.replace(form + os.sep, "").replace(form + "/", "").replace(form, ".")
+    return text
 
 
 def _outputs_summary(job_dir: Path) -> str:
@@ -237,11 +512,11 @@ def _outputs_summary(job_dir: Path) -> str:
         if not table:
             continue
         if defn.get("type") not in ("csv", "json", "parquet"):
-            lignes.append(f"- {name} : {defn.get('type')} → {table}")
+            lignes.append(f"- {name}: {defn.get('type')} → {table}")
             continue
         path = (job_dir / str(table)) if not Path(str(table)).is_absolute() else Path(str(table))
         if not path.exists():
-            lignes.append(f"- {name} : {table} — fichier introuvable après exécution")
+            lignes.append(f"- {name}: {table} — file not found after the run")
             continue
         try:
             import pandas as pd
@@ -252,21 +527,57 @@ def _outputs_summary(job_dir: Path) -> str:
             else:
                 df = pd.read_parquet(path)
             lignes.append(
-                f"- {name} : {table} — {len(df)} lignes, {len(df.columns)} colonnes "
+                f"- {name}: {table} — {len(df)} rows, {len(df.columns)} columns "
                 f"({', '.join(map(str, df.columns[:8]))})"
             )
             if len(df) == 0:
-                lignes.append("  ATTENTION : zéro ligne écrite. Un filtre est "
-                              "probablement trop strict, ou le `cast` manque.")
+                lignes.append("  WARNING: zero rows written. A filter is probably "
+                              "too strict, or a `cast` is missing.")
         except Exception as exc:
-            lignes.append(f"- {name} : {table} — lecture impossible ({type(exc).__name__})")
+            lignes.append(f"- {name}: {table} — cannot be read ({type(exc).__name__})")
 
     if not lignes:
         return ""
-    return "\n\nRésultat produit :\n" + "\n".join(lignes)
+    return "\n\nOutput produced:\n" + "\n".join(lignes)
 
 
 # ---------------------------------------------------------------------------
+
+def _preview_sqlite(f: Path, shown: str, table: str, rows: int) -> str:
+    """Tables d'une base SQLite (colonnes, types SQL, nombre de lignes), et les
+    premières lignes de `table`. Ouverture en lecture seule : rien n'est créé."""
+    import sqlite3
+    try:
+        conn = sqlite3.connect(f"{f.as_uri()}?mode=ro", uri=True)
+    except Exception as exc:
+        return f"Cannot open the database: {type(exc).__name__}: {exc}"
+    try:
+        names = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+        if not names:
+            return f"Database: {shown}\nNo table."
+        out = [f"Database: {shown}", "Tables:"]
+        for n in names:
+            cols = conn.execute(f'PRAGMA table_info("{n}")').fetchall()
+            count = conn.execute(f'SELECT COUNT(*) FROM "{n}"').fetchone()[0]
+            out.append(f"- {n} ({count} rows): " + ", ".join(
+                f"{c[1]} {c[2] or 'ANY'}" for c in cols))
+        if table:
+            if table not in names:
+                return "\n".join(out) + f"\n\nTable not found: {table!r}."
+            cur = conn.execute(f'SELECT * FROM "{table}" LIMIT {rows}')
+            header = [d[0] for d in cur.description]
+            body = [" | ".join(header)] + [" | ".join("" if v is None else str(v) for v in r)
+                                           for r in cur.fetchall()]
+            out += ["", f"First {rows} rows of {table}:"] + body
+        else:
+            out += ["", "Give `table` to see the first rows of a table."]
+        out += ["", "In a job: type: sqlite, connection.path relative to the job folder."]
+        return "\n".join(out)
+    finally:
+        conn.close()
+
 
 def build_server() -> Any:
     kwargs: dict[str, Any] = {
@@ -313,7 +624,7 @@ def build_server() -> Any:
                 continue
             sch = _spec(entry["path"])
             required = ", ".join(sch.get("required", [])) or "—"
-            rows.append(f"{entry['dslName']:<14} requis: {required}")
+            rows.append(f"{entry['dslName']:<14} required: {required}")
         return "\n".join(sorted(rows))
 
     @server.tool(
@@ -329,8 +640,8 @@ def build_server() -> Any:
         if not path.exists():
             known = sorted(p.stem.replace(".schema", "")
                            for p in (SCHEMAS / "operations").glob("*.json"))
-            return (f"Opération inconnue : {operation!r}.\n"
-                    f"Opérations existantes : {', '.join(known)}")
+            return (f"Unknown operation: {operation!r}.\n"
+                    f"Existing operations: {', '.join(known)}")
         return json.dumps(_spec(f"operations/{operation}.schema.json"),
                           ensure_ascii=False, indent=2)
 
@@ -344,7 +655,11 @@ def build_server() -> Any:
         annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_list_connectors() -> str:
         sch = _spec("connectors.schema.json")
-        return ", ".join(sch["enum"])
+        both = [c for c in sch["enum"] if c not in SOURCE_ONLY]
+        only = [c for c in sch["enum"] if c in SOURCE_ONLY]
+        return ("Source and destination: " + ", ".join(both) + "\n"
+                "Source only (cannot be a destination): " + ", ".join(only) + "\n"
+                "Any other type is rejected: Hydra ETL has no connector for it.")
 
     @server.tool(
         description=(
@@ -374,7 +689,7 @@ def build_server() -> Any:
                       for p in base.rglob("pipeline.yaml")
                       if "_archive" not in p.parts and "_backups" not in p.parts)
         if not jobs:
-            return f"Aucun job trouvé sous {base}."
+            return f"No job found under {base}."
         return "\n".join(jobs)
 
     @server.tool(
@@ -389,15 +704,15 @@ def build_server() -> Any:
         try:
             d = safe_path(job_path)
         except ValueError as exc:
-            return f"REFUSÉ — {exc}"
+            return f"REFUSED — {exc}"
         if not d.is_dir():
-            return f"Dossier introuvable : {job_path}"
+            return f"Folder not found: {job_path}"
         out = []
         for name in JOB_FILES:
             f = d / name
             if f.exists():
                 out.append(f"### {name}\n{f.read_text(encoding='utf-8')}")
-        return "\n\n".join(out) or f"Aucun manifeste dans {job_path}."
+        return "\n\n".join(out) or f"No manifest in {job_path}."
 
     # -- Écriture, validation, exécution -------------------------------------
 
@@ -415,7 +730,7 @@ def build_server() -> Any:
         try:
             d = safe_path(job_path)
         except ValueError as exc:
-            return f"REFUSÉ — {exc}"
+            return f"REFUSED — {exc}"
         ok, output = _hdrctl("validate", str(d))
         return ("VALIDE\n" if ok else "INVALIDE\n") + output
 
@@ -446,7 +761,7 @@ def build_server() -> Any:
             try:
                 yaml.safe_load(content)
             except Exception as exc:
-                return f"REFUSÉ — {name} n'est pas du YAML valide : {exc}"
+                return f"REFUSED — {name} is not valid YAML: {exc}"
 
         tmp = Path(tempfile.mkdtemp(prefix="hydra_mcp_"))
         try:
@@ -454,12 +769,19 @@ def build_server() -> Any:
                 (tmp / name).write_text(content, encoding="utf-8")
             ok, output = _hdrctl("validate", str(tmp))
             if not ok:
-                return ("REFUSÉ — rien n'a été écrit. Le validateur signale :\n"
+                return ("REFUSED — nothing was written. The validator reports:\n"
                         + output)
             try:
                 target = safe_path(job_path)
             except ValueError as exc:
-                return f"REFUSÉ — {exc}"
+                return f"REFUSED — {exc}"
+            src_doc = _with_inline_sources(yaml.safe_load(files["sources.yaml"]) or {},
+                                           yaml.safe_load(files.get("transformations.yaml", "")) or {})
+            dst_doc = yaml.safe_load(files["destinations.yaml"]) or {}
+            wrong = _misplaced_paths(target, src_doc, dst_doc)
+            if wrong:
+                return "REFUSED — nothing was written.\n" + "\n".join(f"- {w}" for w in wrong)
+            notes = _missing_sources(target, src_doc)
             target.mkdir(parents=True, exist_ok=True)
             for name, content in files.items():
                 (target / name).write_text(content, encoding="utf-8")
@@ -467,9 +789,44 @@ def build_server() -> Any:
             shutil.rmtree(tmp, ignore_errors=True)
 
         written = ", ".join(sorted(files))
-        return (f"ÉCRIT dans {job_path} : {written}.\n"
-                f"Le job est valide. Il n'a pas été exécuté — utilise "
-                f"hydra_run_job si l'utilisateur le demande.")
+        return (f"WRITTEN to {job_path}: {written}.\n"
+                f"The job is valid. It was not run — use "
+                f"hydra_run_job if the user asks for it."
+                + "".join(f"\nNote: {n}" for n in notes))
+
+    @server.tool(
+        description=(
+            "Remove a job from the project. Nothing is destroyed: the job "
+            "folder is moved to .hydra/trash/<date>/ and can be moved back. "
+            "Refused while a workflow still runs the job: update the "
+            "workflow first (hydra_write_workflow)."
+        )
+    ,
+        annotations=_annot(**EXECUTION, title="Moves a job to the project trash"))
+    def hydra_delete_job(job_path: str) -> str:
+        import shutil
+        from datetime import datetime
+
+        try:
+            d = safe_path(job_path)
+        except ValueError as exc:
+            return f"REFUSED — {exc}"
+        root = workspace()
+        if not d.is_dir():
+            return f"Folder not found: {job_path}"
+        if not (d / "pipeline.yaml").is_file():
+            return f"REFUSED — {job_path} is not a job folder (no pipeline.yaml); nothing was moved."
+        users = _workflows_using(d)
+        if users:
+            return ("REFUSED — nothing was moved: " + ", ".join(users) + " still run this job. "
+                    "Remove it from the workflow first (hydra_write_workflow), then delete it.")
+        rel = _rel(d, root)
+        trash = root / ".hydra" / "trash" / datetime.now().strftime("%Y%m%d-%H%M%S") / rel
+        trash.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(d), str(trash))
+        _forget_job_in_project(root, rel)
+        return (f"MOVED to trash: {rel} -> {_rel(trash, root)}. "
+                f"To restore it, move that folder back to {rel}.")
 
     @server.tool(
         description=(
@@ -483,11 +840,11 @@ def build_server() -> Any:
         try:
             d = safe_path(job_path)
         except ValueError as exc:
-            return f"REFUSÉ — {exc}"
+            return f"REFUSED — {exc}"
         ok, output = _hdrctl("run", str(d))
         if not ok:
-            return "ÉCHEC\n" + output
-        return "EXÉCUTION RÉUSSIE\n" + output + _outputs_summary(d)
+            return "FAILED\n" + output
+        return "RUN SUCCEEDED\n" + output + _outputs_summary(d)
 
     @server.tool(
         description=(
@@ -499,18 +856,18 @@ def build_server() -> Any:
         annotations=_annot(**LECTURE, title="Read-only"))
     def hydra_explain_error(error_message: str) -> str:
         hints = [
-            ("cast", "Un CSV ne porte aucun type : place une étape `cast` "
-                     "AVANT toute comparaison numérique ou agrégation."),
-            ("from", "`pipeline.from` doit reprendre exactement un identifiant "
-                     "déclaré dans sources.yaml."),
-            ("to", "`pipeline.to` doit reprendre exactement un identifiant "
-                   "déclaré dans destinations.yaml."),
-            ("type", "La clé `type` doit valoir l'un des connecteurs listés "
-                     "par hydra_list_connectors."),
-            ("steps", "transformations.yaml attend une liste `steps`, chaque "
-                      "étape étant un objet à UNE seule clé : le nom de "
-                      "l'opération."),
-            ("mode", "`load.mode` vaut append, replace ou upsert."),
+            ("cast", "A CSV file carries no types: put a `cast` step "
+                     "BEFORE any numeric comparison or aggregation."),
+            ("from", "`pipeline.from` must be exactly one of the identifiers "
+                     "declared in sources.yaml."),
+            ("to", "`pipeline.to` must be exactly one of the identifiers "
+                   "declared in destinations.yaml."),
+            ("type", "The `type` key must be one of the connectors listed "
+                     "by hydra_list_connectors."),
+            ("steps", "transformations.yaml expects a `steps` list, each "
+                      "step being an object with ONE key only: the name of "
+                      "the operation."),
+            ("mode", "`load.mode` is append, replace or upsert."),
             ("order_by", "window: rank (row_number, rank, dense_rank), offset (lag, lead) "
                          "and running (cumsum, cumcount, cummin, cummax) functions need "
                          "`order_by`: a list of column names or {col, desc}."),
@@ -528,8 +885,8 @@ def build_server() -> Any:
         low = error_message.lower()
         found = [h for key, h in hints if key in low]
         if not found:
-            found = ["Aucune règle connue ne correspond. Relis le schéma de "
-                     "l'élément concerné avec hydra_describe_operation."]
+            found = ["No known rule matches. Read the schema of the element "
+                     "concerned with hydra_describe_operation."]
         return "\n".join(f"- {h}" for h in found)
 
     # -- Workflows -----------------------------------------------------------
@@ -554,7 +911,7 @@ def build_server() -> Any:
                 continue
             if isinstance(doc, dict) and "workflow" in doc:
                 found.append(f.relative_to(base).as_posix())
-        return "\n".join(sorted(found)) or "Aucun workflow trouvé."
+        return "\n".join(sorted(found)) or "No workflow found."
 
     @server.tool(
         description=(
@@ -568,9 +925,9 @@ def build_server() -> Any:
         try:
             f = safe_path(workflow_path)
         except ValueError as exc:
-            return f"REFUSÉ — {exc}"
+            return f"REFUSED — {exc}"
         if not f.is_file():
-            return f"Fichier introuvable : {workflow_path}"
+            return f"File not found: {workflow_path}"
         return f.read_text(encoding="utf-8")
 
     @server.tool(
@@ -590,7 +947,7 @@ def build_server() -> Any:
         try:
             yaml.safe_load(workflow_yaml)
         except Exception as exc:
-            return f"REFUSÉ — le YAML est invalide : {exc}"
+            return f"REFUSED — the YAML is invalid: {exc}"
 
         tmp = Path(tempfile.mkdtemp(prefix="hydra_mcp_wf_"))
         try:
@@ -598,19 +955,23 @@ def build_server() -> Any:
             candidate.write_text(workflow_yaml, encoding="utf-8")
             ok, output = _hdrctl("workflow", "validate", str(candidate))
             if not ok:
-                return ("REFUSÉ — rien n'a été écrit. Le validateur signale :\n"
+                output = output.replace(str(candidate), workflow_path).replace(candidate.as_posix(), workflow_path)
+                return ("REFUSED — nothing was written. The validator reports:\n"
                         + output)
             try:
                 target = safe_path(workflow_path)
             except ValueError as exc:
-                return f"REFUSÉ — {exc}"
+                return f"REFUSED — {exc}"
+            wrong, notes = _workflow_job_paths(target, yaml.safe_load(workflow_yaml) or {})
+            if wrong:
+                return "REFUSED — nothing was written.\n" + "\n".join(f"- {w}" for w in wrong)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(workflow_yaml, encoding="utf-8")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-        return (f"ÉCRIT : {workflow_path}. Le workflow est valide et n'a pas "
-                f"été exécuté.")
+        return (f"WRITTEN: {workflow_path}. The workflow is valid and was "
+                f"not run." + "".join(f"\nNote: {n}" for n in notes))
 
     @server.tool(
         description=(
@@ -626,16 +987,16 @@ def build_server() -> Any:
         try:
             f = safe_path(workflow_path)
         except ValueError as exc:
-            return f"REFUSÉ — {exc}"
+            return f"REFUSED — {exc}"
         args = ["workflow", "run", str(f)]
         if env:
             from hydra_etl.internal.config.loader import check_env_name
             try:
                 args += ["--env", check_env_name(env)]
             except ValueError as exc:
-                return f"REFUSÉ — {exc}"
+                return f"REFUSED — {exc}"
         ok, output = _hdrctl(*args)
-        return ("EXÉCUTION RÉUSSIE\n" if ok else "ÉCHEC\n") + output
+        return ("RUN SUCCEEDED\n" if ok else "FAILED\n") + output
 
     # -- Environnements, paramètres, secrets (lecture seule) -----------------
 
@@ -864,23 +1225,27 @@ def build_server() -> Any:
     @server.tool(
         description=(
             "Show the columns and the first rows of a data file (CSV, JSON, "
-            "Parquet). Call this BEFORE writing a job, to learn the real "
+            "Parquet) or of a SQLite database (.db, .sqlite: its tables, their "
+            "columns with their SQL types and row counts; give `table` to see "
+            "its first rows). Call this BEFORE writing a job, to learn the real "
             "column names instead of guessing them — and AFTER a run, to "
             "check the result."
         )
     ,
         annotations=_annot(**LECTURE, title="Read-only"))
-    def hydra_preview_data(file_path: str, rows: int = 5) -> str:
+    def hydra_preview_data(file_path: str, rows: int = 5, table: str = "") -> str:
         try:
             f = safe_path(file_path)
         except ValueError as exc:
-            return f"REFUSÉ — {exc}"
+            return f"REFUSED — {exc}"
         if not f.is_file():
-            return f"Fichier introuvable : {file_path}"
+            return f"File not found: {file_path}"
+        if f.suffix.lower() in (".db", ".sqlite", ".sqlite3"):
+            return _preview_sqlite(f, file_path, table, max(1, min(int(rows), 50)))
         try:
             import pandas as pd
         except ModuleNotFoundError:
-            return "pandas est requis pour prévisualiser des données."
+            return "pandas is required to preview data."
 
         rows = max(1, min(int(rows), 50))
         suffix = f.suffix.lower()
@@ -895,19 +1260,19 @@ def build_server() -> Any:
                 df = pd.read_parquet(f).head(rows)
                 total = None
             else:
-                return (f"Format non pris en charge : {suffix}. "
-                        "Formats lisibles : .csv, .json, .parquet")
+                return (f"Unsupported format: {suffix}. "
+                        "Readable formats: .csv, .json, .parquet")
         except Exception as exc:
-            return f"Lecture impossible : {type(exc).__name__}: {exc}"
+            return f"Cannot read the file: {type(exc).__name__}: {exc}"
 
         cols = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns)
         head = df.to_string(index=False, max_colwidth=30)
-        compte = f"\nLignes au total : {total}" if total is not None else ""
-        return (f"Fichier : {file_path}\nColonnes : {cols}{compte}\n\n"
-                f"{rows} premières lignes :\n{head}\n\n"
-                "Rappel : un CSV ne porte aucun type. Les types ci-dessus sont "
-                "déduits par la lecture, pas garantis — place un `cast` avant "
-                "toute comparaison numérique.")
+        compte = f"\nTotal rows: {total}" if total is not None else ""
+        return (f"File: {file_path}\nColumns: {cols}{compte}\n\n"
+                f"First {rows} rows:\n{head}\n\n"
+                "Reminder: a CSV file carries no types. The types above are "
+                "guessed by the reader, not guaranteed — put a `cast` before "
+                "any numeric comparison.")
 
     # -- Vérifier la cohérence avec la demande -------------------------------
 
@@ -930,9 +1295,9 @@ def build_server() -> Any:
         try:
             d = safe_path(job_path)
         except ValueError as exc:
-            return f"REFUSÉ — {exc}"
+            return f"REFUSED — {exc}"
         if not d.is_dir():
-            return f"Dossier introuvable : {job_path}"
+            return f"Folder not found: {job_path}"
 
         files, docs = {}, {}
         for name in (*JOB_FILES, "workflow.yaml"):
@@ -948,9 +1313,9 @@ def build_server() -> Any:
 
         alerts = check(user_request, files, docs)
         if not alerts:
-            return ("AUCUNE ALERTE — le job paraît conforme à la demande. "
-                    "Présente-le à l'utilisateur.")
-        return ("ALERTES — à examiner avant de présenter le job :\n"
+            return ("NO ALERT — the job looks consistent with the request. "
+                    "Present it to the user.")
+        return ("ALERTS — check them before presenting the job:\n"
                 + "\n".join(f"- {a}" for a in alerts))
 
     # -- S'inspirer des jobs existants ---------------------------------------
@@ -968,7 +1333,7 @@ def build_server() -> Any:
         from hydra_etl.ai.guards import OP_HINTS, _norm
 
         if not CORPUS.exists():
-            return ("Aucun corpus d'exemples. Générez-le avec "
+            return ("No example corpus. Generate it with "
                     "`python eval/corpus/harvest.py`.")
 
         besoin = {op for op, hints in OP_HINTS.items()
@@ -999,14 +1364,14 @@ def build_server() -> Any:
             entries.append((score, len(json.dumps(e)), e))
 
         if not entries:
-            return "Aucun exemple exploitable dans le corpus."
+            return "No usable example in the corpus."
         entries.sort(key=lambda t: (-t[0], t[1]))   # meilleur score, puis plus court
 
         count = max(1, min(int(count), 3))
         out = []
         for _, _, e in entries[:count]:
             manifests = "\n".join(f"# {n}\n{c}" for n, c in e["manifests"].items())
-            out.append(f"### Exemple : {e['id']}\n{manifests}")
+            out.append(f"### Example: {e['id']}\n{manifests}")
         return "\n\n".join(out)
 
     return server

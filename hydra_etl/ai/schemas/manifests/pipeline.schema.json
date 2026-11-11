@@ -2,10 +2,10 @@
   "$defs": {
     "PipelineDefinition": {
       "additionalProperties": false,
-      "description": "Relie une source déclarée à une destination déclarée.",
+      "description": "Connects a declared source to a declared destination.",
       "properties": {
         "from": {
-          "description": "Identifiant déclaré dans sources.yaml.",
+          "description": "Identifier declared in sources.yaml.",
           "title": "From",
           "type": "string"
         },
@@ -23,7 +23,7 @@
           "title": "Name"
         },
         "to": {
-          "description": "Identifiant déclaré dans destinations.yaml.",
+          "description": "Identifier declared in destinations.yaml.",
           "title": "To",
           "type": "string"
         },
@@ -37,7 +37,7 @@
             }
           ],
           "default": null,
-          "description": "Référence au manifeste de transformations. Facultatif : en son absence, transformations.yaml est utilisé s'il existe.",
+          "description": "Reference to the transformations manifest. Optional: without it, transformations.yaml is used if it exists.",
           "title": "Transformations"
         }
       },

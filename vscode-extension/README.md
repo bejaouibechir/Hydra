@@ -3,8 +3,13 @@
 Write Hydra manifests faster: context-aware completion, live validation, hover
 documentation and ready-to-fill skeletons.
 
-The extension **runs nothing** and is not a replacement for `hdrctl`. It speeds
-up authoring and flags structural mistakes. Cross-file consistency — does the
+Since 0.2.0 it also gives the agents of VS Code (GitHub Copilot in agent mode)
+the tools of Hydra ETL: describe a pipeline in a sentence, the agent writes the
+job, Hydra ETL validates it before writing it, runs it and checks it. See
+[Hydra ETL in the agents of VS Code](#hydra-etl-in-the-agents-of-vs-code-mcp).
+
+The editing features **run nothing** and are not a replacement for `hdrctl`. They
+speed up authoring and flag structural mistakes. Cross-file consistency — does the
 `from` of `pipeline.yaml` match a declared source, does a step's job directory
 exist — remains the job of `hdrctl validate`.
 
@@ -116,6 +121,39 @@ code --uninstall-extension hydraetl.hydra-etl
 
 ---
 
+## Hydra ETL in the agents of VS Code (MCP)
+
+For every folder of the workspace that is a Hydra ETL project (it has `.hydra/`,
+`jobs/` or `workflows/`), the extension offers the Hydra ETL MCP server to the
+agents of VS Code. Nothing to configure in the usual case.
+
+1. Install Hydra ETL with its MCP server, in the Python you use for the project:
+   `pip install "hydra-etl[mcp]"` (Python 3.10 or later).
+2. Open the project folder in VS Code (1.101 or later).
+3. Open the Chat view, choose **Agent** mode, then the tools button: **Hydra ETL**
+   is listed with its tools (`hydra_write_job`, `hydra_run_job`…).
+4. Ask in a sentence, for example: *In data/shop.db, build a job that reports the
+   paid orders per country into outputs/revenue_by_country.csv, run it and check
+   the result.*
+
+The server only reads and writes inside the project folder. Before writing a job,
+Hydra ETL validates it and refuses it, with the reason, when it is wrong.
+
+**Which Python runs the server.** The first of these that can import Hydra ETL:
+the `hydraEtl.mcp.python` setting, the `.venv`, `venv` or `env` of the folder,
+the interpreter chosen in the Python extension, then `py -3` (Windows),
+`python`, `python3`. When none works, VS Code shows the install command.
+
+| Setting | Default | |
+|---|---|---|
+| `hydraEtl.mcp.enabled` | `true` | offer the MCP server for the Hydra ETL folders |
+| `hydraEtl.mcp.python` | empty | the Python to use, when it is not found on its own |
+
+Commands: **Hydra ETL: Refresh the MCP servers**, **Hydra ETL: Show the log**
+(which Python was chosen, and why).
+
+---
+
 ## How to test
 
 Open the `examples/` folder in VS Code.
@@ -198,7 +236,9 @@ The package contents will not change.
 
 ```
 vscode-extension/
-├── package.json                  declarative wiring (schemas, snippets, defaults)
+├── package.json                  wiring (schemas, snippets, defaults, MCP server provider)
+├── extension.js                  offers the Hydra ETL MCP server to the agents of VS Code
+├── test/extension.test.js        node test/extension.test.js <python>: the provider, then a real server
 ├── README.md
 ├── CHANGELOG.md
 ├── .vscodeignore

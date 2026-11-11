@@ -925,8 +925,14 @@ function WorkflowEditorInner() {
       }
 
       if (decision === 'load_disk') {
-        // Garder la position des nœuds qui existent déjà (ids stables)
-        const pos = new Map(cur.nodes.map(n => [n.id, n.position]))
+        // Garder la position des nœuds qui existent déjà (ids stables), sauf ceux dont
+        // les liens ont changé : ils reprennent la place calculée (une source devenue la
+        // source droite d'un join ne reste pas sur la ligne du flux)
+        const links = (es: Edge[], id: string) =>
+          es.filter(e => e.source === id || e.target === id).map(e => `${e.source}>${e.target}`).sort().join(',')
+        const pos = new Map(cur.nodes
+          .filter(n => links(cur.edges, n.id) === links(disk.edges, n.id))
+          .map(n => [n.id, n.position]))
         const nextNodes = disk.nodes.map(n => pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n)
         const isNewShape = disk.nodes.some(n => !pos.has(n.id))
         pushHistory(cur.nodes as Node<FlowNodeData>[], cur.edges)

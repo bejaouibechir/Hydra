@@ -1,7 +1,7 @@
 {
   "$defs": {
     "ExtractConfig": {
-      "description": "Décrit comment extraire depuis une source.\n\nMVP :\n- soit table\n- soit query\n- soit collection (MongoDB)",
+      "description": "How to read a source: table (a table or a file path), query (SQL) or collection (MongoDB).",
       "properties": {
         "batch_size": {
           "default": 10000,
@@ -75,7 +75,7 @@
       "type": "object"
     },
     "SchemaConfig": {
-      "description": "Configuration du schéma pour sources atypiques.",
+      "description": "Schema of a source without a fixed structure (MongoDB, for example).",
       "properties": {
         "drift_policy": {
           "default": "warn",
@@ -110,7 +110,7 @@
       "type": "object"
     },
     "SchemaFieldConfig": {
-      "description": "Configuration d'un champ dans le schéma source.",
+      "description": "One field of the source schema.",
       "properties": {
         "array_handling": {
           "anyOf": [
@@ -182,7 +182,7 @@
       "type": "object"
     },
     "SourceDefinition": {
-      "description": "Définition d'une source.\n\nExemples de type :\n- mysql\n- mariadb\n- mongodb\n- csv\n- json",
+      "description": "A source: its connector type, its connection and what to extract.\n\nTypes: see the list of connectors (csv, json, parquet, sqlite, mysql, mariadb,\npostgresql, sqlserver, snowflake, postgresql_cdc, mongodb, web_api...).",
       "properties": {
         "connection": {
           "additionalProperties": true,

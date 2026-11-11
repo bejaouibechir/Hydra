@@ -1,7 +1,7 @@
 {
   "$id": "https://hydra.local/schemas/0.20.0/operations/merge.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Merge type SQL Server (upsert cible <- source, sur une cle).",
+  "description": "SQL Server style merge (upsert of the target from the source, on a key).",
   "properties": {
     "delete_unmatched": {
       "default": false,

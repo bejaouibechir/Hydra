@@ -1,0 +1,5 @@
+# Hydra: never commit secrets
+.hydra/secrets
+.env
+.env.*
+!.env.example

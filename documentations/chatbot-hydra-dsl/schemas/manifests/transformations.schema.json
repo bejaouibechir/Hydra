@@ -57,7 +57,7 @@
   "properties": {
     "engine": {
       "default": "auto",
-      "description": "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf au-delà de HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) où le moteur gros volumes (pyarrow + DuckDB, extra hydra-etl[duckdb]) est utilisé. pandas / duckdb : forcé. La variable HYDRA_ENGINE est prioritaire.",
+      "description": "Engine of the global operations (aggregate, sort). auto: pandas, except beyond HYDRA_LARGE_VOLUME_ROWS estimated rows (2,000,000), where the large-volume engine (pyarrow + DuckDB, extra hydra-etl[duckdb]) is used. pandas / duckdb: forced. The HYDRA_ENGINE variable takes precedence.",
       "enum": [
         "auto",
         "pandas",

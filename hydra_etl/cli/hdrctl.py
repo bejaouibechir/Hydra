@@ -1365,6 +1365,9 @@ def _has_job_files(folder: Path) -> bool:
                for k in ("sources", "destinations", "pipeline"))
 
 
+_INIT_IGNORED = {".venv", "venv", "env", ".git", ".gitignore", ".gitattributes", ".vscode", ".idea"}
+
+
 def _write_project_marker(root: Path) -> Path:
     """Crée `.hydra/project.json` — le marqueur de projet lu par Hydra Studio."""
     import json
@@ -1483,7 +1486,10 @@ def cmd_init(path: str, template: str, quiet: bool) -> None:
         error_box(t("init.not_a_dir", path=path))
         sys.exit(1)
 
-    existing = list(root.iterdir()) if root.is_dir() else []
+    # A virtual environment or a git repository does not make the folder « not empty »:
+    # create the .venv first, install Hydra ETL in it, then `hdrctl init .`.
+    existing = [p for p in (root.iterdir() if root.is_dir() else [])
+                if p.name not in _INIT_IGNORED]
     shown = root.resolve()
 
     # Déjà un projet : on ne touche à rien.
@@ -3024,6 +3030,44 @@ def cmd_watch(projects: tuple, env_name: Optional[str]) -> None:
             sys.exit(130)
     success_box(t("watch.stopped"))
     click.echo()
+
+
+@cli.group("mcp", invoke_without_command=False,
+           help="Connect an AI assistant to the Hydra ETL MCP server of a project.")
+def mcp_group() -> None:
+    pass
+
+
+@mcp_group.command("setup", help=(
+    "Connect Claude Code to this project: writes .mcp.json at the project root, with the "
+    "Python that runs hdrctl. Then start `claude` in the project and type /mcp."))
+@click.argument("client", type=click.Choice(["claude-code"]), default="claude-code")
+@click.option("--path", "path", default=".", show_default=True,
+              help="A folder of the project (its root is found from there).")
+def cmd_mcp_setup(client: str, path: str) -> None:
+    from hydra_etl.mcp import setup as mcp_setup
+
+    if not mcp_setup.mcp_sdk_installed():
+        error_box('The MCP server needs its extra: pip install "hydra-etl[mcp]" (Python 3.10 or later).')
+        sys.exit(1)
+    start = Path(path)
+    if not start.is_dir():
+        error_box(f"Folder not found: {start}")
+        sys.exit(1)
+    project = mcp_setup.project_root(start)
+    try:
+        f, state = mcp_setup.write_claude_code(project)
+    except ValueError as exc:
+        error_box(str(exc))
+        sys.exit(1)
+    success_box(f"Claude Code: {f} {state} (server \"{mcp_setup.SERVER_NAME}\").")
+    info(f"Python: {sys.executable}")
+    info(f"Workspace: {project}  (the server reads and writes only there)")
+    for n in mcp_setup.notes(project):
+        info(n)
+    click.echo()
+    info("Next: open a terminal in the project, run `claude`, approve the hydra-etl server,")
+    info("then type /mcp to see its tools, and ask for a pipeline in a sentence.")
 
 
 @cli.command("serve", help="Start the Hydra API and the Studio.")

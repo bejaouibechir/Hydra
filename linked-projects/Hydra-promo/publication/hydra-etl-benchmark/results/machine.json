@@ -1,0 +1,7 @@
+{
+ "cpus": 4,
+ "python": "3.12",
+ "mem_gb": 15.3,
+ "disk_free_gb": 58.9,
+ "os": "Ubuntu 24.04.5 LTS"
+}

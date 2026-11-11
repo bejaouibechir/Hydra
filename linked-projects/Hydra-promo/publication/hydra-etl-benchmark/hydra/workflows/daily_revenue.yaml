@@ -1,0 +1,11 @@
+workflow:
+  name: daily_revenue
+  rollback: true            # if a step fails, undo the steps already done
+  steps:
+    - name: by_country
+      type: job
+      job: ../jobs/revenue_by_country
+    - name: by_month
+      type: job
+      job: ../jobs/revenue_by_month
+      depends_on: [by_country]

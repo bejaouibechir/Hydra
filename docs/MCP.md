@@ -22,6 +22,22 @@ pip install "hydra-etl[mcp]"
 Point your client at `hydra-mcp` and set `HYDRA_MCP_WORKSPACE` to the folder
 holding your jobs. The server never reads or writes outside it.
 
+### Claude Code
+
+In the project folder:
+
+```bash
+hdrctl mcp setup
+```
+
+It writes `.mcp.json` at the root of the project, with the Python that runs
+`hdrctl`: the server starts with the Hydra ETL you installed, whatever is on the
+`PATH`. Then run `claude` in the project, approve the `hydra-etl` server (asked
+once), type `/mcp` to see its tools, and ask for a pipeline in a sentence.
+
+`.mcp.json` holds paths of your computer: if the project is shared, add it to
+`.gitignore` and let each person run `hdrctl mcp setup` once.
+
 ### Claude Desktop
 
 `claude_desktop_config.json` — Settings → Developer → Edit Config.
@@ -107,15 +123,16 @@ server is a different piece of work.
 
 | Tool | What it does |
 |---|---|
-| `hydra_list_operations` | the 18 transformations and their required keys |
+| `hydra_list_operations` | the 20 transformations and their required keys |
 | `hydra_describe_operation` | the full JSON schema of one operation |
-| `hydra_list_connectors` | the 9 connector types accepted by `type` |
+| `hydra_list_connectors` | the connector types accepted by `type`, and which ones only read |
 | `hydra_list_actions` | the workflow actions |
 | `hydra_list_jobs` | jobs found in the workspace |
 | `hydra_read_job` | read a job's manifests |
 | `hydra_validate_job` | run the official validator |
 | `hydra_write_job` | write a job — **validated first** |
 | `hydra_run_job` | execute a job |
+| `hydra_delete_job` | move a job to `.hydra/trash/` — **nothing is destroyed**; refused while a workflow runs it |
 | `hydra_explain_error` | turn a validation error into a fix |
 | `hydra_list_workflows` · `hydra_read_workflow` | find and read workflows |
 | `hydra_write_workflow` | write a workflow — **validated first** |
@@ -123,7 +140,7 @@ server is a different piece of work.
 | `hydra_project_settings` | environments, parameters and secrets of a project — **names only** for secrets and variables |
 | `hydra_project_calls` | projects called by `type: project` steps — tree, missing projects, cycles |
 | `hydra_project_triggers` | triggers of a project (triggers.yaml): event, what runs, next and last run, problems — token **names only** |
-| `hydra_preview_data` | columns and first rows of a CSV, JSON or Parquet file |
+| `hydra_preview_data` | columns and first rows of a CSV, JSON or Parquet file, or the tables of a SQLite database |
 | `hydra_check_job` | does the job match what the user asked? |
 | `hydra_find_example` | the closest real job, as a starting point |
 

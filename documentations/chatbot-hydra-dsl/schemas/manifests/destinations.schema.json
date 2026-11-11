@@ -1,7 +1,7 @@
 {
   "$defs": {
     "DestinationDefinition": {
-      "description": "Définition d'une destination.\n\nExemples de type:\n- mysql\n- mariadb\n- csv\n- postgresql (futur)",
+      "description": "A destination: its connector type, its connection and how to load it.",
       "properties": {
         "connection": {
           "additionalProperties": true,
@@ -25,7 +25,7 @@
       "type": "object"
     },
     "LoadConfig": {
-      "description": "Configuration de chargement (section load dans destinations.yaml).\n\nChamps:\n- table: Nom de la table/fichier cible\n- mode: Mode de chargement (append|replace|upsert)\n- key: Colonnes clé (obligatoire si mode=upsert)\n- batch_size: Taille des batchs (défaut: 10 000)\n\nValidation stricte:\n- mode upsert → key obligatoire et non vide\n- key peut être clé simple [id] ou composite [region, product_id]\n\nExemples:\n    # Append simple\n    load:\n      table: orders\n      mode: append\n    \n    # Upsert clé simple\n    load:\n      table: users\n      mode: upsert\n      key: [id]\n    \n    # Upsert clé composite\n    load:\n      table: sales\n      mode: upsert\n      key: [region, product_id]",
+      "description": "How to load a destination (the load section of destinations.yaml).\n\nFields:\n- table: target table or file\n- mode: append | replace | upsert\n- key: key columns (required with mode: upsert), a simple [id] or composite [region, product_id] key\n- batch_size: rows per batch (default 10,000)\n- atomic: all or nothing (true / false; default depends on the connector)\n\nExamples:\n    load:\n      table: orders\n      mode: append\n\n    load:\n      table: users\n      mode: upsert\n      key: [id]",
       "properties": {
         "atomic": {
           "anyOf": [
@@ -97,7 +97,7 @@
       "type": "object"
     },
     "LoadMode": {
-      "description": "Modes de chargement supportés.\n\n- append: Ajoute les données (INSERT)\n- replace: Efface puis insère (TRUNCATE + INSERT)\n- upsert: Insert ou update si clé existe (INSERT ... ON DUPLICATE KEY UPDATE)",
+      "description": "Load modes.\n\n- append: adds the rows (INSERT)\n- replace: empties then inserts (TRUNCATE + INSERT)\n- upsert: inserts, or updates when the key exists",
       "enum": [
         "append",
         "replace",

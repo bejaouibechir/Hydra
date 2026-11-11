@@ -22,12 +22,12 @@ interface Props {
 }
 
 const OPS = ['<', '<=', '>', '>=', '==', '!=']
-const PLACEHOLDER: Record<string, string> = { bytes: '1MB', seconds: '24h', number: '10' }
+const PLACEHOLDER: Record<string, string> = { bytes: '1MB', seconds: '24h', number: '10', text: 'lost' }
 
 const quote = (v: string) => `'${v.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 
 /** Morceau de condition construit par l'assistant. */
-export function conditionPart(fn: string, kind: 'bool' | 'bytes' | 'seconds' | 'number' | 'attr',
+export function conditionPart(fn: string, kind: 'bool' | 'bytes' | 'seconds' | 'number' | 'text' | 'attr',
   arg: string, negate: boolean, op: string, value: string): string {
   if (kind === 'attr') {
     const v = fn === 'previous.status' ? quote(value || 'failed') : (value || '0')
@@ -35,6 +35,7 @@ export function conditionPart(fn: string, kind: 'bool' | 'bytes' | 'seconds' | '
   }
   const call = `${fn}(${quote(arg)})`
   if (kind === 'bool') return negate ? `not ${call}` : call
+  if (kind === 'text') return `${call} ${op === '!=' ? '!=' : '=='} ${quote(value || PLACEHOLDER.text)}`
   return `${call} ${op} ${value || PLACEHOLDER[kind]}`
 }
 
@@ -132,6 +133,7 @@ function ConditionBuilder({ help, onInsert }: { help: ConditionHelp; onInsert: (
   const [join, setJoin] = useState<'or' | 'and'>('or')
   const f = help.functions.find(x => x.name === fn)
   const kind = f ? f.returns : 'attr'
+  const equalOnly = fn === 'previous.status' || kind === 'text'      // valeurs texte : == ou != seulement
   const choices = !f ? [] : f.arg === 'source' ? help.sources : f.arg === 'destination' ? help.destinations
     : f.arg === 'database' ? [...new Set([...help.sources, ...help.destinations])] : f.arg === 'secret' ? help.secrets : []
   const input: React.CSSProperties = { background: 'var(--bg-input)', border: '1px solid var(--bg-border)', borderRadius: 6, padding: '2px 5px', color: 'var(--text-primary)', fontSize: 11, outline: 'none' }
@@ -148,7 +150,11 @@ function ConditionBuilder({ help, onInsert }: { help: ConditionHelp; onInsert: (
         <label className="inline-flex items-center gap-1"><input type="checkbox" checked={negate} onChange={e => setNegate(e.target.checked)} />not</label>
       )}
       <select style={input} value={fn} aria-label="Condition function" title={f?.help ?? help.attributes[fn]}
-        onChange={e => { setFn(e.target.value); setArg(''); setValue(''); setOp(e.target.value === 'previous.status' ? '==' : '<') }}>
+        onChange={e => {
+          const next = help.functions.find(x => x.name === e.target.value)
+          setFn(e.target.value); setArg(''); setValue('')
+          setOp(e.target.value === 'previous.status' || next?.returns === 'text' ? '==' : '<')
+        }}>
         {help.functions.map(x => <option key={x.name} value={x.name} title={x.help}>{x.name}(…)</option>)}
         {Object.keys(help.attributes).map(a => <option key={a} value={a}>{a}</option>)}
       </select>
@@ -159,7 +165,7 @@ function ConditionBuilder({ help, onInsert }: { help: ConditionHelp; onInsert: (
       </>}
       {kind !== 'bool' && <>
         <select style={input} value={op} aria-label="Comparison" onChange={e => setOp(e.target.value)}>
-          {(fn === 'previous.status' ? ['==', '!='] : OPS).map(o => <option key={o} value={o}>{o}</option>)}
+          {(equalOnly ? ['==', '!='] : OPS).map(o => <option key={o} value={o}>{o}</option>)}
         </select>
         <input style={{ ...input, width: 70 }} value={value} aria-label="Compared value"
           placeholder={fn === 'previous.status' ? 'failed' : kind === 'attr' ? '100' : PLACEHOLDER[kind]}
@@ -168,7 +174,7 @@ function ConditionBuilder({ help, onInsert }: { help: ConditionHelp; onInsert: (
       <button className="btn-ghost text-xs !py-0.5" disabled={needsArg}
         title={f?.help ?? help.attributes[fn]}
         onClick={() => onInsert(conditionPart(fn, kind as 'bool', arg.trim(), negate,
-          fn === 'previous.status' && !['==', '!='].includes(op) ? '==' : op, value.trim()), join)}>
+          equalOnly && !['==', '!='].includes(op) ? '==' : op, value.trim()), join)}>
         <Plus size={11} /> Insert
       </button>
     </div>

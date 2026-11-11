@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Actions acceptées par un step de type 'action'. Toute valeur hors de cette liste est ignorée à l'exécution : une faute de frappe ne provoque PAS d'erreur.",
+  "description": "Actions accepted by a step of type 'action'. Any value outside this list is ignored at run time: a typo does NOT raise an error.",
   "enum": [
     "assign_param",
     "bash",

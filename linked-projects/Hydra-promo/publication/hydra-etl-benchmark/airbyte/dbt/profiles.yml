@@ -1,0 +1,12 @@
+daily_revenue:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      port: 5433
+      user: postgres
+      password: bench
+      dbname: bench
+      schema: analytics
+      threads: 1

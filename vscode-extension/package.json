@@ -1,8 +1,8 @@
 {
   "name": "hydra-etl",
   "displayName": "HYDRA ETL",
-  "description": "Autocompletion, validation and snippets for HYDRA ETL manifests — jobs and workflows.",
-  "version": "0.1.12",
+  "description": "Autocompletion, validation and snippets for HYDRA ETL manifests, and the Hydra ETL MCP server for the agents of VS Code (GitHub Copilot agent mode).",
+  "version": "0.2.1",
   "publisher": "hydraetl",
   "author": {
     "name": "Bechir Bejaoui"
@@ -19,7 +19,8 @@
   "categories": [
     "Snippets",
     "Linters",
-    "Programming Languages"
+    "Programming Languages",
+    "AI"
   ],
   "keywords": [
     "hydra",
@@ -27,10 +28,17 @@
     "etl",
     "yaml",
     "data pipeline",
-    "hdrctl"
+    "hdrctl",
+    "mcp",
+    "copilot",
+    "agent"
   ],
   "extensionDependencies": [
     "redhat.vscode-yaml"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
   ],
   "contributes": {
     "yamlValidation": [
@@ -131,6 +139,39 @@
           "strings": true
         },
         "editor.suggest.snippetsPreventQuickSuggestions": false
+      }
+    },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "hydraEtl.mcpServers",
+        "label": "Hydra ETL"
+      }
+    ],
+    "commands": [
+      {
+        "command": "hydraEtl.mcp.refresh",
+        "title": "Hydra ETL: Refresh the MCP servers"
+      },
+      {
+        "command": "hydraEtl.mcp.showLog",
+        "title": "Hydra ETL: Show the log"
+      }
+    ],
+    "configuration": {
+      "title": "Hydra ETL",
+      "properties": {
+        "hydraEtl.mcp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Offer the Hydra ETL MCP server to the agents of VS Code for the Hydra ETL folders of the workspace (folders with .hydra/, jobs/ or workflows/)."
+        },
+        "hydraEtl.mcp.python": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Python that runs the Hydra ETL MCP server. Empty: the `.venv` or `venv` of the folder, the interpreter of the Python extension, then `py -3`, `python`, `python3` on the PATH — the first one where `hydra-etl[mcp]` is installed."
+        }
       }
     }
   },

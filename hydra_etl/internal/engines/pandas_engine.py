@@ -53,6 +53,54 @@ def _emit_script_output(buf: io.StringIO) -> None:
         logger.info(f"script> {line}")
 
 
+
+_IS_NULL = re.compile(r"(`[^`]+`|\b[A-Za-z_]\w*)\s+is\s+(not\s+)?null\b", re.I)
+
+
+def _sql_null_tests(expr: str) -> str:
+    """`price is not null` / `price is null`, as written in SQL -> .notna() / .isna()."""
+    if "null" not in expr.lower():
+        return expr
+    return _IS_NULL.sub(lambda m: f"{m.group(1)}.{'notna' if m.group(2) else 'isna'}()", expr)
+
+
+class _RoundCalls(ast.NodeTransformer):
+    """Replaces each round(x, n) with a temporary column (pandas eval has no round())."""
+
+    def __init__(self) -> None:
+        self.temps: List[tuple] = []
+
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        self.generic_visit(node)
+        if (isinstance(node.func, ast.Name) and node.func.id == "round"
+                and 1 <= len(node.args) <= 2 and not node.keywords):
+            nd = node.args[1] if len(node.args) == 2 else ast.Constant(0)
+            if isinstance(nd, ast.Constant) and isinstance(nd.value, int):
+                name = f"__hydra_round_{len(self.temps)}"
+                self.temps.append((name, ast.unparse(node.args[0]), nd.value))
+                return ast.Name(id=name, ctx=ast.Load())
+        return node
+
+
+def _split_round(expr: str):
+    """Lets calculate accept round(revenue, 2), as written in Python or SQL.
+
+    Returns (expr, temps): each temp is (column, inner expression, digits),
+    computed before the expression and dropped after.
+    """
+    if "round" not in expr:
+        return expr, []
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return expr, []
+    t = _RoundCalls()
+    tree = t.visit(tree)
+    if not t.temps:
+        return expr, []
+    return ast.unparse(ast.fix_missing_locations(tree)), t.temps
+
+
 # --------------------------------------------------
 # Sandbox pour l'operation 'script' (code Python user)
 # --------------------------------------------------
@@ -491,6 +539,7 @@ class PandasEngine(TransformEngine):
         expr = expr.strip()
         if not expr:
             raise ValueError("filter.expr cannot be an empty string")
+        expr = _sql_null_tests(expr)
 
         engine = choose_expr_engine(df, expr)
         if engine != "python":
@@ -837,6 +886,19 @@ class PandasEngine(TransformEngine):
 
         if not expr:
             raise ValueError("calculate.expr cannot be an empty string")
+
+        expr, temps = _split_round(expr)
+        if temps:
+            out = lazy_copy(df)
+            try:
+                for name, inner, nd in temps:
+                    out[name] = pd.to_numeric(out.eval(inner, engine="python")).round(nd)
+                out[col] = out.eval(expr, engine="python")
+            except Exception as e:
+                raise ValueError(
+                    f"calculate: invalid expression '{p.get('expr')}'. Error: {e}"
+                ) from None
+            return out.drop(columns=[n for n, _, _ in temps if n != col])
 
         engine = choose_expr_engine(df, expr)
         out = lazy_copy(df)

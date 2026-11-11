@@ -2,7 +2,7 @@
   "$defs": {
     "RetryPolicy": {
       "additionalProperties": false,
-      "description": "Politique de re-tentative d'un step (appliquée par Retry-scope).",
+      "description": "Retry policy of a step.",
       "properties": {
         "backoff": {
           "default": "fixed",
@@ -29,7 +29,7 @@
     },
     "Trigger": {
       "additionalProperties": false,
-      "description": "Déclencheur du workflow.",
+      "description": "Workflow trigger.",
       "properties": {
         "cron": {
           "anyOf": [
@@ -59,7 +59,7 @@
     },
     "UndoAction": {
       "additionalProperties": false,
-      "description": "`undo:` d'un step action — l'action qui défait ce qu'il a fait, lancée\nsi le workflow (en `rollback: true`) échoue après lui.",
+      "description": "`undo:` of an action step: the action that undoes what the step did, run\nif the workflow (with `rollback: true`) fails after it.",
       "properties": {
         "action": {
           "title": "Action",
@@ -87,7 +87,7 @@
     },
     "WorkflowStep": {
       "additionalProperties": false,
-      "description": "Un step du workflow — un job Hydra, une action, ou un autre projet\n(type=project : projet esclave lancé par ce workflow).",
+      "description": "A workflow step: a Hydra job, an action, or another project\n(type: project, a sub-project run by this workflow).",
       "properties": {
         "action": {
           "anyOf": [
@@ -346,7 +346,7 @@
   "$id": "https://hydra.local/schemas/0.20.0/manifests/workflow.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Définition complète d'un workflow — issu de workflow.yaml.",
+  "description": "Complete definition of a workflow, from workflow.yaml.",
   "properties": {
     "description": {
       "anyOf": [

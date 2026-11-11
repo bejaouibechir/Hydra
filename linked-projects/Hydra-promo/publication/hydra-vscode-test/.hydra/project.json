@@ -1,0 +1,8 @@
+{
+  "id": "vstest01",
+  "name": "hydra-vscode-test",
+  "description": "Test of the Hydra ETL MCP server in VS Code",
+  "conventions": {"data_dir": "data", "output_dir": "outputs"},
+  "workflows": [],
+  "jobs": []
+}

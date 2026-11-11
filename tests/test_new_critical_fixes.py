@@ -121,19 +121,19 @@ class TestCastOpAliases:
 
     def test_alias_integer(self, parser):
         cfg = parser.parse({"steps": [{"cast": {"mapping": {"id": "integer"}}}]})
-        assert cfg.steps[0].params.mapping["id"] == "int"
+        assert cfg.steps[0].params["mapping"]["id"] == "int"
 
     def test_alias_string(self, parser):
         cfg = parser.parse({"steps": [{"cast": {"mapping": {"name": "string"}}}]})
-        assert cfg.steps[0].params.mapping["name"] == "str"
+        assert cfg.steps[0].params["mapping"]["name"] == "str"
 
     def test_alias_boolean(self, parser):
         cfg = parser.parse({"steps": [{"cast": {"mapping": {"active": "boolean"}}}]})
-        assert cfg.steps[0].params.mapping["active"] == "bool"
+        assert cfg.steps[0].params["mapping"]["active"] == "bool"
 
     def test_canonical_types_still_work(self, parser):
         cfg = parser.parse({"steps": [{"cast": {"mapping": {"x": "int", "y": "float", "z": "str"}}}]})
-        assert cfg.steps[0].params.mapping == {"x": "int", "y": "float", "z": "str"}
+        assert cfg.steps[0].params["mapping"] == {"x": "int", "y": "float", "z": "str"}
 
     def test_invalid_type_raises(self, parser):
         with pytest.raises(Exception, match="invalid"):

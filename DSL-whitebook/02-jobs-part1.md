@@ -63,18 +63,18 @@ sources:
 
 ![Hydra connectors grouped into Files (CSV, JSON, Parquet) and Databases (MySQL, MariaDB, PostgreSQL, SQL Server, MongoDB).](02-jobs-part1/21.png)
 
-| `type`                   | Read | Write | Install                             |
-| ------------------------ | ---- | ----- | ----------------------------------- |
-| `csv`                    | ✔    | ✔     | built in                            |
-| `json`                   | ✔    | –     | built in                            |
-| `parquet`                | ✔    | ✔     | `pip install "hydra-etl[parquet]"`  |
-| `mysql`, `mariadb`       | ✔    | ✔     | `pip install "hydra-etl[mysql]"`    |
-| `postgresql`, `postgres` | ✔    | ✔     | `pip install "hydra-etl[postgres]"` |
-| `sqlserver`, `mssql`     | ✔    | ✔     | `pip install "hydra-etl[mssql]"`    |
-| `mongodb`                | ✔    | ✔     | `pip install "hydra-etl[mongodb]"`  |
-| `sqlite`                 | ✔    | ✔     | built in (Hydra 0.20+)              |
-| `snowflake`              | ✔    | –     | `pip install "hydra-etl[snowflake]"` (Hydra 0.20+) |
-| `postgresql_cdc`, `postgres_cdc` | ✔ (changes) | – | `pip install "hydra-etl[postgres]"` (Hydra 0.20+) |
+| `type`                           | Read        | Write | Install                                            |
+| -------------------------------- | ----------- | ----- | -------------------------------------------------- |
+| `csv`                            | ✔           | ✔     | built in                                           |
+| `json`                           | ✔           | –     | built in                                           |
+| `parquet`                        | ✔           | ✔     | `pip install "hydra-etl[parquet]"`                 |
+| `mysql`, `mariadb`               | ✔           | ✔     | `pip install "hydra-etl[mysql]"`                   |
+| `postgresql`, `postgres`         | ✔           | ✔     | `pip install "hydra-etl[postgres]"`                |
+| `sqlserver`, `mssql`             | ✔           | ✔     | `pip install "hydra-etl[mssql]"`                   |
+| `mongodb`                        | ✔           | ✔     | `pip install "hydra-etl[mongodb]"`                 |
+| `sqlite`                         | ✔           | ✔     | built in (Hydra 0.20+)                             |
+| `snowflake`                      | ✔           | –     | `pip install "hydra-etl[snowflake]"` (Hydra 0.20+) |
+| `postgresql_cdc`, `postgres_cdc` | ✔ (changes) | –     | `pip install "hydra-etl[postgres]"` (Hydra 0.20+)  |
 
 An unknown type stops the job with the list of supported types:
 
@@ -101,7 +101,7 @@ Connector 'src': unknown type 'excel'. Supported types: csv, json, mariadb, ...
 
 | Key              | Default        | Description                    |
 | ---------------- | -------------- | ------------------------------ |
-| `base_path`      | the job folder | Folder used to resolve `table` |
+| `base_path`      | the job folder | Folder used to resolve `table` (see Example 3) |
 | `delimiter`      | `,`            | One character                  |
 | `quotechar`      | `"`            | One character                  |
 | `encoding`       | `utf-8`        | File encoding                  |
@@ -145,9 +145,31 @@ sources:
      appliqué que par MongoDB ; ignoré en silence ailleurs (CSV, SQL…). Le documenter
      comme MongoDB seulement, ou l'implémenter partout ? -->
 
-<!-- REVIEW (décision E) : base_path relatif est résolu depuis le répertoire courant
-     et non depuis le dossier du job. Exemple avec base_path non publié tant que
-     ce point n'est pas tranché. -->
+### Example 3: files kept elsewhere (`base_path`)
+
+Without `base_path`, `table` is read from the job folder. `base_path` sets another folder:
+
+```yaml
+version: "1.0"
+sources:
+  supplier:
+    type: csv
+    connection:
+      base_path: imports/supplier     # relative: from the project root
+    extract:
+      table: products.csv
+```
+
+| `base_path`                         | Folder used                                                    |
+| ----------------------------------- | -------------------------------------------------------------- |
+| absent                              | the job folder                                                 |
+| relative (`imports/supplier`)       | from the project root, the folder that holds `.hydra/`; from the job folder when the job is not in a project |
+| absolute (`D:/exports`, `\\server\share`) | that folder, as written                                   |
+| `"{{ env:DATA_DIR }}"`              | a folder that changes from one machine to the next             |
+
+The data can be anywhere: `data/` is only a convention. A relative `base_path` gives every job the same anchor, however deep the job is, and a job moved to another folder keeps working.
+
+Before 0.20.1, a relative `base_path` was read from the folder `hdrctl` was started from. A job that still relies on that rule keeps working, with a warning in the log.
 
 ---
 
@@ -338,27 +360,27 @@ sources:
 
 ### Connection keys
 
-| Key | Description |
-| --- | --- |
-| `account` | Account identifier (`ORGNAME-ACCOUNTNAME`) or locator with its region (`xy12345.eu-central-2.aws`), without `https://` or `.snowflakecomputing.com`. Required. |
-| `user` | Snowflake user, ideally a service user that can only read. Required. |
-| `private_key_file` | Private key (PKCS#8, `.p8`) for key-pair authentication, recommended. `private_key_file_pwd` if the key is encrypted. |
-| `password` | Password, if no key pair. |
-| `warehouse`, `database`, `schema`, `role` | Where the queries run. |
-| `column_case` | `preserve` (default) or `lower`. Two columns that only differ by case are refused before any row is read. |
-| `json` | `parse` (default): `VARIANT`, `OBJECT`, `ARRAY` become JSON values; `text`: the JSON text. |
+| Key                                       | Description                                                                                                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account`                                 | Account identifier (`ORGNAME-ACCOUNTNAME`) or locator with its region (`xy12345.eu-central-2.aws`), without `https://` or `.snowflakecomputing.com`. Required. |
+| `user`                                    | Snowflake user, ideally a service user that can only read. Required.                                                                                           |
+| `private_key_file`                        | Private key (PKCS#8, `.p8`) for key-pair authentication, recommended. `private_key_file_pwd` if the key is encrypted.                                          |
+| `password`                                | Password, if no key pair.                                                                                                                                      |
+| `warehouse`, `database`, `schema`, `role` | Where the queries run.                                                                                                                                         |
+| `column_case`                             | `preserve` (default) or `lower`. Two columns that only differ by case are refused before any row is read.                                                      |
+| `json`                                    | `parse` (default): `VARIANT`, `OBJECT`, `ARRAY` become JSON values; `text`: the JSON text.                                                                     |
 
 ### Types
 
-| Snowflake | Value read by Hydra | PostgreSQL column created |
-| --- | --- | --- |
-| `NUMBER(p,0)` | exact integer, even beyond 64 bits | `bigint` (`numeric` if the first batch already holds integers beyond 64 bits) |
-| `NUMBER(p,s)` | exact decimal | `numeric` |
-| `FLOAT` | float | `double precision` |
-| `DATE` | date | `date` |
-| `TIMESTAMP_NTZ` | timestamp without time zone | `timestamp` |
-| `TIMESTAMP_TZ`, `TIMESTAMP_LTZ` | timestamp with its time zone | `timestamptz` |
-| `VARIANT`, `OBJECT`, `ARRAY` | JSON value | `jsonb` |
+| Snowflake                       | Value read by Hydra                | PostgreSQL column created                                                     |
+| ------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------- |
+| `NUMBER(p,0)`                   | exact integer, even beyond 64 bits | `bigint` (`numeric` if the first batch already holds integers beyond 64 bits) |
+| `NUMBER(p,s)`                   | exact decimal                      | `numeric`                                                                     |
+| `FLOAT`                         | float                              | `double precision`                                                            |
+| `DATE`                          | date                               | `date`                                                                        |
+| `TIMESTAMP_NTZ`                 | timestamp without time zone        | `timestamp`                                                                   |
+| `TIMESTAMP_TZ`, `TIMESTAMP_LTZ` | timestamp with its time zone       | `timestamptz`                                                                 |
+| `VARIANT`, `OBJECT`, `ARRAY`    | JSON value                         | `jsonb`                                                                       |
 
 - `extract.query` must start with `SELECT`, `WITH`, `SHOW` or `DESCRIBE`: the source is read-only, and Snowflake cannot be a destination.
 - Every query is tagged `hydra-etl` (`QUERY_TAG`), so it can be found in Snowflake's query history.
@@ -406,14 +428,14 @@ destinations:
 
 ### Connection keys
 
-| Key | Description |
-| --- | --- |
-| `host`, `port`, `user`, `password`, `database` | As for a PostgreSQL source. The user needs the `REPLICATION` attribute. |
-| `slot` | Logical replication slot, one per job: lowercase letters, digits and `_`. |
-| `publication` | Publication that contains the table. |
-| `create` | `true` (default): create the slot and the publication if they are missing. `false`: they must exist. |
-| `snapshot` | `true` (default): the first run copies the whole table, then reads the changes. |
-| `lag_warning_mb` | `1024` (default): warn when the slot retains more WAL than this, or has less than this left before `max_slot_wal_keep_size`. `0`: never warn. |
+| Key                                            | Description                                                                                          |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `host`, `port`, `user`, `password`, `database` | As for a PostgreSQL source. The user needs the `REPLICATION` attribute.                              |
+| `slot`                                         | Logical replication slot, one per job: lowercase letters, digits and `_`.                            |
+| `publication`                                  | Publication that contains the table.                                                                 |
+| `create`                                       | `true` (default): create the slot and the publication if they are missing. `false`: they must exist. |
+| `snapshot`                                     | `true` (default): the first run copies the whole table, then reads the changes.                      |
+| `lag_warning_mb`                               | `1024` (default): warn when the slot retains more WAL than this, or has less than this left before `max_slot_wal_keep_size`. `0`: never warn. |
 
 ### How it works
 

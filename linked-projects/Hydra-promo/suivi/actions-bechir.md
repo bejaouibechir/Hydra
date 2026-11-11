@@ -7,6 +7,19 @@
 
 ---
 
+## Projet exemple DWH — à tester sous Windows (08/11)
+
+ℹ️ DÉJÀ FAIT : projet dans `D:\hydra-dwh-example`, testé de bout en bout sous Linux (0 différence Hydra/SQL).
+
+▶️ À EXÉCUTER :
+
+- `docker compose up -d --build` puis `pip install -r requirements.txt`
+- `cd hydra-project` puis `.\run.ps1`
+- `cd ..\sql-equivalent` puis `.\run_all.ps1 -Compare` → 6 lignes à `0`
+- Me renvoyer toute erreur (Docker et PowerShell 5.1 non testés de mon côté)
+
+---
+
 ## Article 18456 — publication (26/09)
 
 - [x] **En ligne** (vérifié le 26/09 : listé sur `/blog`, page accessible). ~~Relire la page puis commit + push de `hydra-site` (3 fichiers : `BaseLayout.astro`, `BlogPost.astro`, `src/pages/blog/sql-server-error-18456-login-failed.md`). ℹ️ Build vérifié par Claude : titre, TechArticle, sitemap OK.~~

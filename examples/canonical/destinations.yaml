@@ -3,7 +3,7 @@ destinations:
   dest_report:
     type: csv
     connection:
-      base_path: "examples/canonical/out"
+      base_path: "out"
     load:
       table: revenue_by_country.csv
       mode: replace

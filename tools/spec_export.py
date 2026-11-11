@@ -173,9 +173,9 @@ def actions_schema(actions: list[str]) -> Dict[str, Any]:
         "$schema": JSON_SCHEMA_DIALECT,
         "title": "Hydra workflow actions",
         "description": (
-            "Actions acceptées par un step de type 'action'. "
-            "Toute valeur hors de cette liste est ignorée à l'exécution : "
-            "une faute de frappe ne provoque PAS d'erreur."
+            "Actions accepted by a step of type 'action'. "
+            "Any value outside this list is ignored at run time: "
+            "a typo does NOT raise an error."
         ),
         "type": "string",
         "enum": actions,
@@ -194,10 +194,10 @@ def connectors_schema(connectors: list[str]) -> Dict[str, Any]:
         "$schema": JSON_SCHEMA_DIALECT,
         "title": "Hydra connector types",
         "description": (
-            "Valeurs admises pour la clé 'type' d'une source ou d'une "
-            "destination. Le modèle Pydantic accepte une chaîne libre : seul le "
-            "registre fait foi, et un type inconnu n'échoue qu'à l'exécution. "
-            "Cette énumération existe pour contraindre la génération en amont."
+            "Allowed values of the 'type' key of a source or a destination. "
+            "The Pydantic model accepts any string: only the connector registry "
+            "decides, and an unknown type fails only at run time. This "
+            "enumeration exists to constrain generation upfront."
         ),
         "type": "string",
         "enum": connectors,
@@ -246,7 +246,7 @@ def transformations_surface_schema(operations: Dict[str, Any]) -> Dict[str, Any]
         "type": "array",
         "minItems": 1,
         "items": {"oneOf": variants},
-        "description": "Liste ordonnée d'étapes, chacune étant un objet à UNE seule clé : le nom de l'opération.",
+        "description": "Ordered list of steps, each one an object with ONE key only: the name of the operation.",
     }
 
     engine = {
@@ -254,16 +254,16 @@ def transformations_surface_schema(operations: Dict[str, Any]) -> Dict[str, Any]
         "enum": ["auto", "pandas", "duckdb"],
         "default": "auto",
         "description": (
-            "Moteur des opérations globales (aggregate, sort). auto : pandas, sauf au-delà de "
-            "HYDRA_LARGE_VOLUME_ROWS lignes estimées (2 000 000) : moteur gros volumes "
-            "(pyarrow + DuckDB, extra hydra-etl[duckdb]). La variable HYDRA_ENGINE est prioritaire."
+            "Engine of the global operations (aggregate, sort). auto: pandas, except beyond "
+            "HYDRA_LARGE_VOLUME_ROWS estimated rows (2,000,000): the large-volume engine "
+            "(pyarrow + DuckDB, extra hydra-etl[duckdb]). The HYDRA_ENGINE variable takes precedence."
         ),
     }
 
     return {
         "$schema": JSON_SCHEMA_DIALECT,
         "$id": f"https://hydra.local/schemas/{product_version()}/manifests/transformations.surface.schema.json",
-        "title": "Hydra manifest — transformations (forme écrite)",
+        "title": "Hydra manifest — transformations (written form)",
         "type": "object",
         "properties": {
             "version": {"type": "string"},
@@ -273,7 +273,7 @@ def transformations_surface_schema(operations: Dict[str, Any]) -> Dict[str, Any]
                 "type": "object",
                 "properties": {"engine": engine, "steps": steps},
                 "required": ["steps"],
-                "description": "Forme imbriquée, équivalente à 'steps' à la racine.",
+                "description": "Nested form, equivalent to 'steps' at the root.",
             },
         },
         "anyOf": [{"required": ["steps"]}, {"required": ["transformations"]}],

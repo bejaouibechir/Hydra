@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "hydra-etl": {
+      "type": "stdio",
+      "command": "C:\\Users\\DELL\\Desktop\\Hydra-promo\\publication\\hydra-mcp-three-models\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "hydra_etl.mcp",
+        "--workspace",
+        "C:\\Users\\DELL\\Desktop\\Hydra-promo\\publication\\hydra-vscode-test"
+      ]
+    }
+  }
+}

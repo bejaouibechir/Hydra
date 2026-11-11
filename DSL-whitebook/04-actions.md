@@ -17,25 +17,23 @@ An **action** is a workflow step that does something **other than moving data**:
   depends_on: [load_sales]
 ```
 
-> **[FIGURE fig-04-01 · diagram]** A workflow graph where job steps are drawn as data cylinders and action steps as rounded boxes with an icon per action (log, clock, HTTP, envelope, terminal, Python, variable, diamond).
+![A workflow mixing cylindrical data jobs with rounded action steps for log, delay, webhook, email, bash, Python, set_param and condition.](04-actions/41.png)
 
 ## The 11 actions
 
-| Family | Action | Purpose |
-|---|---|---|
-| Flow | `log` | Write a message in the run log |
-| | `delay` | Wait a number of seconds |
-| | `condition` | Compute true/false and store it as a parameter |
-| Notification | `webhook` | Call a URL |
-| | `email` | Send an email |
-| Scripts | `bash` | Run a Bash command (Linux, macOS) |
-| | `powershell` | Run a PowerShell command (Windows) |
-| | `ssh` | Run a command on a remote server |
-| | `python` | Run a Python script |
-| Parameters | `set_param` | Create a parameter during the run |
-| | `assign_param` | Change a parameter created during the run |
-
-No other action exists.
+| Family       | Action         | Purpose                                        |
+| ------------ | -------------- | ---------------------------------------------- |
+| Flow         | `log`          | Write a message in the run log                 |
+|              | `delay`        | Wait a number of seconds                       |
+|              | `condition`    | Compute true/false and store it as a parameter |
+| Notification | `webhook`      | Call a URL                                     |
+|              | `email`        | Send an email                                  |
+| Scripts      | `bash`         | Run a Bash command (Linux, macOS)              |
+|              | `powershell`   | Run a PowerShell command (Windows)             |
+|              | `ssh`          | Run a command on a remote server               |
+|              | `python`       | Run a Python script                            |
+| Parameters   | `set_param`    | Create a parameter during the run              |
+|              | `assign_param` | Change a parameter created during the run      |
 
 ## Rules for actions
 
@@ -53,9 +51,9 @@ No other action exists.
 
 ## log
 
-| Parameter | Required | Default |
-|---|---|---|
-| `message` | No | `Step '<name>' executed` |
+| Parameter | Required | Default                  |
+| --------- | -------- | ------------------------ |
+| `message` | No       | `Step '<name>' executed` |
 
 ```yaml
 - name: start
@@ -69,10 +67,10 @@ The message is shown under the step in `hdrctl run` and kept in the run result (
 
 ## delay
 
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `seconds` | No | `1` | Seconds to wait (a number) |
-| `duration` | No | – | Same as `seconds` |
+| Parameter  | Required | Default | Description                |
+| ---------- | -------- | ------- | -------------------------- |
+| `seconds`  | No       | `1`     | Seconds to wait (a number) |
+| `duration` | No       | –       | Same as `seconds`          |
 
 ```yaml
 - name: wait_replica
@@ -86,12 +84,12 @@ The message is shown under the step in `hdrctl run` and kept in the run result (
 
 Evaluates a condition and stores the result (`True` or `False`) in a parameter. Other steps read it in `when:`.
 
-| Parameter | Default | Description |
-|---|---|---|
-| `name` | the step name | Name of the parameter that receives the result |
-| `mode` | `expr` | `expr` (an expression) or `structured` (left / op / right) |
-| `expr` | – | The expression, in `expr` mode |
-| `left`, `op`, `right` | – | The comparison, in `structured` mode |
+| Parameter             | Default       | Description                                                |
+| --------------------- | ------------- | ---------------------------------------------------------- |
+| `name`                | the step name | Name of the parameter that receives the result             |
+| `mode`                | `expr`        | `expr` (an expression) or `structured` (left / op / right) |
+| `expr`                | –             | The expression, in `expr` mode                             |
+| `left`, `op`, `right` | –             | The comparison, in `structured` mode                       |
 
 ### Example 1: expression mode
 
@@ -144,7 +142,7 @@ The expression follows the rules of `when` (see *Workflows*).
   when: "{{ param:is_prod }} == True"
 ```
 
-> **[LAB lab-04-01 · Killercoda]** **Branching a workflow** — Build a workflow that takes one of two branches depending on a parameter, then switch the branch by running the project with `hdrctl run . --env dev` and `hdrctl run . --env prod`.
+> 
 
 ---
 
@@ -152,12 +150,12 @@ The expression follows the rules of `when` (see *Workflows*).
 
 ## webhook
 
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `url` | Yes | – | Address to call |
-| `method` | No | `POST` | HTTP method |
-| `body` | No | – | Body, as a mapping (sent as JSON) or as text |
-| `headers` | No | – | Extra headers |
+| Parameter | Required | Default | Description                                  |
+| --------- | -------- | ------- | -------------------------------------------- |
+| `url`     | Yes      | –       | Address to call                              |
+| `method`  | No       | `POST`  | HTTP method                                  |
+| `body`    | No       | –       | Body, as a mapping (sent as JSON) or as text |
+| `headers` | No       | –       | Extra headers                                |
 
 The request is sent with `Content-Type: application/json`. It fails after 30 seconds without an answer, or if the server answers with an error status.
 
@@ -207,16 +205,16 @@ The request is sent with `Content-Type: application/json`. It fails after 30 sec
 
 ## email
 
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `to` | Yes | – | Recipient |
-| `subject` | No | – | Subject |
-| `body` | No | empty | Plain-text body |
-| `from_addr` | No | `hydra@localhost` | Sender |
-| `smtp_host` | No | `localhost` | SMTP server |
-| `smtp_port` | No | `1025` | SMTP port |
-| `username`, `password` | No | – | SMTP login |
-| `use_tls` | No | `false` | Use STARTTLS |
+| Parameter              | Required | Default           | Description     |
+| ---------------------- | -------- | ----------------- | --------------- |
+| `to`                   | Yes      | –                 | Recipient       |
+| `subject`              | No       | –                 | Subject         |
+| `body`                 | No       | empty             | Plain-text body |
+| `from_addr`            | No       | `hydra@localhost` | Sender          |
+| `smtp_host`            | No       | `localhost`       | SMTP server     |
+| `smtp_port`            | No       | `1025`            | SMTP port       |
+| `username`, `password` | No       | –                 | SMTP login      |
+| `use_tls`              | No       | `false`           | Use STARTTLS    |
 
 The defaults point to a local test mail server. In production, set `smtp_host`, `smtp_port`, `use_tls` and the login.
 
@@ -248,11 +246,11 @@ The defaults point to a local test mail server. In production, set `smtp_host`, 
 
 ## bash and powershell
 
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `command` | Yes | – | The command |
-| `working_dir` | No | current folder | Folder in which it runs |
-| `timeout` | No | `60` | Seconds before it is stopped |
+| Parameter     | Required | Default        | Description                  |
+| ------------- | -------- | -------------- | ---------------------------- |
+| `command`     | Yes      | –              | The command                  |
+| `working_dir` | No       | current folder | Folder in which it runs      |
+| `timeout`     | No       | `60`           | Seconds before it is stopped |
 
 - `bash` runs on Linux and macOS only; `powershell` on Windows only. Using the other one fails with a clear message.
 - The output of the command is copied into the run log.
@@ -294,15 +292,15 @@ The defaults point to a local test mail server. In production, set `smtp_host`, 
 
 ## ssh
 
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `host` | Yes | – | Remote server |
-| `username` | Yes | – | Login |
-| `command` | Yes | – | Command to run |
-| `port` | No | `22` | SSH port |
-| `key_path` | No | – | Private key file (used first) |
-| `password` | No | – | Password, if no key |
-| `timeout` | No | `30` | Seconds |
+| Parameter  | Required | Default | Description                   |
+| ---------- | -------- | ------- | ----------------------------- |
+| `host`     | Yes      | –       | Remote server                 |
+| `username` | Yes      | –       | Login                         |
+| `command`  | Yes      | –       | Command to run                |
+| `port`     | No       | `22`    | SSH port                      |
+| `key_path` | No       | –       | Private key file (used first) |
+| `password` | No       | –       | Password, if no key           |
+| `timeout`  | No       | `30`    | Seconds                       |
 
 Requires `pip install paramiko`.
 
@@ -319,12 +317,12 @@ Requires `pip install paramiko`.
 
 ## python
 
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `script` | one of the two | – | Python code, inline |
-| `file_path` | one of the two | – | A `.py` file |
-| `working_dir` | No | current folder | Folder in which it runs |
-| `timeout` | No | `60` | Seconds |
+| Parameter     | Required       | Default        | Description             |
+| ------------- | -------------- | -------------- | ----------------------- |
+| `script`      | one of the two | –              | Python code, inline     |
+| `file_path`   | one of the two | –              | A `.py` file            |
+| `working_dir` | No             | current folder | Folder in which it runs |
+| `timeout`     | No             | `60`           | Seconds                 |
 
 - The script runs with the same Python as Hydra, on any system.
 - A relative `file_path` is looked for next to the workflow, then from the project root.
@@ -382,17 +380,17 @@ A non-zero exit code makes the step fail.
 
 Parameters created during a run live **only for that run**. They are shared by all its steps.
 
-| | `set_param` | `assign_param` |
-|---|---|---|
-| Creates a parameter | ✔ | – |
-| Changes an existing one | – | ✔ |
+|                         | `set_param`    | `assign_param` |
+| ----------------------- | -------------- | -------------- |
+| Creates a parameter     | ✔              | –              |
+| Changes an existing one | –              | ✔              |
 | Fails if the parameter… | already exists | does not exist |
 
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `name` | Yes | – | Parameter name |
-| `value` | Yes | – | Value |
-| `type` | No | `any` | `int` · `float` · `str` / `string` · `bool` / `boolean` · `json` · `any` |
+| Parameter | Required | Default | Description                                                              |
+| --------- | -------- | ------- | ------------------------------------------------------------------------ |
+| `name`    | Yes      | –       | Parameter name                                                           |
+| `value`   | Yes      | –       | Value                                                                    |
+| `type`    | No       | `any`   | `int` · `float` · `str` / `string` · `bool` / `boolean` · `json` · `any` |
 
 ### Example 1: create, then use
 
@@ -450,7 +448,7 @@ steps:
 
 A value that does not match `type` makes the step fail.
 
-> **[FIGURE fig-04-02 · diagram]** Timeline of one run: `set_param batch_label=nightly` → `log` reads it → `assign_param batch_label=nightly-partial` → `bash` reads `$batch_label`, showing the value at each step.
+![Timeline showing set_param creating batch_label as nightly, log reading nightly, assign_param changing it to nightly-partial, and bash reading the updated value.](04-actions/42.png)
 
 ---
 
@@ -458,10 +456,10 @@ A value that does not match `type` makes the step fail.
 
 With `rollback: true` on the workflow (see *Workflows*), actions that act **outside Hydra** must declare how to undo them.
 
-| Action | Needs `undo:` with `rollback: true` |
-|---|---|
-| `webhook`, `email`, `bash`, `powershell`, `ssh`, `python` | Yes: an action, or `none` |
-| `log`, `delay`, `condition`, `set_param`, `assign_param` | No |
+| Action                                                    | Needs `undo:` with `rollback: true` |
+| --------------------------------------------------------- | ----------------------------------- |
+| `webhook`, `email`, `bash`, `powershell`, `ssh`, `python` | Yes: an action, or `none`           |
+| `log`, `delay`, `condition`, `set_param`, `assign_param`  | No                                  |
 
 ```yaml
 - name: create_partition
@@ -479,4 +477,6 @@ With `rollback: true` on the workflow (see *Workflows*), actions that act **outs
 - `undo: none` says "nothing to reverse" explicitly.
 - The undo actions run from the last step done to the first.
 
-> **[LAB lab-04-04 · Killercoda]** **Reversible actions** — Write a workflow that creates a folder and calls a webhook, give each an `undo:`, make the last step fail, and watch the undo actions run in reverse order.
+[**[LAB lab-04-04 · Killercoda]** **Reversible actions** —](https://github.com/bejaouibechir/bejaouibechir.github.io/tree/main/codes/04-actions/workflow_actions)]
+
+![](C:\Users\DELL\Desktop\Hydra\DSL-whitebook\images\04-actions\43.png)

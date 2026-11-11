@@ -112,7 +112,7 @@ def _check_action_params(step_name: str, action: str, params: Optional[Dict[str,
 # ---------------------------------------------------------------------------
 
 class Trigger(BaseModel):
-    """Déclencheur du workflow."""
+    """Workflow trigger."""
     model_config = ConfigDict(extra="forbid")
     type: Literal["manual", "schedule", "webhook"] = "manual"
     cron: Optional[str] = None
@@ -131,7 +131,7 @@ class Trigger(BaseModel):
 
 
 class RetryPolicy(BaseModel):
-    """Politique de re-tentative d'un step (appliquée par Retry-scope)."""
+    """Retry policy of a step."""
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="before")
@@ -146,8 +146,9 @@ class RetryPolicy(BaseModel):
 
 
 class UndoAction(BaseModel):
-    """`undo:` d'un step action — l'action qui défait ce qu'il a fait, lancée
-    si le workflow (en `rollback: true`) échoue après lui."""
+    """`undo:` of an action step: the action that undoes what the step did, run
+    if the workflow (with `rollback: true`) fails after it.
+    """
     model_config = ConfigDict(extra="forbid")
     action: str
     params: Optional[Dict[str, Any]] = None
@@ -168,8 +169,9 @@ PROJECT_STEP_FIELDS = ("project", "ref", "env", "variables", "workflows", "outpu
 
 
 class WorkflowStep(BaseModel):
-    """Un step du workflow — un job Hydra, une action, ou un autre projet
-    (type=project : projet esclave lancé par ce workflow)."""
+    """A workflow step: a Hydra job, an action, or another project
+    (type: project, a sub-project run by this workflow).
+    """
     name: str
     type: Literal["job", "action", "project"]
 
@@ -296,7 +298,7 @@ class WorkflowStep(BaseModel):
 
 
 class WorkflowDef(BaseModel):
-    """Définition complète d'un workflow — issu de workflow.yaml."""
+    """Complete definition of a workflow, from workflow.yaml."""
     version: str = "1.0"
     name: str
     description: Optional[str] = None

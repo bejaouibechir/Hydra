@@ -607,3 +607,41 @@ describe('hdrSerializer — PostgreSQL CDC', () => {
     expect(back!.sources.legacy.connection.snapshot).toBe(false)
   })
 })
+
+/**
+ * A job written outside the Studio (Claude Code through the MCP server): two declared
+ * sources, `pipeline.from` the orders, `join.right` the customers. The canvas must start
+ * the flow from pipeline.from and draw the right source into the join step.
+ */
+describe('jobModelToFlow — join with a declared right source', () => {
+  const yamls = (first: string, second: string) => ({
+    sources: `version: '1.0'\nsources:\n  ${first}:\n    type: sqlite\n    connection:\n      database: ../../data/shop.db\n    extract:\n      table: ${first.replace('source_', '')}\n  ${second}:\n    type: sqlite\n    connection:\n      database: ../../data/shop.db\n    extract:\n      table: ${second.replace('source_', '')}\n`,
+    transformations: "version: '1.0'\ntransformations:\n  steps:\n  - filter:\n      expr: \"status == 'paid'\"\n  - cast:\n      mapping:\n        amount: float\n  - join:\n      right: source_customers\n      key: customer_id\n      how: inner\n  - aggregate:\n      by: [country]\n      agg:\n        orders: {func: count, col: order_id}\n",
+    destinations: "version: '1.0'\ndestinations:\n  dest_csv:\n    type: csv\n    load:\n      table: ../../outputs/r.csv\n      mode: replace\n",
+    pipeline: "version: '1.0'\npipeline:\n  from: source_orders\n  to: dest_csv\n",
+  })
+
+  for (const [first, second] of [['source_orders', 'source_customers'], ['source_customers', 'source_orders']]) {
+    it(`the flow starts from pipeline.from, the join gets the other source (${first} declared first)`, () => {
+      const model = sectionYamlsToJobModel(yamls(first, second), 'revenue_by_country')!
+      const { nodes, edges } = jobModelToFlow(model)
+      const byLabel = Object.fromEntries(nodes.map(n => [n.data.label, n.id]))
+      const into = (label: string) => edges.filter(e => e.target === byLabel[label]).map(e => e.source)
+      expect(into('filter')).toEqual([byLabel.source_orders])
+      expect(into('join').sort()).toEqual([byLabel.cast, byLabel.source_customers].sort())
+      const join = nodes.find(n => n.data.label === 'join')!
+      expect((join.data.params as Record<string, unknown>).rightSourceId).toBe(byLabel.source_customers)
+      // layout: the main source on the flow line, the right source below it, just before the join
+      const at = (label: string) => nodes.find(n => n.data.label === label)!.position
+      expect(at('source_orders').y).toBe(at('filter').y)
+      expect(at('source_customers').y).toBeGreaterThan(at('filter').y)
+      expect(at('source_customers').x).toBeLessThan(at('join').x)
+      expect(at('source_customers').x).toBeGreaterThan(at('filter').x)
+      // and back to the files: nothing changes
+      const back = flowToJobModel(nodes, edges, 'revenue_by_country')
+      expect(back.pipeline.from).toBe('source_orders')
+      const j = back.transformations.steps.find(s => 'join' in s) as Record<string, Record<string, unknown>>
+      expect(j.join.right).toBe('source_customers')
+    })
+  }
+})

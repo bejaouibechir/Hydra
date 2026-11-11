@@ -1059,8 +1059,18 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
   const edges: Edge[] = []
   let x = 60
 
-  // Sources
-  const srcKeys = Object.keys(model.sources)
+  // Sources. The main flow starts from pipeline.from; the other sources only come in
+  // through a join / merge / union (their « right »), drawn as an edge into that step.
+  const allKeys = Object.keys(model.sources)
+  const rightKeys = new Set(
+    model.transformations.steps
+      .map(st => { const o = Object.keys(st)[0]; const r = (st as Record<string, Record<string, unknown>>)[o]
+        return ['join', 'merge', 'union'].includes(o) && r && typeof r.right === 'string' ? r.right : '' })
+      .filter(k => k && k in model.sources))
+  const leftKey = (model.pipeline?.from && model.pipeline.from in model.sources) ? model.pipeline.from
+    : (allKeys.find(k => !rightKeys.has(k)) ?? allKeys[0])
+  const srcKeys = leftKey ? [leftKey, ...allKeys.filter(k => k !== leftKey)] : allKeys
+  let srcRow = 0
   for (const key of srcKeys) {
     const src = model.sources[key]
     const nodeType = CONNECTOR_TO_SOURCE_NODE[src.type] ?? 'source_csv'
@@ -1081,12 +1091,24 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
       params.create = c.create === false ? 'no' : 'yes'
       params.snapshot = c.snapshot === false ? 'no' : 'yes'
     }
+    // the main source on the flow line; a right source below the line, just before the
+    // step that uses it, so that its edge goes up into that step instead of running
+    // behind the steps of the flow line
+    const useAt = model.transformations.steps.findIndex(st => {
+      const o = Object.keys(st)[0]
+      const r = (st as Record<string, Record<string, unknown>>)[o]
+      return ['join', 'merge', 'union'].includes(o) && r?.right === key
+    })
+    const position = key === leftKey || useAt < 0
+      ? { x: 60, y: 100 + 160 * srcRow }
+      : { x: 320 + 200 * useAt - 200, y: 260 + 140 * (srcRow - 1) }
     nodes.push({
-      id, type: 'hydraNode', position: { x, y: 100 },
+      id, type: 'hydraNode', position,
       data: { nodeType, label: key, params } as unknown as FlowNodeData,
     })
-    x += 260
+    srcRow += 1
   }
+  x = 60 + 260
 
   // Transformations
   const prevIds: string[] = srcKeys.map(k => `imported_src_${k}`)
@@ -1096,12 +1118,18 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
     const op   = Object.keys(step)[0]
     const nodeType = OP_TO_NODE[op] ?? 'transform_filter'
     const id = `imported_tf_${i}`
+    const params = _stepToParams(op, step[op] as Record<string, unknown>)
+    const right = (step[op] as Record<string, unknown> | undefined)?.right
+    const rightId = ['join', 'merge', 'union'].includes(op) && typeof right === 'string' && right in model.sources
+      ? `imported_src_${right}` : null
+    if (rightId) params.rightSourceId = rightId          // the « Right source » of the step form
     nodes.push({
       id, type: 'hydraNode', position: { x, y: 100 },
-      data: { nodeType, label: op, params: _stepToParams(op, step[op] as Record<string, unknown>) } as unknown as FlowNodeData,
+      data: { nodeType, label: op, params } as unknown as FlowNodeData,
     })
     const sourceId = lastTfId ?? prevIds[0]
     if (sourceId) edges.push({ id: `${sourceId}->${id}`, source: sourceId, target: id, animated: false })
+    if (rightId) edges.push({ id: `${rightId}->${id}`, source: rightId, target: id, animated: false })
     lastTfId = id
     x += 200
   }

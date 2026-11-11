@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Valeurs admises pour la clé 'type' d'une source ou d'une destination. Le modèle Pydantic accepte une chaîne libre : seul le registre fait foi, et un type inconnu n'échoue qu'à l'exécution. Cette énumération existe pour contraindre la génération en amont.",
+  "description": "Allowed values of the 'type' key of a source or a destination. The Pydantic model accepts any string: only the connector registry decides, and an unknown type fails only at run time. This enumeration exists to constrain generation upfront.",
   "enum": [
     "csv",
     "json",

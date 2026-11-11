@@ -1,7 +1,7 @@
 {
   "$id": "https://hydra.local/schemas/0.20.0/operations/clean.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Nettoie les colonnes texte : espaces (trim + multiples) + casse.",
+  "description": "Cleans text columns: spaces (trim + repeated spaces) and case.",
   "properties": {
     "case": {
       "default": "none",

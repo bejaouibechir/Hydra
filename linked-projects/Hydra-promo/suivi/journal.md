@@ -47,6 +47,33 @@
 
 ---
 
+## 8 novembre 2026 — projet exemple « entrepôt de données » (D:\hydra-dwh-example)
+
+### Fait
+
+- Projet complet dans `D:\hydra-dwh-example` (66 fichiers, contenu public en anglais) : sources PostgreSQL `sales` + MySQL `crm` + `data/calendar.csv`, entrepôt PostgreSQL en étoile (dim_date, dim_customer, dim_product, dim_store, fact_sales, agg_sales_monthly).
+- Chemin Hydra (`hydra-project/`) : 6 jobs, 2 workflows (wf01 dimensions, wf02 faits) orchestrés par `thread.yaml`, actions Python (schéma, contrôles qualité, rapprochement) et PowerShell (pré-vol, rapport + rotation des logs), logs multiples.
+- Chemin SQL seul (`sql-equivalent/`) : postgres_fdw + mysql_fdw + file_fdw, CTE, fenêtres, `ON CONFLICT` ; `09_compare_with_hydra.sql` prouve l'égalité.
+- `docs/COMPARISON.md` : comparaison mesurée, avec une section « où SQL est meilleur ».
+
+### Vérifié (hydra-etl 0.19.1, PG 16, MariaDB 10.11, mysql_fdw 2.9.1, Linux, pwsh 7.4)
+
+- Les deux chemins de bout en bout ; **0 différence, valeur pour valeur**, sur les 6 tables (12 473 lignes de faits).
+- **Non vérifié** : la pile Docker Compose réelle et Windows PowerShell 5.1.
+
+### Appris — dette produit Hydra à requalifier
+
+- Un `NaN` float pandas est écrit **tel quel** en PostgreSQL : chaîne `'NaN'` dans une colonne TEXT, valeur `NUMERIC 'NaN'` au lieu de NULL (contourné par `.astype('Float64')` / un `script`). Probablement un bug du chargeur.
+- Arrondi monétaire : calcul en float, 145 lignes sur 12 473 différaient d'un centime avec SQL `NUMERIC` → calcul en centimes entiers dans `fact_sales`.
+- `timestamptz` lu par psycopg2 arrive avec des décalages mixtes (+01/+02) : la colonne n'est pas datetime, `.dt` échoue ; il faut un `script` avec `pd.to_datetime(..., utc=True)`.
+- Le nombre de lignes n'est pas l'argument (174 lignes YAML de transformations contre 280 de SQL, mais 429 en comptant connexions) ; les arguments sont : pas d'extension FDW ni de superutilisateur, upsert par clé sans liste de colonnes, étapes lisibles une par ligne, validation avant exécution, orchestration intégrée.
+
+### Ouvert
+
+- Rapport hebdomadaire en retard (dernier : 24/10).
+
+---
+
 ## 24 octobre 2026 — rapport hebdomadaire
 
 > Relevés le 24/10 vers 08h20 UTC, depuis le PC (`device_bash` + `curl`) sur l'API GitHub et PyPI.

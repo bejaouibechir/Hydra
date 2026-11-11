@@ -19,12 +19,11 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 # ============================================================
 
 class LoadMode(str, Enum):
-    """
-    Modes de chargement supportés.
-    
-    - append: Ajoute les données (INSERT)
-    - replace: Efface puis insère (TRUNCATE + INSERT)
-    - upsert: Insert ou update si clé existe (INSERT ... ON DUPLICATE KEY UPDATE)
+    """Load modes.
+
+    - append: adds the rows (INSERT)
+    - replace: empties then inserts (TRUNCATE + INSERT)
+    - upsert: inserts, or updates when the key exists
     """
     APPEND = "append"
     REPLACE = "replace"
@@ -36,36 +35,24 @@ class LoadMode(str, Enum):
 # ============================================================
 
 class LoadConfig(BaseModel):
-    """
-    Configuration de chargement (section load dans destinations.yaml).
-    
-    Champs:
-    - table: Nom de la table/fichier cible
-    - mode: Mode de chargement (append|replace|upsert)
-    - key: Colonnes clé (obligatoire si mode=upsert)
-    - batch_size: Taille des batchs (défaut: 10 000)
-    
-    Validation stricte:
-    - mode upsert → key obligatoire et non vide
-    - key peut être clé simple [id] ou composite [region, product_id]
-    
-    Exemples:
-        # Append simple
+    """How to load a destination (the load section of destinations.yaml).
+
+    Fields:
+    - table: target table or file
+    - mode: append | replace | upsert
+    - key: key columns (required with mode: upsert), a simple [id] or composite [region, product_id] key
+    - batch_size: rows per batch (default 10,000)
+    - atomic: all or nothing (true / false; default depends on the connector)
+
+    Examples:
         load:
           table: orders
           mode: append
-        
-        # Upsert clé simple
+
         load:
           table: users
           mode: upsert
           key: [id]
-        
-        # Upsert clé composite
-        load:
-          table: sales
-          mode: upsert
-          key: [region, product_id]
     """
     
     table: Optional[str] = Field(default=None, min_length=1)
@@ -197,15 +184,7 @@ class LoadConfig(BaseModel):
 # ============================================================
 
 class DestinationDefinition(BaseModel):
-    """
-    Définition d'une destination.
-    
-    Exemples de type:
-    - mysql
-    - mariadb
-    - csv
-    - postgresql (futur)
-    """
+    """A destination: its connector type, its connection and how to load it."""
     type: str = Field(..., min_length=1)
     connection: Dict[str, Any] = Field(default_factory=dict)
     load: LoadConfig

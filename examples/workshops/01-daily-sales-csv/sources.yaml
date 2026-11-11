@@ -3,7 +3,7 @@ sources:
   src_sales:
     type: csv
     connection:
-      base_path: "examples/workshops/01-daily-sales-csv/data"
+      base_path: "data"
     extract:
       table: sales_2025-03-04.csv
       batch_size: 10000

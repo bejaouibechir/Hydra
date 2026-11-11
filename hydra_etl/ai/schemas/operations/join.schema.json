@@ -1,5 +1,5 @@
 {
-  "$id": "https://hydra.local/schemas/0.20.0/operations/join.schema.json",
+  "$id": "https://hydra.local/schemas/0.20.1/operations/join.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Join with a reference source (a second flow).\n\nYAML parameters:\n    join:\n      right:                    # the reference source, declared like a source\n        type: mysql\n        connection: {...}\n        extract: {table: departments}\n      key: email                # common key (a string or a list of strings)\n      how: left                 # inner | left | right | outer | cross\n\nhow: cross: cartesian product (every row x every right row), no key;\nmax_rows guard (default 10,000,000 rows produced).",
   "properties": {
@@ -47,7 +47,7 @@
     "dslVersion": "1.0",
     "generatedFromPydantic": true,
     "kind": "transformation",
-    "productVersion": "0.20.0",
+    "productVersion": "0.20.1",
     "sourceModel": "hydra_etl.internal.parser.transform.JoinOp"
   }
 }

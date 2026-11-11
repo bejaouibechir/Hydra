@@ -556,6 +556,8 @@ A replacement workflow, declared on the workflow it replaces:
 | `url_ok('url')`               | HTTP answer 2xx or 3xx                                         |
 | `secret_defined('NAME')`      | The secret is set                                              |
 | `db.load('id')`               | Active queries on a database                                   |
+| `cdc.slot_lag('id')`          | WAL kept by the slot of a `postgresql_cdc` source, compared with `500MB`, `2GB` |
+| `cdc.slot_status('id')`       | State of that slot: `reserved` · `extended` · `unreserved` · `lost` · `missing` |
 | `previous.status`             | `success` · `failed` · `skipped` · `inactive` · `none`         |
 | `previous.rows`               | Rows written by the previous workflow                          |
 
@@ -566,6 +568,48 @@ when: "file_size('Data/in.csv') < 1MB or file_age('Data/in.csv') > 24h"
 ```yaml
 when: "previous.status == 'failed' and previous.rows < 100"
 ```
+
+### Alert on a CDC replication slot
+
+A `postgresql_cdc` source only moves its slot after a successful load. While loads keep failing, PostgreSQL keeps the WAL for the slot, and the disk of the source fills up. With `max_slot_wal_keep_size`, PostgreSQL invalidates the slot instead (`lost`), and the job fails until the mirror is rebuilt.
+
+`cdc.slot_lag` and `cdc.slot_status` check the slot before the workflow starts. The fallback runs a workflow that sends the alert, then runs the same job:
+
+```yaml
+# thread.yaml
+thread:
+  - mode: sequential
+    workflows:
+      - name: sync
+        fallback:
+          use: [sync_with_alert]
+          when: "cdc.slot_status('order_changes') == 'lost' or cdc.slot_status('order_changes') == 'unreserved' or cdc.slot_lag('order_changes') > 2GB"
+          on_probe_error: keep
+```
+
+```yaml
+# workflows/sync_with_alert.yaml
+version: "1.0"
+workflow:
+  name: sync_with_alert
+  steps:
+    - name: alert
+      type: action
+      action: webhook
+      params:
+        url: ${SECRET:ALERT_WEBHOOK_URL}
+        body:
+          text: "CDC slot of order_changes is falling behind: the mirror has not loaded for a while."
+      on_failure: continue
+    - name: orders
+      type: job
+      job: ../jobs/orders_mirror
+      depends_on: [alert]
+```
+
+- `cdc.slot_lag` returns bytes. It returns `0` before the first run (no slot yet), and cannot answer for an invalidated slot: test `cdc.slot_status(...) == 'lost'` before it, as above (`or` stops at the first true condition).
+- `cdc.slot_status` returns `unknown` before PostgreSQL 13 (no `wal_status`).
+- The job itself also checks the slot: it writes a warning above `lag_warning_mb`, and fails on a `lost` slot with the steps to rebuild the mirror. The fallback is what sends the alert.
 
 > **[LAB lab-03-04 · Killercoda]** **Orchestrate a project** — Build a thread of four workflows with a parallel stage, a loop and a fallback triggered by stopping a database container.
 

@@ -9,6 +9,23 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- PostgreSQL CDC source — **the replication slot is checked before each run**: retained WAL, `wal_status` and
+  `safe_wal_size` (PostgreSQL 13+). Above `lag_warning_mb` (new connection key, 1024 MB by default, `0` turns it
+  off), or when less than that is left before `max_slot_wal_keep_size`, the run writes a warning: a mirror that
+  keeps failing makes the source keep its WAL and can fill its disk. A slot past `max_slot_wal_keep_size`
+  (`wal_status = unreserved`) is reported too.
+- PostgreSQL CDC source — **a slot invalidated by PostgreSQL makes the run fail** (`wal_status = lost`, for
+  example after `max_slot_wal_keep_size`), with the steps to rebuild the mirror: drop the slot, empty the
+  destination, run again. The changes made since the last success can no longer be read; the run no longer
+  goes on with a gap.
+- Fallback conditions — `cdc.slot_lag('source')` (WAL kept by the slot of a `postgresql_cdc` source, compared
+  with `500MB`, `2GB`) and `cdc.slot_status('source')` (`reserved`, `extended`, `unreserved`, `lost`, `missing`).
+  A fallback can run a workflow that sends an alert (webhook, email) and then the same job, before the source's
+  disk fills up. DSL white book: « Alert on a CDC replication slot ».
+- `examples/postgres-cdc-mirror` — « When the load keeps failing: protect the source »: `max_slot_wal_keep_size`,
+  what Hydra ETL does in each state of the slot, and the query to watch it.
+- README — « PostgreSQL CDC: protect the source ».
+
 - Studio — the terminal opens in **tabs**, as in VS Code: **+** opens a new terminal (pwsh or bash), × closes one,
   and each session keeps running when another tab, or LOGS / PARAMETERS / SECRETS, is shown. The terminal button
   of a PowerShell or Bash action opens a new tab.

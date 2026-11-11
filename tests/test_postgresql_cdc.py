@@ -75,6 +75,103 @@ def test_split_changes_keeps_the_final_state_per_key():
     assert changes["partial"] == [{"id": 3, "v": "d", "big": UNCHANGED}]
 
 
+class _FakeCursor:
+    """Curseur minimal : SHOW server_version_num puis la ligne de pg_replication_slots."""
+
+    def __init__(self, version, row):
+        self.version, self.row, self.sql = version, row, []
+
+    def execute(self, sql, params=None):
+        self.sql.append(sql)
+        self._next = (str(self.version),) if sql.startswith("SHOW") else self.row
+
+    def fetchone(self):
+        return self._next
+
+
+def _cdc(**conn):
+    return PostgreSQLCDCConnector(name="c", config={"type": "postgresql_cdc", "connection": {
+        "user": "u", "database": "d", "publication": "p", "slot": "s", **conn}})
+
+
+MB = 1024 * 1024
+
+
+def test_slot_check_is_quiet_under_the_threshold(caplog):
+    cur = _FakeCursor(160000, (10 * MB, 5 * MB, "0/16B3748", False, "reserved", 5000 * MB))
+    with caplog.at_level("WARNING"):
+        st = _cdc().check_slot(cur)
+    assert st["retained_bytes"] == 10 * MB and st["wal_status"] == "reserved"
+    assert not caplog.records
+    assert "wal_status, safe_wal_size" in cur.sql[-1]
+    assert "invalidation_reason" not in cur.sql[-1]                 # colonne de PostgreSQL 17+
+
+
+def test_slot_check_warns_on_lag_and_on_little_room_left(caplog):
+    cur = _FakeCursor(170000, (2048 * MB, 2048 * MB, "0/1", False, "extended", 100 * MB, None))
+    with caplog.at_level("WARNING"):
+        _cdc(lag_warning_mb=1024).check_slot(cur)
+    text = " | ".join(r.getMessage() for r in caplog.records)
+    assert "retains 2,048.0 MB of WAL" in text
+    assert "100.0 MB of WAL left before PostgreSQL invalidates it" in text
+
+
+def test_slot_check_warns_on_unreserved(caplog):
+    cur = _FakeCursor(150000, (5000 * MB, 5000 * MB, "0/1", False, "unreserved", -10 * MB))
+    with caplog.at_level("WARNING"):
+        _cdc().check_slot(cur)
+    assert any("wal_status = unreserved" in r.getMessage() for r in caplog.records)
+
+
+def test_slot_check_threshold_zero_never_warns(caplog):
+    cur = _FakeCursor(160000, (99999 * MB, 99999 * MB, "0/1", False, "extended", 1))
+    with caplog.at_level("WARNING"):
+        _cdc(lag_warning_mb=0).check_slot(cur)
+    assert not caplog.records
+
+
+def test_slot_check_fails_on_an_invalidated_slot():
+    cur = _FakeCursor(170000, (None, None, "0/2A0", False, "lost", None, "wal_removed"))
+    with pytest.raises(ValueError) as e:
+        _cdc().check_slot(cur)
+    msg = str(e.value)
+    assert "was invalidated" in msg and "reason: wal_removed" in msg
+    assert "max_slot_wal_keep_size" in msg and "0/2A0" in msg
+    assert "pg_drop_replication_slot('s')" in msg and "empty the destination table" in msg
+
+
+def test_slot_check_before_postgresql_13_reads_retained_wal_only():
+    cur = _FakeCursor(110005, (3 * MB, 1 * MB, "0/1", True))
+    st = _cdc().check_slot(cur)
+    assert st["wal_status"] is None and st["retained_bytes"] == 3 * MB
+    assert "wal_status" not in cur.sql[-1]
+
+
+def test_lag_warning_mb_is_checked():
+    with pytest.raises(ValueError, match="lag_warning_mb must be a number"):
+        _cdc(lag_warning_mb="beaucoup")
+    with pytest.raises(ValueError, match="0 or more"):
+        _cdc(lag_warning_mb=-1)
+    assert _cdc(lag_warning_mb="512").lag_warning_mb == 512
+
+
+def test_slot_conditions_are_part_of_the_language():
+    from hydra_etl.workflow.conditions import parse_condition
+    parse_condition("cdc.slot_status('orders') == 'lost' or cdc.slot_lag('orders') > 2GB")
+
+
+def test_slot_probes_refuse_a_source_that_is_not_cdc(tmp_path):
+    import yaml
+    from hydra_etl.workflow.probes import ProbeContext, ProbeError, evaluate
+    job = tmp_path / "jobs" / "j"
+    job.mkdir(parents=True)
+    (job / "sources.yaml").write_text(yaml.safe_dump({"version": "1.0", "sources": {"pg": {
+        "type": "postgresql", "connection": {"user": "u", "database": "d"},
+        "extract": {"table": "t"}}}}))
+    with pytest.raises(ProbeError, match="not a postgresql_cdc source"):
+        evaluate("cdc.slot_lag('pg') > 1MB", ProbeContext(root=tmp_path, workflow_jobs=[job]))
+
+
 # ── Base réelle ─────────────────────────────────────────────────────────────
 def _pg():
     raw = os.environ.get("HYDRA_TEST_PG")
@@ -199,3 +296,49 @@ def test_cdc_source_refuses_workflow_rollback(tmp_path):
     res = JobExecutor(job_dir=str(job), undo=True).run()
     assert not res.success
     assert "cannot use rollback: true" in res.error
+
+
+def test_invalidated_slot_makes_the_run_fail(tmp_path):
+    """max_slot_wal_keep_size à 1 MB, du WAL généré, un CHECKPOINT : PostgreSQL 13+
+    invalide le slot ; le run suivant doit échouer avec la marche à suivre."""
+    cfg, conn, cur = _pg()
+    cur.execute("SHOW server_version_num")
+    if int(cur.fetchone()[0]) < 130000:
+        conn.close()
+        pytest.skip("max_slot_wal_keep_size needs PostgreSQL 13+")
+    cur.execute("SHOW max_slot_wal_keep_size")
+    keep = cur.fetchone()[0]
+    try:
+        _reset(cur)
+        cur.execute("CREATE TABLE cdc_src (id bigint PRIMARY KEY, amount numeric(12,2), doc jsonb, ts timestamptz)")
+        cur.execute("INSERT INTO cdc_src VALUES (1, 1, null, now())")
+        job = _project(tmp_path, cfg)
+        from hydra_etl.workflow.probes import ProbeContext, ProbeError, evaluate
+        ctx = ProbeContext(root=tmp_path, workflow_jobs=[job])
+        assert evaluate("cdc.slot_status('changes') == 'missing'", ctx).value
+        assert evaluate("cdc.slot_lag('changes') == 0", ctx).value
+        assert _run(job).success
+        assert evaluate("cdc.slot_status('changes') == 'reserved'", ctx).value
+        cur.execute("INSERT INTO cdc_src SELECT g, g, null, now() FROM generate_series(2, 20000) g")
+        ev = evaluate("cdc.slot_lag('changes') > 100KB", ctx)
+        assert ev.value and "MB of WAL kept" in ev.reason
+        cur.execute("ALTER SYSTEM SET max_slot_wal_keep_size = '1MB'")
+        cur.execute("SELECT pg_reload_conf()")
+        for _ in range(6):                                    # plusieurs segments de WAL
+            cur.execute("SELECT pg_switch_wal()")
+            cur.execute("INSERT INTO cdc_src SELECT g, g, null, now() FROM generate_series(1000, 30000) g "
+                        "ON CONFLICT (id) DO UPDATE SET amount = cdc_src.amount + 1")
+            cur.execute("CHECKPOINT")
+        cur.execute("SELECT wal_status FROM pg_replication_slots WHERE slot_name = %s", (SLOT,))
+        assert cur.fetchone()[0] == "lost"
+        res = _run(job)
+        assert not res.success
+        assert "was invalidated" in res.error and "pg_drop_replication_slot" in res.error
+        assert evaluate("cdc.slot_status('changes') == 'lost' or cdc.slot_lag('changes') > 1GB", ctx).value
+        with pytest.raises(ProbeError, match="invalidated"):
+            evaluate("cdc.slot_lag('changes') > 1GB", ctx)
+    finally:
+        cur.execute(f"ALTER SYSTEM SET max_slot_wal_keep_size = '{keep}'")
+        cur.execute("SELECT pg_reload_conf()")
+        _reset(cur)
+        conn.close()

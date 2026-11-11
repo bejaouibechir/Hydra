@@ -335,6 +335,48 @@ def probe_db_load(arg: str, ctx: ProbeContext):
         raise ProbeError(f"db.load('{arg}'): {_short(e)}") from None
 
 
+def _cdc_slot(fn: str, arg: str, ctx: ProbeContext) -> Optional[Dict[str, Any]]:
+    """État du slot d'une source PostgreSQL CDC (None : le slot n'existe pas encore)."""
+    try:
+        conn, ctype, _ = _connector("sources", arg, ctx)
+    except ProbeError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise ProbeError(f"{fn}('{arg}'): {_short(e)}") from None
+    if ctype not in ("postgresql_cdc", "postgres_cdc") or not hasattr(conn, "slot_status"):
+        raise ProbeError(f"{fn}('{arg}'): '{arg}' is a {ctype or '?'} source, not a postgresql_cdc source")
+    try:
+        c = conn._connect()
+        try:
+            return conn.slot_status(c.cursor())
+        finally:
+            c.close()
+    except Exception as e:  # noqa: BLE001
+        raise ProbeError(f"{fn}('{arg}'): {_short(e)}") from None
+
+
+def probe_cdc_slot_lag(arg: str, ctx: ProbeContext):
+    """WAL que le serveur garde pour le slot (octets) : il grossit tant que les runs échouent."""
+    st = _cdc_slot("cdc.slot_lag", arg, ctx)
+    if st is None:
+        return 0, "slot not created yet"
+    if st.get("wal_status") == "lost" or st.get("invalidation_reason"):
+        raise ProbeError(f"cdc.slot_lag('{arg}'): the slot was invalidated by PostgreSQL; "
+                         f"test cdc.slot_status('{arg}') == 'lost'")
+    n = int(st.get("retained_bytes") or 0)
+    return n, f"{n / (1024 * 1024):,.1f} MB of WAL kept"
+
+
+def probe_cdc_slot_status(arg: str, ctx: ProbeContext):
+    """wal_status du slot ; 'missing' s'il n'existe pas, 'unknown' avant PostgreSQL 13."""
+    st = _cdc_slot("cdc.slot_status", arg, ctx)
+    if st is None:
+        return "missing", "slot not created yet"
+    if st.get("invalidation_reason"):
+        return "lost", str(st["invalidation_reason"])
+    return st.get("wal_status") or "unknown", ""
+
+
 PROBES: Dict[str, Callable[[str, ProbeContext], Any]] = {
     "source_available": probe_source_available,
     "destination_available": probe_destination_available,
@@ -344,4 +386,6 @@ PROBES: Dict[str, Callable[[str, ProbeContext], Any]] = {
     "url_ok": probe_url_ok,
     "secret_defined": probe_secret_defined,
     "db.load": probe_db_load,
+    "cdc.slot_lag": probe_cdc_slot_lag,
+    "cdc.slot_status": probe_cdc_slot_status,
 }

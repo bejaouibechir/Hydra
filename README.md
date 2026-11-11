@@ -537,6 +537,58 @@ Steps that share no dependency run in parallel.
 
 ---
 
+## PostgreSQL CDC: protect the source
+
+A `postgresql_cdc` source only moves its replication slot after the destination has published. A failed load
+loses nothing: the next run reads the same changes again. The cost: while loads keep failing, PostgreSQL keeps
+every WAL segment since the last success, and a mirror broken over a weekend can fill the source's disk.
+
+**Cap the WAL a slot can hold** (PostgreSQL 13+):
+
+```sql
+ALTER SYSTEM SET max_slot_wal_keep_size = '20GB';
+SELECT pg_reload_conf();
+```
+
+The disk is protected, but past the limit PostgreSQL invalidates the slot (`wal_status = lost`): the changes
+made since the last success can no longer be read. Hydra ETL then **fails the run** instead of going on with a
+gap, and gives the steps to rebuild the mirror: drop the slot, empty the destination table, run again (new slot,
+full copy).
+
+**Hydra ETL checks the slot before each run** (`pg_replication_slots`):
+
+| State of the slot                                                      | What Hydra ETL does                                             |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Retained WAL above `lag_warning_mb` (default 1024 MB, `0` turns it off) | Warning in the logs, the run goes on                            |
+| Less than `lag_warning_mb` left before `max_slot_wal_keep_size`        | Warning, the run goes on                                        |
+| `wal_status = unreserved`                                              | Warning: invalidated at the next checkpoint unless the run succeeds |
+| `wal_status = lost`                                                    | The run fails, with the steps to rebuild the mirror             |
+
+**Send an alert** with a workflow fallback: `cdc.slot_lag('source')` and `cdc.slot_status('source')` check the
+slot before the workflow starts, and the replacement workflow sends a webhook or an email, then runs the job.
+
+```yaml
+# workflows/thread.yaml
+- name: sync
+  fallback:
+    use: [sync_with_alert]
+    when: "cdc.slot_status('order_changes') == 'lost' or cdc.slot_lag('order_changes') > 2GB"
+```
+
+**Watch the slot** from your own monitoring:
+
+```sql
+SELECT slot_name, active, wal_status, safe_wal_size,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS retained_wal
+FROM pg_replication_slots;
+```
+
+Alert on `retained_wal` growing run after run, and on `wal_status` leaving `reserved`. Full example:
+[`examples/postgres-cdc-mirror`](examples/postgres-cdc-mirror); the conditions are described in the DSL white
+book (*Alert on a CDC replication slot*).
+
+---
+
 ## Parameters, environments and secrets
 
 The same project runs against **dev**, **prod** or any environment you define, without editing a job.

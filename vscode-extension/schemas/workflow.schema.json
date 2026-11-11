@@ -217,7 +217,7 @@
         },
         "when": {
           "type": "string",
-          "description": "Condition checked just before the start. Functions: source_available('name'), destination_available('name'), file_exists('path'), file_size('path'), file_age('path'), url_ok('url'), secret_defined('name'), db.load('name'); values: previous.status, previous.rows; operators: and, or, not, ==, !=, <, <=, >, >=; durations 30s, 5m, 24h, 7d; sizes 10KB, 5MB, 1GB.",
+          "description": "Condition checked just before the start. Functions: source_available('name'), destination_available('name'), file_exists('path'), file_size('path'), file_age('path'), url_ok('url'), secret_defined('name'), db.load('name'), cdc.slot_lag('source'), cdc.slot_status('source'); values: previous.status, previous.rows; operators: and, or, not, ==, !=, <, <=, >, >=; durations 30s, 5m, 24h, 7d; sizes 10KB, 5MB, 1GB.",
           "examples": [
             "not source_available('crm_db')",
             "file_age('data/orders.csv') > 24h"

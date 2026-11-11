@@ -413,6 +413,7 @@ destinations:
 | `publication` | Publication that contains the table. |
 | `create` | `true` (default): create the slot and the publication if they are missing. `false`: they must exist. |
 | `snapshot` | `true` (default): the first run copies the whole table, then reads the changes. |
+| `lag_warning_mb` | `1024` (default): warn when the slot retains more WAL than this, or has less than this left before `max_slot_wal_keep_size`. `0`: never warn. |
 
 ### How it works
 
@@ -427,6 +428,8 @@ destinations:
 - `wal_level = logical` on the server (`ALTER SYSTEM SET wal_level = logical;` then a restart), PostgreSQL 11 or later.
 - The source table needs a primary key, so that updates and deletes are applied by key.
 - A slot keeps the server's write-ahead log until its changes are read. Drop a slot that is no longer used: `SELECT pg_drop_replication_slot('hydra_orders');`.
+- **While loads keep failing, the slot does not move and the server keeps its WAL.** Before each run, Hydra reads the slot (`pg_replication_slots`: retained WAL, `wal_status`, `safe_wal_size`) and warns above `lag_warning_mb`. Set `max_slot_wal_keep_size` (PostgreSQL 13+) to cap the WAL a slot can hold: the disk is protected, but a slot that goes past it is invalidated (`wal_status = lost`).
+- **An invalidated slot makes the run fail**, with the steps to rebuild the mirror: drop the slot, empty the destination table, run again (new slot, full copy). Hydra never goes on with a gap in the changes.
 - A workflow with `rollback: true` cannot use a CDC source: the slot is confirmed at the end of the job and cannot be moved back. Use `load.atomic: true`.
 
 Example: `examples/postgres-cdc-mirror` in the Hydra ETL repository: first copy, a day of changes, then a failure in the middle of the load that loses nothing.

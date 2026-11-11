@@ -34,6 +34,8 @@ FUNCTIONS: Dict[str, Tuple[int, str]] = {
     "url_ok":                (1, "bool"),     # réponse HTTP 2xx/3xx
     "secret_defined":        (1, "bool"),     # secret présent (.hydra/secrets ou environnement)
     "db.load":               (1, "number"),   # sessions actives sur une base du projet
+    "cdc.slot_lag":          (1, "bytes"),    # WAL retenu par le slot d'une source PostgreSQL CDC
+    "cdc.slot_status":       (1, "text"),     # wal_status du slot (reserved, extended, unreserved, lost…)
 }
 
 # valeurs `objet.attribut` sans appel
@@ -52,6 +54,8 @@ FUNCTION_HELP: Dict[str, Tuple[str, str]] = {
     "url_ok":                ("url", "the URL answers with HTTP 2xx/3xx"),
     "secret_defined":        ("secret", "the secret is set (.hydra/secrets or environment)"),
     "db.load":               ("database", "active queries on a database source or destination"),
+    "cdc.slot_lag":          ("source", "WAL kept by the slot of a PostgreSQL CDC source, e.g. cdc.slot_lag('orders') > 2GB"),
+    "cdc.slot_status":       ("source", "state of the slot: 'reserved', 'extended', 'unreserved', 'lost', 'missing'"),
 }
 
 ATTRIBUTE_HELP: Dict[str, str] = {

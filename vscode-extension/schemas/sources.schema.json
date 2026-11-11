@@ -238,7 +238,12 @@
           "examples": ["hydra_orders"]
         },
         "create": { "type": "boolean", "default": true, "description": "Create the publication and the slot if they are missing." },
-        "snapshot": { "type": "boolean", "default": true, "description": "First run: copy the whole table, then read the changes." }
+        "snapshot": { "type": "boolean", "default": true, "description": "First run: copy the whole table, then read the changes." },
+        "lag_warning_mb": {
+          "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "string" }], "default": 1024,
+          "description": "Before each run, warn when the slot retains more WAL than this (in MB), or when less than this is left before max_slot_wal_keep_size invalidates it. 0: never warn. A slot invalidated by PostgreSQL always makes the run fail.",
+          "examples": [1024, 4096]
+        }
       }
     },
 

@@ -15,6 +15,7 @@ DELETE) lus par réplication logique, dans l'ordre des transactions.
           publication: hydra_orders   # publication qui contient la table
           create: true                # crée publication et slot s'ils manquent (défaut : true)
           snapshot: true              # 1er run : la table entière, puis les changements (défaut : true)
+          lag_warning_mb: 1024        # avertit au-delà de ce volume de WAL retenu par le slot (0 : jamais)
         extract:
           table: public.orders
 
@@ -34,6 +35,15 @@ Confirmation : les changements sont lus sans être consommés
 qu'après la publication réussie de la destination. Une panne en plein chargement
 fait relire les mêmes changements au run suivant : rien n'est perdu, et l'upsert
 les applique sans doublon.
+
+Surveillance du slot : avant chaque lecture, le connecteur lit l'état du slot dans
+pg_replication_slots (WAL retenu, wal_status, safe_wal_size en PostgreSQL 13+).
+- WAL retenu au-delà de `lag_warning_mb`, ou moins de `lag_warning_mb` avant
+  l'invalidation (safe_wal_size) : avertissement dans les logs, le run continue ;
+- wal_status = unreserved : avertissement, le slot sera invalidé s'il ne rattrape pas ;
+- slot invalidé (wal_status = lost, ex. max_slot_wal_keep_size dépassé) : le run
+  échoue avec la marche à suivre (re-snapshot). Il ne reprend jamais en silence avec
+  un trou dans les changements.
 
 Prérequis côté base : wal_level = logical, PostgreSQL 11 ou plus, un rôle avec
 REPLICATION (et le droit de créer la publication si `create: true`). Le pilote :
@@ -203,7 +213,10 @@ class PostgreSQLCDCConnector(Connector):
         self.publication = str(self._conn_cfg["publication"])
         self.create = _flag(self._conn_cfg.get("create"), True)
         self.snapshot = _flag(self._conn_cfg.get("snapshot"), True)
+        self.lag_warning_mb = _number(self._conn_cfg.get("lag_warning_mb"), 1024,
+                                      f"PostgreSQLCDCConnector [{self.name}]: connection.lag_warning_mb")
         self._pending_lsn: Optional[str] = None
+        self.last_slot_status: Optional[Dict[str, Any]] = None
 
     # ── Connexion ────────────────────────────────────────────────────────
     def _connect(self):
@@ -237,8 +250,87 @@ class PostgreSQLCDCConnector(Connector):
                 raise ValueError(
                     f"PostgreSQLCDCConnector [{self.name}]: wal_level is '{level}', CDC needs 'logical'. "
                     f"Run ALTER SYSTEM SET wal_level = logical; then restart PostgreSQL.")
+            self.check_slot(cur)
         finally:
             conn.close()
+
+    # ── Surveillance du slot ─────────────────────────────────────────────
+    def slot_status(self, cur) -> Optional[Dict[str, Any]]:
+        """État du slot (None s'il n'existe pas) : retained_bytes (WAL que le serveur garde
+        pour lui), lag_bytes (écart avec la dernière position confirmée), active, et en
+        PostgreSQL 13+ wal_status et safe_wal_size ; en 17+ invalidation_reason."""
+        cur.execute("SHOW server_version_num")
+        version = int(cur.fetchone()[0])
+        current = ("CASE WHEN pg_is_in_recovery() THEN pg_last_wal_replay_lsn() "
+                   "ELSE pg_current_wal_lsn() END")
+        cols = [f"pg_wal_lsn_diff({current}, restart_lsn)::bigint AS retained_bytes",
+                f"pg_wal_lsn_diff({current}, confirmed_flush_lsn)::bigint AS lag_bytes",
+                "confirmed_flush_lsn::text AS confirmed_flush_lsn", "active"]
+        if version >= 130000:
+            cols += ["wal_status", "safe_wal_size"]
+        if version >= 170000:
+            cols.append("invalidation_reason")
+        cur.execute(f"SELECT {', '.join(cols)} FROM pg_replication_slots WHERE slot_name = %s",
+                    (self.slot,))
+        row = cur.fetchone()
+        if row is None:
+            return None
+        names = [c.split(" AS ")[-1] for c in cols]
+        status = dict(zip(names, row))
+        status.setdefault("wal_status", None)
+        status.setdefault("safe_wal_size", None)
+        status.setdefault("invalidation_reason", None)
+        status["server_version_num"] = version
+        return status
+
+    def check_slot(self, cur) -> Optional[Dict[str, Any]]:
+        """Lit l'état du slot avant la lecture : avertit si le WAL retenu dépasse le
+        seuil, échoue si PostgreSQL a invalidé le slot (des changements sont perdus)."""
+        st = self.slot_status(cur)
+        self.last_slot_status = st
+        if st is None:
+            return None
+        if st["wal_status"] == "lost" or st["invalidation_reason"]:
+            reason = f", reason: {st['invalidation_reason']}" if st["invalidation_reason"] else ""
+            cause = ("The WAL it needed was removed, most likely because the slot fell behind more than "
+                     "max_slot_wal_keep_size." if st["invalidation_reason"] in (None, "wal_removed") else
+                     "PostgreSQL can no longer decode changes from it.")
+            step3 = ("run the job again: the slot is recreated and the table is read again in full"
+                     if self.create and self.snapshot else
+                     "recreate the slot and reload the table in full (create: true and snapshot: true "
+                     "do it on the next run)")
+            raise ValueError(
+                f"PostgreSQLCDCConnector [{self.name}]: replication slot '{self.slot}' was invalidated by "
+                f"PostgreSQL (wal_status = {st['wal_status']}{reason}). {cause} Changes made since "
+                f"the last successful run (confirmed up to {st['confirmed_flush_lsn']}) can no longer be "
+                f"read, so this run stops instead of going on with a gap.\n"
+                f"  To rebuild the mirror:\n"
+                f"  1. SELECT pg_drop_replication_slot('{self.slot}');\n"
+                f"  2. empty the destination table (rows deleted at the source during the gap would "
+                f"otherwise stay in it);\n"
+                f"  3. {step3}.")
+        threshold = int(self.lag_warning_mb * 1024 * 1024)
+        retained = st["retained_bytes"]
+        safe = st["safe_wal_size"]
+        if st["wal_status"] == "unreserved":
+            logger.warning(
+                "CDC source '%s': replication slot '%s' is past max_slot_wal_keep_size "
+                "(wal_status = unreserved, %s retained). PostgreSQL will invalidate it at the next "
+                "checkpoint unless this run succeeds.", self.name, self.slot, _mb(retained))
+        elif threshold > 0 and retained is not None and retained >= threshold:
+            logger.warning(
+                "CDC source '%s': replication slot '%s' retains %s of WAL on the source (warning "
+                "threshold: %s). The server keeps it until a run succeeds; if loads keep failing, "
+                "fix the destination or set max_slot_wal_keep_size to protect the disk.",
+                self.name, self.slot, _mb(retained), _mb(threshold))
+        if threshold > 0 and safe is not None and 0 <= safe < threshold \
+                and st["wal_status"] != "unreserved":
+            logger.warning(
+                "CDC source '%s': replication slot '%s' has %s of WAL left before PostgreSQL "
+                "invalidates it (max_slot_wal_keep_size).", self.name, self.slot, _mb(safe))
+        logger.info("CDC source '%s': slot '%s' retains %s of WAL (wal_status = %s)",
+                    self.name, self.slot, _mb(retained), st["wal_status"] or "n/a")
+        return st
 
     # ── Préparation : publication, slot ─────────────────────────────────
     @staticmethod
@@ -284,6 +376,7 @@ class PostgreSQLCDCConnector(Connector):
         if row[0] != "pgoutput":
             raise ValueError(f"PostgreSQLCDCConnector [{self.name}]: slot '{self.slot}' uses the plugin "
                              f"'{row[0]}'; this source needs a pgoutput slot")
+        self.check_slot(cur)
         return False
 
     # ── Lecture ──────────────────────────────────────────────────────────
@@ -429,6 +522,24 @@ class PostgreSQLCDCConnector(Connector):
     def begin_load(self, **_: Any):
         raise ValueError(f"PostgreSQLCDCConnector [{self.name}]: a CDC source cannot be a destination; "
                          f"use type: postgresql")
+
+
+def _number(v: Any, default: float, label: str) -> float:
+    if v is None or v == "":
+        return default
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} must be a number of megabytes (got '{v}')") from None
+    if n < 0:
+        raise ValueError(f"{label} must be 0 or more (got '{v}')")
+    return n
+
+
+def _mb(n: Optional[int]) -> str:
+    if n is None:
+        return "an unknown amount"
+    return f"{n / (1024 * 1024):,.1f} MB"
 
 
 def _flag(v: Any, default: bool) -> bool:

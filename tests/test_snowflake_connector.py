@@ -259,7 +259,26 @@ def test_destination_columns_differing_by_case_refused(sf):
         _load(_connector(), [[{"id": 1, "ID": 2}]], table="NEW_T", mode="append")
 
 
+def _emulator_rolls_back(sf) -> bool:
+    """fakesnow < 0.11 (seule version pour Python 3.9) ignore ROLLBACK : le tout ou
+    rien ne peut pas y être observé (Snowflake, lui, annule bien la transaction)."""
+    c = _connector()._connect()
+    try:
+        cur = c.cursor()
+        cur.execute("CREATE TABLE RB_PROBE (X NUMBER)")
+        cur.execute("INSERT INTO RB_PROBE VALUES (1)")
+        c.rollback()
+        cur.execute("SELECT COUNT(*) FROM RB_PROBE")
+        n = cur.fetchone()[0]
+        cur.execute("DROP TABLE RB_PROBE")
+        return n == 0
+    finally:
+        c.close()
+
+
 def test_destination_replace_is_all_or_nothing(sf):
+    if not _emulator_rolls_back(sf):
+        pytest.skip("this fakesnow version does not roll transactions back")
     _load(_connector(), [[{"k": 1, "v": "old"}, {"k": 2, "v": "old"}]], table="REP", mode="append")
     with pytest.raises(ValueError):
         _load(_connector(), [[{"k": 3, "v": "new"}], [{"k": "not a number", "v": "bad"}]],

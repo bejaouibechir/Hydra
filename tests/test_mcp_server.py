@@ -457,7 +457,7 @@ def test_refus_de_workflow_sans_chemin_temporaire(call):
 
 
 def test_connecteurs_en_lecture_seule_annonces(call):
-    """The model must know that web_api, Snowflake and the CDC sources cannot be destinations."""
+    """The model must know that web_api and the CDC sources cannot be destinations."""
     from pathlib import Path
 
     import hydra_etl.internal.connector as conn
@@ -465,8 +465,9 @@ def test_connecteurs_en_lecture_seule_annonces(call):
 
     out = call("hydra_list_connectors")
     only = out.split("Source only (cannot be a destination):")[1].splitlines()[0]
-    assert {"web_api", "snowflake", "postgresql_cdc", "postgres_cdc"} == {c.strip() for c in only.split(",")}
+    assert {"web_api", "postgresql_cdc", "postgres_cdc"} == {c.strip() for c in only.split(",")}
     assert "csv" in out.split("Source only")[0]
+    assert "snowflake" in out.split("Source only")[0]       # source and destination since 0.21
     web_api = (Path(conn.__file__).parent / "web_api_connector_v2.py").read_text(encoding="utf-8")
     assert "def load_batches" not in web_api  # still read-only: keep SOURCE_ONLY in sync
     assert set(SOURCE_ONLY) <= set(call("hydra_list_connectors").replace(",", " ").split())

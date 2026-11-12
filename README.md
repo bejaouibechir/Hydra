@@ -262,7 +262,7 @@ readable and run without extra infrastructure.
 | <img src="assets/connectors/csv.png" alt="" width="40"><br>CSV | <img src="assets/connectors/json.png" alt="" width="40"><br>JSON | <img src="assets/connectors/parquet.png" alt="" width="40"><br>Parquet | <img src="assets/connectors/mysql.png" alt="" width="40"><br>MySQL / MariaDB | <img src="assets/connectors/postgresql.png" alt="" width="40"><br>PostgreSQL | <img src="assets/connectors/sqlserver.png" alt="" width="40"><br>SQL Server | <img src="assets/connectors/sqlite.png" alt="" width="40"><br>SQLite | <img src="assets/connectors/mongo.png" alt="" width="40"><br>MongoDB | <img src="assets/connectors/api.png" alt="" width="40"><br>Web API |
 |:--------------------------------------------------------------:|:----------------------------------------------------------------:|:----------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:----------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:------------------------------------------------------------------:|:--------------------------------------------------------------:|
 
-Also **PostgreSQL CDC**, a source that reads the inserts, updates and deletes of a table through logical replication and keeps a mirror up to date (`examples/postgres-cdc-mirror`), and **Snowflake**, as a read-only source: exact numbers, dates, time zones and JSON on the way out (`pip install "hydra-etl[snowflake]"`).
+Also **PostgreSQL CDC**, a source that reads the inserts, updates and deletes of a table through logical replication and keeps a mirror up to date (`examples/postgres-cdc-mirror`), and **Snowflake**, as a source and a destination: exact numbers, dates, time zones and JSON in both directions, upsert by `MERGE` (`pip install "hydra-etl[snowflake]"`).
 
 CSV, JSON and SQLite are built in; the other connectors are one `pip install` extra away.
 
@@ -659,7 +659,7 @@ pip install hydra-etl                  # engine + CLI (CSV, JSON and SQLite buil
 pip install "hydra-etl[server]"        # + API + Studio
 pip install "hydra-etl[postgres]"      # + PostgreSQL driver
 pip install "hydra-etl[mssql]"         # + Microsoft SQL Server driver
-pip install "hydra-etl[snowflake]"     # + Snowflake driver (read-only source)
+pip install "hydra-etl[snowflake]"     # + Snowflake driver (source and destination)
 pip install "hydra-etl[all]"           # everything
 ```
 

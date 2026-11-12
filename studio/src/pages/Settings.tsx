@@ -43,7 +43,9 @@ export default function Settings() {
     background: active ? 'var(--primary)' : 'transparent', color: active ? '#fff' : 'var(--text-muted)',
   })
   return (
-    <div>
+    // Les réglages étaient écrits en 11-13 px, à peine lisibles : la page entière est
+    // agrandie x2 (zoom agit sur la mise en page, le contenu se replie dans la largeur).
+    <div data-testid="settings-page" style={{ zoom: 2 }}>
       <div data-testid="settings-tabs" style={{ display: 'inline-flex', gap: 4, padding: 3, marginBottom: 16,
         borderRadius: 10, background: 'var(--bg-hover)' }}>
         <NavLink to="/settings/global" style={({ isActive }) => tab(isActive)}>

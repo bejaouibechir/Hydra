@@ -73,7 +73,7 @@ sources:
 | `sqlserver`, `mssql`             | ✔           | ✔     | `pip install "hydra-etl[mssql]"`                   |
 | `mongodb`                        | ✔           | ✔     | `pip install "hydra-etl[mongodb]"`                 |
 | `sqlite`                         | ✔           | ✔     | built in (Hydra 0.20+)                             |
-| `snowflake`                      | ✔           | –     | `pip install "hydra-etl[snowflake]"` (Hydra 0.20+) |
+| `snowflake`                      | ✔           | ✔     | `pip install "hydra-etl[snowflake]"` (Hydra 0.20+; destination 0.21+) |
 | `postgresql_cdc`, `postgres_cdc` | ✔ (changes) | –     | `pip install "hydra-etl[postgres]"` (Hydra 0.20+)  |
 
 An unknown type stops the job with the list of supported types:
@@ -338,9 +338,9 @@ destinations:
 
 ---
 
-## Snowflake source
+## Snowflake source and destination
 
-*Hydra 0.20+, read-only.* `pip install "hydra-etl[snowflake]"`.
+*Source: Hydra 0.20+. Destination: Hydra 0.21+.* `pip install "hydra-etl[snowflake]"`.
 
 ```yaml
 sources:
@@ -382,11 +382,54 @@ sources:
 | `TIMESTAMP_TZ`, `TIMESTAMP_LTZ` | timestamp with its time zone       | `timestamptz`                                                                 |
 | `VARIANT`, `OBJECT`, `ARRAY`    | JSON value                         | `jsonb`                                                                       |
 
-- `extract.query` must start with `SELECT`, `WITH`, `SHOW` or `DESCRIBE`: the source is read-only, and Snowflake cannot be a destination.
+- `extract.query` must start with `SELECT`, `WITH`, `SHOW` or `DESCRIBE`: a source never writes.
 - Every query is tagged `hydra-etl` (`QUERY_TAG`), so it can be found in Snowflake's query history.
 - A PostgreSQL column that already exists keeps its type. If a value does not fit (an integer too large for a `bigint`), the batch is refused before it is written, with the `ALTER TABLE` to run; with `atomic: true`, the destination stays as it was.
 
 Example: `examples/snowflake-to-postgres` in the Hydra ETL repository, with a local Snowflake emulator to try it without an account.
+
+### Destination
+
+```yaml
+destinations:
+  dwh:
+    type: snowflake
+    connection:
+      account: "{{ env:SNOWFLAKE_ACCOUNT }}"
+      user: "{{ env:SNOWFLAKE_USER }}"
+      private_key_file: "{{ env:SNOWFLAKE_PRIVATE_KEY_FILE }}"
+      warehouse: COMPUTE_WH
+      database: SALES
+      schema: PUBLIC
+    load:
+      table: ORDERS             # table, schema.table or database.schema.table
+      mode: upsert              # append | replace | upsert
+      key: [order_id]
+```
+
+Same connection keys as the source (`column_case`, `json` and `arrow` only apply to reading). The user needs
+`INSERT`, `UPDATE` and `DELETE` on the table, and `CREATE TABLE` on the schema when the table does not exist yet.
+
+| Value sent by Hydra                 | Column created         |
+| ----------------------------------- | ---------------------- |
+| integer                             | `NUMBER(38,0)`         |
+| decimal                             | `NUMBER(38,s)`         |
+| float                               | `FLOAT`                |
+| boolean                             | `BOOLEAN`              |
+| date                                | `DATE`                 |
+| timestamp without / with time zone  | `TIMESTAMP_NTZ` / `TIMESTAMP_TZ` |
+| dict, list                          | `VARIANT`              |
+| text, mixed values, empty column    | `VARCHAR`              |
+
+- A column that already exists keeps its type: Snowflake converts each value into it, and a value it cannot
+  convert stops the batch (with `atomic: true`, the table stays as it was).
+- Column names are matched regardless of case: `order_id` in the data writes `ORDER_ID`. A new table gets
+  simple names without quotes, so Snowflake stores them in upper case. A data column the table does not have is
+  refused, with the table's columns.
+- `replace`: delete then insert, in one transaction, all-or-nothing by default.
+- `upsert`: `MERGE` on `load.key`. A row without a key value is refused; within a batch, the last row of a key
+  wins. Rows from a PostgreSQL CDC source are applied, deletes included.
+- An all-or-nothing load that fails drops the table it created (Snowflake commits a `CREATE TABLE` at once).
 
 ---
 

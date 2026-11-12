@@ -103,9 +103,9 @@ export default function ThreadEditor({ projectId, workflowIds = {} }: Props) {
 
   return (
     <section data-testid="thread-editor" style={{ ...box, padding: 14, marginBottom: 20 }}>
-      <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+      <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 8 }}>
         <Layers size={16} style={{ color: 'var(--primary)' }} />
-        <h2 className="font-semibold text-sm" style={{ margin: 0, color: 'var(--text-primary)' }}>Execution order</h2>
+        <h2 className="font-semibold text-sm" style={{ margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Execution order</h2>
         <code className="text-xs" style={{ color: 'var(--text-muted)' }}>workflows/thread.yaml</code>
         <div style={{ display: 'inline-flex', gap: 2, background: 'var(--bg-hover)', borderRadius: 9, padding: 2, marginLeft: 8 }}>
           <button type="button" style={tabBtn(tab === 'define')} onClick={() => setTab('define')}>Define</button>

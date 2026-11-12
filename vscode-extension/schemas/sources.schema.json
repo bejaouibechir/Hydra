@@ -249,7 +249,7 @@
 
     "snowflakeConnection": {
       "type": "object",
-      "description": "Snowflake account (read-only source). Authenticate with a key pair (private_key_file) or a password; keep both out of the file with ${ENV:…} references.",
+      "description": "Snowflake account. Authenticate with a key pair (private_key_file) or a password; keep both out of the file with ${ENV:…} references.",
       "required": ["account", "user"],
       "additionalProperties": false,
       "properties": {

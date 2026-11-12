@@ -645,3 +645,46 @@ describe('jobModelToFlow — join with a declared right source', () => {
     })
   }
 })
+
+
+/**
+ * Snowflake en destination (0.21) : mêmes clés de connexion que la source,
+ * table, mode, key (liste) et tout ou rien.
+ */
+describe('hdrSerializer — Snowflake destination', () => {
+  const modelSfDest: HydraJobModel = {
+    name: 'pg_to_sf',
+    sources: {
+      pg: { type: 'postgresql', connection: { host: 'localhost', database: 'shop', user: 'postgres' },
+            extract: { table: 'orders' } },
+    },
+    transformations: { steps: [] },
+    destinations: {
+      dwh: {
+        type: 'snowflake',
+        connection: { account: '{{ env:SNOWFLAKE_ACCOUNT }}', user: 'HYDRA_SVC', warehouse: 'COMPUTE_WH',
+                      database: 'SALES', schema: 'PUBLIC' },
+        load: { table: 'ORDERS', mode: 'upsert', key: ['order_id'], atomic: true },
+      },
+    },
+    pipeline: { from: 'pg', to: 'dwh' },
+  }
+
+  it('mappe snowflake (destination) vers le nœud Snowflake destination', () => {
+    const { nodes } = jobModelToFlow(modelSfDest)
+    const byLabel = Object.fromEntries(nodes.map(n => [n.data.label, n.data.nodeType]))
+    expect(byLabel.dwh).toBe('dest_snowflake')
+    const p = nodes.find(n => n.data.label === 'dwh')!.data.params as Record<string, unknown>
+    expect(p.account).toBe('{{ env:SNOWFLAKE_ACCOUNT }}')
+    expect(p.key).toBe('order_id')
+    expect(p.atomic).toBe('yes')
+  })
+
+  it('canvas -> YAML : connexion intacte, clé en liste', () => {
+    const { nodes, edges } = jobModelToFlow(modelSfDest)
+    const back = flowToJobModel(nodes, edges, 'pg_to_sf')
+    expect(back.destinations.dwh.type).toBe('snowflake')
+    expect(back.destinations.dwh.connection).toEqual(modelSfDest.destinations.dwh.connection)
+    expect(back.destinations.dwh.load).toMatchObject({ table: 'ORDERS', mode: 'upsert', key: ['order_id'], atomic: true })
+  })
+})

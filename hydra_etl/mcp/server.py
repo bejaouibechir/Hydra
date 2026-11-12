@@ -311,7 +311,7 @@ def _validation_report(output: str) -> str:
 
 
 # Connectors that only read (kept in sync by tests/test_mcp_server.py)
-SOURCE_ONLY = ("postgres_cdc", "postgresql_cdc", "snowflake", "web_api")
+SOURCE_ONLY = ("postgres_cdc", "postgresql_cdc", "web_api")
 
 FILE_TYPES = ("csv", "json", "parquet", "sqlite")
 
@@ -651,8 +651,8 @@ def build_server() -> Any:
     @server.tool(
         description=(
             "List the connector types accepted by the 'type' key of a source "
-            "or a destination. Any other type fails at run time: S3, BigQuery "
-            "and Snowflake are not supported."
+            "or a destination. Any other type fails at run time: S3 and BigQuery "
+            "are not supported."
         )
     ,
         annotations=_annot(**LECTURE, title="Read-only"))

@@ -1,4 +1,4 @@
-"""Connecteur Snowflake (source en lecture seule), testé avec fakesnow
+"""Connecteur Snowflake (source et destination), testé avec fakesnow
 (émulateur Snowflake sur DuckDB) et un faux curseur Arrow."""
 from __future__ import annotations
 
@@ -108,14 +108,6 @@ def test_invalid_table_name_refused():
         _all(_connector(), table="ORDERS; drop table X")
 
 
-def test_cannot_be_a_destination():
-    conn = _connector()
-    with pytest.raises(ValueError, match="read-only source"):
-        conn.load_batches([[{"a": 1}]], table="T")
-    with pytest.raises(ValueError, match="read-only source"):
-        conn.begin_load(table="T")
-
-
 def test_missing_account_refused():
     with pytest.raises(ValueError, match="connection.account is required"):
         build_connector(name="dwh", config={"type": "snowflake", "connection": {"user": "u"}})
@@ -201,3 +193,169 @@ def test_unknown_account_gets_a_hint(monkeypatch):
     monkeypatch.setattr(sc, "connect", boom)
     with pytest.raises(ValueError, match="does not know the account 'acme-test'"):
         _all(_connector(), table="ORDERS")
+
+
+# ── Écriture (destination) ──────────────────────────────────────────────────
+
+def _load(conn, batches, **kw):
+    s = conn.begin_load(**kw)
+    try:
+        for b in batches:
+            s.stage(b)
+        s.publish()
+    except BaseException:
+        s.abort()
+        raise
+    return s
+
+
+def _rows(sf, sql):
+    cur = sf.cursor()
+    cur.execute(sql)
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def test_destination_creates_table_with_exact_types(sf):
+    rows = [{"order_id": 9007199254740993, "amount": decimal.Decimal("10.25"), "ratio": 0.5,
+             "name": "it's 100% \\ ok", "ok": True, "d": dt.date(2026, 1, 31),
+             "ts": dt.datetime(2026, 1, 31, 10, 0, 0, 123456),
+             "payload": {"a": [1, 2]}, "empty": None},
+            {"order_id": 2, "amount": decimal.Decimal("3"), "ratio": 1.0, "name": None, "ok": False,
+             "d": dt.date(2026, 2, 1), "ts": dt.datetime(2026, 2, 1), "payload": [1], "empty": None}]
+    conn = _connector()
+    _load(conn, [rows], table="OUT_ORDERS", mode="append")
+    cur = sf.cursor()
+    cur.execute("SELECT * FROM OUT_ORDERS LIMIT 0")
+    names = [d.name for d in cur.description]
+    assert names[:2] == ["ORDER_ID", "AMOUNT"]            # nom simple sans guillemets → majuscules
+    back = sorted(_all(_connector(column_case="lower"), table="OUT_ORDERS"), key=lambda r: r["order_id"])
+    assert back[1]["order_id"] == 9007199254740993 and isinstance(back[1]["order_id"], int)
+    assert back[1]["amount"] == decimal.Decimal("10.25")
+    assert back[0]["amount"] == decimal.Decimal("3")
+    assert back[1]["ratio"] == 0.5 and back[1]["ok"] is True and back[0]["ok"] is False
+    assert back[1]["name"] == "it's 100% \\ ok" and back[0]["name"] is None
+    assert back[1]["d"] == dt.date(2026, 1, 31)
+    assert back[1]["ts"] == dt.datetime(2026, 1, 31, 10, 0, 0, 123456)
+    assert back[1]["payload"] == {"a": [1, 2]} and back[0]["payload"] == [1]
+    assert back[1]["empty"] is None
+
+
+def test_destination_append_matches_columns_without_case(sf):
+    conn = _connector()
+    _load(conn, [[{"ID": 300, "NAME": "x"}]], table="ORDERS", mode="append")
+    _load(_connector(), [[{"id": 301, "Name": "y"}]], table="ORDERS", mode="append")
+    got = _rows(sf, "SELECT ID, NAME FROM ORDERS WHERE ID BETWEEN 300 AND 400 ORDER BY ID")
+    assert got == [{"ID": 300, "NAME": "x"}, {"ID": 301, "NAME": "y"}]
+
+
+def test_destination_unknown_column_refused(sf):
+    with pytest.raises(ValueError, match=r"column \['nope'\] not found in table ORDERS"):
+        _load(_connector(), [[{"ID": 1, "nope": 2}]], table="ORDERS", mode="append")
+
+
+def test_destination_columns_differing_by_case_refused(sf):
+    with pytest.raises(ValueError, match="differ only by case"):
+        _load(_connector(), [[{"id": 1, "ID": 2}]], table="NEW_T", mode="append")
+
+
+def test_destination_replace_is_all_or_nothing(sf):
+    _load(_connector(), [[{"k": 1, "v": "old"}, {"k": 2, "v": "old"}]], table="REP", mode="append")
+    with pytest.raises(ValueError):
+        _load(_connector(), [[{"k": 3, "v": "new"}], [{"k": "not a number", "v": "bad"}]],
+              table="REP", mode="replace", atomic=True)
+    assert _rows(sf, "SELECT K, V FROM REP ORDER BY K") == [{"K": 1, "V": "old"}, {"K": 2, "V": "old"}]
+    _load(_connector(), [[{"k": 3, "v": "new"}]], table="REP", mode="replace", atomic=True)
+    assert _rows(sf, "SELECT K, V FROM REP ORDER BY K") == [{"K": 3, "V": "new"}]
+
+
+def test_destination_failed_atomic_load_drops_the_table_it_created(sf):
+    with pytest.raises(ValueError):
+        _load(_connector(), [[{"k": 1}], [{"k": "not a number"}]], table="FRESH", mode="append", atomic=True)
+    cur = sf.cursor()
+    with pytest.raises(Exception):
+        cur.execute("SELECT * FROM FRESH LIMIT 0")
+
+
+def test_destination_upsert(sf):
+    _load(_connector(), [[{"id": 1, "v": "a"}, {"id": 2, "v": "b"}]], table="UPS", mode="upsert", key=["id"])
+    _load(_connector(), [[{"id": 2, "v": "B"}, {"id": 3, "v": "c"}, {"id": 3, "v": "C"}]],
+          table="UPS", mode="upsert", key=["id"])
+    assert _rows(sf, "SELECT ID, V FROM UPS ORDER BY ID") == [
+        {"ID": 1, "V": "a"}, {"ID": 2, "V": "B"}, {"ID": 3, "V": "C"}]
+
+
+def test_destination_upsert_null_key_refused(sf):
+    with pytest.raises(ValueError, match="no value for the upsert key"):
+        _load(_connector(), [[{"id": None, "v": "a"}]], table="UPS2", mode="upsert", key=["id"])
+
+
+def test_destination_upsert_needs_key():
+    with pytest.raises(ValueError, match="needs load.key"):
+        _connector().begin_load(table="T", mode="upsert")
+
+
+def test_destination_bad_mode_and_table():
+    with pytest.raises(ValueError, match="not supported"):
+        _connector().begin_load(table="T", mode="merge")
+    with pytest.raises(ValueError, match="invalid table name"):
+        _connector().begin_load(table="T; drop table X", mode="append")
+
+
+def test_destination_cdc_changes(sf):
+    _load(_connector(), [[{"id": 1, "v": "a"}, {"id": 2, "v": "b"}]], table="MIRROR", mode="upsert", key=["id"])
+    batch = [{"_op": "update", "id": 1, "v": "A"}, {"_op": "delete", "id": 2, "v": None},
+             {"_op": "insert", "id": 3, "v": "c"}]
+    _load(_connector(), [batch], table="MIRROR", mode="upsert", key=["id"])
+    assert _rows(sf, "SELECT ID, V FROM MIRROR ORDER BY ID") == [{"ID": 1, "V": "A"}, {"ID": 3, "V": "c"}]
+
+
+def test_destination_small_statements(sf, monkeypatch):
+    monkeypatch.setattr(SnowflakeConnector, "_ROWS_PER_STATEMENT", 7)
+    rows = [{"id": i, "v": f"r{i}"} for i in range(50)]
+    _load(_connector(), [rows], table="MANY", mode="append")
+    _load(_connector(), [rows], table="MANY", mode="upsert", key=["id"])
+    assert _rows(sf, "SELECT COUNT(*) AS N FROM MANY") == [{"N": 50}]
+
+
+def test_destination_pandas_values(sf):
+    pd = pytest.importorskip("pandas")
+    np = pytest.importorskip("numpy")
+    rows = [{"i": np.int64(5), "f": float("nan"), "t": pd.Timestamp("2026-03-01 12:00:00")},
+            {"i": np.int64(6), "f": np.float64(1.5), "t": pd.NaT}]
+    _load(_connector(), [rows], table="PD", mode="append")
+    assert _rows(sf, "SELECT I, F, T FROM PD ORDER BY I") == [
+        {"I": 5, "F": None, "T": dt.datetime(2026, 3, 1, 12, 0)}, {"I": 6, "F": 1.5, "T": None}]
+
+
+def test_destination_undo_replace(sf):
+    _load(_connector(), [[{"k": 1, "v": "old"}]], table="UNDO_R", mode="append")
+    conn = _connector()
+    s = conn.begin_load(table="UNDO_R", mode="replace", atomic=True, undo=True)
+    s.stage([{"k": 2, "v": "new"}])
+    s.publish()
+    assert _rows(sf, "SELECT K, V FROM UNDO_R") == [{"K": 2, "V": "new"}]
+    msg = _connector()._undo_load(s.undo_record)
+    assert "restored" in msg
+    assert _rows(sf, "SELECT K, V FROM UNDO_R") == [{"K": 1, "V": "old"}]
+
+
+def test_destination_undo_upsert(sf):
+    _load(_connector(), [[{"id": 1, "v": "a"}]], table="UNDO_U", mode="upsert", key=["id"])
+    conn = _connector()
+    s = conn.begin_load(table="UNDO_U", mode="upsert", key=["id"], atomic=True, undo=True)
+    s.stage([{"id": 1, "v": "A"}, {"id": 2, "v": "b"}])
+    s.publish()
+    _connector()._undo_load(s.undo_record)
+    assert _rows(sf, "SELECT ID, V FROM UNDO_U ORDER BY ID") == [{"ID": 1, "V": "a"}]
+
+
+def test_destination_through_open_load_session(sf):
+    from hydra_etl.internal.connector.load_session import open_load_session, resolve_atomic
+    conn = _connector()
+    atomic, _ = resolve_atomic(conn, "replace", None)
+    assert atomic is True
+    s = open_load_session(conn, table="SESS", mode="replace", key=None, atomic=atomic)
+    s.stage([{"a": 1}])
+    s.publish()
+    assert _rows(sf, "SELECT A FROM SESS") == [{"A": 1}]

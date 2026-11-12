@@ -102,7 +102,9 @@ export default function ProjectSettings() {
     <div data-testid="project-settings">
       <div className="flex items-start gap-3 flex-wrap" style={{ marginBottom: 14 }}>
         <img src="/Hydra.png" alt="" style={{ width: 30, height: 30, objectFit: 'contain' }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* base 360 px : quand la place manque (page agrandie), les sélecteurs passent à la ligne
+            au lieu d'écraser le nom du projet */}
+        <div style={{ flex: '1 1 360px', minWidth: 0 }}>
           <h1 className="page-title" style={{ margin: 0 }}>{p.name}</h1>
           <p className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'monospace', margin: 0 }}>{p.path}</p>
           <p className="text-xs" style={{ color: 'var(--text-muted)', margin: '2px 0 0' }}>

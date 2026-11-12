@@ -131,6 +131,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   dest_postgres:   'postgresql',
   dest_sqlserver:  'sqlserver',
   dest_sqlite:     'sqlite',
+  dest_snowflake:  'snowflake',
   dest_mongodb:    'mongodb',
 }
 
@@ -151,6 +152,7 @@ const CONNECTOR_TO_DEST_NODE: Record<string, string> = {
   postgresql: 'dest_postgres', postgres: 'dest_postgres',
   sqlserver: 'dest_sqlserver', mssql: 'dest_sqlserver',
   sqlite: 'dest_sqlite',
+  snowflake: 'dest_snowflake',
   mongodb: 'dest_mongodb',
 }
 
@@ -351,6 +353,11 @@ export function flowToHdr(
     if (connType === 'sqlite') {
       const sq = _sqliteDest(cfg)
       destinations[did] = { type: connType, connection: sq.connection, load: sq.load }
+      continue
+    }
+    if (connType === 'snowflake') {
+      const sf = _snowflakeDest(cfg)
+      destinations[did] = { type: connType, connection: sf.connection, load: sf.load }
       continue
     }
     destinations[did] = { type: connType, connection, load }
@@ -615,7 +622,7 @@ function _sqliteDest(cfg: Record<string, unknown>) {
   return { connection: { path: cfg.path ?? '' }, load }
 }
 
-/** Source Snowflake (lecture seule) : clés de connexion non vides, table ou query. */
+/** Source Snowflake : clés de connexion non vides, table ou query. */
 const SNOWFLAKE_CONN_KEYS = ['account', 'user', 'password', 'private_key_file', 'warehouse',
   'database', 'schema', 'role', 'column_case', 'json'] as const
 function _snowflakeSource(cfg: Record<string, unknown>, batch_size: number | undefined) {
@@ -632,6 +639,21 @@ function _snowflakeSource(cfg: Record<string, unknown>, batch_size: number | und
     : { table: cfg.table ?? '', batch_size }
   if (batch_size === undefined) delete extract.batch_size
   return { connection, extract }
+}
+
+/** Destination Snowflake (0.21) : clés de connexion non vides ; table, mode, key, atomic. */
+const SNOWFLAKE_DEST_CONN_KEYS = ['account', 'user', 'password', 'private_key_file', 'warehouse',
+  'database', 'schema', 'role'] as const
+function _snowflakeDest(cfg: Record<string, unknown>) {
+  const connection: Record<string, unknown> = {}
+  for (const k of SNOWFLAKE_DEST_CONN_KEYS) {
+    const v = cfg[k]
+    if (v !== undefined && v !== null && String(v).trim() !== '') connection[k] = v
+  }
+  const load: Record<string, unknown> = { table: cfg.table ?? '', mode: cfg.mode ?? 'replace', ..._atomicLoad(cfg) }
+  const key = _keyList(cfg.key)
+  if (key && key.length) load.key = key
+  return { connection, load }
 }
 
 /** Source PostgreSQL CDC : connexion PostgreSQL + slot / publication ; une table. */
@@ -706,6 +728,16 @@ function _destToParams(dest: HdrDest): Record<string, unknown> {
     return { path: (conn as Record<string, unknown>).path ?? '', table: load.table, mode: load.mode ?? 'replace',
              key: Array.isArray(k) ? k.join(', ') : (k ?? ''),
              atomic: load.atomic === true ? 'yes' : load.atomic === false ? 'no' : 'default' }
+  }
+  if (type === 'snowflake') {
+    const c = conn as Record<string, unknown>
+    const k = (load as Record<string, unknown>).key
+    const out: Record<string, unknown> = {
+      table: load.table ?? '', mode: load.mode ?? 'replace',
+      key: Array.isArray(k) ? k.join(', ') : (k ?? ''),
+      atomic: load.atomic === true ? 'yes' : load.atomic === false ? 'no' : 'default' }
+    for (const kk of SNOWFLAKE_DEST_CONN_KEYS) out[kk] = c[kk] ?? ''
+    return out
   }
   if (type === 'mongodb') {
     return { uri: conn.uri, database: conn.database, collection: load.collection, mode: load.mode ?? 'replace' }
@@ -970,6 +1002,17 @@ export function flowToJobModel(
       const ld = _mergeKeep(orig.load, sq.load)
       Object.keys(ld).forEach(k => ld[k] === undefined && delete ld[k])
       destinations[key] = { type: connType, connection: _mergeKeep(orig.connection, sq.connection), load: ld }
+      continue
+    }
+    if (connType === 'snowflake') {
+      const sf = _snowflakeDest(cfg)
+      const ld = _mergeKeep(orig.load, sf.load)
+      Object.keys(ld).forEach(k => ld[k] === undefined && delete ld[k])
+      const cx = _mergeKeep(orig.connection, sf.connection)
+      // une clé vidée dans le formulaire disparaît du fichier (sauf les champs inconnus du nœud)
+      for (const k of SNOWFLAKE_DEST_CONN_KEYS) if (!(k in sf.connection)) delete cx[k]
+      if (!('key' in sf.load)) delete ld.key
+      destinations[key] = { type: connType, connection: cx, load: ld }
       continue
     }
     destinations[key] = { type: connType, connection, load }

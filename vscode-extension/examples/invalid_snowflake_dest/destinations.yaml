@@ -1,10 +1,10 @@
-# Faulty: Snowflake is a read-only source, not a destination.
+# Faulty: a Snowflake destination needs connection.user.
 version: "1.0"
 destinations:
   dwh:
     type: snowflake
     connection:
       account: MYORG-MYACCOUNT
-      user: HYDRA_SVC
     load:
       table: ORDERS
+      mode: append

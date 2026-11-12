@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Snowflake as a destination (Hydra ETL 0.21+): `type: snowflake` in `destinations.yaml` is no longer refused;
+  the connection keys are checked as for the source (`account` and `user` required). Snippet `hdst-snowflake`.
+
 ## 0.2.1
 
 - The search for the Python that runs the MCP server no longer blocks VS Code: it runs in the background and

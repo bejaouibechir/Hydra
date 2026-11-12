@@ -99,7 +99,7 @@
   },
   "Hydra — Snowflake source": {
     "prefix": "hsrc-snowflake",
-    "description": "Snowflake source, read-only (pip install \"hydra-etl[snowflake]\")",
+    "description": "Snowflake source (pip install \"hydra-etl[snowflake]\")",
     "body": [
       "src_${1:name}:",
       "  type: snowflake",
@@ -220,6 +220,26 @@
       "    table: ${3:orders}",
       "    mode: ${4|upsert,append,replace|}",
       "    key: [${5:id}]",
+      "$0"
+    ]
+  },
+  "Hydra — Snowflake destination": {
+    "prefix": "hdst-snowflake",
+    "description": "Snowflake destination: table created at the first batch, upsert by MERGE (pip install \"hydra-etl[snowflake]\")",
+    "body": [
+      "dst_${1:name}:",
+      "  type: snowflake",
+      "  connection:",
+      "    account: \\${ENV:SNOWFLAKE_ACCOUNT}",
+      "    user: \\${ENV:SNOWFLAKE_USER}",
+      "    private_key_file: \\${ENV:SNOWFLAKE_PRIVATE_KEY_FILE}",
+      "    warehouse: ${2:COMPUTE_WH}",
+      "    database: ${3:SALES}",
+      "    schema: ${4:PUBLIC}",
+      "  load:",
+      "    table: ${5:ORDERS}",
+      "    mode: ${6|upsert,append,replace|}",
+      "    key: [${7:order_id}]",
       "$0"
     ]
   },

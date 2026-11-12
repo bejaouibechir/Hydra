@@ -26,6 +26,7 @@ def _build_catalogue() -> List[NodeInfo]:
         ("sqlite",     "SQLite",           "SQLite database file, built in"),
         ("mongodb",    "MongoDB",          "MongoDB connector"),
         ("web_api",    "Web API",          "HTTP GET/POST calls (REST)"),
+        ("snowflake",  "Snowflake",        "Snowflake data warehouse"),
     ]
 
     for cid, cname, cdesc in connector_defs:
@@ -41,10 +42,6 @@ def _build_catalogue() -> List[NodeInfo]:
             category="destination",
             description=cdesc,
         ))
-
-    # Snowflake : source seulement (lecture seule)
-    nodes.append(NodeInfo(id="snowflake", name="Snowflake", category="source",
-                          description="Snowflake data warehouse (read-only source)"))
 
     # Parquet — optionnel selon pyarrow
     try:

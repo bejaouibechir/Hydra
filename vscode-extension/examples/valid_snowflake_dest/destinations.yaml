@@ -1,0 +1,17 @@
+# Snowflake destination (Hydra ETL 0.21+): the table is created at the first batch,
+# upsert runs a MERGE on the key.
+version: "1.0"
+destinations:
+  dwh:
+    type: snowflake
+    connection:
+      account: ${ENV:SNOWFLAKE_ACCOUNT}
+      user: ${ENV:SNOWFLAKE_USER}
+      private_key_file: ${ENV:SNOWFLAKE_PRIVATE_KEY_FILE}
+      warehouse: COMPUTE_WH
+      database: SALES
+      schema: PUBLIC
+    load:
+      table: ORDERS
+      mode: upsert
+      key: [order_id]

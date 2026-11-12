@@ -1,5 +1,5 @@
 """
-Connecteur Snowflake — source en lecture seule.
+Connecteur Snowflake — source et destination.
 
     pip install "hydra-etl[snowflake]"
 
@@ -19,7 +19,16 @@ Connecteur Snowflake — source en lecture seule.
         extract:
           table: ORDERS                       # ou query: "SELECT ..."
 
-Ce que le connecteur garantit (les « pièges de types » d'une sortie de Snowflake) :
+    destinations:
+      dwh:
+        type: snowflake
+        connection: { account: ..., user: ..., warehouse: ..., database: ..., schema: ... }
+        load:
+          table: ORDERS                       # table, schema.table ou database.schema.table
+          mode: upsert                        # append | replace | upsert
+          key: [order_id]
+
+Ce que le connecteur garantit en lecture (les « pièges de types » d'une sortie de Snowflake) :
 
 - NUMBER(p, 0) → entier Python exact, même au-delà de 64 bits (jamais de float) ;
 - NUMBER(p, s>0) → Decimal exact (jamais de float) ;
@@ -33,8 +42,25 @@ Ce que le connecteur garantit (les « pièges de types » d'une sortie de Snowfl
 
 Lecture : lots Arrow (`fetch_arrow_batches`) quand le pilote les fournit, sinon
 `fetchmany` ; les deux chemins rendent exactement les mêmes valeurs Python.
-Lecture seule : `query` doit être un SELECT (ou WITH / SHOW / DESCRIBE), et le
-connecteur refuse d'être une destination.
+`extract.query` doit être un SELECT (ou WITH / SHOW / DESCRIBE).
+
+Écriture (même garantie, dans l'autre sens) :
+
+- chaque valeur est envoyée en texte puis convertie par Snowflake dans le type
+  de la colonne cible (NUMBER(p, s), FLOAT, DATE, TIMESTAMP_*, VARIANT, BINARY…) :
+  aucun entier ni décimal ne passe par un float ;
+- table absente : créée au premier lot, types déduits du lot (entiers → NUMBER(38,0),
+  décimaux → NUMBER(38, s), datetime avec fuseau → TIMESTAMP_TZ, dict / list →
+  VARIANT…) ; en upsert, la clé devient la clé primaire (informative chez Snowflake) ;
+- noms de colonnes : rapprochés de ceux de la table sans tenir compte de la casse
+  (règle de Snowflake pour les noms sans guillemets) ; deux colonnes du lot qui ne
+  diffèrent que par la casse sont refusées ; une colonne absente de la table aussi ;
+- replace : DELETE puis insertion dans la même transaction (tout ou rien par défaut) ;
+- upsert : MERGE sur la clé ; une clé vide est refusée ; deux lignes de même clé
+  dans un lot → la dernière l'emporte ; changements d'une source CDC (_op) : les
+  suppressions sont appliquées ;
+- Snowflake valide toute instruction DDL : une table créée par un chargement en
+  tout ou rien qui échoue est supprimée.
 """
 
 from __future__ import annotations
@@ -43,10 +69,12 @@ import datetime as _dt
 import decimal
 import json
 import logging
+import math
 import re
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
-from hydra_etl.internal.connector.interface import Batch, Connector
+from hydra_etl.internal.connector.base_db_connector import BaseDBConnector
+from hydra_etl.internal.connector.interface import Batch
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +128,8 @@ class _Column:
         return t
 
 
-class SnowflakeConnector(Connector):
-    """Source Snowflake (lecture seule)."""
+class SnowflakeConnector(BaseDBConnector):
+    """Source et destination Snowflake."""
 
     def __init__(self, name: str, config: Dict[str, Any]) -> None:
         super().__init__(name=name, config=config)
@@ -137,6 +165,8 @@ class SnowflakeConnector(Connector):
         params = dict(self._conn_cfg.get("session_parameters") or {})
         params.setdefault("QUERY_TAG", "hydra-etl")
         kwargs["session_parameters"] = params
+        # Transactions explicites : le chargement valide lui-même (tout ou rien).
+        kwargs["autocommit"] = False
         import warnings
         try:
             with warnings.catch_warnings():
@@ -312,12 +342,395 @@ class SnowflakeConnector(Connector):
             except Exception:  # noqa: BLE001
                 pass
 
-    # ── Écriture : refusée ───────────────────────────────────────────────
-    def load_batches(self, batches: Iterable[Batch], *, table: str, mode: str = "append",
-                     key: Optional[List[str]] = None, **_: Any) -> None:
-        raise ValueError(f"SnowflakeConnector [{self.name}]: Snowflake is a read-only source in "
-                         f"Hydra ETL; it cannot be a destination")
+    # ── Écriture ─────────────────────────────────────────────────────────
+    # Lignes par instruction INSERT / MERGE (VALUES accepte 16 384 lignes ;
+    # le texte d'une instruction est aussi limité) et taille maximale du texte.
+    _ROWS_PER_STATEMENT = 1000
+    _MAX_STATEMENT_CHARS = 800_000
+    _CDC_COLUMNS = ("_op", "_lsn", "_commit_time")
+    _wrap_load_value_errors = False
 
-    def begin_load(self, **_: Any):
-        raise ValueError(f"SnowflakeConnector [{self.name}]: Snowflake is a read-only source in "
-                         f"Hydra ETL; it cannot be a destination")
+    def _build_columns_query(self, table: str) -> str:
+        return f"SELECT * FROM {self._q_table(table)} LIMIT 0"
+
+    def _check_load_args(self, table: str, mode: str, key: Optional[List[str]]):
+        if not isinstance(table, str) or not table.strip():
+            raise ValueError(f"SnowflakeConnector [{self.name}]: 'table' must be a non-empty name")
+        table = self._q_table(table.strip())
+        if mode not in ("append", "replace", "upsert"):
+            raise ValueError(f"SnowflakeConnector [{self.name}]: mode '{mode}' is not supported. "
+                             f"Supported: append, replace, upsert")
+        if isinstance(key, str):
+            key = [key]
+        if mode == "upsert":
+            if not key or not all(isinstance(k, str) and k.strip() for k in key):
+                raise ValueError(f"SnowflakeConnector [{self.name}]: mode 'upsert' needs load.key "
+                                 f"(the columns that identify a row)")
+        if key:
+            key = [k.strip() for k in key]
+            for k in key:
+                self._q_col(k)
+        return table, key
+
+    def _load_prepare(self, cur, *, table, mode, key, atomic, commit, **_):
+        exists = self._table_exists(cur, table)
+        ctx: Dict[str, Any] = {"table": table, "mode": mode, "key": key, "atomic": atomic,
+                               "exists": exists, "created": False, "meta": None, "columns": None}
+        if exists:
+            ctx["meta"] = self._table_meta(cur, table)
+            if mode == "upsert":
+                self._resolve(ctx, key, what="upsert key")
+            if mode == "replace":
+                # DML : annulé avec le reste en tout ou rien (TRUNCATE validerait tout de suite)
+                cur.execute(f"DELETE FROM {table}")
+        return ctx
+
+    def _load_write(self, cur, ctx, batch, *, commit):
+        rows = [r for r in batch]
+        if not rows:
+            return
+        deletes: List[tuple] = []
+        if isinstance(rows[0], dict) and "_op" in rows[0]:
+            rows, deletes = self._cdc_changes(rows, ctx)
+        if rows and ctx["columns"] is None:
+            first = rows[0]
+            if not isinstance(first, dict) or not first:
+                raise ValueError(f"SnowflakeConnector [{self.name}]: invalid batch (first row empty)")
+            names = [c for c in first.keys() if isinstance(c, str) and c.strip()]
+            seen: Dict[str, str] = {}
+            for c in names:
+                u = c.upper()
+                if u in seen:
+                    raise ValueError(
+                        f"SnowflakeConnector [{self.name}]: columns '{seen[u]}' and '{c}' differ only by "
+                        f"case; Snowflake would store them in the same column. Rename one of them "
+                        f"(rename step) before loading.")
+                seen[u] = c
+            if not ctx["exists"]:
+                self._create_table(cur, ctx, names, rows)
+            ctx["targets"] = self._resolve(ctx, names, what="column")
+            ctx["columns"] = names
+        if rows:
+            if ctx["mode"] == "upsert":
+                self._merge(cur, ctx, self._last_per_key(rows, ctx))
+            else:
+                self._insert(cur, ctx, rows)
+        if deletes and ctx["exists"]:
+            kcols = [self._q_col(t[0]) for t in self._resolve(ctx, ctx["key"], what="upsert key")]
+            for i in range(0, len(deletes), 500):
+                chunk = deletes[i:i + 500]
+                one = "(" + " AND ".join(f"{c} = %s" for c in kcols) + ")"
+                cur.execute(f"DELETE FROM {ctx['table']} WHERE " + " OR ".join([one] * len(chunk)),
+                            [_sf_text(v, None) for k in chunk for v in k])
+
+    def _load_aborted(self, ctx: Dict[str, Any]) -> None:
+        # CREATE TABLE est validé tout de suite par Snowflake : en tout ou rien,
+        # la table créée par ce chargement ne doit pas survivre à l'échec.
+        if ctx.get("created") and ctx.get("atomic"):
+            conn = self._connect()
+            try:
+                cur = conn.cursor()
+                cur.execute(f"DROP TABLE IF EXISTS {ctx['table']}")
+                conn.commit()
+            finally:
+                conn.close()
+
+    # ── Table cible ──
+    def _table_meta(self, cur, table: str) -> List[Tuple[str, Optional[int], Optional[int], Optional[int]]]:
+        cur.execute(self._build_columns_query(table))
+        try:
+            cur.fetchall()
+        except Exception:  # noqa: BLE001
+            pass
+        out = []
+        for d in cur.description or []:
+            name = getattr(d, "name", None) or d[0]
+            code = getattr(d, "type_code", None) if hasattr(d, "type_code") else d[1]
+            precision = getattr(d, "precision", None) if hasattr(d, "precision") else (d[4] if len(d) > 4 else None)
+            scale = getattr(d, "scale", None) if hasattr(d, "scale") else (d[5] if len(d) > 5 else None)
+            out.append((name, code, precision, scale))
+        self._colmap = {m[0].upper(): m[0] for m in out}
+        self._colexact = {m[0] for m in out}
+        return out
+
+    def _resolve(self, ctx, names: List[str], *, what: str) -> List[Tuple[str, Optional[int], Optional[int], Optional[int]]]:
+        """Colonnes de la table pour ces noms (sans tenir compte de la casse)."""
+        by_upper = {m[0].upper(): m for m in ctx["meta"]}
+        exact = {m[0]: m for m in ctx["meta"]}
+        out, missing = [], []
+        for n in names:
+            m = exact.get(n) or by_upper.get(n.upper())
+            if m is None:
+                missing.append(n)
+            else:
+                out.append(m)
+        if missing:
+            have = ", ".join(m[0] for m in ctx["meta"])
+            raise ValueError(
+                f"SnowflakeConnector [{self.name}]: {what} {missing} not found in table "
+                f"{ctx['table']} (columns: {have}). Add the column to the table, or rename or drop it "
+                f"before loading.")
+        return out
+
+    def _create_table(self, cur, ctx, names: List[str], rows: List[Dict[str, Any]]) -> None:
+        defs = []
+        for c in names:
+            defs.append(f"{self._new_col(c)} {self._sf_type(c, [_sf_norm(r.get(c)) for r in rows])}")
+        if ctx["mode"] == "upsert":
+            missing = [k for k in ctx["key"] if k not in names]
+            if missing:
+                raise ValueError(f"SnowflakeConnector [{self.name}]: upsert key {missing} is not in the "
+                                 f"data (columns: {names})")
+            defs.append(f"PRIMARY KEY ({', '.join(self._new_col(k) for k in ctx['key'])})")
+        cur.execute(f"CREATE TABLE {ctx['table']} ({', '.join(defs)})")
+        ctx["exists"] = ctx["created"] = True
+        ctx["meta"] = self._table_meta(cur, ctx["table"])
+        logger.info("Snowflake destination '%s': table %s created (%s)", self.name, ctx["table"],
+                    ", ".join(defs))
+
+    def _sf_type(self, column: str, values: List[Any]) -> str:
+        """Type Snowflake fidèle aux valeurs d'une colonne (création de table)."""
+        vals = [v for v in values if v is not None]
+        if not vals:
+            return "VARCHAR"
+        if all(isinstance(v, bool) for v in vals):
+            return "BOOLEAN"
+        if all(isinstance(v, (int, decimal.Decimal)) and not isinstance(v, bool) for v in vals):
+            scale = 0
+            digits = 0
+            for v in vals:
+                t = decimal.Decimal(v).as_tuple()
+                s = max(0, -t.exponent) if isinstance(t.exponent, int) else 0
+                scale = max(scale, s)
+                digits = max(digits, len(t.digits) + (t.exponent if isinstance(t.exponent, int) and t.exponent > 0 else 0) - s)
+            if scale > 37 or digits + scale > 38:
+                raise ValueError(
+                    f"SnowflakeConnector [{self.name}]: column '{column}' holds numbers that do not fit "
+                    f"in NUMBER(38, s) ({digits} digits before the point, {scale} after). Cast it to str "
+                    f"(cast step) to load it as text, or create the table yourself.")
+            return f"NUMBER(38,{scale})"
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals):
+            return "FLOAT"
+        if all(isinstance(v, _dt.datetime) for v in vals):
+            return "TIMESTAMP_TZ" if all(v.tzinfo is not None for v in vals) else "TIMESTAMP_NTZ"
+        if all(isinstance(v, _dt.date) and not isinstance(v, _dt.datetime) for v in vals):
+            return "DATE"
+        if all(isinstance(v, _dt.date) for v in vals):
+            return "TIMESTAMP_NTZ"
+        if all(isinstance(v, _dt.time) for v in vals):
+            return "TIME"
+        if all(isinstance(v, (dict, list)) for v in vals):
+            return "VARIANT"
+        if all(isinstance(v, (bytes, bytearray)) for v in vals):
+            return "BINARY"
+        return "VARCHAR"
+
+    # ── Instructions ──
+    @staticmethod
+    def _cast(alias: str, code: Optional[int], precision: Optional[int], scale: Optional[int]) -> str:
+        if code == _FIXED:
+            return f"{alias}::NUMBER({precision or 38},{scale or 0})"
+        if code == _REAL:
+            return f"{alias}::FLOAT"
+        if code == _BOOLEAN:
+            return f"{alias}::BOOLEAN"
+        if code == _DATE:
+            return f"{alias}::DATE"
+        if code == _TIME:
+            return f"{alias}::TIME"
+        if code in (_TIMESTAMP_NTZ, _TIMESTAMP):
+            return f"{alias}::TIMESTAMP_NTZ"
+        if code == _TIMESTAMP_TZ:
+            return f"{alias}::TIMESTAMP_TZ"
+        if code == _TIMESTAMP_LTZ:
+            return f"{alias}::TIMESTAMP_LTZ"
+        if code == _OBJECT:
+            return f"PARSE_JSON({alias})::OBJECT"
+        if code == _ARRAY:
+            return f"PARSE_JSON({alias})::ARRAY"
+        if code == _VARIANT:
+            return f"PARSE_JSON({alias})"
+        if code == _BINARY:
+            return f"TO_BINARY({alias}, 'HEX')"
+        return f"{alias}::VARCHAR"
+
+    def _chunks(self, rows: List[Dict[str, Any]], cols: List[str], targets) -> Iterator[Tuple[int, List[Any]]]:
+        """(nombre de lignes, valeurs texte à plat) par instruction."""
+        params: List[Any] = []
+        n = size = 0
+        for r in rows:
+            vals = [_sf_text(_sf_norm(r.get(c)), t[1]) for c, t in zip(cols, targets)]
+            params.extend(vals)
+            n += 1
+            size += sum(len(v) + 4 if v is not None else 6 for v in vals)
+            if n >= self._ROWS_PER_STATEMENT or size >= self._MAX_STATEMENT_CHARS:
+                yield n, params
+                params, n, size = [], 0, 0
+        if n:
+            yield n, params
+
+    def _source_sql(self, cols: List[str], targets, n: int) -> str:
+        aliases = [f"c{i}" for i in range(len(cols))]
+        exprs = ", ".join(f"{self._cast(a, t[1], t[2], t[3])} AS {self._q_col(t[0])}"
+                          for a, t in zip(aliases, targets))
+        ph = "(" + ", ".join(["%s"] * len(cols)) + ")"
+        return f"SELECT {exprs} FROM VALUES {', '.join([ph] * n)} AS v ({', '.join(aliases)})"
+
+    def _insert(self, cur, ctx, rows: List[Dict[str, Any]]) -> None:
+        cols, targets = ctx["columns"], ctx["targets"]
+        col_sql = ", ".join(self._q_col(t[0]) for t in targets)
+        for n, params in self._chunks(rows, cols, targets):
+            cur.execute(f"INSERT INTO {ctx['table']} ({col_sql}) {self._source_sql(cols, targets, n)}", params)
+
+    def _merge(self, cur, ctx, rows: List[Dict[str, Any]]) -> None:
+        cols, targets = ctx["columns"], ctx["targets"]
+        keys = {t[0] for t in self._resolve(ctx, ctx["key"], what="upsert key")}
+        missing = [k for k in ctx["key"] if k not in cols]
+        if missing:
+            raise ValueError(f"SnowflakeConnector [{self.name}]: upsert key {missing} is not in the data "
+                             f"(columns: {cols})")
+        on = " AND ".join(f"t.{self._q_col(k)} = s.{self._q_col(k)}" for k in sorted(keys))
+        upd = [t[0] for t in targets if t[0] not in keys]
+        ins = ", ".join(self._q_col(t[0]) for t in targets)
+        ins_v = ", ".join(f"s.{self._q_col(t[0])}" for t in targets)
+        when = (" WHEN MATCHED THEN UPDATE SET "
+                + ", ".join(f"t.{self._q_col(c)} = s.{self._q_col(c)}" for c in upd)) if upd else ""
+        for n, params in self._chunks(rows, cols, targets):
+            cur.execute(f"MERGE INTO {ctx['table']} t USING ({self._source_sql(cols, targets, n)}) s "
+                        f"ON {on}{when} WHEN NOT MATCHED THEN INSERT ({ins}) VALUES ({ins_v})", params)
+
+    def _last_per_key(self, rows: List[Dict[str, Any]], ctx) -> List[Dict[str, Any]]:
+        """Une ligne par clé (la dernière l'emporte, comme une suite d'upserts) ; clé vide refusée
+        (MERGE ne la retrouverait jamais et l'ajouterait à chaque chargement)."""
+        key = ctx["key"]
+        final: Dict[tuple, Dict[str, Any]] = {}
+        for r in rows:
+            k = tuple(_sf_norm(r.get(c)) for c in key)
+            if any(v is None for v in k):
+                raise ValueError(f"SnowflakeConnector [{self.name}]: a row has no value for the upsert "
+                                 f"key {list(key)}: {dict(zip(key, k))}")
+            final.pop(k, None)
+            final[k] = r
+        return list(final.values())
+
+    def _cdc_changes(self, rows: List[Dict[str, Any]], ctx) -> Tuple[List[Dict[str, Any]], List[tuple]]:
+        """Lot d'une source CDC : état final de chaque clé ; lignes à écrire et clés à supprimer."""
+        if ctx["mode"] != "upsert":
+            raise ValueError(f"SnowflakeConnector [{self.name}]: changes from a CDC source need "
+                             f"mode: upsert with load.key")
+        from hydra_etl.internal.connector.postgresql_connector import PostgreSQLConnector
+        upserts, changes = PostgreSQLConnector._split_changes(self, rows, ctx["key"])
+        if changes["partial"]:
+            raise ValueError(
+                f"SnowflakeConnector [{self.name}]: {len(changes['partial'])} change(s) do not carry every "
+                f"column (large values left unchanged by PostgreSQL). Set REPLICA IDENTITY FULL on the "
+                f"source table so that each change carries the whole row.")
+        return upserts, [tuple(_sf_norm(v) for v in k) for k in changes["delete"]]
+
+    # ── Annulation (rollback d'un workflow, voir undo.py) ──
+    def _q_table(self, table: str) -> str:
+        t = (table or "").strip()
+        if not _TABLE_RE.match(t) or "%" in t:
+            raise ValueError(
+                f"SnowflakeConnector [{self.name}]: invalid table name '{t}' (expected table, "
+                f"schema.table or database.schema.table; quote mixed-case names: \"MyTable\")")
+        return t
+
+    def _q_col(self, column: str) -> str:
+        """Colonne citée ; un nom connu de la table est pris tel que Snowflake le stocke
+        (ORDER_ID pour order_id), sans tenir compte de la casse."""
+        c = (column or "").strip()
+        if not c or "%" in c:
+            raise ValueError(f"SnowflakeConnector [{self.name}]: invalid column name {column!r}")
+        if c not in getattr(self, "_colexact", ()):
+            c = getattr(self, "_colmap", {}).get(c.upper(), c)
+        return '"' + c.replace('"', '""') + '"'
+
+    def _new_col(self, column: str) -> str:
+        """Colonne d'une table créée : nom simple sans guillemets (stocké en majuscules,
+        convention de Snowflake), sinon cité tel quel."""
+        c = column.strip()
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_$]*$", c):
+            return c
+        return self._q_col(c)
+
+    def _bak_ref(self, table: str, bak: str) -> str:
+        parts = re.findall(rf"{_IDENT}", table)
+        return ".".join(parts[:-1] + [bak]) if len(parts) > 1 else bak
+
+    def _undo_begin(self, cur, table, mode, key):
+        rec = super()._undo_begin(cur, table, mode, key)
+        if not rec.created:
+            self._table_meta(cur, table)            # noms réels des colonnes (pour _q_col)
+        return rec
+
+    def _undo_load(self, rec) -> str:
+        if not rec.created and not getattr(self, "_colmap", None):
+            conn = self._connect()
+            try:
+                self._table_meta(conn.cursor(), rec.target)
+            except Exception:  # noqa: BLE001
+                pass
+            finally:
+                conn.close()
+        return super()._undo_load(rec)
+
+
+def _sf_norm(v: Any) -> Any:
+    """Valeur Python de base (numpy, pandas, NaN / NaT → None)."""
+    if v is None:
+        return None
+    item = getattr(v, "item", None)                 # scalaires numpy
+    if item is not None and not isinstance(v, (str, bytes, bytearray, decimal.Decimal)):
+        try:
+            v = item()
+        except (TypeError, ValueError):
+            pass
+    if isinstance(v, float) and math.isnan(v):
+        return None
+    if isinstance(v, decimal.Decimal) and v.is_nan():
+        return None
+    if hasattr(v, "to_pydatetime"):                 # pandas.Timestamp
+        try:
+            import pandas as pd
+            if v is pd.NaT:
+                return None
+        except Exception:  # noqa: BLE001
+            pass
+        return v.to_pydatetime()
+    if not isinstance(v, (str, bytes, bytearray, list, dict, tuple)):
+        try:
+            import pandas as pd
+            if pd.isna(v):
+                return None
+        except Exception:  # noqa: BLE001
+            pass
+    if isinstance(v, tuple):
+        return list(v)
+    return v
+
+
+def _sf_text(v: Any, code: Optional[int]) -> Optional[str]:
+    """Valeur envoyée en texte ; Snowflake la convertit dans le type de la colonne."""
+    v = _sf_norm(v)
+    if v is None:
+        return None
+    if code in _JSON_CODES:
+        if isinstance(v, str):
+            return v                                 # déjà du JSON (source lue avec json: text)
+        return json.dumps(v, ensure_ascii=False, default=str)
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, decimal.Decimal):
+        return format(v, "f")
+    if isinstance(v, float):
+        return repr(v)
+    if isinstance(v, _dt.datetime):
+        return v.isoformat(sep=" ")
+    if isinstance(v, (_dt.date, _dt.time)):
+        return v.isoformat()
+    if isinstance(v, (bytes, bytearray)):
+        return bytes(v).hex()
+    if isinstance(v, (dict, list)):
+        return json.dumps(v, ensure_ascii=False, default=str)
+    return str(v)

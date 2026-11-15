@@ -651,8 +651,8 @@ def build_server() -> Any:
     @server.tool(
         description=(
             "List the connector types accepted by the 'type' key of a source "
-            "or a destination. Any other type fails at run time: S3 and BigQuery "
-            "are not supported."
+            "or a destination. Any other type fails at run time: S3, for example, "
+            "is not supported."
         )
     ,
         annotations=_annot(**LECTURE, title="Read-only"))

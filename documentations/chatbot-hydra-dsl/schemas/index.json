@@ -14,8 +14,9 @@
     "ssh",
     "webhook"
   ],
-  "connectorCount": 15,
+  "connectorCount": 16,
   "connectors": [
+    "bigquery",
     "csv",
     "json",
     "mariadb",

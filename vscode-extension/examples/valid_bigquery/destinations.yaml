@@ -1,0 +1,13 @@
+# BigQuery destination (Hydra ETL 0.22+): all-or-nothing, upsert by MERGE.
+version: "1.0"
+destinations:
+  dwh:
+    type: bigquery
+    connection:
+      project: my-project
+      dataset: sales
+      credentials_file: ${ENV:GOOGLE_APPLICATION_CREDENTIALS}
+    load:
+      table: orders
+      mode: upsert
+      key: [order_id]

@@ -69,9 +69,9 @@ def call(tmp_path, monkeypatch):
 
 def test_liste_les_connecteurs_reels(call):
     out = call("hydra_list_connectors")
-    for connector in ("csv", "json", "parquet", "postgresql", "mongodb", "web_api"):
+    for connector in ("csv", "json", "parquet", "postgresql", "mongodb", "web_api", "bigquery"):
         assert connector in out
-    assert "s3" not in out and "bigquery" not in out
+    assert "s3" not in out
 
 
 def test_liste_toutes_les_operations(call):

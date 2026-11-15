@@ -62,6 +62,8 @@ postgres = ["psycopg2-binary>=2.9"]
 mssql = ["pymssql>=2.3"]
 # Snowflake (source et destination) ; [pandas] apporte pyarrow pour la lecture par lots Arrow.
 snowflake = ["snowflake-connector-python[pandas]>=3.6"]
+# BigQuery (source et destination).
+bigquery = ["google-cloud-bigquery>=3.20"]
 mongodb = ["pymongo>=4.6"]
 http = ["requests>=2.31"]
 # Serveur MCP local : expose Hydra a l'assistant IA de l'utilisateur.
@@ -77,6 +79,7 @@ all = [
     "hydra-etl[postgres]",
     "hydra-etl[mssql]",
     "hydra-etl[snowflake]",
+    "hydra-etl[bigquery]",
     "hydra-etl[mongodb]",
     "hydra-etl[http]",
     "hydra-etl[mcp]",

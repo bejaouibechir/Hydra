@@ -74,6 +74,7 @@ sources:
 | `mongodb`                        | ✔           | ✔     | `pip install "hydra-etl[mongodb]"`                 |
 | `sqlite`                         | ✔           | ✔     | built in (Hydra 0.20+)                             |
 | `snowflake`                      | ✔           | ✔     | `pip install "hydra-etl[snowflake]"` (Hydra 0.20+; destination 0.21+) |
+| `bigquery`                       | ✔           | ✔     | `pip install "hydra-etl[bigquery]"` (Hydra 0.22+)  |
 | `postgresql_cdc`, `postgres_cdc` | ✔ (changes) | –     | `pip install "hydra-etl[postgres]"` (Hydra 0.20+)  |
 
 An unknown type stops the job with the list of supported types:
@@ -430,6 +431,46 @@ Same connection keys as the source (`column_case`, `json` and `arrow` only apply
 - `upsert`: `MERGE` on `load.key`. A row without a key value is refused; within a batch, the last row of a key
   wins. Rows from a PostgreSQL CDC source are applied, deletes included.
 - An all-or-nothing load that fails drops the table it created (Snowflake commits a `CREATE TABLE` at once).
+
+---
+
+## BigQuery source and destination
+
+*Hydra 0.22+.* `pip install "hydra-etl[bigquery]"`.
+
+```yaml
+sources:
+  bq_orders:
+    type: bigquery
+    connection:
+      project: my-project                 # required
+      dataset: sales                      # default dataset
+      location: EU
+      credentials_file: ../../keys/service-account.json   # or default credentials
+    extract:
+      table: orders                       # or query: "SELECT ..."
+
+destinations:
+  bq_dwh:
+    type: bigquery
+    connection: { project: my-project, dataset: dwh }
+    load:
+      table: orders                       # table, dataset.table or project.dataset.table
+      mode: upsert                        # append | replace | upsert
+      key: [order_id]
+```
+
+- Without `credentials_file`, Hydra uses the default credentials (`gcloud auth application-default login`, or the
+  service account of the machine). The user needs `bigquery.jobs.create` and, to write, `CREATE TABLE` on the
+  dataset (the staging table).
+- Every load is all-or-nothing by default: batches go to a staging table `_hydra_stage_…` of the same dataset
+  (load jobs, deleted at the end, expire after 24 h), and the target is written in one statement — `INSERT … SELECT`,
+  `DELETE` + `INSERT` in a transaction (`replace`), or `MERGE` (`upsert`). `atomic: false` writes after each batch.
+- Every value is converted by BigQuery into the type of its column. A new table gets `INT64`, `NUMERIC` or
+  `BIGNUMERIC`, `FLOAT64`, `BOOL`, `DATE`, `DATETIME` (no time zone), `TIMESTAMP` (with a time zone), `JSON`,
+  `BYTES` or `STRING`, from the data.
+- Column names are matched regardless of case. `RECORD` and `ARRAY` columns cannot be written yet.
+- `rollback: true` (workflow) is not available for BigQuery yet.
 
 ---
 

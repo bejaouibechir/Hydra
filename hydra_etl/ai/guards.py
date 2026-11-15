@@ -72,7 +72,7 @@ EXT_TO_TYPE = {".csv": "csv", ".json": "json", ".parquet": "parquet"}
 # apparait dans la demande, le manifeste ne peut pas y repondre — il faut le
 # dire a l'utilisateur au lieu de lui rendre un pipeline qui fait autre chose.
 UNSUPPORTED = {
-    "s3": "an S3 connector", "bigquery": "a BigQuery connector",
+    "s3": "an S3 connector",
     "redshift": "a Redshift connector",
     "kafka": "a Kafka connector", "teams": "a Teams action",
     "slack": "a Slack action", "cluster": "distributed execution",
@@ -182,7 +182,7 @@ def check(prompt: str, files: Dict[str, str], docs: Dict[str, Any]) -> List[str]
         "mysql": "mysql", "mariadb": "mariadb", "mongo": "mongodb",
         "sql server": "sqlserver", "sqlserver": "sqlserver", "mssql": "sqlserver",
         "mongodb": "mongodb", "csv": "csv", "json": "json", "sqlite": "sqlite",
-        "snowflake": "snowflake", "cdc": "postgresql_cdc",
+        "snowflake": "snowflake", "bigquery": "bigquery", "cdc": "postgresql_cdc",
         "api web": "web_api", "api": "web_api",
     }
     used = {v.get("type") for v in list(sources.values()) + list(dests.values())

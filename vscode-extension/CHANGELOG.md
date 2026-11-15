@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- BigQuery source and destination (Hydra ETL 0.22+): `type: bigquery`, `connection.project` required.
+  Snippets `hsrc-bigquery` and `hdst-bigquery`.
+
 - Snowflake as a destination (Hydra ETL 0.21+): `type: snowflake` in `destinations.yaml` is no longer refused;
   the connection keys are checked as for the source (`account` and `user` required). Snippet `hdst-snowflake`.
 

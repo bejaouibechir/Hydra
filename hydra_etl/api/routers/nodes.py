@@ -27,6 +27,7 @@ def _build_catalogue() -> List[NodeInfo]:
         ("mongodb",    "MongoDB",          "MongoDB connector"),
         ("web_api",    "Web API",          "HTTP GET/POST calls (REST)"),
         ("snowflake",  "Snowflake",        "Snowflake data warehouse"),
+        ("bigquery",   "BigQuery",         "Google BigQuery data warehouse"),
     ]
 
     for cid, cname, cdesc in connector_defs:

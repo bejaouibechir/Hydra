@@ -7,6 +7,26 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **BigQuery connector** (`type: bigquery`), source and destination (`pip install "hydra-etl[bigquery]"`).
+  `connection`: `project` (required), `dataset` (default dataset), `location`, `credentials_file` (service account
+  key, relative to the job folder; without it, the default credentials of `gcloud auth application-default login`).
+  - Source: `table` (`table`, `dataset.table` or `project.dataset.table`) or `query` (`SELECT` / `WITH` only). Exact
+    types: `NUMERIC` / `BIGNUMERIC` as decimals, `DATETIME` without time zone, `TIMESTAMP` with its time zone, `JSON`
+    as values (`json: text` for the JSON text).
+  - Destination: `append`, `replace`, `upsert`, **all-or-nothing in every mode by default**. Each batch goes to a
+    staging table of the same dataset (`_hydra_stage_…`, load jobs, expires after 24 h); the target is written in one
+    statement at the end: `INSERT … SELECT`, `DELETE` + `INSERT` in a transaction for `replace`, `MERGE` for
+    `upsert` (the last row of a key wins; the deletes of a PostgreSQL CDC source are applied). Every value is
+    converted by BigQuery into the type of its column: no integer or decimal goes through a float. A missing table
+    is created from the data (`INT64`, `NUMERIC` / `BIGNUMERIC`, `FLOAT64`, `BOOL`, `DATE`, `DATETIME`,
+    `TIMESTAMP`, `JSON`, `BYTES`, `STRING`). `load.atomic: false` writes after each batch.
+  - Columns are matched regardless of case. A column the table does not have, two columns that only differ by
+    case, a `RECORD` / `ARRAY` column, or a row without a key value in `upsert` are refused.
+  - `rollback: true` in a workflow is not available for BigQuery yet: the workflow is refused before it starts.
+- Studio — **BigQuery** source and destination nodes. MCP server and `/api/nodes`: BigQuery listed.
+
 ## [0.21.0] — 2026-11-12
 
 ### Added

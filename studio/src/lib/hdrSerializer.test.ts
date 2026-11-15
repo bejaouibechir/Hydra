@@ -688,3 +688,42 @@ describe('hdrSerializer — Snowflake destination', () => {
     expect(back.destinations.dwh.load).toMatchObject({ table: 'ORDERS', mode: 'upsert', key: ['order_id'], atomic: true })
   })
 })
+
+
+/** BigQuery (0.22) : source et destination ; projet, dataset, région, clé de compte de service. */
+describe('hdrSerializer — BigQuery', () => {
+  const modelBq: HydraJobModel = {
+    name: 'bq_job',
+    sources: {
+      src: { type: 'bigquery', connection: { project: 'my-project', dataset: 'sales', location: 'EU' },
+             extract: { query: 'SELECT * FROM orders WHERE amount > 100' } },
+    },
+    transformations: { steps: [] },
+    destinations: {
+      dst: { type: 'bigquery',
+             connection: { project: 'my-project', dataset: 'dwh', credentials_file: '../../keys/sa.json' },
+             load: { table: 'orders', mode: 'upsert', key: ['order_id'] } },
+    },
+    pipeline: { from: 'src', to: 'dst' },
+  }
+
+  it('mappe bigquery vers les nœuds BigQuery', () => {
+    const { nodes } = jobModelToFlow(modelBq)
+    const byLabel = Object.fromEntries(nodes.map(n => [n.data.label, n.data.nodeType]))
+    expect(byLabel.src).toBe('source_bigquery')
+    expect(byLabel.dst).toBe('dest_bigquery')
+    const p = nodes.find(n => n.data.label === 'dst')!.data.params as Record<string, unknown>
+    expect(p.credentials_file).toBe('../../keys/sa.json')
+    expect(p.key).toBe('order_id')
+  })
+
+  it('canvas -> YAML : connexion intacte, query XOR table, clé en liste', () => {
+    const { nodes, edges } = jobModelToFlow(modelBq)
+    const back = flowToJobModel(nodes, edges, 'bq_job')
+    expect(back.sources.src.connection).toEqual(modelBq.sources.src.connection)
+    expect(back.sources.src.extract.query).toContain('SELECT')
+    expect(back.sources.src.extract.table).toBeUndefined()
+    expect(back.destinations.dst.connection).toEqual(modelBq.destinations.dst.connection)
+    expect(back.destinations.dst.load).toMatchObject({ table: 'orders', mode: 'upsert', key: ['order_id'] })
+  })
+})

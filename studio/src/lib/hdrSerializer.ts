@@ -121,6 +121,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   source_sqlserver:'sqlserver',
   source_sqlite:   'sqlite',
   source_snowflake:'snowflake',
+  source_bigquery: 'bigquery',
   source_postgres_cdc: 'postgresql_cdc',
   source_mongodb:  'mongodb',
   source_api:      'web_api',
@@ -132,6 +133,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   dest_sqlserver:  'sqlserver',
   dest_sqlite:     'sqlite',
   dest_snowflake:  'snowflake',
+  dest_bigquery:   'bigquery',
   dest_mongodb:    'mongodb',
 }
 
@@ -142,6 +144,7 @@ const CONNECTOR_TO_SOURCE_NODE: Record<string, string> = {
   sqlserver: 'source_sqlserver', mssql: 'source_sqlserver',
   sqlite: 'source_sqlite',
   snowflake: 'source_snowflake',
+  bigquery: 'source_bigquery',
   postgresql_cdc: 'source_postgres_cdc', postgres_cdc: 'source_postgres_cdc',
   mongodb: 'source_mongodb', web_api: 'source_api',
 }
@@ -153,6 +156,7 @@ const CONNECTOR_TO_DEST_NODE: Record<string, string> = {
   sqlserver: 'dest_sqlserver', mssql: 'dest_sqlserver',
   sqlite: 'dest_sqlite',
   snowflake: 'dest_snowflake',
+  bigquery: 'dest_bigquery',
   mongodb: 'dest_mongodb',
 }
 
@@ -280,6 +284,11 @@ export function flowToHdr(
       sources[sid] = { type: connType, connection: sf.connection, extract: sf.extract }
       continue
     }
+    if (connType === 'bigquery') {
+      const bq = _bigquerySource(cfg, 1000)
+      sources[sid] = { type: connType, connection: bq.connection, extract: bq.extract }
+      continue
+    }
     if (connType === 'postgresql_cdc') {
       const cd = _cdcSource(cfg, undefined)
       sources[sid] = { type: connType, connection: cd.connection, extract: cd.extract }
@@ -358,6 +367,11 @@ export function flowToHdr(
     if (connType === 'snowflake') {
       const sf = _snowflakeDest(cfg)
       destinations[did] = { type: connType, connection: sf.connection, load: sf.load }
+      continue
+    }
+    if (connType === 'bigquery') {
+      const bq = _bigqueryDest(cfg)
+      destinations[did] = { type: connType, connection: bq.connection, load: bq.load }
       continue
     }
     destinations[did] = { type: connType, connection, load }
@@ -656,6 +670,30 @@ function _snowflakeDest(cfg: Record<string, unknown>) {
   return { connection, load }
 }
 
+/** BigQuery (0.22) : projet, dataset, région, fichier de compte de service. */
+const BIGQUERY_CONN_KEYS = ['project', 'dataset', 'location', 'credentials_file'] as const
+function _bigqueryConn(cfg: Record<string, unknown>) {
+  const connection: Record<string, unknown> = {}
+  for (const k of BIGQUERY_CONN_KEYS) {
+    const v = cfg[k]
+    if (v !== undefined && v !== null && String(v).trim() !== '') connection[k] = v
+  }
+  return connection
+}
+function _bigquerySource(cfg: Record<string, unknown>, batch_size: number | undefined) {
+  const extract: Record<string, unknown> = cfg.query
+    ? { query: cfg.query, batch_size }
+    : { table: cfg.table ?? '', batch_size }
+  if (batch_size === undefined) delete extract.batch_size
+  return { connection: _bigqueryConn(cfg), extract }
+}
+function _bigqueryDest(cfg: Record<string, unknown>) {
+  const load: Record<string, unknown> = { table: cfg.table ?? '', mode: cfg.mode ?? 'replace', ..._atomicLoad(cfg) }
+  const key = _keyList(cfg.key)
+  if (key && key.length) load.key = key
+  return { connection: _bigqueryConn(cfg), load }
+}
+
 /** Source PostgreSQL CDC : connexion PostgreSQL + slot / publication ; une table. */
 const CDC_CONN_KEYS = ['host', 'port', 'database', 'user', 'password', 'slot', 'publication', 'create', 'snapshot'] as const
 function _cdcSource(cfg: Record<string, unknown>, batch_size: number | undefined) {
@@ -695,6 +733,12 @@ function _sourceToParams(src: HdrSource): Record<string, unknown> {
     out.snapshot = c.snapshot === false ? 'no' : 'yes'
     return out
   }
+  if (type === 'bigquery') {
+    const c = conn as Record<string, unknown>
+    const out: Record<string, unknown> = { table: ext.table ?? '', query: ext.query ?? '' }
+    for (const k of BIGQUERY_CONN_KEYS) out[k] = c[k] ?? ''
+    return out
+  }
   if (type === 'snowflake') {
     const c = conn as Record<string, unknown>
     const out: Record<string, unknown> = { table: ext.table ?? '', query: ext.query ?? '' }
@@ -728,6 +772,16 @@ function _destToParams(dest: HdrDest): Record<string, unknown> {
     return { path: (conn as Record<string, unknown>).path ?? '', table: load.table, mode: load.mode ?? 'replace',
              key: Array.isArray(k) ? k.join(', ') : (k ?? ''),
              atomic: load.atomic === true ? 'yes' : load.atomic === false ? 'no' : 'default' }
+  }
+  if (type === 'bigquery') {
+    const c = conn as Record<string, unknown>
+    const k = (load as Record<string, unknown>).key
+    const out: Record<string, unknown> = {
+      table: load.table ?? '', mode: load.mode ?? 'replace',
+      key: Array.isArray(k) ? k.join(', ') : (k ?? ''),
+      atomic: load.atomic === true ? 'yes' : load.atomic === false ? 'no' : 'default' }
+    for (const kk of BIGQUERY_CONN_KEYS) out[kk] = c[kk] ?? ''
+    return out
   }
   if (type === 'snowflake') {
     const c = conn as Record<string, unknown>
@@ -923,6 +977,15 @@ export function flowToJobModel(
       sources[key] = { type: connType, connection: cx, extract: ex }
       continue
     }
+    if (connType === 'bigquery') {
+      const bq = _bigquerySource(cfg, batch_size)
+      const ex = _mergeKeep(orig.extract, bq.extract)
+      if (cfg.query) delete ex.table; else delete ex.query
+      const cx = _mergeKeep(orig.connection, bq.connection)
+      for (const k of BIGQUERY_CONN_KEYS) if (!(k in bq.connection)) delete cx[k]
+      sources[key] = { type: connType, connection: cx, extract: ex }
+      continue
+    }
     if (connType === 'postgresql_cdc' || connType === 'postgres_cdc') {
       const cd = _cdcSource(cfg, batch_size)
       const ex = _mergeKeep(orig.extract, cd.extract)
@@ -1012,6 +1075,16 @@ export function flowToJobModel(
       // une clé vidée dans le formulaire disparaît du fichier (sauf les champs inconnus du nœud)
       for (const k of SNOWFLAKE_DEST_CONN_KEYS) if (!(k in sf.connection)) delete cx[k]
       if (!('key' in sf.load)) delete ld.key
+      destinations[key] = { type: connType, connection: cx, load: ld }
+      continue
+    }
+    if (connType === 'bigquery') {
+      const bq = _bigqueryDest(cfg)
+      const ld = _mergeKeep(orig.load, bq.load)
+      Object.keys(ld).forEach(k => ld[k] === undefined && delete ld[k])
+      const cx = _mergeKeep(orig.connection, bq.connection)
+      for (const k of BIGQUERY_CONN_KEYS) if (!(k in bq.connection)) delete cx[k]
+      if (!('key' in bq.load)) delete ld.key
       destinations[key] = { type: connType, connection: cx, load: ld }
       continue
     }

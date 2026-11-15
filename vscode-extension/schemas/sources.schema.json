@@ -81,6 +81,16 @@
         },
         {
           "if": {
+            "properties": { "type": { "const": "bigquery" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["connection"],
+            "properties": { "connection": { "$ref": "#/definitions/bigqueryConnection" } }
+          }
+        },
+        {
+          "if": {
             "properties": { "type": { "const": "snowflake" } },
             "required": ["type"]
           },
@@ -137,6 +147,7 @@
             "mssql",
             "sqlite",
             "snowflake",
+            "bigquery",
             "postgresql_cdc",
             "postgres_cdc",
             "mongodb",
@@ -154,6 +165,7 @@
             "Alias for sqlserver.",
             "SQLite database file, built in: connection.path is the file (Hydra ETL 0.20+).",
             "Snowflake, read-only source (Hydra ETL 0.20+; pip install \"hydra-etl[snowflake]\"). Exact numbers, dates, time zones and JSON.",
+            "BigQuery table or SELECT query (Hydra ETL 0.22+; pip install \"hydra-etl[bigquery]\"). Exact numbers, dates, time zones and JSON.",
             "Changes of a PostgreSQL table (inserts, updates, deletes) through logical replication (Hydra ETL 0.20+). Needs wal_level = logical and a role with REPLICATION.",
             "Alias for postgresql_cdc.",
             "MongoDB database (optional dependency: pymongo).",
@@ -287,6 +299,62 @@
       }
     },
 
+    "bigqueryConnection": {
+      "type": "object",
+      "description": "Google BigQuery project (Hydra ETL 0.22+; pip install \"hydra-etl[bigquery]\"). Without credentials_file, the default credentials are used (gcloud auth application-default login).",
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Google Cloud project id.",
+          "examples": [
+            "${ENV:GCP_PROJECT}",
+            "my-project"
+          ]
+        },
+        "dataset": {
+          "type": "string",
+          "description": "Default dataset: a table written without a dataset is read from it.",
+          "examples": [
+            "sales"
+          ]
+        },
+        "location": {
+          "type": "string",
+          "description": "Location of the datasets.",
+          "examples": [
+            "EU",
+            "US",
+            "europe-west1"
+          ]
+        },
+        "credentials_file": {
+          "type": "string",
+          "description": "Service account key file (JSON), relative to the job folder. Keep it out of the repository.",
+          "examples": [
+            "${ENV:GOOGLE_APPLICATION_CREDENTIALS}",
+            "../../keys/service-account.json"
+          ]
+        },
+        "json": {
+          "type": "string",
+          "enum": [
+            "parse",
+            "text"
+          ],
+          "default": "parse",
+          "description": "Source only. JSON columns: parse = JSON values, text = JSON text."
+        },
+        "api_endpoint": {
+          "type": "string",
+          "description": "Other API endpoint (emulator)."
+        }
+      }
+    },
     "mongoConnection": {
       "type": "object",
       "description": "MongoDB connection.",

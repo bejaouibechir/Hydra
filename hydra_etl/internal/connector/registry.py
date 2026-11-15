@@ -14,6 +14,7 @@ from .postgresql_connector import PostgreSQLConnector
 from .sqlserver_connector import SQLServerConnector
 from .sqlite_connector import SQLiteConnector
 from .snowflake_connector import SnowflakeConnector
+from .bigquery_connector import BigQueryConnector
 from .postgresql_cdc_connector import PostgreSQLCDCConnector
 
 # Import MongoDB connector -- optionnel (dependance pymongo)
@@ -97,8 +98,9 @@ CONNECTOR_REGISTRY: Dict[str, ConnectorFactory] = {
     "sqlserver": _build_db_connector(SQLServerConnector),
     "mssql": _build_db_connector(SQLServerConnector),
     "sqlite": _build_db_connector(SQLiteConnector),
-    # Entrepot cloud (lecture seule ; pilote : hydra-etl[snowflake])
+    # Entrepots cloud (pilotes : hydra-etl[snowflake], hydra-etl[bigquery])
     "snowflake": _build_db_connector(SnowflakeConnector),
+    "bigquery": _build_db_connector(BigQueryConnector),
     # Changements d'une table PostgreSQL (réplication logique, source seulement)
     "postgresql_cdc": _build_db_connector(PostgreSQLCDCConnector),
     "postgres_cdc": _build_db_connector(PostgreSQLCDCConnector),

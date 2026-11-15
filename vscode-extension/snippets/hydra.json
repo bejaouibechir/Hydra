@@ -243,6 +243,38 @@
       "$0"
     ]
   },
+  "Hydra — BigQuery source": {
+    "prefix": "hsrc-bigquery",
+    "description": "BigQuery source (pip install \"hydra-etl[bigquery]\")",
+    "body": [
+      "src_${1:name}:",
+      "  type: bigquery",
+      "  connection:",
+      "    project: ${2:my-project}",
+      "    dataset: ${3:sales}",
+      "    credentials_file: \\${ENV:GOOGLE_APPLICATION_CREDENTIALS}",
+      "  extract:",
+      "    ${4|table,query|}: ${5:orders}",
+      "$0"
+    ]
+  },
+  "Hydra — BigQuery destination": {
+    "prefix": "hdst-bigquery",
+    "description": "BigQuery destination: all-or-nothing, table created at the first batch, upsert by MERGE",
+    "body": [
+      "dst_${1:name}:",
+      "  type: bigquery",
+      "  connection:",
+      "    project: ${2:my-project}",
+      "    dataset: ${3:sales}",
+      "    credentials_file: \\${ENV:GOOGLE_APPLICATION_CREDENTIALS}",
+      "  load:",
+      "    table: ${4:orders}",
+      "    mode: ${5|upsert,append,replace|}",
+      "    key: [${6:order_id}]",
+      "$0"
+    ]
+  },
   "Hydra — pipeline.yaml": {
     "prefix": "hpipeline",
     "description": "Wire a source to a destination",

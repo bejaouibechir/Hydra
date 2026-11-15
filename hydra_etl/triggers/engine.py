@@ -102,13 +102,23 @@ def _poll_every(t: ProjectTrigger) -> float:
     return DEFAULT_SOURCE_POLL if t.type == "source_change" else DEFAULT_POLL
 
 
+def _storage_options(root: Path, t: ProjectTrigger):
+    """storage d'un déclencheur sur stockage objet, références ${SECRET:…} / ${ENV:…} résolues."""
+    if not t.storage:
+        return None
+    import os
+    from hydra_etl.internal.config.secrets import SecretResolver, project_secrets
+    return SecretResolver(secrets=dict(os.environ), fallback=project_secrets(root)).resolve(dict(t.storage))
+
+
 def make_watcher(root: Path, t: ProjectTrigger) -> FileWatcher:
     from hydra_etl.workflow.thread import parse_delay
+    src = source_for(root, t.path, _storage_options(root, t))
     if t.type == "marker":
-        w = FileWatcher(source_for(root), t.path, ["added"], 0.0)
+        w = FileWatcher(src, t.path, ["added"], 0.0)
     else:
         deb = parse_delay(t.debounce) if t.debounce is not None else DEFAULT_DEBOUNCE
-        w = FileWatcher(source_for(root), t.path, t.events_effective, deb)
+        w = FileWatcher(src, t.path, t.events_effective, deb)
     w.baseline()
     return w
 

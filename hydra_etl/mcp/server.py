@@ -362,8 +362,9 @@ def _file_paths(doc: dict, kind: str):
                     and not Path(p).is_absolute():
                 # base_path: absolute, or from the project root (the job folder outside a project)
                 p = f"{_BASE_MARK}{base.rstrip('/')}/{p}"
-        if isinstance(p, str) and p and "{{" not in p and "*" not in p:
-            yield name, p
+        if isinstance(p, str) and p and "{{" not in p and "*" not in p and "://" not in p \
+                and "://" not in str((v.get("connection") or {}).get("base_path") or ""):
+            yield name, p                      # s3:// az:// gs:// : hors de l'espace de travail, non vérifié
 
 
 def _misplaced_paths(job_dir: Path, sources: dict, destinations: dict) -> list:

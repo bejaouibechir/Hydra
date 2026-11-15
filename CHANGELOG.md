@@ -40,6 +40,21 @@ and versions follow [Semantic Versioning](https://semver.org/).
   (`ok`, `at_risk`, `lost`, `missing`) for any CDC source, PostgreSQL or MySQL. `cdc.slot_lag` and
   `cdc.slot_status` keep working for PostgreSQL.
 - Relative paths of `bigquery` (`credentials_file`) sources and destinations are read from the job folder.
+- **Object stores — S3, Azure Blob / ADLS and Google Cloud Storage** for CSV, JSON and Parquet sources and destinations
+  (`pip install "hydra-etl[s3]"`, `"hydra-etl[azure]"`, `"hydra-etl[gcs]"`). A location is a URI in the keys that
+  already exist: `connection.base_path: az://landing/sales/` with a relative table, or `table: s3://bucket/path/file.csv`
+  (`s3://`, `az://`, `abfs://`, `abfss://`, `gs://`). Credentials go in `connection.storage` (passed to the fsspec file
+  system: `key` / `secret` / `endpoint_url` for S3 and MinIO, `account_name` / `account_key` / `connection_string` /
+  `sas_token` for Azure, `token` / `project` for GCS), or come from the usual environment variables of each service.
+  - Sources: the file, or every file of a pattern (`orders_*.csv`), is copied to a temporary folder and read with the
+    usual readers (native CSV reader, large-volume engine, multi-file sources).
+  - Destinations: the file is written locally, then uploaded in one go after the load is published; an object store only
+    shows an object once complete, so the remote file is the old one or the new one, never half written. `append`
+    downloads the existing file first. A failed upload leaves the remote file unchanged.
+  - `rollback: true` is not available yet with a destination on an object store. `sftp://` is refused with a clear message
+    (planned).
+- File triggers — `path` can be an object store pattern (`s3://bucket/landing/*.csv`, `az://…`, `gs://…`), with the
+  credentials in `storage` (`${SECRET:…}` and `${ENV:…}` are resolved).
 
 ## [0.21.0] — 2026-11-12
 

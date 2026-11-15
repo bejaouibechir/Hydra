@@ -4,8 +4,8 @@ Socle commun, indépendant de l'endroit où sont les fichiers :
 
 - `FileEventSource` : liste les fichiers d'un motif (chemin, date, taille) et
   sait en supprimer un. `LocalSource` = dossier du projet (ce lot).
-  `SftpSource` et `S3Source` sont réservées : même interface, à implémenter
-  plus tard (triggers.yaml ne les accepte pas encore).
+  `RemoteSource` = stockage objet (s3://, az://, gs://, voir storage.py) ;
+  `SftpSource` est réservée : même interface, à implémenter plus tard.
 - `FileWatcher` : compare les listes successives (scrutation, pas de dépendance
   système) et produit les événements `added` / `modified`, une fois le fichier
   stable pendant `debounce` (un fichier encore en cours de copie n'est pas pris).
@@ -88,20 +88,48 @@ class SftpSource(_Planned):
     kind = "sftp"
 
 
-class S3Source(_Planned):
-    kind = "s3"
+class RemoteSource(FileEventSource):
+    """Stockage objet : le motif est une URI (s3://bucket/landing/*.csv) ; les chemins
+    rendus sont des URI complètes. Date = dernière modification de l'objet."""
+    kind = "remote"
+
+    def __init__(self, url: str, options: Optional[Dict] = None):
+        from hydra_etl.internal import storage
+        self.url = url
+        self.scheme = storage.scheme(url)
+        self.fs = storage.filesystem(url, options)
+
+    def list(self, pattern: str) -> Dict[str, Sig]:
+        path = pattern.split("://", 1)[1]
+        self.fs.invalidate_cache()
+        out: Dict[str, Sig] = {}
+        for p, info in self.fs.glob(path, detail=True).items():
+            if info.get("type") == "directory":
+                continue
+            m = info.get("LastModified") or info.get("last_modified") or info.get("updated") or info.get("mtime")
+            ts = m.timestamp() if hasattr(m, "timestamp") else float(m or 0) if not isinstance(m, str) else 0.0
+            tag = info.get("ETag") or info.get("etag") or info.get("md5Hash") or ""
+            out[f"{self.scheme}://{p}"] = (ts or float(hash(tag) % 10 ** 9), int(info.get("size") or 0))
+        return out
+
+    def delete(self, path: str) -> None:
+        self.fs.rm(path.split("://", 1)[1])
+
+    def describe(self) -> str:
+        return self.url
 
 
-def source_for(root: Path, location: Optional[str] = None) -> FileEventSource:
-    """Source d'un déclencheur : None = dossier du projet ; sftp://… ou s3://… plus tard."""
-    if not location:
+def source_for(root: Path, location: Optional[str] = None, options: Optional[Dict] = None) -> FileEventSource:
+    """Source d'un déclencheur : None ou chemin relatif = dossier du projet ;
+    s3:// az:// gs:// = stockage objet ; sftp:// plus tard."""
+    from hydra_etl.internal import storage
+    if not location or not storage.is_remote(location):
         return LocalSource(root)
     scheme = urlparse(location).scheme.lower()
     if scheme == "sftp":
         return SftpSource(location)
-    if scheme == "s3":
-        return S3Source(location)
-    raise ValueError(f"unsupported file location '{location}' (local folder, later sftp:// or s3://)")
+    storage.check_uri(location, "file trigger")
+    return RemoteSource(location, options)
 
 
 @dataclass

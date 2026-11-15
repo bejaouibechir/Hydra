@@ -750,3 +750,24 @@ describe('hdrSerializer — MySQL CDC', () => {
     expect(back.sources.src.extract.table).toBe('orders')
   })
 })
+
+/** Stockage objet (0.22) : base_path s3:// / az:// / gs:// et bloc storage gardés tels quels. */
+describe('hdrSerializer — stockage objet', () => {
+  const model: HydraJobModel = {
+    name: 'remote',
+    sources: { src: { type: 'csv', connection: { base_path: 'az://landing/sales/',
+      storage: { account_name: 'acct', account_key: '${SECRET:AZ_KEY}' } }, extract: { table: '2026/orders_*.csv' } } },
+    transformations: { steps: [] },
+    destinations: { dst: { type: 'parquet', connection: { storage: { key: '${SECRET:S3_KEY}' } },
+      load: { table: 's3://lake/out/orders.parquet', mode: 'replace' } } },
+    pipeline: { from: 'src', to: 'dst' },
+  }
+  it('aller-retour sans perte', () => {
+    const { nodes, edges } = jobModelToFlow(model)
+    const back = flowToJobModel(nodes, edges, 'remote')
+    expect(back.sources.src.connection).toMatchObject(model.sources.src.connection)
+    expect(back.sources.src.extract.table).toBe('2026/orders_*.csv')
+    expect(back.destinations.dst.connection).toMatchObject(model.destinations.dst.connection)
+    expect(back.destinations.dst.load.table).toBe('s3://lake/out/orders.parquet')
+  })
+})

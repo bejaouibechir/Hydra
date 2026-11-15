@@ -577,3 +577,12 @@ def test_suppression_de_job_vers_la_corbeille(call):
 
     assert call("hydra_delete_job", job_path="workflows").startswith(("REFUSED", "Folder not found"))
     assert call("hydra_delete_job", job_path="../x").startswith("REFUSED")
+
+
+def test_remote_paths_are_not_checked_locally():
+    """s3:// az:// gs:// : ni « missing » ni « outside the workspace »."""
+    from hydra_etl.mcp.server import _file_paths
+    doc = {"a": {"type": "csv", "extract": {"table": "s3://lake/in.csv"}},
+           "b": {"type": "csv", "connection": {"base_path": "az://landing"}, "extract": {"table": "x.csv"}},
+           "c": {"type": "csv", "extract": {"table": "local.csv"}}}
+    assert [n for n, _ in _file_paths({"sources": doc}, "sources")] == ["c"]

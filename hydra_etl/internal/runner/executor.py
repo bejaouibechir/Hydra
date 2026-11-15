@@ -167,6 +167,8 @@ class JobExecutor:
         # (begin → stage → publish | abort, voir load_session.py)
         session = None
         atomic: Optional[bool] = None
+        remote_copies: List[Any] = []      # stockage objet : copies locales du job (storage.py)
+        remote_dest = None
 
         try:
             # 0) Charger YAML avec résolution ${ENV:...}
@@ -174,6 +176,10 @@ class JobExecutor:
             dests_raw = self._load_yaml_with_resolution(self._destinations_file, required=True)
             pipeline_raw = self._load_yaml_with_resolution(self._pipeline_file, required=True)
             transforms_raw = self._load_yaml_with_resolution(self._transforms_file, required=False)
+
+            # 0-bis) Stockage objet (s3://, az://, gs://) : copie locale des fichiers
+            remote_dest = self._localize_remote(sources_raw, dests_raw, pipeline_raw, transforms_raw,
+                                                remote_copies)
 
             # 1) Valider DSL
             sources_cfg = self._source_parser.parse(sources_raw)
@@ -424,6 +430,9 @@ class JobExecutor:
             if session is not None:
                 with prof.span("load"):
                     session.publish()
+            if remote_dest is not None:
+                with prof.span("load"):
+                    remote_dest[0].upload(remote_dest[1])     # un seul envoi : tout ou rien
             # Source qui confirme sa lecture après une publication réussie (CDC :
             # le slot de réplication n'avance qu'ici ; un échec avant fait relire).
             confirm = getattr(source_connector, "confirm_extract", None)
@@ -516,6 +525,9 @@ class JobExecutor:
                 undo=self._undo_of(session, locals().get("dest_id")),
                 undo_connector=locals().get("dest_connector") if session is not None else None,
             )
+        finally:
+            for rc in remote_copies:                 # copies locales du stockage objet
+                rc.cleanup()
 
     def _undo_of(self, session: Any, dest_id: Optional[str]) -> Any:
         """Enregistrement d'annulation de la session, complété pour le journal."""
@@ -592,6 +604,40 @@ class JobExecutor:
     # =========================================================================
     # Helpers - Résolution Pipeline
     # =========================================================================
+
+    def _localize_remote(self, sources_raw, dests_raw, pipeline_raw, transforms_raw, copies):
+        """Sources et destination fichier sur un stockage objet : copie locale
+        (voir storage.py). Renvoie (copie, nom local) de la destination, ou None."""
+        from hydra_etl.internal import storage
+        try:
+            src_id, dest_id = self._resolve_pipeline_ids(pipeline_raw)
+        except Exception:  # noqa: BLE001 - l'erreur sortira à l'étape 2, avec son message
+            return None
+        sources = sources_raw.get("sources") if isinstance(sources_raw, dict) else None
+        dests = dests_raw.get("destinations") if isinstance(dests_raw, dict) else None
+        wanted = {src_id}
+        for st in (transforms_raw or {}).get("steps") or []:          # sources de droite des join / merge / union
+            if isinstance(st, dict):
+                for op in ("join", "merge", "union"):
+                    body = st.get(op)
+                    if isinstance(body, dict) and isinstance(body.get("right"), str):
+                        wanted.add(body["right"])
+        if isinstance(sources, dict):
+            for name in wanted:
+                if isinstance(sources.get(name), dict):
+                    res = storage.localize(sources[name], name=name, is_source=True)
+                    if res:
+                        copies.append(res[0])
+        if isinstance(dests, dict) and isinstance(dests.get(dest_id), dict):
+            res = storage.localize(dests[dest_id], name=dest_id, is_source=False)
+            if res:
+                copies.append(res[0])
+                if self._undo:
+                    raise ValueError(f"destination '{dest_id}' is on an object store ({res[0].uri}): "
+                                     f"its workflow cannot use rollback: true yet (the upload is "
+                                     f"all-or-nothing on its own)")
+                return res
+        return None
 
     def _resolve_pipeline_ids(self, pipeline_raw: Dict[str, Any]) -> Tuple[str, str]:
         """Extrait from/to depuis pipeline.yaml."""

@@ -34,8 +34,8 @@ _SECRET_REF_RE = re.compile(r"^\$\{SECRET:[A-Za-z0-9_.\-]+\}$")
 TYPE_KEYS: Dict[str, tuple] = {
     "cron": ("cron", "timezone"),
     "interval": ("every",),
-    "file": ("path", "events", "debounce", "every"),
-    "marker": ("path", "consume", "every"),
+    "file": ("path", "events", "debounce", "every", "storage"),
+    "marker": ("path", "consume", "every", "storage"),
     "source_change": ("source", "every"),
     "webhook": ("token",),
     "after_project": ("project", "ref", "on"),
@@ -124,6 +124,7 @@ class ProjectTrigger(BaseModel):
     timezone: Optional[str] = None
     every: Optional[Union[int, float, str]] = None
     path: Optional[str] = None
+    storage: Optional[Dict[str, Any]] = None       # identifiants d'un path s3:// az:// gs://
     events: Optional[List[Literal["added", "modified"]]] = None
     debounce: Optional[Union[int, float, str]] = None
     consume: Optional[bool] = None
@@ -173,7 +174,15 @@ class ProjectTrigger(BaseModel):
                 raise ValueError(f"trigger '{n}': {e}") from None
         elif self.timezone is not None:
             raise ValueError(f"trigger '{n}': timezone does not apply to type {t}")
-        if self.path is not None:
+        from hydra_etl.internal import storage as _storage
+        if self.path is not None and _storage.is_remote(self.path):
+            try:
+                _storage.check_uri(str(self.path), f"trigger '{n}': path")
+            except ValueError as e:
+                raise ValueError(str(e)) from None
+        elif self.storage is not None:
+            raise ValueError(f"trigger '{n}': storage only applies to a remote path (s3://, az://, gs://)")
+        if self.path is not None and not _storage.is_remote(self.path):
             p = str(self.path).replace("\\", "/")
             if p.startswith("/") or re.match(r"^[A-Za-z]:", p) or ".." in p.split("/"):
                 raise ValueError(f"trigger '{n}': path '{self.path}' must stay inside the project "

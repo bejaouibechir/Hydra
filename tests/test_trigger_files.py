@@ -9,7 +9,7 @@ import pytest
 
 from hydra_etl.triggers.core import FireResult, read_history
 from hydra_etl.triggers.engine import TriggerEngine
-from hydra_etl.triggers.files import FileWatcher, LocalSource, S3Source, SftpSource, source_for
+from hydra_etl.triggers.files import FileWatcher, LocalSource, SftpSource, source_for
 
 T0 = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
 
@@ -31,15 +31,16 @@ def test_local_source_lists_and_deletes(tmp_path):
         src.delete("../x")
 
 
-def test_remote_sources_are_reserved(tmp_path):
+def test_remote_sources(tmp_path):
+    """s3:// az:// gs:// : stockage objet (test_object_storage.py) ; sftp:// réservé."""
     assert isinstance(source_for(tmp_path), LocalSource)
-    for url, cls in (("sftp://host/in", SftpSource), ("s3://bucket/in", S3Source)):
-        src = source_for(tmp_path, url)
-        assert isinstance(src, cls)
-        with pytest.raises(NotImplementedError, match="not available yet"):
-            src.list("*.csv")
-    with pytest.raises(ValueError, match="unsupported"):
-        source_for(tmp_path, "ftp://x")
+    assert isinstance(source_for(tmp_path, "in/*.csv"), LocalSource)
+    src = source_for(tmp_path, "sftp://host/in")
+    assert isinstance(src, SftpSource)
+    with pytest.raises(NotImplementedError, match="not available yet"):
+        src.list("*.csv")
+    with pytest.raises(ValueError, match="not supported yet"):
+        source_for(tmp_path, "ftp://x/y")
 
 
 def test_watcher_added_modified_debounce(tmp_path):

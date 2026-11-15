@@ -528,7 +528,7 @@ engine for every project of the Studio list. In Studio, **Project settings › T
 edits them in a form, runs one now and creates webhook tokens. A webhook is called with
 `POST /api/projects/<id>/triggers/<name>/webhook` and the header `X-Hydra-Token: <token>`. Every run is
 recorded in `.hydra/triggers/history.jsonl`; the project runs in its own process, so a first Ctrl+C on
-`hdrctl watch` waits for the running projects. Remote folders (SFTP, S3) for file triggers are planned.
+`hdrctl watch` waits for the running projects. A file trigger can also watch an object store: `path: s3://bucket/landing/*.csv` (or `az://`, `gs://`), with its credentials in `storage:`. SFTP is planned.
 
 An edge is a **dependency**, not a pipe: it decides *when* a job runs, never what data reaches it.
 Steps that share no dependency run in parallel.
@@ -650,6 +650,35 @@ placeholder and produce different results.
 
 ---
 
+## Files on S3, Azure or Google Cloud Storage
+
+CSV, JSON and Parquet sources and destinations read and write object stores: write the location as a URI in
+`base_path` or in the table, and the credentials in `storage` (or leave them to the usual environment variables of
+each service).
+
+```yaml
+sources:
+  orders:
+    type: csv
+    connection:
+      base_path: az://landing/sales/          # or s3://bucket/…, gs://bucket/…
+      storage:
+        account_name: myaccount
+        account_key: ${SECRET:AZ_KEY}
+    extract:
+      table: 2026/orders_*.csv                # a pattern reads every matching file
+destinations:
+  lake:
+    type: parquet
+    load:
+      table: s3://lake/curated/orders.parquet
+      mode: replace
+```
+
+Files are copied to a temporary folder and read with the usual engines (native CSV reader, large-volume engine);
+a destination is uploaded in one go at the end of the job, so the remote file is either the old one or the new one,
+never half written. `pip install "hydra-etl[s3]"`, `"hydra-etl[azure]"` or `"hydra-etl[gcs]"`.
+
 ## Install what you need
 
 The base install is the engine and the CLI. Everything else is opt-in.
@@ -664,7 +693,7 @@ pip install "hydra-etl[bigquery]"      # + BigQuery driver (source and destinati
 pip install "hydra-etl[all]"           # everything
 ```
 
-Available extras: `server`, `native`, `duckdb`, `parquet`, `mysql`, `postgres`, `mssql`, `snowflake`, `bigquery`, `mysql-cdc`, `mongodb`, `http`, `mcp`, `all`.
+Available extras: `server`, `native`, `duckdb`, `parquet`, `mysql`, `postgres`, `mssql`, `snowflake`, `bigquery`, `mysql-cdc`, `s3`, `azure`, `gcs`, `mongodb`, `http`, `mcp`, `all`.
 
 ### Or run it in a container — optional
 

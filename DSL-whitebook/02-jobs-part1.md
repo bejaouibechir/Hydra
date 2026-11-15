@@ -217,6 +217,37 @@ sources:
 
 ---
 
+## Files on an object store (S3, Azure, GCS)
+
+*Hydra 0.22+.* CSV, JSON and Parquet sources and destinations accept a URI wherever they take a path:
+
+```yaml
+sources:
+  orders:
+    type: csv
+    connection:
+      base_path: s3://lake/landing/        # s3:// · az:// (abfs://, abfss://) · gs://
+      storage:                             # optional: otherwise the service's environment variables
+        key: ${SECRET:S3_KEY}
+        secret: ${SECRET:S3_SECRET}
+        endpoint_url: http://minio:9000    # MinIO or another S3-compatible store
+    extract:
+      table: 2026/orders_*.csv
+```
+
+| Service | Install | `storage` keys (examples) |
+| --- | --- | --- |
+| S3, MinIO | `pip install "hydra-etl[s3]"` | `key`, `secret`, `endpoint_url`, `anon` |
+| Azure Blob / ADLS | `pip install "hydra-etl[azure]"` | `account_name`, `account_key`, `connection_string`, `sas_token` |
+| Google Cloud Storage | `pip install "hydra-etl[gcs]"` | `token` (key file or `anon`), `project` |
+
+- Sources: the file, or every file of a pattern, is copied to a temporary folder, then read like a local file.
+- Destinations: written locally, then uploaded in one go once the load is published — all-or-nothing. `append`
+  downloads the existing file first.
+- `storage` with a local path is refused. `sftp://` is planned.
+
+---
+
 ## SQL database sources
 
 MySQL, MariaDB, PostgreSQL and SQL Server share the same shape.

@@ -85,6 +85,17 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'create',      label: 'Create slot and publication if missing', type: 'select', options: ['yes', 'no'] },
     { key: 'snapshot',    label: 'First run copies the whole table', type: 'select', options: ['yes', 'no'] },
   ],
+  source_mysql_cdc: [
+    { key: 'host',        label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
+    { key: 'port',        label: 'Port',        type: 'number', placeholder: '3306' },
+    { key: 'database',    label: 'Database',    type: 'text',   required: true },
+    { key: 'user',        label: 'User (REPLICATION SLAVE, REPLICATION CLIENT, SELECT)', type: 'text', required: true },
+    { key: 'password',    label: 'Password',    type: 'password' },
+    { key: 'table',       label: 'Table',       type: 'text',   placeholder: 'orders', required: true },
+    { key: 'state',       label: 'Saved position name (default: job.source)', type: 'text', placeholder: 'orders_mirror' },
+    { key: 'server_id',   label: 'Replica server id (default: derived from the position name)', type: 'number' },
+    { key: 'snapshot',    label: 'First run copies the whole table', type: 'select', options: ['yes', 'no'] },
+  ],
   source_snowflake: [
     { key: 'account',          label: 'Account',  type: 'text', placeholder: 'ORGNAME-ACCOUNTNAME  or  xy12345.eu-central-2.aws', required: true },
     { key: 'user',             label: 'User',     type: 'text', required: true },

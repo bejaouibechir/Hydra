@@ -377,6 +377,39 @@ def probe_cdc_slot_status(arg: str, ctx: ProbeContext):
     return st.get("wal_status") or "unknown", ""
 
 
+def _cdc_any(fn: str, arg: str, ctx: ProbeContext) -> Dict[str, Any]:
+    """État commun d'une source CDC (PostgreSQL ou MySQL) : status, lag_bytes, detail."""
+    try:
+        conn, ctype, _ = _connector("sources", arg, ctx)
+    except ProbeError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise ProbeError(f"{fn}('{arg}'): {_short(e)}") from None
+    if not callable(getattr(conn, "cdc_status", None)):
+        raise ProbeError(f"{fn}('{arg}'): '{arg}' is a {ctype or '?'} source, not a CDC source "
+                         f"(postgresql_cdc, mysql_cdc)")
+    try:
+        return conn.cdc_status()
+    except Exception as e:  # noqa: BLE001
+        raise ProbeError(f"{fn}('{arg}'): {_short(e)}") from None
+
+
+def probe_cdc_lag(arg: str, ctx: ProbeContext):
+    """Journal à relire depuis le dernier succès (octets) : il grossit tant que les runs échouent."""
+    st = _cdc_any("cdc.lag", arg, ctx)
+    if st["status"] == "missing":
+        return 0, "not started yet"
+    if st["status"] == "lost":
+        raise ProbeError(f"cdc.lag('{arg}'): the position was lost; test cdc.status('{arg}') == 'lost'")
+    n = int(st.get("lag_bytes") or 0)
+    return n, f"{n / (1024 * 1024):,.1f} MB to read"
+
+
+def probe_cdc_status(arg: str, ctx: ProbeContext):
+    st = _cdc_any("cdc.status", arg, ctx)
+    return st["status"], st.get("detail") or ""
+
+
 PROBES: Dict[str, Callable[[str, ProbeContext], Any]] = {
     "source_available": probe_source_available,
     "destination_available": probe_destination_available,
@@ -388,4 +421,6 @@ PROBES: Dict[str, Callable[[str, ProbeContext], Any]] = {
     "db.load": probe_db_load,
     "cdc.slot_lag": probe_cdc_slot_lag,
     "cdc.slot_status": probe_cdc_slot_status,
+    "cdc.lag": probe_cdc_lag,
+    "cdc.status": probe_cdc_status,
 }

@@ -842,7 +842,7 @@ class JobExecutor:
                 ext = right.get("extract") if isinstance(right.get("extract"), dict) else {}
                 if ext:
                     config["extract"] = ext
-                if rtype in ("csv", "json", "parquet", "sqlite"):
+                if rtype in ("csv", "json", "parquet", "sqlite", "bigquery"):
                     # relative paths start from the job folder, like the sources of
                     # sources.yaml (a sqlite path was read from the current folder)
                     config["job_dir"] = str(self.path_base)
@@ -924,7 +924,8 @@ class JobExecutor:
         # path_base == job_dir en mode CLI ; == dossier job d\'origine en mode Studio inline.
         # parquet en fait partie : sans job_dir, son instanciation échoue, ce qui
         # rendait le format inutilisable comme sortie intermédiaire.
-        if ctype in ("csv", "json", "parquet", "sqlite"):
+        # bigquery (credentials_file) et mysql_cdc (fichier de position) aussi.
+        if ctype in ("csv", "json", "parquet", "sqlite", "bigquery", "mysql_cdc"):
             config["job_dir"] = str(self.path_base)
         
         # 3. Instancier via le registry

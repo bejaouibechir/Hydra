@@ -304,10 +304,12 @@ def condition_name_errors(when: str, wf_jobs: List[Path], all_jobs: List[Path]) 
     from hydra_etl.workflow.conditions import condition_sources
     out = []
     for fn, arg in condition_sources(when):
-        if fn in ("source_available", "destination_available", "db.load", "cdc.slot_lag", "cdc.slot_status"):
+        if fn in ("source_available", "destination_available", "db.load", "cdc.slot_lag", "cdc.slot_status",
+                  "cdc.lag", "cdc.status"):
             kinds = {"source_available": ["sources"], "destination_available": ["destinations"],
                      "db.load": ["sources", "destinations"],
-                     "cdc.slot_lag": ["sources"], "cdc.slot_status": ["sources"]}[fn]
+                     "cdc.slot_lag": ["sources"], "cdc.slot_status": ["sources"],
+                     "cdc.lag": ["sources"], "cdc.status": ["sources"]}[fn]
             if not any(arg in declared_names(wf_jobs, k) or arg in declared_names(all_jobs, k)
                        for k in kinds):
                 what = " or ".join(f"{k}.yaml" for k in kinds)

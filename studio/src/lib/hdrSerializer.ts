@@ -123,6 +123,7 @@ const NODE_TO_CONNECTOR: Record<string, string> = {
   source_snowflake:'snowflake',
   source_bigquery: 'bigquery',
   source_postgres_cdc: 'postgresql_cdc',
+  source_mysql_cdc: 'mysql_cdc',
   source_mongodb:  'mongodb',
   source_api:      'web_api',
   dest_csv:        'csv',
@@ -146,6 +147,7 @@ const CONNECTOR_TO_SOURCE_NODE: Record<string, string> = {
   snowflake: 'source_snowflake',
   bigquery: 'source_bigquery',
   postgresql_cdc: 'source_postgres_cdc', postgres_cdc: 'source_postgres_cdc',
+  mysql_cdc: 'source_mysql_cdc',
   mongodb: 'source_mongodb', web_api: 'source_api',
 }
 
@@ -291,6 +293,11 @@ export function flowToHdr(
     }
     if (connType === 'postgresql_cdc') {
       const cd = _cdcSource(cfg, undefined)
+      sources[sid] = { type: connType, connection: cd.connection, extract: cd.extract }
+      continue
+    }
+    if (connType === 'mysql_cdc') {
+      const cd = _cdcSource(cfg, undefined, MYSQL_CDC_CONN_KEYS)
       sources[sid] = { type: connType, connection: cd.connection, extract: cd.extract }
       continue
     }
@@ -696,9 +703,12 @@ function _bigqueryDest(cfg: Record<string, unknown>) {
 
 /** Source PostgreSQL CDC : connexion PostgreSQL + slot / publication ; une table. */
 const CDC_CONN_KEYS = ['host', 'port', 'database', 'user', 'password', 'slot', 'publication', 'create', 'snapshot'] as const
-function _cdcSource(cfg: Record<string, unknown>, batch_size: number | undefined) {
+/** Source MySQL CDC (0.22) : connexion MySQL + nom de la position et identifiant de réplique. */
+const MYSQL_CDC_CONN_KEYS = ['host', 'port', 'database', 'user', 'password', 'state', 'server_id', 'snapshot'] as const
+function _cdcSource(cfg: Record<string, unknown>, batch_size: number | undefined,
+                    keys: readonly string[] = CDC_CONN_KEYS) {
   const connection: Record<string, unknown> = {}
-  for (const k of CDC_CONN_KEYS) {
+  for (const k of keys) {
     const v = cfg[k]
     if (v === undefined || v === null || String(v).trim() === '') continue
     if (k === 'create' || k === 'snapshot') {
@@ -707,7 +717,7 @@ function _cdcSource(cfg: Record<string, unknown>, batch_size: number | undefined
       if (off) connection[k] = false
       continue
     }
-    connection[k] = k === 'port' && /^\d+$/.test(String(v)) ? Number(v) : v
+    connection[k] = (k === 'port' || k === 'server_id') && /^\d+$/.test(String(v)) ? Number(v) : v
   }
   const extract: Record<string, unknown> = { table: cfg.table ?? '', batch_size }
   if (batch_size === undefined) delete extract.batch_size
@@ -724,6 +734,13 @@ function _sourceToParams(src: HdrSource): Record<string, unknown> {
   }
   if (type === 'sqlite') {
     return { path: (conn as Record<string, unknown>).path ?? '', table: ext.table ?? '', query: ext.query ?? '' }
+  }
+  if (type === 'mysql_cdc') {
+    const c = conn as Record<string, unknown>
+    const out: Record<string, unknown> = { table: ext.table ?? '' }
+    for (const k of MYSQL_CDC_CONN_KEYS) out[k] = c[k] ?? ''
+    out.snapshot = c.snapshot === false ? 'no' : 'yes'
+    return out
   }
   if (type === 'postgresql_cdc' || type === 'postgres_cdc') {
     const c = conn as Record<string, unknown>
@@ -995,6 +1012,15 @@ export function flowToJobModel(
       sources[key] = { type: 'postgresql_cdc', connection: cx, extract: ex }
       continue
     }
+    if (connType === 'mysql_cdc') {
+      const cd = _cdcSource(cfg, batch_size, MYSQL_CDC_CONN_KEYS)
+      const ex = _mergeKeep(orig.extract, cd.extract)
+      delete ex.query
+      const cx = _mergeKeep(orig.connection, cd.connection)
+      for (const k of MYSQL_CDC_CONN_KEYS) if (!(k in cd.connection)) delete cx[k]
+      sources[key] = { type: 'mysql_cdc', connection: cx, extract: ex }
+      continue
+    }
     sources[key] = { type: connType, connection, extract }
   }
   if (Object.keys(sources).length === 0) {
@@ -1205,6 +1231,10 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
       // listes yes / no du formulaire (le connecteur vaut oui par défaut)
       const c = (src.connection ?? {}) as Record<string, unknown>
       params.create = c.create === false ? 'no' : 'yes'
+      params.snapshot = c.snapshot === false ? 'no' : 'yes'
+    }
+    if (src.type === 'mysql_cdc') {
+      const c = (src.connection ?? {}) as Record<string, unknown>
       params.snapshot = c.snapshot === false ? 'no' : 'yes'
     }
     // the main source on the flow line; a right source below the line, just before the

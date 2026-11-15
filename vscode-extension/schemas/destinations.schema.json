@@ -56,13 +56,13 @@
         },
         {
           "if": {
-            "properties": { "type": { "enum": ["postgresql_cdc", "postgres_cdc"] } },
+            "properties": { "type": { "enum": ["postgresql_cdc", "postgres_cdc", "mysql_cdc"] } },
             "required": ["type"]
           },
           "then": {
             "properties": {
               "type": {
-                "not": { "enum": ["postgresql_cdc", "postgres_cdc"] },
+                "not": { "enum": ["postgresql_cdc", "postgres_cdc", "mysql_cdc"] },
                 "description": "A CDC source cannot be a destination: write the changes with type: postgresql and mode: upsert."
               }
             }

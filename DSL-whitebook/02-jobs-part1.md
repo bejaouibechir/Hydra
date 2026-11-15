@@ -76,6 +76,7 @@ sources:
 | `snowflake`                      | ✔           | ✔     | `pip install "hydra-etl[snowflake]"` (Hydra 0.20+; destination 0.21+) |
 | `bigquery`                       | ✔           | ✔     | `pip install "hydra-etl[bigquery]"` (Hydra 0.22+)  |
 | `postgresql_cdc`, `postgres_cdc` | ✔ (changes) | –     | `pip install "hydra-etl[postgres]"` (Hydra 0.20+)  |
+| `mysql_cdc`                      | ✔ (changes) | –     | `pip install "hydra-etl[mysql-cdc]"` (Hydra 0.22+) |
 
 An unknown type stops the job with the list of supported types:
 
@@ -539,6 +540,40 @@ destinations:
 - A workflow with `rollback: true` cannot use a CDC source: the slot is confirmed at the end of the job and cannot be moved back. Use `load.atomic: true`.
 
 Example: `examples/postgres-cdc-mirror` in the Hydra ETL repository: first copy, a day of changes, then a failure in the middle of the load that loses nothing.
+
+---
+
+## MySQL CDC source
+
+*Hydra 0.22+.* `pip install "hydra-etl[mysql-cdc]"`. The changes of a MySQL table (inserts, updates, deletes),
+read from the binlog in the order of the transactions — same tracking columns as the PostgreSQL CDC source
+(`_op`, `_lsn`, `_commit_time`), so the same destinations apply them in `upsert`.
+
+```yaml
+sources:
+  order_changes:
+    type: mysql_cdc
+    connection:
+      host: "{{ env:MYSQL_HOST }}"
+      user: "{{ env:MYSQL_USER }}"          # REPLICATION SLAVE, REPLICATION CLIENT, SELECT
+      password: "{{ env:MYSQL_PASSWORD }}"
+      database: shop
+      state: orders_mirror                  # name of the saved position (default: <job>.<source>)
+    extract:
+      table: orders
+```
+
+- MySQL has no replication slot: Hydra saves the binlog position in `.hydra/cdc/<state>.json` (project root, or
+  the job folder outside a project), and only after the destination is published. A failure makes the next run
+  read the same changes again; `upsert` applies them without duplicates.
+- First run: the current position is read, then the whole table (`_op: snapshot`, `snapshot: false` to skip it),
+  without a global lock.
+- `server_id`: replica id, unique among the replicas of the server; derived from `state` by default.
+- Requirements: `log_bin` on, `binlog_format = ROW`, `binlog_row_image = FULL` (checked before reading).
+- If MySQL purged the binlog of the saved position (`binlog_expire_logs_seconds`), the run fails with the steps
+  to rebuild the mirror; it never goes on with a gap. `lag_warning_mb` (default 1024) warns before that.
+- Conditions: `cdc.lag('order_changes')` and `cdc.status('order_changes')` (`ok`, `lost`, `missing`), the same as
+  for a PostgreSQL CDC source.
 
 ---
 

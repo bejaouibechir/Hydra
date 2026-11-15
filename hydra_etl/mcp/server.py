@@ -311,7 +311,7 @@ def _validation_report(output: str) -> str:
 
 
 # Connectors that only read (kept in sync by tests/test_mcp_server.py)
-SOURCE_ONLY = ("postgres_cdc", "postgresql_cdc", "web_api")
+SOURCE_ONLY = ("postgres_cdc", "postgresql_cdc", "mysql_cdc", "web_api")
 
 FILE_TYPES = ("csv", "json", "parquet", "sqlite")
 

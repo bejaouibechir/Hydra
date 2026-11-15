@@ -16,6 +16,7 @@ from .sqlite_connector import SQLiteConnector
 from .snowflake_connector import SnowflakeConnector
 from .bigquery_connector import BigQueryConnector
 from .postgresql_cdc_connector import PostgreSQLCDCConnector
+from .mysql_cdc_connector import MySQLCDCConnector
 
 # Import MongoDB connector -- optionnel (dependance pymongo)
 try:
@@ -104,6 +105,8 @@ CONNECTOR_REGISTRY: Dict[str, ConnectorFactory] = {
     # Changements d'une table PostgreSQL (réplication logique, source seulement)
     "postgresql_cdc": _build_db_connector(PostgreSQLCDCConnector),
     "postgres_cdc": _build_db_connector(PostgreSQLCDCConnector),
+    # Changements d'une table MySQL (binlog, source seulement)
+    "mysql_cdc": _build_db_connector(MySQLCDCConnector),
 }
 
 # Enregistrement conditionnel des connecteurs a dependances optionnelles

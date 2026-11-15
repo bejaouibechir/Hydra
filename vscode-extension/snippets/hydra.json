@@ -78,6 +78,24 @@
       "$0"
     ]
   },
+  "Hydra — MySQL CDC source": {
+    "prefix": "hsrc-mysql-cdc",
+    "description": "Changes of a MySQL table (binlog); write them with a destination in upsert",
+    "body": [
+      "src_${1:name}:",
+      "  type: mysql_cdc",
+      "  connection:",
+      "    host: \\${ENV:MYSQL_HOST}",
+      "    port: 3306",
+      "    user: \\${ENV:MYSQL_USER}",
+      "    password: \\${ENV:MYSQL_PASSWORD}",
+      "    database: ${2:shop}",
+      "    state: ${3:orders_mirror}",
+      "  extract:",
+      "    table: ${4:orders}",
+      "$0"
+    ]
+  },
   "Hydra — PostgreSQL CDC source": {
     "prefix": "hsrc-cdc",
     "description": "Changes of a PostgreSQL table (logical replication); write them with a PostgreSQL destination in upsert",

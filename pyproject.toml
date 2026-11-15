@@ -57,6 +57,8 @@ duckdb = ["duckdb>=0.10", "pyarrow>=14.0"]   # + moteur gros volumes (HYDRA_ENGI
 parquet = ["pyarrow>=14.0"]
 mysql = ["mysql-connector-python>=8.3"]
 postgres = ["psycopg2-binary>=2.9"]
+# MySQL CDC (lecture du binlog).
+mysql-cdc = ["mysql-replication>=1.0", "PyMySQL>=1.1"]
 # SQL Server. pymssql embarque FreeTDS dans ses roues : pas de pilote ODBC
 # systeme a installer, contrairement a pyodbc.
 mssql = ["pymssql>=2.3"]
@@ -80,6 +82,7 @@ all = [
     "hydra-etl[mssql]",
     "hydra-etl[snowflake]",
     "hydra-etl[bigquery]",
+    "hydra-etl[mysql-cdc]",
     "hydra-etl[mongodb]",
     "hydra-etl[http]",
     "hydra-etl[mcp]",

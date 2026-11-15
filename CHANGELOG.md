@@ -26,6 +26,20 @@ and versions follow [Semantic Versioning](https://semver.org/).
     case, a `RECORD` / `ARRAY` column, or a row without a key value in `upsert` are refused.
   - `rollback: true` in a workflow is not available for BigQuery yet: the workflow is refused before it starts.
 - Studio — **BigQuery** source and destination nodes. MCP server and `/api/nodes`: BigQuery listed.
+- **MySQL CDC source** (`type: mysql_cdc`, `pip install "hydra-etl[mysql-cdc]"`): the inserts, updates and deletes
+  of a MySQL table, read from the binlog in the order of the transactions, with the same `_op`, `_lsn` and
+  `_commit_time` columns as the PostgreSQL CDC source (a destination in `upsert` keeps a mirror up to date).
+  - MySQL has no replication slot: the binlog position is saved in `.hydra/cdc/<state>.json`, only after the
+    destination is published; a failed run reads the same changes again. A transaction is emitted whole.
+  - First run: current position, then the whole table in a consistent snapshot (`snapshot: false` to skip it), no
+    global lock.
+  - Checked before reading: `log_bin`, `binlog_format = ROW`, `binlog_row_image = FULL`. A position whose binlog was
+    purged by MySQL fails the run with the steps to rebuild the mirror; `lag_warning_mb` warns before.
+  - Studio node **MySQL CDC**; VS Code schema and snippet `hsrc-mysql-cdc`.
+- Fallback conditions — **`cdc.lag('source')`** (changes still to read, in bytes) and **`cdc.status('source')`**
+  (`ok`, `at_risk`, `lost`, `missing`) for any CDC source, PostgreSQL or MySQL. `cdc.slot_lag` and
+  `cdc.slot_status` keep working for PostgreSQL.
+- Relative paths of `bigquery` (`credentials_file`) sources and destinations are read from the job folder.
 
 ## [0.21.0] — 2026-11-12
 

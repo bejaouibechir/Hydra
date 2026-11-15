@@ -36,6 +36,8 @@ FUNCTIONS: Dict[str, Tuple[int, str]] = {
     "db.load":               (1, "number"),   # sessions actives sur une base du projet
     "cdc.slot_lag":          (1, "bytes"),    # WAL retenu par le slot d'une source PostgreSQL CDC
     "cdc.slot_status":       (1, "text"),     # wal_status du slot (reserved, extended, unreserved, lost…)
+    "cdc.lag":               (1, "bytes"),    # toute source CDC : journal à relire depuis le dernier succès
+    "cdc.status":            (1, "text"),     # toute source CDC : ok | at_risk | lost | missing
 }
 
 # valeurs `objet.attribut` sans appel
@@ -56,6 +58,8 @@ FUNCTION_HELP: Dict[str, Tuple[str, str]] = {
     "db.load":               ("database", "active queries on a database source or destination"),
     "cdc.slot_lag":          ("source", "WAL kept by the slot of a PostgreSQL CDC source, e.g. cdc.slot_lag('orders') > 2GB"),
     "cdc.slot_status":       ("source", "state of the slot: 'reserved', 'extended', 'unreserved', 'lost', 'missing'"),
+    "cdc.lag":               ("source", "changes still to read by a CDC source (PostgreSQL or MySQL), e.g. cdc.lag('orders') > 1GB"),
+    "cdc.status":            ("source", "state of a CDC source: 'ok', 'at_risk', 'lost', 'missing'"),
 }
 
 ATTRIBUTE_HELP: Dict[str, str] = {

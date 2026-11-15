@@ -727,3 +727,26 @@ describe('hdrSerializer — BigQuery', () => {
     expect(back.destinations.dst.load).toMatchObject({ table: 'orders', mode: 'upsert', key: ['order_id'] })
   })
 })
+
+/** MySQL CDC (0.22) : connexion, position enregistrée, identifiant de réplique ; une table. */
+describe('hdrSerializer — MySQL CDC', () => {
+  const model: HydraJobModel = {
+    name: 'mirror',
+    sources: { src: { type: 'mysql_cdc', connection: { host: 'db', port: 3306, database: 'shop', user: 'repl',
+      state: 'orders_mirror', server_id: 4201, snapshot: false }, extract: { table: 'orders' } } },
+    transformations: { steps: [] },
+    destinations: { dst: { type: 'postgresql', connection: { host: 'localhost', database: 'dwh', user: 'u' },
+      load: { table: 'orders', mode: 'upsert', key: ['id'] } } },
+    pipeline: { from: 'src', to: 'dst' },
+  }
+  it('aller-retour sans perte', () => {
+    const { nodes, edges } = jobModelToFlow(model)
+    const n = nodes.find(x => x.data.label === 'src')!
+    expect(n.data.nodeType).toBe('source_mysql_cdc')
+    expect((n.data.params as Record<string, unknown>).snapshot).toBe('no')
+    const back = flowToJobModel(nodes, edges, 'mirror')
+    expect(back.sources.src.type).toBe('mysql_cdc')
+    expect(back.sources.src.connection).toEqual(model.sources.src.connection)
+    expect(back.sources.src.extract.table).toBe('orders')
+  })
+})

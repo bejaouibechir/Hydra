@@ -9,6 +9,7 @@
     "mongodb",
     "mssql",
     "mysql",
+    "mysql_cdc",
     "parquet",
     "postgres",
     "postgres_cdc",

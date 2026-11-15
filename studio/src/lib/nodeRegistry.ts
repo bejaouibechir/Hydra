@@ -49,6 +49,7 @@ const NODES: HydraNodeDef[] = [
   { type: 'source_sqlserver',label: 'SQL Server', category: 'source', color: '#10b981', icon: 'Database',        description: 'SQL Server query',     maxInputs: 0 },
   { type: 'source_sqlite',   label: 'SQLite',     category: 'source', color: '#10b981', icon: 'Database',        description: 'SQLite table or query (built in)', maxInputs: 0 },
   { type: 'source_postgres_cdc', label: 'PostgreSQL CDC', category: 'source', color: '#10b981', icon: 'History', description: 'Changes of a PostgreSQL table (logical replication)', maxInputs: 0 },
+  { type: 'source_mysql_cdc', label: 'MySQL CDC', category: 'source', color: '#10b981', icon: 'History', description: 'Changes of a MySQL table (binlog)', maxInputs: 0 },
   { type: 'source_snowflake',label: 'Snowflake',  category: 'source', color: '#10b981', icon: 'Snowflake',       description: 'Snowflake table or query', maxInputs: 0 },
   { type: 'source_bigquery', label: 'BigQuery',   category: 'source', color: '#10b981', icon: 'Database',        description: 'BigQuery table or query', maxInputs: 0 },
   { type: 'source_mongodb',  label: 'MongoDB',    category: 'source', color: '#10b981', icon: 'Container',       description: 'MongoDB collection',     maxInputs: 0 },

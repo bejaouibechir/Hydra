@@ -465,7 +465,7 @@ def test_connecteurs_en_lecture_seule_annonces(call):
 
     out = call("hydra_list_connectors")
     only = out.split("Source only (cannot be a destination):")[1].splitlines()[0]
-    assert {"web_api", "postgresql_cdc", "postgres_cdc"} == {c.strip() for c in only.split(",")}
+    assert {"web_api", "postgresql_cdc", "postgres_cdc", "mysql_cdc"} == {c.strip() for c in only.split(",")}
     assert "csv" in out.split("Source only")[0]
     assert "snowflake" in out.split("Source only")[0]       # source and destination since 0.21
     web_api = (Path(conn.__file__).parent / "web_api_connector_v2.py").read_text(encoding="utf-8")

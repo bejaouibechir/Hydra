@@ -57,6 +57,19 @@
         },
         {
           "if": {
+            "properties": { "type": { "const": "mysql_cdc" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["connection"],
+            "properties": {
+              "connection": { "$ref": "#/definitions/mysqlCdcConnection" },
+              "extract": { "required": ["table"], "not": { "required": ["query"] } }
+            }
+          }
+        },
+        {
+          "if": {
             "properties": { "type": { "enum": ["postgresql_cdc", "postgres_cdc"] } },
             "required": ["type"]
           },
@@ -150,6 +163,7 @@
             "bigquery",
             "postgresql_cdc",
             "postgres_cdc",
+            "mysql_cdc",
             "mongodb",
             "web_api"
           ],
@@ -168,6 +182,7 @@
             "BigQuery table or SELECT query (Hydra ETL 0.22+; pip install \"hydra-etl[bigquery]\"). Exact numbers, dates, time zones and JSON.",
             "Changes of a PostgreSQL table (inserts, updates, deletes) through logical replication (Hydra ETL 0.20+). Needs wal_level = logical and a role with REPLICATION.",
             "Alias for postgresql_cdc.",
+            "Changes of a MySQL table (inserts, updates, deletes) read from the binlog (Hydra ETL 0.22+; pip install \"hydra-etl[mysql-cdc]\"). Needs binlog_format = ROW and binlog_row_image = FULL.",
             "MongoDB database (optional dependency: pymongo).",
             "Paginated HTTP API (optional dependency: requests)."
           ]
@@ -228,6 +243,83 @@
       }
     },
 
+    "mysqlCdcConnection": {
+      "type": "object",
+      "description": "MySQL connection for a CDC source (Hydra ETL 0.22+; pip install \"hydra-etl[mysql-cdc]\"). Needs log_bin, binlog_format = ROW and binlog_row_image = FULL, and a user with REPLICATION SLAVE, REPLICATION CLIENT and SELECT.",
+      "required": [
+        "user",
+        "database"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "examples": [
+            "${ENV:MYSQL_HOST}"
+          ]
+        },
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "examples": [
+            3306
+          ]
+        },
+        "user": {
+          "type": "string",
+          "minLength": 1
+        },
+        "password": {
+          "type": "string",
+          "description": "Never in plain text: use ${ENV:…}."
+        },
+        "database": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.\\-]{1,100}$",
+          "description": "Name of the saved binlog position (.hydra/cdc/<state>.json). Default: <job folder>.<source name>."
+        },
+        "server_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Replica id, unique among the replicas of the server. Default: derived from state."
+        },
+        "snapshot": {
+          "type": "boolean",
+          "default": true,
+          "description": "First run: the whole table, then the changes."
+        },
+        "lag_warning_mb": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1024,
+          "description": "Warn above this volume of binlog to read since the last success (0: never)."
+        }
+      }
+    },
     "postgresCdcConnection": {
       "type": "object",
       "description": "PostgreSQL connection plus the replication slot and the publication. The slot only moves on after the destination has published, so a failed load reads the same changes again.",

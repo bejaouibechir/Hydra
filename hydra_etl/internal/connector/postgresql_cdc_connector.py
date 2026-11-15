@@ -283,6 +283,26 @@ class PostgreSQLCDCConnector(Connector):
         status["server_version_num"] = version
         return status
 
+    def cdc_status(self) -> Dict[str, Any]:
+        """Forme commune aux sources CDC (conditions cdc.lag / cdc.status) :
+        reserved / extended → ok ; unreserved → at_risk ; lost ; missing."""
+        conn = self._connect()
+        try:
+            st = self.slot_status(conn.cursor())
+        finally:
+            conn.close()
+        if st is None:
+            return {"status": "missing", "lag_bytes": None, "detail": "slot not created yet"}
+        ws = st.get("wal_status")
+        if ws == "lost" or st.get("invalidation_reason"):
+            status = "lost"
+        elif ws == "unreserved":
+            status = "at_risk"
+        else:
+            status = "ok"
+        return {"status": status, "lag_bytes": st.get("lag_bytes"),
+                "detail": f"slot {self.slot}, wal_status {ws or 'unknown'}"}
+
     def check_slot(self, cur) -> Optional[Dict[str, Any]]:
         """Lit l'état du slot avant la lecture : avertit si le WAL retenu dépasse le
         seuil, échoue si PostgreSQL a invalidé le slot (des changements sont perdus)."""

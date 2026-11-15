@@ -558,6 +558,8 @@ A replacement workflow, declared on the workflow it replaces:
 | `db.load('id')`               | Active queries on a database                                   |
 | `cdc.slot_lag('id')`          | WAL kept by the slot of a `postgresql_cdc` source, compared with `500MB`, `2GB` |
 | `cdc.slot_status('id')`       | State of that slot: `reserved` · `extended` · `unreserved` · `lost` · `missing` |
+| `cdc.lag('id')`               | Any CDC source (`postgresql_cdc`, `mysql_cdc`): changes still to read since the last success, in bytes |
+| `cdc.status('id')`            | Any CDC source: `ok` · `at_risk` · `lost` · `missing` |
 | `previous.status`             | `success` · `failed` · `skipped` · `inactive` · `none`         |
 | `previous.rows`               | Rows written by the previous workflow                          |
 

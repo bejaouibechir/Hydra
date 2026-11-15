@@ -6,9 +6,9 @@
 
 Version du produit : **0.21.0**
 
-## Connecteurs (16)
+## Connecteurs (17)
 
-`bigquery`, `csv`, `json`, `mariadb`, `mongodb`, `mssql`, `mysql`, `parquet`, `postgres`, `postgres_cdc`, `postgresql`, `postgresql_cdc`, `snowflake`, `sqlite`, `sqlserver`, `web_api`
+`bigquery`, `csv`, `json`, `mariadb`, `mongodb`, `mssql`, `mysql`, `mysql_cdc`, `parquet`, `postgres`, `postgres_cdc`, `postgresql`, `postgresql_cdc`, `snowflake`, `sqlite`, `sqlserver`, `web_api`
 
 > `postgres`/`postgresql` et `mysql`/`mariadb` sont des alias.
 > `mongodb`, `parquet` et `web_api` ne s'enregistrent qu'avec leur extra

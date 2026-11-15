@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- MySQL CDC source (Hydra ETL 0.22+): `type: mysql_cdc`, refused as a destination. Snippet `hsrc-mysql-cdc`.
+
 - BigQuery source and destination (Hydra ETL 0.22+): `type: bigquery`, `connection.project` required.
   Snippets `hsrc-bigquery` and `hdst-bigquery`.
 

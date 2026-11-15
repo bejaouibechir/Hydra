@@ -301,7 +301,7 @@ export function flowToHdr(
       sources[sid] = { type: connType, connection: cd.connection, extract: cd.extract }
       continue
     }
-    sources[sid] = { type: connType, connection, extract }
+    sources[sid] = _applyStorage({ type: connType, connection, extract }, cfg, 'extract')
   }
 
   // Construire transformations (params UI → format moteur)
@@ -381,7 +381,7 @@ export function flowToHdr(
       destinations[did] = { type: connType, connection: bq.connection, load: bq.load }
       continue
     }
-    destinations[did] = { type: connType, connection, load }
+    destinations[did] = _applyStorage({ type: connType, connection, load }, cfg, 'load')
   }
 
   const firstSrcId  = (Object.keys(sources).find(k => !joinRightKeys.has(k))) ?? Object.keys(sources)[0] ?? 'source'
@@ -701,6 +701,62 @@ function _bigqueryDest(cfg: Record<string, unknown>) {
   return { connection: _bigqueryConn(cfg), load }
 }
 
+/** Stockage objet (0.22) des nœuds CSV / JSON / Parquet : emplacement et identifiants
+ *  (champs du formulaire préfixés par service) <-> connection.storage et URI du chemin. */
+export const STORAGE_FIELDS: Record<string, [string, string][]> = {
+  s3:    [['s3_key', 'key'], ['s3_secret', 'secret'], ['s3_endpoint_url', 'endpoint_url']],
+  azure: [['az_account_name', 'account_name'], ['az_account_key', 'account_key'],
+          ['az_sas_token', 'sas_token'], ['az_connection_string', 'connection_string']],
+  gcs:   [['gcs_token', 'token'], ['gcs_project', 'project']],
+}
+const STORAGE_SCHEME: Record<string, string> = { s3: 's3://', azure: 'az://', gcs: 'gs://' }
+
+function _locationOf(...paths: unknown[]): string {
+  for (const p of paths) {
+    const m = /^([a-z0-9]+):\/\//i.exec(String(p ?? ''))
+    if (!m) continue
+    const sc = m[1].toLowerCase()
+    if (sc === 's3' || sc === 's3a') return 's3'
+    if (sc === 'az' || sc === 'abfs' || sc === 'abfss') return 'azure'
+    if (sc === 'gs' || sc === 'gcs') return 'gcs'
+  }
+  return 'local'
+}
+
+function _storageToParams(conn: Record<string, unknown>, table: unknown): Record<string, unknown> {
+  const location = _locationOf(conn.base_path, table)
+  const out: Record<string, unknown> = { location }
+  const st = (conn.storage ?? {}) as Record<string, unknown>
+  for (const fields of Object.values(STORAGE_FIELDS))
+    for (const [param, key] of fields) if (st[key] !== undefined) out[param] = st[key]
+  return out
+}
+
+function _applyStorage<T extends { type: string; connection?: Record<string, unknown> }>(
+  entry: T, cfg: Record<string, unknown>, block: 'extract' | 'load'): T {
+  if (!['csv', 'json', 'parquet'].includes(entry.type) || cfg.location === undefined) return entry
+  const loc = String(cfg.location || 'local')
+  const conn: Record<string, unknown> = { ...(entry.connection ?? {}) }
+  if (loc === 'local') {
+    delete conn.storage
+  } else {
+    const st: Record<string, unknown> = { ...((conn.storage ?? {}) as Record<string, unknown>) }
+    for (const [param, key] of STORAGE_FIELDS[loc] ?? []) {
+      const v = cfg[param]
+      if (v === undefined || v === null || String(v).trim() === '') delete st[key]
+      else st[key] = v
+    }
+    if (Object.keys(st).length) conn.storage = st; else delete conn.storage
+    // chemin sans schéma ni base_path distante : l'emplacement choisi le complète
+    const io = (entry as Record<string, unknown>)[block] as Record<string, unknown> | undefined
+    if (io && typeof io.table === 'string' && io.table && !/^[a-z0-9]+:\/\//i.test(io.table)
+        && !/^[a-z0-9]+:\/\//i.test(String(conn.base_path ?? ''))) {
+      io.table = STORAGE_SCHEME[loc] + io.table.replace(/^\/+/, '')
+    }
+  }
+  return { ...entry, connection: conn }
+}
+
 /** Source PostgreSQL CDC : connexion PostgreSQL + slot / publication ; une table. */
 const CDC_CONN_KEYS = ['host', 'port', 'database', 'user', 'password', 'slot', 'publication', 'create', 'snapshot'] as const
 /** Source MySQL CDC (0.22) : connexion MySQL + nom de la position et identifiant de réplique. */
@@ -730,7 +786,8 @@ function _sourceToParams(src: HdrSource): Record<string, unknown> {
   const type = src.type
 
   if (['csv', 'json', 'parquet'].includes(type)) {
-    return { path: ext.table ?? ext.file ?? '', delimiter: conn.delimiter }
+    return { path: ext.table ?? ext.file ?? '', delimiter: conn.delimiter,
+             ..._storageToParams(conn as Record<string, unknown>, ext.table ?? ext.file) }
   }
   if (type === 'sqlite') {
     return { path: (conn as Record<string, unknown>).path ?? '', table: ext.table ?? '', query: ext.query ?? '' }
@@ -782,7 +839,8 @@ function _destToParams(dest: HdrDest): Record<string, unknown> {
   const type = dest.type
 
   if (['csv', 'json', 'parquet'].includes(type)) {
-    return { path: load.table ?? load.file ?? '', mode: load.mode ?? 'replace' }
+    return { path: load.table ?? load.file ?? '', mode: load.mode ?? 'replace',
+             ..._storageToParams(conn as Record<string, unknown>, load.table ?? load.file) }
   }
   if (type === 'sqlite') {
     const k = (load as Record<string, unknown>).key
@@ -1021,7 +1079,7 @@ export function flowToJobModel(
       sources[key] = { type: 'mysql_cdc', connection: cx, extract: ex }
       continue
     }
-    sources[key] = { type: connType, connection, extract }
+    sources[key] = _applyStorage({ type: connType, connection, extract }, cfg, 'extract')
   }
   if (Object.keys(sources).length === 0) {
     sources['source_main'] = { type: 'csv', connection: {}, extract: { table: '', batch_size: 1000 } }
@@ -1114,7 +1172,7 @@ export function flowToJobModel(
       destinations[key] = { type: connType, connection: cx, load: ld }
       continue
     }
-    destinations[key] = { type: connType, connection, load }
+    destinations[key] = _applyStorage({ type: connType, connection, load }, cfg, 'load')
   }
   if (Object.keys(destinations).length === 0) {
     destinations['dest_main'] = { type: 'csv', connection: {}, load: { table: '', mode: 'replace' } }
@@ -1237,6 +1295,8 @@ export function jobModelToFlow(model: HydraJobModel): { nodes: Node<FlowNodeData
       const c = (src.connection ?? {}) as Record<string, unknown>
       params.snapshot = c.snapshot === false ? 'no' : 'yes'
     }
+    if (['csv', 'json', 'parquet'].includes(src.type))
+      Object.assign(params, _storageToParams((src.connection ?? {}) as Record<string, unknown>, src.extract?.table))
     // the main source on the flow line; a right source below the line, just before the
     // step that uses it, so that its edge goes up into that step instead of running
     // behind the steps of the flow line

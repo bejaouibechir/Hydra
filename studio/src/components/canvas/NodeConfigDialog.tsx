@@ -30,15 +30,31 @@ interface FieldDef {
   browseType?: 'file' | 'directory' | 'save_file'  // active le bouton Parcourir
   browseExt?:  string                                // filtre extension ex: '.csv'
   min?: number                                       // borne min pour type=number
+  showIf?: { key: string; values: string[] }         // affiché seulement si params[key] (défaut : 1re valeur) est dans values
 }
+
+// Stockage objet (0.22) des nœuds fichier : emplacement puis identifiants du service choisi.
+const STORAGE_UI: FieldDef[] = [
+  { key: 'location', label: 'Location', type: 'select', options: ['local', 's3', 'azure', 'gcs'] },
+  { key: 's3_key', label: 'S3 access key id (empty: environment)', type: 'text', showIf: { key: 'location', values: ['s3'] } },
+  { key: 's3_secret', label: 'S3 secret access key', type: 'password', showIf: { key: 'location', values: ['s3'] } },
+  { key: 's3_endpoint_url', label: 'Endpoint URL (MinIO or another S3-compatible store)', type: 'text', placeholder: 'http://localhost:9000', showIf: { key: 'location', values: ['s3'] } },
+  { key: 'az_account_name', label: 'Azure storage account', type: 'text', showIf: { key: 'location', values: ['azure'] } },
+  { key: 'az_account_key', label: 'Account key', type: 'password', showIf: { key: 'location', values: ['azure'] } },
+  { key: 'az_sas_token', label: 'SAS token (instead of the key)', type: 'password', showIf: { key: 'location', values: ['azure'] } },
+  { key: 'az_connection_string', label: 'Connection string (instead of the above)', type: 'password', showIf: { key: 'location', values: ['azure'] } },
+  { key: 'gcs_token', label: 'Service account key file (empty: default credentials)', type: 'text', placeholder: '../../keys/gcs.json', browseType: 'file', browseExt: '.json', showIf: { key: 'location', values: ['gcs'] } },
+  { key: 'gcs_project', label: 'Google Cloud project', type: 'text', showIf: { key: 'location', values: ['gcs'] } },
+]
+const REMOTE_PATH_HINT = ' or s3://bucket/…, az://container/…, gs://bucket/…'
 
 // ── Champs par type de nœud ───────────────────────────────────────────────────
 
 const CONFIG_FIELDS: Record<string, FieldDef[]> = {
   // Sources
-  source_csv:     [{ key: 'path', label: 'File path', type: 'text', placeholder: './data/file.csv',     required: true, browseType: 'file',      browseExt: '.csv' }],
-  source_json:    [{ key: 'path', label: 'File path', type: 'text', placeholder: './data/file.json',    required: true, browseType: 'file',      browseExt: '.json' }],
-  source_parquet: [{ key: 'path', label: 'File path', type: 'text', placeholder: './data/file.parquet', required: true, browseType: 'file',      browseExt: '.parquet' }],
+  source_csv:     [{ key: 'path', label: 'File path' + REMOTE_PATH_HINT, type: 'text', placeholder: './data/file.csv',     required: true, browseType: 'file',      browseExt: '.csv' }, ...STORAGE_UI],
+  source_json:    [{ key: 'path', label: 'File path' + REMOTE_PATH_HINT, type: 'text', placeholder: './data/file.json',    required: true, browseType: 'file',      browseExt: '.json' }, ...STORAGE_UI],
+  source_parquet: [{ key: 'path', label: 'File path' + REMOTE_PATH_HINT, type: 'text', placeholder: './data/file.parquet', required: true, browseType: 'file',      browseExt: '.parquet' }, ...STORAGE_UI],
   source_mysql:    [
     { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
     { key: 'port',     label: 'Port',        type: 'number', placeholder: '3306' },
@@ -128,9 +144,9 @@ const CONFIG_FIELDS: Record<string, FieldDef[]> = {
     { key: 'method', label: 'Method', type: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'] },
   ],
   // Destinations
-  dest_csv:     [{ key: 'path', label: 'File path', type: 'text', placeholder: '../../outputs/file.csv',     required: true, browseType: 'save_file', browseExt: '.csv' }],
-  dest_json:    [{ key: 'path', label: 'File path', type: 'text', placeholder: '../../outputs/file.json',    required: true, browseType: 'save_file', browseExt: '.json' }],
-  dest_parquet: [{ key: 'path', label: 'File path', type: 'text', placeholder: '../../outputs/file.parquet', required: true, browseType: 'save_file', browseExt: '.parquet' }],
+  dest_csv:     [{ key: 'path', label: 'File path' + REMOTE_PATH_HINT, type: 'text', placeholder: '../../outputs/file.csv',     required: true, browseType: 'save_file', browseExt: '.csv' }, ...STORAGE_UI],
+  dest_json:    [{ key: 'path', label: 'File path' + REMOTE_PATH_HINT, type: 'text', placeholder: '../../outputs/file.json',    required: true, browseType: 'save_file', browseExt: '.json' }, ...STORAGE_UI],
+  dest_parquet: [{ key: 'path', label: 'File path' + REMOTE_PATH_HINT, type: 'text', placeholder: '../../outputs/file.parquet', required: true, browseType: 'save_file', browseExt: '.parquet' }, ...STORAGE_UI],
   dest_mysql:    [
     { key: 'host',     label: 'Host',        type: 'text',   placeholder: 'localhost', required: true },
     { key: 'port',     label: 'Port',        type: 'number', placeholder: '3306' },
@@ -1082,6 +1098,12 @@ export default function NodeConfigDialog({ node, onClose, onSave, joinSources = 
           {d.nodeType !== 'action_python' && configFields?.map(field => {
             // Sources DB : table & query sont gérés par le toggle ci-dessus
             if (isDbSource && (field.key === 'table' || field.key === 'query')) return null
+            // Champs conditionnels (stockage objet : identifiants du service choisi)
+            if (field.showIf) {
+              const dep = configFields?.find(f => f.key === field.showIf!.key)
+              const cur = String(params[field.showIf.key] ?? dep?.options?.[0] ?? '')
+              if (!field.showIf.values.includes(cur)) return null
+            }
             // Join : cle / left_key / right_key sont geres par le toggle ci-dessus
             if (d.nodeType === 'transform_join' && (field.key === 'key' || field.key === 'left_key' || field.key === 'right_key')) return null
             // Join : max_rows seulement pour how: cross

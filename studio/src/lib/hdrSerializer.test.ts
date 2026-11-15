@@ -771,3 +771,36 @@ describe('hdrSerializer — stockage objet', () => {
     expect(back.destinations.dst.load.table).toBe('s3://lake/out/orders.parquet')
   })
 })
+
+describe('hdrSerializer — formulaire stockage objet', () => {
+  const model: HydraJobModel = {
+    name: 'remote_form',
+    sources: { src: { type: 'csv', connection: { base_path: 'az://landing/sales/',
+      storage: { account_name: 'acct', account_key: '${SECRET:AZ_KEY}' } }, extract: { table: 'orders.csv' } } },
+    transformations: { steps: [] },
+    destinations: { dst: { type: 'parquet', connection: {}, load: { table: 'out/orders.parquet', mode: 'replace' } } },
+    pipeline: { from: 'src', to: 'dst' },
+  }
+  it('le formulaire reçoit emplacement et identifiants', () => {
+    const { nodes } = jobModelToFlow(model)
+    const p = nodes.find(n => n.data.label === 'src')!.data.params as Record<string, unknown>
+    expect(p.location).toBe('azure')
+    expect(p.az_account_name).toBe('acct')
+    expect(p.az_account_key).toBe('${SECRET:AZ_KEY}')
+    const d = nodes.find(n => n.data.label === 'dst')!.data.params as Record<string, unknown>
+    expect(d.location).toBe('local')
+  })
+  it('choisir S3 dans le formulaire écrit storage et complète le chemin', () => {
+    const { nodes, edges } = jobModelToFlow(model)
+    const n = nodes.find(x => x.data.label === 'dst')!
+    Object.assign(n.data.params as Record<string, unknown>,
+      { location: 's3', s3_key: '${SECRET:S3_KEY}', s3_secret: '${SECRET:S3_SECRET}', path: 'lake/out/orders.parquet' })
+    const back = flowToJobModel(nodes, edges, 'remote_form')
+    expect(back.destinations.dst.load.table).toBe('s3://lake/out/orders.parquet')
+    expect(back.destinations.dst.connection).toEqual({ storage: { key: '${SECRET:S3_KEY}', secret: '${SECRET:S3_SECRET}' } })
+    const s = nodes.find(x => x.data.label === 'src')!
+    ;(s.data.params as Record<string, unknown>).location = 'local'
+    const back2 = flowToJobModel(nodes, edges, 'remote_form')
+    expect(back2.sources.src.connection.storage).toBeUndefined()
+  })
+})

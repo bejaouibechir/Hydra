@@ -53,6 +53,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
     downloads the existing file first. A failed upload leaves the remote file unchanged.
   - `rollback: true` is not available yet with a destination on an object store. `sftp://` is refused with a clear message
     (planned).
+- Studio — CSV, JSON and Parquet nodes get a **Location** field (local, S3, Azure, GCS) and the credential fields of
+  the chosen service, written to `connection.storage`; a path without `s3://` / `az://` / `gs://` gets the prefix of
+  the chosen location.
 - File triggers — `path` can be an object store pattern (`s3://bucket/landing/*.csv`, `az://…`, `gs://…`), with the
   credentials in `storage` (`${SECRET:…}` and `${ENV:…}` are resolved).
 

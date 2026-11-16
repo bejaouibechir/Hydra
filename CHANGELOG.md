@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-11-16
+
 ### Added
 
 - **BigQuery connector** (`type: bigquery`), source and destination (`pip install "hydra-etl[bigquery]"`).

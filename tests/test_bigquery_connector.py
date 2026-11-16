@@ -105,6 +105,22 @@ class FakeBigQuery:
         return _Job(res)
 
 
+def _duckdb_has_merge() -> bool:
+    con = duckdb.connect()
+    try:
+        con.execute("CREATE TABLE t (a INT)")
+        con.execute("MERGE INTO t USING (SELECT 1 AS a) s ON t.a = s.a WHEN NOT MATCHED THEN INSERT VALUES (s.a)")
+        return True
+    except Exception:  # noqa: BLE001 - DuckDB < 1.4 (seule version pour Python 3.9)
+        return False
+    finally:
+        con.close()
+
+
+needs_merge = pytest.mark.skipif(not _duckdb_has_merge(),
+                                 reason="this DuckDB has no MERGE (the fake client runs the SQL on DuckDB)")
+
+
 @pytest.fixture()
 def bq(monkeypatch):
     fake = FakeBigQuery()
@@ -215,6 +231,7 @@ def test_replace_and_bad_value(bq):
     assert any("BEGIN TRANSACTION" in q for q in bq.queries)
 
 
+@needs_merge
 def test_upsert(bq):
     _load([[{"id": 1, "v": "a"}, {"id": 2, "v": "b"}]], table="ups", mode="upsert", key=["id"])
     _load([[{"id": 2, "v": "B"}, {"id": 3, "v": "c"}], [{"id": 3, "v": "C"}]],
@@ -229,6 +246,7 @@ def test_upsert_null_key_refused(bq):
         _load([[{"id": None, "v": "a"}]], table="ups", mode="upsert", key=["id"])
 
 
+@needs_merge
 def test_cdc_changes(bq):
     _load([[{"id": 1, "v": "a"}, {"id": 2, "v": "b"}]], table="mirror", mode="upsert", key=["id"])
     batch = [{"_op": "update", "id": 1, "v": "A"}, {"_op": "delete", "id": 2, "v": None},

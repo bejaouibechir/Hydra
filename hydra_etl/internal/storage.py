@@ -216,7 +216,9 @@ def localize(defn: Dict[str, Any], *, name: str, is_source: bool) -> Optional[Tu
     defn["connection"] = new_conn
     new_io = dict(io)
     new_io.pop("file", None)
-    # chemin absolu : JSON et Parquet lisent les chemins relatifs depuis le dossier du job
-    new_io["table"] = str(rf.dir / local)
+    # Fichier seul : chemin absolu (JSON et Parquet lisent les chemins relatifs depuis le
+    # dossier du job). Motif : relatif à base_path = la copie (un motif absolu ne se
+    # résout pas sous Windows : la recherche partirait de la racine du disque).
+    new_io["table"] = local if any(c in local for c in _GLOB) else str(rf.dir / local)
     defn[block] = new_io
     return rf, local

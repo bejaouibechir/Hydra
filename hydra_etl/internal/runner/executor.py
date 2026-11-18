@@ -75,12 +75,15 @@ class JobExecutor:
         profile: Optional[bool] = None,
         undo: bool = False,
         stop: Optional[Any] = None,
+        undo_intent: Optional[Any] = None,
     ) -> None:
         """Initialise l'executor.
 
         undo=True (workflow en `rollback: true`) : le chargement garde de quoi
         être annulé après publication (JobResult.undo, voir connector/undo.py)."""
         self._undo = bool(undo)
+        # rollback: true — appelé avant que la destination ne soit touchée (journal en écriture préalable)
+        self._undo_intent = undo_intent
         # timeout du thread (workflow/stop.py) : arrêt entre deux lots
         self._stop = stop
         self.job_dir = Path(job_dir).resolve()
@@ -333,6 +336,8 @@ class JobExecutor:
                             dest_connector, table=load_table, mode=load_mode,
                             key=load_key if (load_mode == "upsert" or self._undo) else None,
                             atomic=atomic, undo=self._undo)
+                        if self._undo and self._undo_intent is not None:
+                            session.intent_sink = self._undo_intent
                     session.stage(out_batch)
 
                 first_batch_written = True

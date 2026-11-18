@@ -97,6 +97,10 @@ class FileUndo(UndoRecord):
             raise UndoConflict(f"{path} changed after this run wrote it (size or date): "
                                f"not restored, to keep the other changes")
         if self.backup:
+            if self.after is None and not Path(self.backup).exists():
+                # écriture préalable (journal écrit avant le renommage) : l'arrêt est
+                # survenu avant que l'ancien fichier ne soit déplacé, il est intact
+                return f"{path}: nothing to undo (the previous file was never moved)"
             os.replace(self.backup, path)
             return f"{path}: previous file restored"
         if self.orig_size is not None:

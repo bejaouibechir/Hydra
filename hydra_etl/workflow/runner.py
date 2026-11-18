@@ -600,6 +600,8 @@ class WorkflowRunner:
             job_dir=job_path, root_dir=self.project_root, env=self.env,
             params=runtime_snapshot, undo=self._undo_stack is not None,
             stop=self._stop,
+            undo_intent=((lambda rec, _s=step.name: self._undo_stack.push_pending(_s, rec))
+                         if self._undo_stack is not None else None),
         )
         # Détails internes du job (env, connecteurs, scripts...) -> log du step
         capture = _JobLogCapture(step_log, threading.get_ident())

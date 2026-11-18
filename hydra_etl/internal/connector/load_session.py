@@ -71,6 +71,7 @@ class LoadSession:
         self.batches_committed = 0        # lots déjà visibles (sans tout ou rien)
         self.state = "open"               # open | published | aborted
         self.undo_record = None           # undo.UndoRecord (rollback du workflow)
+        self.intent_sink = None           # rollback: appelé AVANT de toucher à la destination
         self._lock = _lock_for(target)
         if not self._lock.acquire(blocking=False):
             logger.info("Waiting for another job writing to %s", target)
@@ -125,6 +126,14 @@ class LoadSession:
 
     def _abort(self) -> None:
         pass
+
+    def _announce(self, record: Any) -> None:
+        """Écriture préalable (rollback: true) : dit au journal ce qu'on va déplacer,
+        AVANT de le déplacer. Un arrêt brutal entre le renommage de l'ancien fichier et
+        l'écriture du journal ne laisse alors plus de fichier orphelin ni d'état mixte
+        silencieux : le run suivant le voit et refuse de repartir (hdrctl workflow undo)."""
+        if self.intent_sink is not None:
+            self.intent_sink(record)
 
     def _release(self) -> None:
         if self._held:

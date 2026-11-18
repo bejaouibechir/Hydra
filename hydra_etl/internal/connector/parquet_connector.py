@@ -405,8 +405,12 @@ class _ParquetLoadSession(LoadSession):
         self.writer.close()
         self.writer = None
         backup = None
-        if self._undo and self.path.exists():
-            backup = backup_path_for(self.path)
+        planned = backup_path_for(self.path) if (self._undo and self.path.exists()) else None
+        if self._undo:                                  # écriture préalable : le journal sait, avant le renommage
+            self._announce(FileUndo(target=str(self.path), mode=self.mode, existed=self._existed,
+                                    backup=str(planned) if planned else None))
+        if planned is not None:
+            backup = planned
             os.replace(self.path, backup)               # ancien fichier gardé jusqu'à la fin du workflow
         try:
             replace_file(self.tmp, self.path)

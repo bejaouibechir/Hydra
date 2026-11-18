@@ -119,8 +119,19 @@ class UndoStack:
         st.entries = list(data.get("entries", []))
         return st
 
+    def push_pending(self, step: str, record: Any) -> None:
+        """Écriture préalable : le job va déplacer un fichier. Le journal est écrit AVANT
+        le déplacement ; `push_job` remplace cette entrée par l'enregistrement scellé.
+        Un arrêt brutal entre les deux laisse l'entrée : le run suivant la voit."""
+        with self._lock:
+            self.entries = [e for e in self.entries if not (e.get("pending") and e["step"] == step)]
+            self.entries.append({"step": step, "type": "job", "record": record.to_dict(),
+                                 "pending": True, "_record": record, "_connector": None})
+            self._save()
+
     def push_job(self, step: str, record: Any, connector: Any = None) -> None:
         with self._lock:
+            self.entries = [e for e in self.entries if not (e.get("pending") and e["step"] == step)]
             self.entries.append({"step": step, "type": "job", "record": record.to_dict(),
                                  "_record": record, "_connector": connector})
             self._save()

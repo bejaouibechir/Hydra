@@ -7,6 +7,16 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `rollback: true`: the undo journal is now written **before** a CSV or Parquet output is moved,
+  not after. A hard kill (SIGKILL, power loss) between the move of the previous file and the
+  journal write used to leave no journal and an orphan `.hydra-bak-*` file, so the next run
+  overwrote the half-published outputs without a word. Now the next run refuses to start and
+  `hdrctl workflow undo <workflow>` restores the previous files. Replace-mode file outputs only;
+  database outputs and append mode are unchanged. Found with the crash scenario of the
+  [benchmark](https://github.com/bejaouibechir/hydra-etl-benchmark).
+
 ## [0.22.0] — 2026-11-16
 
 ### Added

@@ -238,3 +238,62 @@ def test_undo_is_only_for_actions_and_is_validated():
         {"name": "a", "type": "action", "action": "bash", "params": {"command": "x"},
          "undo": {"action": "bash", "params": {"command": "y"}}}])
     assert w.steps[0].undo.action == "bash"
+
+
+# ── écriture préalable du journal : arrêt brutal pendant la publication ────────
+class _Killed(BaseException):
+    """Simule un arrêt brutal (SIGKILL) : rien ne s'exécute après, pas même les except Exception."""
+
+
+def _kill_at_first_rename(monkeypatch, *, after_the_move: bool) -> None:
+    import os as _os
+    real = _os.replace
+    calls = []
+
+    def fake(src, dst, *a, **kw):
+        if ".hydra-bak-" in str(dst) and not calls:   # le renommage de l'ancien fichier en .hydra-bak
+            calls.append((src, dst))
+            if after_the_move:
+                real(src, dst, *a, **kw)
+            raise _Killed()
+        return real(src, dst, *a, **kw)               # y compris l'écriture du journal lui-même
+
+    monkeypatch.setattr(_os, "replace", fake)
+
+
+@pytest.mark.parametrize("after_the_move", [True, False])
+def test_kill_during_publication_leaves_a_journal_that_undo_can_finish(proj, monkeypatch, after_the_move):
+    """Avant : un arrêt entre le renommage de l'ancien fichier et l'écriture du journal ne
+    laissait aucun journal (et un .hydra-bak orphelin). Maintenant le journal est écrit avant."""
+    body = """\
+        - name: load1
+          type: job
+          job: ../jobs/j1
+        """
+    path = workflow(proj, body)
+    with monkeypatch.context() as m:
+        _kill_at_first_rename(m, after_the_move=after_the_move)
+        with pytest.raises(_Killed):
+            run(path)
+    jp = journal_path(proj, "wf")
+    assert jp.exists(), "the journal must exist before the file is moved"
+    entry = json.loads(jp.read_text(encoding="utf-8"))["entries"][0]
+    assert entry["pending"] is True and entry["record"]["kind"] == "file"
+    out1 = proj / "data" / "out1.csv"
+    assert out1.exists() is (not after_the_move)          # déplacé, ou intact
+
+    r = run(path)                                          # le run suivant refuse de repartir
+    assert not r.success and "stopped before undoing" in r.error
+
+    monkeypatch.chdir(proj)
+    res = CliRunner().invoke(cli, ["workflow", "undo", "wf", "--lang", "en"])
+    assert res.exit_code == 0, res.output
+    assert read(out1) == "id,v\nold,1\n"                   # l'ancien fichier est revenu, ou n'a pas bougé
+    assert not jp.exists()
+    assert not list((proj / "data").glob(".*hydra-bak*"))
+
+
+def test_successful_run_leaves_no_pending_entry(proj):
+    r = run(workflow(proj, "        - name: load1\n          type: job\n          job: ../jobs/j1\n"))
+    assert r.success and not journal_path(proj, "wf").exists()
+    assert read(proj / "data" / "out1.csv").splitlines() == ["id,v", "1,a", "2,b"]

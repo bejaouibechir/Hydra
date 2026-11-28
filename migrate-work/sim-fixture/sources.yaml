@@ -1,0 +1,5 @@
+sources:
+  orders:
+    type: csv
+    extract:
+      table: data/orders.csv

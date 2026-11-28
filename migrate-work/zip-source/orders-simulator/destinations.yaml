@@ -1,0 +1,6 @@
+destinations:
+  report:
+    type: csv
+    load:
+      table: data/by_status.csv
+      mode: replace

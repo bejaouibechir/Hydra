@@ -1,0 +1,365 @@
+---
+import { pages, type MigratePage } from '../data/migrate-pages';
+const { page } = Astro.props as { page: MigratePage };
+const hydraExample = `# sources.yaml
+sources:
+  orders:
+    type: csv
+    extract:
+      table: data/orders.csv
+
+# pipeline.yaml
+pipeline:
+  from: orders
+  to: report
+
+# transformations.yaml
+steps:
+  - cast:
+      mapping: { amount: float }
+  - filter:
+      expr: "amount > 50"
+  - aggregate:
+      by: [status]
+      agg:
+        total: { func: sum, col: amount }
+  - sort:
+      by: [total]
+      ascending: false
+
+# destinations.yaml
+destinations:
+  report:
+    type: csv
+    load:
+      table: data/by_status.csv
+      mode: replace`;
+---
+
+<div class="migration-simulator" data-migrate-simulator data-tool={page.slug} data-tool-name={page.name} data-other-tools={JSON.stringify(pages.filter(item => item.slug !== page.slug).map(item => ({ slug: item.slug, name: item.name })))}>
+  <div class="sim-intro">
+    <div>
+      <h2>Same small batch, two definitions</h2>
+      <p>Read 14 sample orders, keep amounts above 50, sum by status and sort by total. Right-click inside either editor or use ⋯ for its line actions. Edit the Hydra threshold to recalculate the result; the source threshold follows where the displayed example includes one. The browser models this fixture and does not run either product.</p>
+    </div>
+    <span class="sim-badge">Browser simulation</span>
+  </div>
+  <div class="sim-grid">
+    <div class="sim-code-card">
+      <div class="sim-card-head"><strong>{page.name}</strong><span>{page.category}</span><div class="sim-head-actions"><button type="button" data-sim-action="source-copy" title="Copy source" aria-label="Copy source">⧉</button><button type="button" data-sim-action="source-download" title="Download source" aria-label="Download source">↓</button><button type="button" data-sim-action="source-check" title="Check source example" aria-label="Check source example">⬡</button><button type="button" data-sim-action="source-expand" title="Expand source pane" aria-label="Expand source pane">⤢</button><button type="button" data-pane-menu="rival" aria-label={`Open ${page.name} source actions`} aria-haspopup="menu">⋯</button></div></div>
+      <textarea class="sim-rival-code" aria-label={`${page.name} example code`} spellcheck="false" wrap="off">{page.example}</textarea>
+      <div class="sim-card-foot"><button type="button" data-copy="rival">Copy</button><button type="button" data-download="rival">Download</button><span>Illustrative example</span></div>
+    </div>
+    <div class="sim-code-card sim-hydra-card">
+      <div class="sim-card-head"><strong>Hydra ETL</strong><span>YAML job files</span><div class="sim-head-actions"><button type="button" data-sim-action="hydra-validate" title="Validate sample structure" aria-label="Validate sample structure">✓</button><button type="button" data-sim-action="hydra-run" title="Preview on sample data" aria-label="Preview on sample data">▶</button><button type="button" data-sim-action="hydra-provenance" title="Show provenance" aria-label="Show provenance">⇢</button><button type="button" data-sim-action="hydra-copy" title="Copy Hydra example" aria-label="Copy Hydra example">⧉</button><button type="button" data-sim-action="hydra-expand" title="Expand Hydra pane" aria-label="Expand Hydra pane">⤢</button><button type="button" data-pane-menu="hydra" aria-label="Open Hydra manifest actions" aria-haspopup="menu">⋯</button></div></div>
+      <textarea class="sim-hydra-code" aria-label="Hydra DSL example" spellcheck="false" wrap="off">{hydraExample}</textarea>
+      <div class="sim-card-foot"><button type="button" data-run>Run sample</button><button type="button" data-reset>Reset</button><button type="button" data-copy="hydra">Copy</button><button type="button" data-download="hydra">Download text</button><a href="/migrate/orders-simulator.zip" download="hydra-orders-simulator.zip">Runnable ZIP</a></div>
+    </div>
+  </div>
+  <div class="sim-measures" aria-live="polite">
+    <div><span>Lines in these examples</span><strong><span data-rival-lines></span> {page.name} / <span data-hydra-lines></span> Hydra</strong></div>
+    <div><span>Files represented</span><strong>{page.slug === 'talend' || page.slug === 'airbyte' ? 'Configuration map' : 'Example'} / 4 Hydra files</strong></div>
+    <div><span>Run scope</span><strong>14 browser-local rows</strong></div>
+  </div>
+  <p class="sim-method">Line counts are live counts of the text shown above, not a product benchmark. The {page.name} pane is illustrative and is not executed. The Hydra pane shows four files in one editor for comparison; only the displayed <code>cast</code>, <code>filter</code>, <code>aggregate</code> and <code>sort</code> operations are simulated. “Download text” includes your edits; “Runnable ZIP” contains the original four files and input CSV, validated with Hydra 0.22.0.</p>
+  <div class="sim-results" data-results hidden>
+    <div class="sim-results-head"><h3>Simulated run result</h3><button type="button" data-close aria-label="Close result">×</button></div>
+    <p data-result-summary></p>
+    <div class="sim-result-grid"><pre data-log></pre><div class="sim-table-wrap"><table><thead><tr><th>Status</th><th>Total</th></tr></thead><tbody data-rows></tbody></table></div></div>
+  </div>
+  <div class="sim-context-menu" data-context-menu role="menu" aria-label="Editor actions" hidden></div>
+  <div class="sim-popover" data-popover role="dialog" aria-label="Code explanation" hidden><div class="sim-popover-head"><strong data-popover-title></strong><button type="button" data-popover-close aria-label="Close explanation">×</button></div><div data-popover-body></div></div>
+  <div class="sim-toast" data-toast role="status" aria-live="polite" hidden></div>
+</div>
+
+<script>
+  const sample = [
+    [45,'paid'],[120,'paid'],[300,'refunded'],[89,'paid'],[250,'pending'],[170,'paid'],[60,'paid'],
+    [420,'paid'],[15,'refunded'],[210,'pending'],[95,'paid'],[330,'paid'],[78,'refunded'],[145,'pending']
+  ];
+  document.querySelectorAll<HTMLElement>('[data-migrate-simulator]').forEach((root) => {
+    const rival = root.querySelector<HTMLTextAreaElement>('.sim-rival-code')!;
+    const hydra = root.querySelector<HTMLTextAreaElement>('.sim-hydra-code')!;
+    const initialRival = rival.value;
+    const initialHydra = hydra.value;
+    const lines = (value: string) => value.split('\n').filter(line => line.trim() && !line.trim().startsWith('#')).length;
+    const update = () => {
+      root.querySelector('[data-rival-lines]')!.textContent = String(lines(rival.value));
+      root.querySelector('[data-hydra-lines]')!.textContent = String(lines(hydra.value));
+    };
+    rival.addEventListener('input', update); hydra.addEventListener('input', update); update();
+    root.querySelector('[data-reset]')!.addEventListener('click', () => { rival.value = initialRival; hydra.value = initialHydra; update(); root.querySelector<HTMLElement>('[data-results]')!.hidden = true; });
+    root.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach(button => button.addEventListener('click', async () => {
+      const value = button.dataset.copy === 'rival' ? rival.value : hydra.value;
+      try { await navigator.clipboard.writeText(value); button.textContent = 'Copied'; setTimeout(() => button.textContent = 'Copy', 1500); } catch { button.textContent = 'Select and copy'; }
+    }));
+    root.querySelectorAll<HTMLButtonElement>('[data-download]').forEach(button => button.addEventListener('click', () => {
+      const value = button.dataset.download === 'rival' ? rival.value : hydra.value;
+      const name = button.dataset.download === 'rival' ? 'competitor-example.txt' : 'hydra-job-files.txt';
+      const url = URL.createObjectURL(new Blob([value], { type: 'text/plain;charset=utf-8' }));
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }));
+    root.querySelector('[data-close]')!.addEventListener('click', () => root.querySelector<HTMLElement>('[data-results]')!.hidden = true);
+    root.querySelector('[data-run]')!.addEventListener('click', () => {
+      const result = root.querySelector<HTMLElement>('[data-results]')!;
+      const summary = root.querySelector<HTMLElement>('[data-result-summary]')!;
+      const log = root.querySelector<HTMLElement>('[data-log]')!;
+      const body = root.querySelector<HTMLElement>('[data-rows]')!;
+      result.hidden = false; body.replaceChildren();
+      const code = hydra.value;
+      const thresholdMatch = code.match(/expr:\s*["']?amount\s*>\s*(\d+(?:\.\d+)?)/);
+      const expected = [
+        /mapping:\s*\{\s*amount:\s*float\s*\}/,
+        /by:\s*\[\s*status\s*\]/,
+        /total:\s*\{\s*func:\s*sum\s*,\s*col:\s*amount\s*\}/,
+        /by:\s*\[\s*total\s*\]/,
+        /ascending:\s*false/,
+      ];
+      const missing = ['cast:', 'filter:', 'aggregate:', 'sort:'].find(item => !code.includes(item));
+      if (missing || !thresholdMatch || !expected.every(rule => rule.test(code))) {
+        summary.textContent = 'Simulation stopped: this browser model supports the displayed four-step example with a numeric filter threshold.';
+        log.textContent = missing ? `Missing expected item: ${missing}` : 'Restore the cast, aggregate and sort steps; change only the filter threshold for a new result.';
+        result.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return;
+      }
+      const threshold = Number(thresholdMatch[1]);
+      const filtered = sample.filter(([amount]) => Number(amount) > threshold);
+      const groups = new Map<string, number>();
+      filtered.forEach(([amount, status]) => groups.set(String(status), (groups.get(String(status)) || 0) + Number(amount)));
+      const rows = [...groups].sort((a,b) => b[1] - a[1]);
+      rows.forEach(([status, total]) => { const tr = document.createElement('tr'); [status, String(total)].forEach(value => { const td = document.createElement('td'); td.textContent = value; tr.append(td); }); body.append(tr); });
+      summary.textContent = `${filtered.length} of ${sample.length} rows passed the filter; ${rows.length} output groups. Browser-local simulation only.`;
+      log.textContent = `source orders.csv: ${sample.length} rows\ncast amount → float\nfilter amount > ${threshold}: ${filtered.length} rows\naggregate by status: ${rows.length} groups\nsort by total descending\ndestination by_status.csv: simulated`; 
+      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+</script>
+
+<script>
+  type Pane = 'rival' | 'hydra';
+  type MenuItem = { label: string; action?: () => void; disabled?: boolean; title?: string };
+  const operationHelp: Record<string, string> = {
+    cast: 'Converts amount to a numeric value before comparison and aggregation. Test malformed and empty values with the real engine.',
+    filter: 'Keeps rows whose amount exceeds the threshold. The browser sample can recalculate this threshold; other expressions need an engine run.',
+    aggregate: 'Groups retained rows by status and sums amount into total. Nulls and numeric precision require a real data test.',
+    sort: 'Orders the grouped result by total descending. Sorting after aggregation changes only presentation, not group totals.',
+    sources: 'Defines the orders CSV source. The file path is relative to the runnable Hydra project.',
+    pipeline: 'Connects the named orders source to the report destination.',
+    destinations: 'Defines the report CSV and replace load mode. A repeated run overwrites the report.',
+    steps: 'Lists the four transformation operations executed in order.'
+  };
+  const lineKind = (line: string) => {
+    if (/amount\s*>\s*\d+|tFilterRow|filter|big\s*=/.test(line)) return 'filter';
+    if (/groupby|group by|aggregate|tAggregateRow|\.sum\(|sum\(amount\)|grouped/.test(line)) return 'aggregate';
+    if (/sort|order by|descending|tSortRow/.test(line)) return 'sort';
+    if (/orders\.csv|read_orders|tap-csv|Source:|relations:|extractors:/.test(line)) return 'sources';
+    if (/by_status\.csv|report:|Destination:|target-postgres|tFileOutput/.test(line)) return 'destinations';
+    if (/schedule|cron|triggers:/.test(line)) return 'schedule';
+    return '';
+  };
+  document.querySelectorAll<HTMLElement>('[data-migrate-simulator]').forEach(root => {
+    const rival = root.querySelector<HTMLTextAreaElement>('.sim-rival-code')!;
+    const hydra = root.querySelector<HTMLTextAreaElement>('.sim-hydra-code')!;
+    const menu = root.querySelector<HTMLElement>('[data-context-menu]')!;
+    const popover = root.querySelector<HTMLElement>('[data-popover]')!;
+    const toastNode = root.querySelector<HTMLElement>('[data-toast]')!;
+    const name = root.dataset.toolName || 'the other tool';
+    const initial = { rival: rival.value, hydra: hydra.value };
+    const ignored = new Set<number>();
+    let selectedKinds: Set<string> | null = null;
+    let mappingBase = hydra.value;
+    let mappingUpdate = false;
+    let items: MenuItem[] = [];
+    let lastFocus: HTMLElement | null = null;
+    let toastTimer = 0;
+    const textArea = (pane: Pane) => pane === 'rival' ? rival : hydra;
+    const lines = (pane: Pane) => textArea(pane).value.split('\n');
+    const notice = (message: string) => {
+      toastNode.textContent = message; toastNode.hidden = false;
+      window.clearTimeout(toastTimer); toastTimer = window.setTimeout(() => toastNode.hidden = true, 3200);
+    };
+    const explain = (title: string, paragraphs: string[]) => {
+      root.querySelector<HTMLElement>('[data-popover-title]')!.textContent = title;
+      const body = root.querySelector<HTMLElement>('[data-popover-body]')!;
+      body.replaceChildren();
+      paragraphs.forEach(value => { const p = document.createElement('p'); p.textContent = value; body.append(p); });
+      popover.hidden = false;
+      root.querySelector<HTMLButtonElement>('[data-popover-close]')!.focus();
+    };
+    const closeMenu = (restore = false) => { menu.hidden = true; menu.replaceChildren(); if (restore) lastFocus?.focus(); };
+    const closePopover = () => { popover.hidden = true; lastFocus?.focus(); };
+    const showMenu = (x: number, y: number, title: string, entries: MenuItem[]) => {
+      lastFocus = document.activeElement as HTMLElement; items = entries;
+      menu.replaceChildren();
+      const heading = document.createElement('div'); heading.className = 'sim-menu-title'; heading.textContent = title; menu.append(heading);
+      entries.forEach((item, index) => {
+        const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem');
+        button.textContent = item.label; button.disabled = !!item.disabled; button.title = item.title || '';
+        button.addEventListener('click', () => { closeMenu(); items[index]?.action?.(); }); menu.append(button);
+      });
+      menu.hidden = false; menu.style.left = '0px'; menu.style.top = '0px';
+      const box = menu.getBoundingClientRect();
+      menu.style.left = `${Math.max(6, Math.min(x, innerWidth - box.width - 8))}px`;
+      menu.style.top = `${Math.max(6, Math.min(y, innerHeight - box.height - 8))}px`;
+      menu.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+    };
+    const lineAt = (ta: HTMLTextAreaElement, event?: MouseEvent | KeyboardEvent) => {
+      if (event instanceof MouseEvent) {
+        const style = getComputedStyle(ta); const height = parseFloat(style.lineHeight) || 19;
+        const top = ta.getBoundingClientRect().top + (parseFloat(style.paddingTop) || 0);
+        return Math.max(1, Math.min(ta.value.split('\n').length, Math.floor((event.clientY - top + ta.scrollTop) / height) + 1));
+      }
+      return ta.value.slice(0, ta.selectionStart).split('\n').length;
+    };
+    const selectLine = (pane: Pane, index: number) => {
+      const ta = textArea(pane); const all = lines(pane); if (index < 1 || index > all.length) return;
+      const start = all.slice(0, index - 1).join('\n').length + (index > 1 ? 1 : 0);
+      ta.focus(); ta.setSelectionRange(start, start + all[index - 1].length);
+      const height = parseFloat(getComputedStyle(ta).lineHeight) || 19; ta.scrollTop = Math.max(0, (index - 3) * height);
+    };
+    const hydraCounterpart = (kind: string) => {
+      const all = lines('hydra');
+      const pattern: Record<string, RegExp> = {
+        filter: /^\s*- filter:/, aggregate: /^\s*- aggregate:/, sort: /^\s*- sort:/,
+        sources: /^# sources\.yaml$/, destinations: /^# destinations\.yaml$/, schedule: /schedule:/
+      };
+      return pattern[kind] ? all.findIndex(value => pattern[kind].test(value)) + 1 : 0;
+    };
+    const sourceCounterpart = (kind: string) => lines('rival').findIndex(value => lineKind(value) === kind) + 1;
+    const rebuildMappedHydra = () => {
+      const excluded = new Set([...ignored].map(index => lineKind(lines('rival')[index - 1] || '')).filter(Boolean));
+      let current = '';
+      const output = mappingBase.split('\n').filter(line => {
+        const match = line.match(/^\s*- (cast|filter|aggregate|sort):/);
+        if (match) current = match[1];
+        if (/^# /.test(line)) current = '';
+        if (!current || current === 'cast') return true;
+        return !excluded.has(current) && (!selectedKinds || selectedKinds.has(current));
+      });
+      mappingUpdate = true; hydra.value = output.join('\n'); hydra.dispatchEvent(new Event('input')); mappingUpdate = false;
+    };
+    const blockAt = (index: number) => {
+      const all = lines('hydra'); let start = index - 1;
+      while (start >= 0 && !/^\s*- (cast|filter|aggregate|sort):|^# (sources|pipeline|transformations|destinations)\.yaml/.test(all[start])) start--;
+      if (start < 0) return null;
+      let end = start + 1;
+      if (/^\s*- /.test(all[start])) { while (end < all.length && !/^\s*- (cast|filter|aggregate|sort):|^# /.test(all[end])) end++; }
+      else { while (end < all.length && !/^# /.test(all[end])) end++; }
+      const kind = (all[start].match(/- (\w+):|# (\w+)\./) || [])[1] || (all[start].match(/# (\w+)\./) || [])[1] || '';
+      return { start: start + 1, end, kind, text: all.slice(start, end).join('\n').trimEnd() };
+    };
+    const clipboard = async (value: string) => { try { await navigator.clipboard.writeText(value); notice('Copied to clipboard'); } catch { explain('Copy unavailable', ['Select the editor text and copy it with your keyboard. Browser clipboard access may require HTTPS or a permission grant.']); } };
+    const download = (filename: string, value: string) => { const url = URL.createObjectURL(new Blob([value], { type: 'text/plain;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+    const expand = (pane: Pane) => { const className = pane === 'rival' ? 'sim-expand-rival' : 'sim-expand-hydra'; const active = root.classList.contains(className); root.classList.remove('sim-expand-rival', 'sim-expand-hydra'); if (!active) root.classList.add(className); notice(active ? 'Both panes restored' : `${pane === 'rival' ? name : 'Hydra'} pane expanded`); };
+    const checkSource = () => {
+      const text = rival.value.trim(); const issues: string[] = [];
+      if (!text) issues.push('The source pane is empty.');
+      if (root.dataset.tool === 'dbt' && !/select\s+/i.test(text)) issues.push('No SELECT clause found in the displayed SQL example.');
+      if (['dlt','airflow','dagster'].includes(root.dataset.tool || '') && !/\b(import|from)\b/.test(text)) issues.push('No Python import found in the displayed example.');
+      explain(issues.length ? `${name} source check` : `${name} source example`, issues.length ? issues : ['The displayed example has its expected basic shape. This browser check does not invoke the competitor CLI, compiler or service.', 'For visual or configuration summaries, inspect the actual exported project before drawing migration conclusions.']);
+    };
+    const validate = () => {
+      const code = hydra.value; const issues: string[] = [];
+      for (const part of ['sources:', 'pipeline:', 'steps:', 'destinations:', '- cast:', '- filter:', '- aggregate:', '- sort:']) if (!code.includes(part)) issues.push(`Missing ${part}`);
+      if (!/expr:\s*["']?amount\s*>\s*\d+(?:\.\d+)?/.test(code)) issues.push('The sample filter needs a numeric amount threshold.');
+      if (/^\t/m.test(code)) issues.push('A line starts with a tab; YAML indentation should use spaces.');
+      explain(issues.length ? 'Sample structure check' : 'Sample structure looks complete', issues.length ? issues : ['The four sample files and operations are present. This browser check does not replace hdrctl validation or a real engine run.']);
+    };
+    const preview = () => { root.querySelector<HTMLButtonElement>('[data-run]')!.click(); notice('Browser-local preview opened below the editors'); };
+    const leftItems = (lineNumber: number): MenuItem[] => {
+      const line = lines('rival')[lineNumber - 1] || ''; const kind = lineKind(line); const counterpart = hydraCounterpart(kind);
+      const selection = rival.value.slice(rival.selectionStart, rival.selectionEnd).trim();
+      return [
+        { label: 'Explain this line', action: () => explain(`${name} · line ${lineNumber}`, [line.trim() || '(empty line)', kind ? (operationHelp[kind] || `This line describes ${kind}.`) : 'No direct Hydra counterpart is asserted for this line. It may be framework code, configuration or an illustrative note.']) },
+        { label: 'Show the Hydra counterpart', disabled: !counterpart, title: counterpart ? '' : 'No direct counterpart in this example', action: () => { selectLine('hydra', counterpart); explain('Hydra counterpart', [`${name} line ${lineNumber} maps conceptually to Hydra line ${counterpart}. The examples are illustrative; this is not an automatic code conversion.`]); } },
+        { label: 'Translate the selection only', disabled: !selection, title: selection ? '' : 'Select source text first', action: () => { const kinds = [...new Set(selection.split('\n').map(lineKind).filter(value => ['filter','aggregate','sort'].includes(value)))]; if (!kinds.length) { explain('Selection has no mapped step', ['This illustrative source selection has no supported transformation counterpart. Choose a line with a filter, aggregation or sort to rebuild the Hydra steps.']); return; } if (!selectedKinds && !ignored.size) mappingBase = hydra.value; selectedKinds = new Set(kinds); rebuildMappedHydra(); notice(`Hydra steps rebuilt from selected ${kinds.join(', ')} concept(s)`); } },
+        { label: ignored.has(lineNumber) ? 'Restore this line' : 'Ignore this line', action: () => { if (!ignored.size && !selectedKinds) mappingBase = hydra.value; ignored.has(lineNumber) ? ignored.delete(lineNumber) : ignored.add(lineNumber); rebuildMappedHydra(); notice(`${ignored.size} source line(s) ignored; mapped Hydra steps updated where available`); updateComparison(); } },
+        { label: 'Restore all ignored lines', disabled: !ignored.size && !selectedKinds, action: () => { ignored.clear(); selectedKinds = null; rebuildMappedHydra(); updateComparison(); notice('All mapped Hydra steps and source lines restored'); } },
+        { label: 'Check the source example', action: checkSource },
+        { label: 'Copy the whole source', action: () => clipboard(rival.value) },
+        { label: 'Download the source text', action: () => download(`${root.dataset.tool || 'competitor'}-example.txt`, rival.value) },
+        { label: 'Expand this pane / restore both', action: () => expand('rival') },
+        { label: 'Paste source from clipboard', action: async () => { try { rival.value = await navigator.clipboard.readText(); rival.dispatchEvent(new Event('input')); ignored.clear(); updateComparison(); notice('Source pasted; review its meaning before comparing'); } catch { notice('Clipboard access was unavailable'); } } },
+        { label: 'Load another product example', action: () => { const others = JSON.parse(root.dataset.otherTools || '[]') as { slug: string; name: string }[]; const next = others[Math.floor(Math.random() * others.length)]; if (next) location.href = `/migrate/${next.slug}/#panel-simulator`; } },
+      ];
+    };
+    const rightItems = (lineNumber: number): MenuItem[] => {
+      const block = blockAt(lineNumber); const counterpart = block ? sourceCounterpart(block.kind) : 0;
+      return [
+        { label: 'Copy this block', disabled: !block, action: () => block && clipboard(block.text) },
+        { label: block ? `Explain ${block.kind}` : 'Explain this operation', disabled: !block, action: () => block && explain(`Hydra · ${block.kind}`, [operationHelp[block.kind] || 'This block belongs to the Hydra example.', block.text]) },
+        { label: `Reveal the ${name} line`, disabled: !counterpart, title: counterpart ? '' : 'No source counterpart in this example', action: () => { selectLine('rival', counterpart); notice(`${name} line ${counterpart} selected`); } },
+        { label: `Back to ${name} for this block`, disabled: !counterpart, action: () => { selectLine('rival', counterpart); explain(`Back to ${name}`, [lines('rival')[counterpart - 1], 'This is the conceptual counterpart in the displayed example, not a generated translation.']); } },
+        { label: 'Preview on sample data', action: preview },
+        { label: 'Validate sample structure', action: validate },
+        { label: 'Show provenance', action: () => { const pairs = lines('hydra').map((value, index) => ({ kind: lineKind(value), index: index + 1 })).filter(value => value.kind && sourceCounterpart(value.kind)); explain('Conceptual provenance', pairs.length ? pairs.map(value => `Hydra line ${value.index} (${value.kind}) ↔ ${name} line ${sourceCounterpart(value.kind)}`) : ['No direct line mapping in this illustrative example.']); } },
+        { label: 'Expand this pane / restore both', action: () => expand('hydra') },
+        { label: 'Reset both examples', action: () => { ignored.clear(); selectedKinds = null; mappingBase = initial.hydra; rival.value = initial.rival; hydra.value = initial.hydra; rival.dispatchEvent(new Event('input')); hydra.dispatchEvent(new Event('input')); root.querySelector<HTMLElement>('[data-results]')!.hidden = true; notice('Both examples restored'); } },
+        { label: 'Copy the whole example', action: () => clipboard(hydra.value) },
+        { label: 'Download the edited example', action: () => download('hydra-job-files.txt', hydra.value) },
+      ];
+    };
+    const updateComparison = () => {
+      const count = rival.value.split('\n').filter((value, index) => value.trim() && !value.trim().startsWith('#') && !ignored.has(index + 1)).length;
+      root.querySelector<HTMLElement>('[data-rival-lines]')!.textContent = String(count);
+    };
+    rival.addEventListener('input', updateComparison);
+    // The visible amount threshold is the only value shared reliably by all
+    // supported source examples. Keep it in sync when the rival pane has one.
+    let syncingThreshold = false;
+    rival.addEventListener('input', () => {
+      if (syncingThreshold) return;
+      const match = rival.value.match(/amount\s*>\s*(\d+(?:\.\d+)?)/);
+      if (!match || !/expr:\s*["']?amount\s*>\s*\d+(?:\.\d+)?/.test(hydra.value)) return;
+      syncingThreshold = true;
+      hydra.value = hydra.value.replace(/(expr:\s*["']?amount\s*>\s*)\d+(?:\.\d+)?/, (_full, prefix) => prefix + match[1]);
+      hydra.dispatchEvent(new Event('input'));
+      syncingThreshold = false;
+    });
+    hydra.addEventListener('input', () => {
+      if (!mappingUpdate && !ignored.size && !selectedKinds) mappingBase = hydra.value;
+      if (syncingThreshold) return;
+      const match = hydra.value.match(/expr:\s*["']?amount\s*>\s*(\d+(?:\.\d+)?)/);
+      if (!match || !/amount\s*>\s*\d+(?:\.\d+)?/.test(rival.value)) return;
+      syncingThreshold = true;
+      rival.value = rival.value.replace(/(amount\s*>\s*)\d+(?:\.\d+)?/, (_full, prefix) => prefix + match[1]);
+      rival.dispatchEvent(new Event('input'));
+      syncingThreshold = false;
+    });
+    for (const pane of ['rival', 'hydra'] as Pane[]) {
+      const ta = textArea(pane);
+      const open = (event: MouseEvent | KeyboardEvent) => {
+        const n = lineAt(ta, event); const x = event instanceof MouseEvent ? event.clientX : ta.getBoundingClientRect().left + 22;
+        const y = event instanceof MouseEvent ? event.clientY : ta.getBoundingClientRect().top + 22;
+        showMenu(x, y, `${pane === 'rival' ? name : 'Hydra'} · line ${n}`, pane === 'rival' ? leftItems(n) : rightItems(n));
+      };
+      ta.addEventListener('contextmenu', event => { if (event.shiftKey) return; event.preventDefault(); open(event); });
+      ta.addEventListener('keydown', event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); open(event); } });
+    }
+    root.querySelectorAll<HTMLButtonElement>('[data-pane-menu]').forEach(button => button.addEventListener('click', () => {
+      const pane = button.dataset.paneMenu as Pane; const ta = textArea(pane); const n = lineAt(ta);
+      const box = button.getBoundingClientRect(); showMenu(box.left, box.bottom + 4, `${pane === 'rival' ? name : 'Hydra'} · line ${n}`, pane === 'rival' ? leftItems(n) : rightItems(n));
+    }));
+    root.querySelectorAll<HTMLButtonElement>('[data-sim-action]').forEach(button => button.addEventListener('click', () => {
+      const action = button.dataset.simAction;
+      if (action === 'source-copy') clipboard(rival.value);
+      else if (action === 'source-download') download(`${root.dataset.tool || 'competitor'}-example.txt`, rival.value);
+      else if (action === 'source-check') checkSource();
+      else if (action === 'source-expand') expand('rival');
+      else if (action === 'hydra-validate') validate();
+      else if (action === 'hydra-run') preview();
+      else if (action === 'hydra-copy') clipboard(hydra.value);
+      else if (action === 'hydra-expand') expand('hydra');
+      else if (action === 'hydra-provenance') { const opener = root.querySelector<HTMLButtonElement>('[data-pane-menu="hydra"]')!; opener.click(); [...menu.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === 'Show provenance')?.click(); }
+    }));
+    root.querySelector('[data-popover-close]')!.addEventListener('click', closePopover);
+    document.addEventListener('pointerdown', event => { if (!root.contains(event.target as Node)) { closeMenu(); popover.hidden = true; } else if (!menu.contains(event.target as Node) && !(event.target as Element).closest?.('[data-pane-menu]')) closeMenu(); });
+    menu.addEventListener('keydown', event => {
+      const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]; const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === 'Escape') { event.preventDefault(); closeMenu(true); }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); buttons[(index + (event.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus(); }
+    });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeMenu(true); popover.hidden = true; } });
+    root.querySelector('[data-reset]')!.addEventListener('click', () => { ignored.clear(); selectedKinds = null; mappingBase = initial.hydra; updateComparison(); notice('Both examples restored'); });
+    updateComparison();
+  });
+</script>

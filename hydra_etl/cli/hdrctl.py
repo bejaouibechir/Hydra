@@ -3070,6 +3070,37 @@ def cmd_mcp_setup(client: str, path: str) -> None:
     info("then type /mcp to see its tools, and ask for a pipeline in a sentence.")
 
 
+def _open_browser_when_ready(host: str, port: int, timeout: float = 60.0) -> None:
+    """Ouvre le navigateur dès que le serveur accepte des connexions.
+
+    Un délai fixe échouait (« Unable to connect ») quand le démarrage d'uvicorn
+    (imports, scheduler, moteur de déclencheurs) dépassait ce délai.
+    """
+    import socket
+    import threading
+    import time
+    import webbrowser
+
+    # 0.0.0.0 / :: ne sont pas navigables : on se connecte via le loopback.
+    target = {"0.0.0.0": "127.0.0.1", "::": "::1", "": "127.0.0.1"}.get(host, host)
+    url_host = f"[{target}]" if ":" in target else target
+    url = f"http://{url_host}:{port}"
+
+    def _wait_and_open() -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection((target, port), timeout=0.5):
+                    break
+            except OSError:
+                time.sleep(0.25)
+        else:
+            return  # le serveur n'a pas démarré : ne rien ouvrir
+        webbrowser.open(url)
+
+    threading.Thread(target=_wait_and_open, daemon=True).start()
+
+
 @cli.command("serve", help="Start the Hydra API and the Studio.")
 @_lang_option
 @click.option("--host", default="127.0.0.1", show_default=True, help="Listen address.")
@@ -3130,10 +3161,7 @@ def cmd_serve(host: str, port: int, reload: bool, open_browser: bool,
     click.echo()
 
     if open_browser:
-        import threading
-        import webbrowser
-        url = f"http://{host}:{port}"
-        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+        _open_browser_when_ready(host, port)
 
     uvicorn.run(
         "hydra_etl.api.main:app",

@@ -1,0 +1,23 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { pages } from '../data/migrate-pages';
+import '../styles/migrate-reference.css';
+const graph = { '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Compare Hydra ETL with data tools', url: 'https://hydraetl.com/migrate/', description: 'Evidence-based comparisons and practical integration guides for Hydra ETL and nine data tools.', hasPart: pages.map(page => ({ '@type': 'WebPage', name: `Hydra ETL vs ${page.name}`, url: `https://hydraetl.com/migrate/${page.slug}/` })) };
+---
+<BaseLayout title="Compare Hydra ETL with dlt, Talend, dbt, Airbyte and more" description="Compare Hydra ETL with nine data integration and orchestration tools. See shared features, differences, a browser-local simulator and practical migration advice.">
+  <script type="application/ld+json" set:html={JSON.stringify(graph)} />
+  <main class="migrate-directory">
+    <div class="migrate-directory-inner">
+      <p class="migrate-eyebrow">Compare & migrate</p>
+      <h1>Where Hydra ETL fits in your data stack</h1>
+      <p class="migrate-directory-lead">Choose the tool you already use. Each guide answers what overlaps, where the products differ, and how to try Hydra without interrupting an existing pipeline.</p>
+      <div class="migrate-directory-grid">
+        {pages.map((page) => <a href={`/migrate/${page.slug}/`}><span class="migrate-directory-type">{page.category}</span><h2>Hydra vs {page.name} <span aria-hidden="true">↗</span></h2><p>{page.answer}</p></a>)}
+      </div>
+      <div class="migrate-directory-note"><strong>How these guides are made</strong><p>Each comparison has a specific scope, cites product documentation, distinguishes overlap from limits, and offers a browser-local example. The simulator is a teaching aid, not an engine run or an independent benchmark.</p></div>
+    </div>
+  </main>
+  <style>
+    .migrate-directory{background:#fbfdfc;color:#12332f;min-height:100vh;padding:54px 20px 100px}.migrate-directory-inner{max-width:1180px;margin:auto}.migrate-directory h1{font-size:clamp(34px,5vw,62px);letter-spacing:-.04em;line-height:1.1;max-width:800px;margin:10px 0 18px}.migrate-directory-lead{font-size:19px;max-width:74ch;line-height:1.6;color:#536b67}.migrate-directory-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:42px}.migrate-directory-grid a{display:block;text-decoration:none;color:inherit;background:white;border:1px solid #dce9e6;border-radius:14px;padding:22px;transition:border-color .15s,transform .15s}.migrate-directory-grid a:hover{border-color:#0d766a;transform:translateY(-2px)}.migrate-directory-type{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:#0d766a}.migrate-directory-grid h2{font-size:23px;margin:10px 0}.migrate-directory-grid h2 span{font-size:14px;color:#0d766a}.migrate-directory-grid p{font-size:13px;line-height:1.6;color:#536b67;margin:0}.migrate-directory-note{margin-top:30px;padding:22px 26px;background:#eaf7f3;border-radius:12px}.migrate-directory-note p{margin:5px 0 0;color:#536b67}@media(max-width:850px){.migrate-directory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:580px){.migrate-directory-grid{grid-template-columns:1fr}}
+  </style>
+</BaseLayout>

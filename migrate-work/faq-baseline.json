@@ -1,0 +1,920 @@
+{
+  "kestra": [
+    {
+      "words": 35,
+      "question": "Are Kestra and Hydra direct competitors?",
+      "answer": "They overlap in YAML workflow orchestration. Kestra is a broad task orchestration platform; Hydra also executes its own ETL transformations. The overlap is greatest for a flow dominated by data movement and supported ETL steps."
+    },
+    {
+      "words": 32,
+      "question": "Can a Kestra flow run Hydra?",
+      "answer": "Yes, with a task that invokes hdrctl in an environment where the CLI, project and input data are available. Keep Kestra’s trigger and use the command exit status to signal failure."
+    },
+    {
+      "words": 26,
+      "question": "Can Hydra replace Kestra triggers?",
+      "answer": "Some trigger patterns may be representable, but inspect the exact schedule, webhook payload, concurrency and event semantics. Do not infer parity from the word “trigger” alone."
+    },
+    {
+      "words": 26,
+      "question": "What happens to Kestra plugin tasks?",
+      "answer": "Retain tasks that integrate with systems Hydra does not support. A hybrid flow can use Kestra for those plugins and Hydra for a bounded ETL step."
+    },
+    {
+      "words": 29,
+      "question": "How should files be passed between Kestra and Hydra?",
+      "answer": "Use a shared mounted path, database table or object storage handoff. A temporary path inside one Kestra task container may be unavailable to the next task or to hdrctl."
+    },
+    {
+      "words": 38,
+      "question": "Does a Hydra job replace a Kestra flow?",
+      "answer": "Not necessarily. A Hydra job is the ETL work unit; a Kestra flow includes orchestration, inputs, triggers and error behavior. Compare a Hydra workflow with a Kestra flow and a Hydra job with the transformation inside a task."
+    },
+    {
+      "words": 31,
+      "question": "How do retries interact?",
+      "answer": "Kestra may retry a task that runs hdrctl. Choose a Hydra destination mode and batch key that make reruns safe. Test a failure after partial output before enabling retries in production."
+    },
+    {
+      "words": 21,
+      "question": "Can both schedules run during a parallel test?",
+      "answer": "Only if outputs are isolated and tagged by run. For production, choose one schedule owner before writing to the same target."
+    },
+    {
+      "words": 23,
+      "question": "Does the simulator run a Kestra worker?",
+      "answer": "No. It is a browser-local sample transformation. It does not start a Kestra flow, plugin or worker and cannot benchmark the runtime."
+    },
+    {
+      "words": 28,
+      "question": "What is the rollback plan?",
+      "answer": "Keep the old Kestra flow revision. Disable the Hydra task or trigger, restore the previous task path and replay the affected batch after checking for partial Hydra output."
+    },
+    {
+      "words": 31,
+      "question": "How do you integrate Hydra ETL with Kestra?",
+      "answer": "Use a Kestra task to invoke hdrctl against a versioned Hydra project, then pass the exit status to downstream tasks. Keep Kestra as trigger and orchestration owner during the first integration."
+    },
+    {
+      "words": 33,
+      "question": "Can Hydra replace a Kestra flow?",
+      "answer": "For a bounded ETL flow whose tasks fit Hydra connectors, transformations and workflow actions, possibly. Kestra supports a wider plugin and trigger ecosystem, so verify every task and operational requirement before replacing it."
+    },
+    {
+      "words": 33,
+      "question": "How do Kestra tasks map to Hydra workflow steps?",
+      "answer": "Inventory each task, its inputs, outputs, conditions, retries and side effects. Map ETL work to Hydra jobs and supported actions to workflow steps, then test dependencies and failure behavior with the same fixture."
+    },
+    {
+      "words": 25,
+      "question": "How do Kestra triggers compare with Hydra triggers?",
+      "answer": "Compare the actual schedule or event trigger, time zone, missed-run behavior and concurrency. A matching cron expression alone does not prove equivalent production behavior."
+    },
+    {
+      "words": 29,
+      "question": "Can Kestra orchestrate a Hydra ETL project?",
+      "answer": "Yes, if the Kestra worker or container has the Hydra CLI and project files. Define credentials securely, capture hdrctl logs and ensure the execution task fails when Hydra fails."
+    },
+    {
+      "words": 27,
+      "question": "Should Kestra stay in a Hydra migration?",
+      "answer": "Keep Kestra when its plugins, event triggers, UI and execution controls are valuable. Move only the data-processing body into Hydra first and evaluate orchestration replacement separately."
+    },
+    {
+      "words": 29,
+      "question": "How do you compare Kestra YAML and Hydra YAML?",
+      "answer": "Both use YAML, but their abstractions differ: Kestra declares flow tasks and triggers, while Hydra jobs declare sources, transformations and destinations. Compare actual runtime behavior rather than syntax length."
+    },
+    {
+      "words": 26,
+      "question": "What should a Kestra-to-Hydra proof of concept test?",
+      "answer": "Use a flow with one extract, one transform and one load, plus an intentional failure. Compare output rows, retries, logs, time zone and downstream task status."
+    },
+    {
+      "words": 34,
+      "question": "Can Hydra run inside a Kestra Docker task?",
+      "answer": "A container task can run a Hydra image or an image with Hydra installed if the project and secrets are mounted or provided appropriately. Confirm filesystem paths and networking in the actual worker environment."
+    },
+    {
+      "words": 29,
+      "question": "How do you roll back after migrating a Kestra flow?",
+      "answer": "Preserve the original flow definition and triggers. Disable the Hydra replacement, restore the Kestra flow and reconcile any data written during the pilot before re-enabling the prior schedule."
+    }
+  ],
+  "dagster": [
+    {
+      "words": 33,
+      "question": "Can Hydra replace a Dagster asset?",
+      "answer": "Hydra can produce the same physical dataset for some ETL workloads, but it does not automatically replace the asset key, materialization history, partition status or lineage. Keep those requirements explicit when considering migration."
+    },
+    {
+      "words": 32,
+      "question": "Can Dagster run a Hydra job?",
+      "answer": "Yes. An asset or op can invoke hdrctl through a checked subprocess or shell integration. The execution environment needs the CLI, project files and access to the same data sources and destinations."
+    },
+    {
+      "words": 38,
+      "question": "What happens to Dagster lineage?",
+      "answer": "It remains in Dagster only for assets still represented and materialized there. A Hydra job report is not the same as an asset graph. A hybrid design can retain the Dagster asset key while delegating computation to Hydra."
+    },
+    {
+      "words": 31,
+      "question": "How should partitions be passed to Hydra?",
+      "answer": "Pass a stable partition key or date as an explicit parameter and use it in source filtering and output paths. Test normal, late and missing partitions before replacing partitioned Dagster automation."
+    },
+    {
+      "words": 27,
+      "question": "Should sensors move to Hydra triggers?",
+      "answer": "Only after their event, run-key, deduplication and failure behavior is mapped. In a first pilot, keep the Dagster sensor and invoke Hydra inside the resulting run."
+    },
+    {
+      "words": 25,
+      "question": "Can I consolidate intermediate Dagster assets?",
+      "answer": "Possibly, when they are implementation details rather than published data products. Confirm that no checks, consumers, partition reports or audits rely on their individual materializations."
+    },
+    {
+      "words": 38,
+      "question": "How do asset checks interact with Hydra?",
+      "answer": "Keep Dagster checks around the output produced by Hydra or replace them with an explicitly reviewed quality mechanism. Do not mark an asset successful based only on a zero exit code if the target data contract needs verification."
+    },
+    {
+      "words": 29,
+      "question": "Is Hydra simpler than Dagster for every pipeline?",
+      "answer": "No. Hydra may simplify a small source-to-destination ETL chain. Dagster’s asset model and catalog can make a complex data product graph easier to understand and operate."
+    },
+    {
+      "words": 20,
+      "question": "Does the simulator model asset lineage?",
+      "answer": "No. It computes one sample transformation locally. It does not run Dagster, record materializations, evaluate checks or show partition history."
+    },
+    {
+      "words": 27,
+      "question": "What is a safe rollback after a hybrid pilot?",
+      "answer": "Keep the previous asset implementation. Disable the Hydra call, restore the original compute path and rematerialize affected partitions while preserving the same Dagster asset keys for consumers."
+    },
+    {
+      "words": 33,
+      "question": "How do you run a Hydra ETL job from Dagster?",
+      "answer": "Invoke hdrctl from a Dagster op or asset execution environment, capture its exit status and surface logs. Declare the resulting table or file as the asset boundary so downstream materializations wait for success."
+    },
+    {
+      "words": 31,
+      "question": "Can Hydra ETL replace Dagster?",
+      "answer": "Hydra can coordinate supported ETL workflows, while Dagster provides asset-oriented orchestration and lineage. Consider replacement only for a bounded workflow whose asset graph, schedules and operational needs can be reproduced."
+    },
+    {
+      "words": 33,
+      "question": "How do Dagster assets map to Hydra jobs?",
+      "answer": "A Hydra job can produce a table or file corresponding to an asset, but Dagster asset definitions also encode dependencies, metadata and materialization history. Record those before moving ownership to a Hydra workflow."
+    },
+    {
+      "words": 28,
+      "question": "Can Dagster orchestrate Hydra YAML pipelines?",
+      "answer": "Yes. Keep Dagster as the schedule owner and call the Hydra CLI in a task or asset, with the project files and secrets present in the run environment."
+    },
+    {
+      "words": 30,
+      "question": "How do Dagster schedules and sensors compare with Hydra triggers?",
+      "answer": "Compare the event source, time zone, missed-run behavior, concurrency and retry policy. A simple cron schedule may migrate easily, while a custom sensor requires a separate design and test."
+    },
+    {
+      "words": 33,
+      "question": "What happens to Dagster lineage if a pipeline moves to Hydra?",
+      "answer": "Dagster lineage is not automatically transferred by replacing an asset body with a Hydra job. Keep an asset wrapper or create an explicit metadata integration if lineage and materialization history must remain visible."
+    },
+    {
+      "words": 28,
+      "question": "Should Dagster remain in a Hydra ETL architecture?",
+      "answer": "Keep Dagster when asset cataloging, partitioned assets, sensors or cross-system orchestration are central. Hydra can own the ETL implementation of selected assets while Dagster keeps the graph."
+    },
+    {
+      "words": 28,
+      "question": "How do Dagster partitions affect a Hydra migration?",
+      "answer": "Record partition keys, partition windows and backfill semantics. Pass the partition context explicitly to the Hydra run and compare outputs for normal, late and replayed partitions before cutover."
+    },
+    {
+      "words": 30,
+      "question": "What should a Dagster-to-Hydra pilot verify?",
+      "answer": "Verify output rows and types, asset dependency order, failure visibility, retry behavior and lineage requirements. Test at least one failed run and one rerun, not only a successful first materialization."
+    },
+    {
+      "words": 32,
+      "question": "How do you roll back from a Hydra-owned Dagster asset?",
+      "answer": "Preserve the prior asset implementation and its storage target. Stop the new Hydra schedule, restore the Dagster asset body or prior deployment and reconcile any partitions or rows produced during the transition."
+    }
+  ],
+  "dlt": [
+    {
+      "words": 53,
+      "question": "What is the main difference between dlt and Hydra ETL?",
+      "answer": "dlt is a Python library whose resources produce records for extraction, normalization and loading. Hydra describes supported sources, transformations and destinations in YAML jobs and can coordinate them in workflows. For a custom API, Python extraction may be an advantage; for a stable batch job, an explicit manifest may be easier to review."
+    },
+    {
+      "words": 43,
+      "question": "Can Hydra replace a dlt REST API source?",
+      "answer": "Only if the Hydra connector can express the API’s authentication, pagination, rate limits and response shape. A generic “web API” label does not prove parity. Keep the dlt resource when custom Python handles those details and introduce Hydra after the data lands."
+    },
+    {
+      "words": 30,
+      "question": "Does a Hydra upsert replace dlt incremental loading?",
+      "answer": "No. Upsert controls writes at the destination; incremental extraction controls which source records are read. Test cursor advancement, late arrivals, updates and retry state before treating the behaviors as equivalent."
+    },
+    {
+      "words": 40,
+      "question": "How should schema drift be compared?",
+      "answer": "Use fixtures with a new field, a type change and a missing field. Compare both pipeline status and the physical destination schema. dlt schema contracts and Hydra drift policies must be mapped by observed behavior rather than by similar names."
+    },
+    {
+      "words": 40,
+      "question": "Can dlt and Hydra run in the same project?",
+      "answer": "They can run in the same deployment or be chained by an external scheduler, provided the handoff is a defined table or file. One component should own triggering and retries so a failed transformation does not accidentally rerun ingestion twice."
+    },
+    {
+      "words": 28,
+      "question": "Should I migrate nested JSON normalization to Hydra first?",
+      "answer": "Usually not. Nested-record normalization can create child tables and special keys in dlt. Start with a flat, stable source and verify its semantics before attempting nested data."
+    },
+    {
+      "words": 31,
+      "question": "What should be compared after the first successful run?",
+      "answer": "Run a second and third batch with updates, duplicates and late-arriving records. Count rows by key, inspect changed values and record how each tool resumes after a deliberately interrupted load."
+    },
+    {
+      "words": 35,
+      "question": "Which tool is better for a Python-heavy team?",
+      "answer": "A team that already writes and tests custom Python extractors may prefer dlt’s programming model. Hydra is attractive when the workload fits its supported DSL and the team wants operations expressed and reviewed declaratively."
+    },
+    {
+      "words": 34,
+      "question": "Can the browser simulator measure dlt performance?",
+      "answer": "No. It executes neither dlt nor the Hydra engine. It models one small Hydra transformation on sample rows and shows line counts for the displayed examples, which are not a throughput or cost benchmark."
+    },
+    {
+      "words": 34,
+      "question": "What is the safest rollback after a dlt migration pilot?",
+      "answer": "Preserve the original dlt pipeline, state and destination. Stop the new schedule, restore downstream reads to the old target and resume dlt from the saved state. Avoid deleting or rewriting state during the pilot."
+    },
+    {
+      "words": 37,
+      "question": "How do you migrate a dlt pipeline to Hydra ETL?",
+      "answer": "Inventory the dlt resources, state, destination tables and write dispositions first. Rebuild one supported, flat pipeline as four Hydra job files, validate it, and compare two or more runs against a separate target before changing the schedule."
+    },
+    {
+      "words": 33,
+      "question": "Can Hydra ETL replace dlt incremental cursors?",
+      "answer": "A Hydra destination upsert does not create an extraction cursor. Keep the dlt incremental resource or add an explicit source watermark mechanism, then test updates and late records before claiming equivalent incremental behavior."
+    },
+    {
+      "words": 32,
+      "question": "How do dlt schema contracts compare with Hydra schema drift policies?",
+      "answer": "Both can constrain data shape, but their rules and scope differ. Exercise the same added, removed and type-changed columns in both systems and compare the run outcome and physical destination schema."
+    },
+    {
+      "words": 37,
+      "question": "Can Hydra transform data loaded by dlt?",
+      "answer": "Yes, when dlt lands a table or file readable by a Hydra source connector. Define a clear handoff, make Hydra write to a separate target and decide which scheduler owns retries so ingestion is not repeated unexpectedly."
+    },
+    {
+      "words": 37,
+      "question": "Is dlt or Hydra better for a custom paginated API?",
+      "answer": "dlt is often the easier fit when a Python resource already handles pagination, authentication renewal or unusual response shapes. Evaluate Hydra only after verifying that its Web API connector expresses the exact behavior required by that endpoint."
+    },
+    {
+      "words": 35,
+      "question": "How do you compare dlt merge with Hydra upsert?",
+      "answer": "Use the same primary key and a fixture containing a new row, an updated row and a duplicate. Compare final rows, null handling and error behavior; similarly named write modes do not guarantee identical semantics."
+    },
+    {
+      "words": 37,
+      "question": "What should a dlt-to-Hydra proof of concept include?",
+      "answer": "Include the source schema, an initial full load, a changed record, a late record, a schema change and an interrupted run. Record expected outputs and recovery behavior, rather than judging the proof of concept by YAML length."
+    },
+    {
+      "words": 37,
+      "question": "Can a dlt pipeline and a Hydra workflow share a schedule?",
+      "answer": "They can be coordinated by one scheduler with a defined table or file handoff. Give one component responsibility for triggering and retrying each stage, and keep the old schedule disabled only after the replacement path is verified."
+    },
+    {
+      "words": 27,
+      "question": "Does Hydra automatically normalize nested JSON like dlt?",
+      "answer": "Do not assume so. dlt normalization can produce related tables and generated keys; test the nested record shape and downstream schema explicitly before replacing that extraction path."
+    },
+    {
+      "words": 37,
+      "question": "How do you roll back from Hydra to dlt?",
+      "answer": "Preserve the original dlt state and target through the pilot. Stop the Hydra schedule, route consumers back to the original target and resume dlt from its saved state after checking for records written during the cutover window."
+    }
+  ],
+  "meltano": [
+    {
+      "words": 40,
+      "question": "What is the main difference between Meltano and Hydra?",
+      "answer": "Meltano composes plugins such as Singer extractors and loaders, along with utilities. Hydra runs supported sources, transformation steps and destinations in its own ETL job model. The extension and state models differ even though both can be configured as code."
+    },
+    {
+      "words": 25,
+      "question": "Can Hydra replace a Singer tap?",
+      "answer": "Only if Hydra supports the specific source behavior, including authentication, pagination, schema and incremental state. A tap with specialized SaaS behavior is often better retained."
+    },
+    {
+      "words": 34,
+      "question": "Can a Meltano target feed a Hydra job?",
+      "answer": "Yes. Let Meltano finish the tap-to-target load, then point Hydra at a stable landed table or file. Keep the Hydra output separate during the pilot and make one scheduler own the sequence."
+    },
+    {
+      "words": 27,
+      "question": "What happens to Meltano state IDs?",
+      "answer": "They stay with the extractor/loader pair and active Meltano environment. Hydra does not inherit them. Record the exact state ID and bookmark before any replacement experiment."
+    },
+    {
+      "words": 32,
+      "question": "Can I use dbt, Meltano and Hydra together?",
+      "answer": "Yes, with explicit boundaries. Meltano can ingest, Hydra can perform a bounded ETL or delivery step, and dbt can model warehouse data. Decide which tool owns each transformation and avoid duplicated schedules."
+    },
+    {
+      "words": 27,
+      "question": "Does a Hydra environment map directly to a Meltano environment?",
+      "answer": "No. Names may be similar, but configuration resolution and state tracking differ. Map endpoints, secrets, schema and state separately, then test the effective values in every environment."
+    },
+    {
+      "words": 29,
+      "question": "Which Meltano pipeline should migrate first?",
+      "answer": "Choose a standard file or SQL extractor and target with a stable flat schema, limited transformation and a replayable fixture. Avoid a stateful SaaS tap as the first candidate."
+    },
+    {
+      "words": 29,
+      "question": "How do I retry only the Hydra step?",
+      "answer": "Use a durable handoff table or immutable export produced by Meltano. When Hydra fails, rerun it against that same completed batch instead of automatically repeating extraction and advancing state."
+    },
+    {
+      "words": 22,
+      "question": "Can the simulator benchmark Meltano plugins?",
+      "answer": "No. It executes neither a Singer tap nor a Meltano target. It models 14 rows locally and explains one Hydra transformation sequence."
+    },
+    {
+      "words": 33,
+      "question": "What is a safe rollback?",
+      "answer": "Retain the original Meltano project, plugins, environment and state. Stop the new Hydra step and restore the previous downstream target or utility. Do not reset Meltano state to recover a Hydra-only failure."
+    },
+    {
+      "words": 35,
+      "question": "How do you integrate Hydra ETL with Meltano?",
+      "answer": "Meltano can keep Singer extraction and loading while Hydra reads a stable landed table or file for transformation. Alternatively, one scheduler can invoke a Hydra project after a successful Meltano run with a documented handoff."
+    },
+    {
+      "words": 32,
+      "question": "Can Hydra replace Meltano taps and targets?",
+      "answer": "Only for source and destination behavior that Hydra connectors actually support. Singer taps and targets can encode specialized APIs and state, so evaluate each plugin rather than replacing a Meltano project wholesale."
+    },
+    {
+      "words": 25,
+      "question": "How does Singer state compare with a Hydra upsert?",
+      "answer": "Singer state tracks extraction position; upsert controls target writes. Preserve the tap state and verify source changes and replay before removing the Meltano extraction stage."
+    },
+    {
+      "words": 30,
+      "question": "How do Meltano environments map to Hydra environments?",
+      "answer": "Inventory environment-specific plugin settings and secret values. Recreate the required non-secret parameters and credential references in Hydra, then run the same fixture in each environment to confirm resolution."
+    },
+    {
+      "words": 32,
+      "question": "Can Meltano run a Hydra ETL job?",
+      "answer": "A Meltano command or an external orchestrator can invoke hdrctl after the relevant Singer load succeeds. Treat the command as a separate stage with its own exit code, logs and retry policy."
+    },
+    {
+      "words": 34,
+      "question": "Should Meltano or Hydra own data extraction?",
+      "answer": "Keep Meltano when a mature Singer tap already solves a difficult source or state problem. Use Hydra extraction where its connector covers the source and the team values a declarative end-to-end job."
+    },
+    {
+      "words": 33,
+      "question": "How do you migrate a Meltano pipeline to Hydra YAML?",
+      "answer": "List every tap, target, mapper, schedule and state backend. Rebuild one supported path in Hydra, compare target data after a full and incremental run, and document any Singer-specific behavior left outside Hydra."
+    },
+    {
+      "words": 25,
+      "question": "What should be tested before replacing a Meltano target?",
+      "answer": "Test primary keys, schema changes, nulls, write disposition and restart after interruption. The same record count can hide differences in table shape or duplicate handling."
+    },
+    {
+      "words": 33,
+      "question": "Can Meltano and Hydra share the same destination?",
+      "answer": "They can, but simultaneous writes make a pilot hard to judge and can create conflicts. Start with separate target tables or schemas, then designate a single writer when the output contract is verified."
+    },
+    {
+      "words": 28,
+      "question": "How do you roll back a Meltano-to-Hydra migration?",
+      "answer": "Preserve Meltano configuration and Singer state, stop the Hydra schedule and restore consumers to the previous target. Replay only the uncommitted interval using the original tap and target."
+    }
+  ],
+  "talend": [
+    {
+      "words": 35,
+      "question": "Can Hydra import a Talend Studio Job automatically?",
+      "answer": "This guide does not claim an automatic Job importer. Talend component graphs, expressions, contexts and reject links need an explicit mapping. Start with a small Job and compare actual output before considering a wider migration."
+    },
+    {
+      "words": 41,
+      "question": "What is the closest Hydra equivalent of tMap?",
+      "answer": "There is no universal one-to-one equivalent. A simple tMap expression may translate to select, rename, cast, calculate, filter or join steps. Multiple output links and Java expressions may require more than one Hydra job or a retained Talend component."
+    },
+    {
+      "words": 31,
+      "question": "Can Talend call Hydra without replacing the Job?",
+      "answer": "Yes. A Talend tSystem component can run hdrctl on the execution host. Use an absolute path, make credentials available securely, and ensure a nonzero Hydra exit code fails the Talend Job."
+    },
+    {
+      "words": 39,
+      "question": "How do Talend contexts map to Hydra environments?",
+      "answer": "List each Talend context variable, its default and any dynamically loaded value. Map nonsecret settings to Hydra parameters or environment configuration, and secrets to Hydra’s secret resolution. Test effective values in each environment rather than assuming identical precedence."
+    },
+    {
+      "words": 39,
+      "question": "What happens to Talend reject rows?",
+      "answer": "They must be accounted for explicitly. Capture the Talend reject link output and decide whether the Hydra job should fail, clean, skip or write an equivalent reject target. Equal main-row counts alone do not prove equal error behavior."
+    },
+    {
+      "words": 42,
+      "question": "Is YAML easier to review than a Talend Job?",
+      "answer": "A small linear job may be easier to diff as YAML, but that is a review preference, not an objective quality score. Talend visual graphs can be clearer for branching flows. Evaluate review and troubleshooting with the real Job your team owns."
+    },
+    {
+      "words": 32,
+      "question": "Can Hydra replace Talend’s connector catalog?",
+      "answer": "Only where Hydra supports the exact source and destination behavior required by the Job. A Talend connector may include application-specific semantics that a generic file or SQL connector does not reproduce."
+    },
+    {
+      "words": 33,
+      "question": "Which Talend Job should migrate first?",
+      "answer": "Choose a deterministic file or database Job with one main output, stable schema and no custom Java or specialized connector. Avoid complex tMap branching, CDC and data-quality routing in the first pilot."
+    },
+    {
+      "words": 30,
+      "question": "How should numeric and date fields be tested?",
+      "answer": "Create boundary fixtures with empty values, invalid dates, decimals and large numbers. Compare parsed types and final destination values. Explicit Hydra casts are important when CSV input begins as text."
+    },
+    {
+      "words": 29,
+      "question": "What is a safe Talend rollback plan?",
+      "answer": "Retain the original Job and context definitions. Stop the Hydra call or schedule, restore the original destination link and rerun the affected batch using Talend’s existing operational procedure."
+    },
+    {
+      "words": 33,
+      "question": "How do you migrate a Talend Studio Job to Hydra ETL?",
+      "answer": "Export the Job design and inventory components, schemas, context variables, rejection flows and schedules. Translate one bounded path into Hydra source, transformation, pipeline and destination files, then compare outputs from identical input snapshots."
+    },
+    {
+      "words": 42,
+      "question": "Which Talend components map to Hydra transformations?",
+      "answer": "A simple tFilterRow may map to filter and a basic tAggregateRow to aggregate, subject to expression and type checks. Components such as tMap can combine mapping, joins and rejects, so they need an operation-by-operation review rather than a single replacement."
+    },
+    {
+      "words": 29,
+      "question": "Can Hydra import a Talend Job automatically?",
+      "answer": "This guide does not claim an automatic Talend importer. A safe migration starts from documented component settings and observed output, then translates only behavior supported by the Hydra DSL."
+    },
+    {
+      "words": 29,
+      "question": "How do Talend context variables map to Hydra parameters and secrets?",
+      "answer": "Separate public environment settings from credentials. Map non-secret values to Hydra parameters or environment configuration and credentials to a secret source, then test dev and production resolution independently."
+    },
+    {
+      "words": 31,
+      "question": "What happens to Talend reject rows during migration?",
+      "answer": "Do not discard them silently. Identify each reject connection and the conditions that send rows there, then reproduce or explicitly redesign the error output and compare accepted plus rejected row counts."
+    },
+    {
+      "words": 34,
+      "question": "Is Hydra ETL a replacement for Talend Data Integration?",
+      "answer": "Hydra can replace a bounded supported batch Job, but Talend has a broad component ecosystem and enterprise operations that may remain necessary. Decide Job by Job using connector coverage, mapping semantics and run controls."
+    },
+    {
+      "words": 30,
+      "question": "Can Talend and Hydra run side by side?",
+      "answer": "Yes. Talend can continue extracting from a specialized system while Hydra reads its landed file or table. Use separate output targets during the pilot and make the handoff contract explicit."
+    },
+    {
+      "words": 32,
+      "question": "How do you compare Talend tMap with a Hydra job?",
+      "answer": "List every tMap input, output, expression, lookup and rejection condition. Build a small fixture that exercises every branch, then compare result rows and types after translating those parts into supported Hydra steps."
+    },
+    {
+      "words": 35,
+      "question": "How should a Talend-to-Hydra cutover be tested?",
+      "answer": "Run the old Job and new Hydra job on the same frozen input, including empty values, malformed rows and duplicate keys. Compare data, rejects, logs, rerun behavior and downstream reads before moving the production schedule."
+    },
+    {
+      "words": 31,
+      "question": "What is the rollback plan after replacing a Talend Job?",
+      "answer": "Keep the Talend artifact, contexts and scheduler configuration available. Stop the Hydra schedule, restore consumers to the original Talend output and replay only the input interval that was not already committed."
+    }
+  ],
+  "airflow": [
+    {
+      "words": 27,
+      "question": "Is Airflow an ETL engine?",
+      "answer": "No. Airflow orchestrates tasks and their dependencies. ETL logic lives in task code or external tools. Hydra can be the ETL engine that an Airflow task invokes."
+    },
+    {
+      "words": 32,
+      "question": "Can Airflow orchestrate Hydra?",
+      "answer": "Yes. Deploy Hydra where an Airflow worker can call hdrctl, invoke validation and run in a task, and use the process status to mark task success or failure. Keep one scheduler owner."
+    },
+    {
+      "words": 32,
+      "question": "When should a DAG be replaced by a Hydra workflow?",
+      "answer": "Consider it when the DAG is mainly Hydra-supported ETL jobs and simple actions, and when schedule, retry, alert and backfill behavior can be reproduced. Keep Airflow for broad provider-heavy orchestration."
+    },
+    {
+      "words": 31,
+      "question": "How does Airflow backfill affect migration?",
+      "answer": "Backfill creates runs for historical intervals. Verify how each interval becomes a Hydra parameter, source filter and output partition. Copying a cron string without this mapping can process the wrong data."
+    },
+    {
+      "words": 33,
+      "question": "What happens to Airflow operators and sensors?",
+      "answer": "Inventory them individually. Some may map to Hydra actions or triggers, but many specialized providers and sensors have no direct equivalent. Those tasks can remain in Airflow while Hydra handles the ETL payload."
+    },
+    {
+      "words": 31,
+      "question": "How should Airflow retries be configured around Hydra?",
+      "answer": "Make the Hydra destination idempotent for the chosen batch and let a nonzero hdrctl exit status fail the task. Test a partial failure and retry before using the pattern in production."
+    },
+    {
+      "words": 31,
+      "question": "Can both Airflow and Hydra schedules be enabled?",
+      "answer": "They can, but not for the same writable workload without careful coordination. For the migration pilot, keep Airflow as owner; during cutover, pause the DAG before enabling the corresponding Hydra trigger."
+    },
+    {
+      "words": 25,
+      "question": "Does a shorter Hydra YAML prove lower operating cost?",
+      "answer": "No. Code length does not measure scheduler capacity, reliability or team operations. Compare the real deployment, recovery drills and maintenance effort for the selected workload."
+    },
+    {
+      "words": 25,
+      "question": "What does the browser simulator execute?",
+      "answer": "It calculates a four-step transformation on local sample rows. It does not start an Airflow scheduler, run a DAG or invoke the Hydra engine."
+    },
+    {
+      "words": 31,
+      "question": "What is the safest Airflow rollback?",
+      "answer": "Keep the previous DAG code and schedule configuration. Pause the new trigger, restore the old ETL task or DAG revision, and rerun only the affected data interval after checking destination idempotency."
+    },
+    {
+      "words": 36,
+      "question": "Can Hydra ETL replace Apache Airflow?",
+      "answer": "Hydra can orchestrate supported ETL jobs and workflow actions, but Airflow is a general Python orchestration platform with a large operator ecosystem. Evaluate a replacement for a bounded DAG, not an entire Airflow deployment by assumption."
+    },
+    {
+      "words": 32,
+      "question": "How do you run Hydra ETL from an Airflow DAG?",
+      "answer": "Run hdrctl as a task after upstream data is ready, capture its exit code and logs, and let downstream tasks depend on success. Keep Airflow as schedule owner during the integration pilot."
+    },
+    {
+      "words": 28,
+      "question": "How do Airflow DAG dependencies map to Hydra workflows?",
+      "answer": "Document tasks, upstream edges, trigger rules, retries and branching. Recreate only supported dependencies in Hydra, then compare actual start order and failure propagation on a five-step fixture."
+    },
+    {
+      "words": 31,
+      "question": "Does Hydra support Airflow backfill and catchup?",
+      "answer": "Do not assume equivalent historical scheduling. If an Airflow DAG depends on catchup, data intervals or backfill, preserve that behavior explicitly in the migration plan and test historical runs before cutover."
+    },
+    {
+      "words": 33,
+      "question": "How do Airflow XCom values map to Hydra parameters?",
+      "answer": "Map only the values that a Hydra workflow or job can pass explicitly. XCom may carry task-specific runtime data; document each producer and consumer instead of treating parameters as a universal replacement."
+    },
+    {
+      "words": 26,
+      "question": "What is the difference between Airflow orchestration and Hydra ETL?",
+      "answer": "Airflow schedules and coordinates arbitrary tasks; it is not itself a data transformation engine. Hydra includes ETL source, transformation and destination execution alongside its workflow features."
+    },
+    {
+      "words": 30,
+      "question": "Can Airflow schedule a Hydra YAML pipeline?",
+      "answer": "Yes. An Airflow BashOperator or equivalent execution task can call hdrctl validate and hdrctl run for a Hydra project, provided the worker has Hydra, the project files and credentials available."
+    },
+    {
+      "words": 28,
+      "question": "How do you migrate Airflow retries and failure policies?",
+      "answer": "Record retry count, delay, backoff, trigger rule and alerting for each task. Exercise a deliberate failure in both systems and compare which downstream steps run, skip or retry."
+    },
+    {
+      "words": 28,
+      "question": "When should Airflow remain the orchestrator?",
+      "answer": "Retain Airflow when the DAG uses many provider operators, dynamic task mapping, sensors or established operational controls. Hydra can still replace Python ETL code inside selected Airflow tasks."
+    },
+    {
+      "words": 34,
+      "question": "How do you roll back an Airflow-to-Hydra workflow migration?",
+      "answer": "Keep the original DAG disabled but deployable while the Hydra workflow is piloted. Stop the new schedule, restore the original DAG and verify that run intervals and destination writes will not be replayed twice."
+    }
+  ],
+  "airbyte": [
+    {
+      "words": 29,
+      "question": "Can Hydra replace an Airbyte connector?",
+      "answer": "Only when Hydra supports the exact source, destination and sync semantics required. Airbyte’s specialized connector catalog is often a reason to keep it and use Hydra downstream instead."
+    },
+    {
+      "words": 37,
+      "question": "Can Airbyte feed Hydra?",
+      "answer": "Yes. Airbyte can write a stable table or file and Hydra can read it after the sync completes. Define a completion signal and let one scheduler own retries so an ETL failure does not automatically repeat ingestion."
+    },
+    {
+      "words": 25,
+      "question": "Is Hydra upsert the same as Airbyte incremental sync?",
+      "answer": "No. Airbyte incremental sync controls source extraction state; Hydra upsert controls destination writes. Both sides must be tested with new, changed, late and deleted records."
+    },
+    {
+      "words": 31,
+      "question": "What should be done with CDC streams?",
+      "answer": "Keep CDC in Airbyte during the first Hydra pilot. If considering replacement, test initial snapshot, updates, deletes, transaction ordering and recovery after interruption. A static CSV comparison cannot establish CDC parity."
+    },
+    {
+      "words": 36,
+      "question": "How do I prevent duplicate loads?",
+      "answer": "Assign one owner for the schedule, use a stable batch or sync identifier, and choose a destination mode that is safe to retry. Turn off the old schedule only after the new sequence has been validated."
+    },
+    {
+      "words": 35,
+      "question": "Should Hydra read an Airbyte raw table?",
+      "answer": "Only if the raw table’s schema and lifecycle are understood. A typed or explicitly exported staging relation may be safer than relying on an internal layout that could change with connector or destination settings."
+    },
+    {
+      "words": 34,
+      "question": "Can Airbyte and dbt remain alongside Hydra?",
+      "answer": "Yes. Airbyte can ingest, Hydra can handle a bounded ETL step or delivery, and dbt can keep warehouse models and tests. Document the handoff contracts and avoid two systems applying the same cleaning rule."
+    },
+    {
+      "words": 34,
+      "question": "How should schema changes be evaluated?",
+      "answer": "Run fixtures with added, removed and type-changed fields. Inspect Airbyte schema propagation, Hydra source validation and the final destination schema. A successful sync does not guarantee downstream consumers still see the expected types."
+    },
+    {
+      "words": 27,
+      "question": "Does the simulator compare connector performance?",
+      "answer": "No. It runs no Airbyte connector and no Hydra engine. It uses local sample rows to explain one transformation and cannot measure throughput, cost or recovery behavior."
+    },
+    {
+      "words": 33,
+      "question": "What is the rollback path?",
+      "answer": "Keep the Airbyte connection and its state unchanged, stop the Hydra step and restore the previous downstream target. Re-run only the necessary downstream processing; resetting the Airbyte source cursor may create duplicates."
+    },
+    {
+      "words": 36,
+      "question": "How do Airbyte and Hydra ETL integrate?",
+      "answer": "Let Airbyte replicate a source into a landing table, then run Hydra against that table for supported transformations and a controlled destination load. One scheduler should wait for the Airbyte sync to finish before starting Hydra."
+    },
+    {
+      "words": 31,
+      "question": "What connector checks are needed before moving an Airbyte sync to Hydra?",
+      "answer": "Verify that Hydra supports the exact source and destination plus the required authentication, pagination, CDC and schema behavior. Airbyte has a large connector catalog; a CSV simulator cannot establish connector parity."
+    },
+    {
+      "words": 35,
+      "question": "Does Hydra support Airbyte CDC behavior?",
+      "answer": "Do not infer CDC parity from append or upsert support. Inspect the Airbyte stream cursor, change events, deletes and sync mode, then test those cases against the proposed Hydra design or retain Airbyte for replication."
+    },
+    {
+      "words": 29,
+      "question": "How does Airbyte incremental sync compare with Hydra upsert?",
+      "answer": "Airbyte incremental sync controls which source records are extracted. Hydra upsert controls destination writes. A migration must separately reproduce the source cursor and verify updates, deletes and late changes."
+    },
+    {
+      "words": 35,
+      "question": "Should I replace Airbyte with Hydra ETL?",
+      "answer": "Replace only a specific supported pipeline after testing connector behavior and recovery. If Airbyte is already providing reliable specialized ingestion, a lower-risk option is to keep it and add Hydra after its landing layer."
+    },
+    {
+      "words": 33,
+      "question": "How do you move an Airbyte sync to a Hydra job?",
+      "answer": "Record source and destination configuration, stream selection, sync mode, cursor, primary key and schedule. Create a separate Hydra target and compare initial and repeated runs, including a source update and a deleted record."
+    },
+    {
+      "words": 33,
+      "question": "Can Hydra transform Airbyte raw tables?",
+      "answer": "Yes when a Hydra database source can read the landed tables and their types. Check whether Airbyte writes raw JSON or normalized columns, and establish a stable table contract before building Hydra steps."
+    },
+    {
+      "words": 32,
+      "question": "Who should own retries when Airbyte and Hydra are chained?",
+      "answer": "Give the orchestrator a clear boundary: retry a failed Airbyte sync without duplicating a successful Hydra load, and retry Hydra without silently rerunning extraction. Record run identifiers and destination keys for recovery."
+    },
+    {
+      "words": 27,
+      "question": "What metrics should an Airbyte-to-Hydra pilot compare?",
+      "answer": "Compare stream row counts, unique keys, schema, nulls, deleted records, sync duration and recovery after interruption. Inspect destination values, not only a green status in either product."
+    },
+    {
+      "words": 34,
+      "question": "How do you roll back an Airbyte replacement?",
+      "answer": "Preserve the Airbyte connection and its state during the pilot. Stop the Hydra schedule, point consumers to the original Airbyte target and resume the sync from the preserved cursor after checking the cutover interval."
+    }
+  ],
+  "flowman": [
+    {
+      "words": 26,
+      "question": "How are Flowman and Hydra similar?",
+      "answer": "Both support declarative ETL definitions. Flowman uses relations, mappings, targets and jobs on Apache Spark; Hydra uses sources, transformations, destinations and workflows in its own engine."
+    },
+    {
+      "words": 23,
+      "question": "Can Hydra replace a Spark-scale Flowman job?",
+      "answer": "Only after a representative performance and correctness test. A small CSV example cannot establish parity for distributed joins, shuffles or large partitioned output."
+    },
+    {
+      "words": 29,
+      "question": "What is a Flowman relation?",
+      "answer": "It describes a physical source or sink and may include connection and schema behavior. When moving to Hydra, map both access and any table-creation or schema-conversion responsibility."
+    },
+    {
+      "words": 35,
+      "question": "Do Flowman mappings map one-to-one to Hydra steps?",
+      "answer": "Not always. A Flowman mapping can be reused and can express a graph. A Hydra transformation step is part of a job sequence. Translate the behavior of each target and its consumers, not only names."
+    },
+    {
+      "words": 29,
+      "question": "How should Flowman job parameters be migrated?",
+      "answer": "Record every parameter that changes source filtering, target partition or date range. Map it to a Hydra parameter and test normal and historical runs with the same effective value."
+    },
+    {
+      "words": 28,
+      "question": "Can Flowman and Hydra coexist?",
+      "answer": "Yes. Keep Flowman for large Spark workloads and use Hydra for a bounded adjacent ETL job. Connect them through a completed file or table and one scheduler owner."
+    },
+    {
+      "words": 30,
+      "question": "What happens to Flowman-managed schemas?",
+      "answer": "Someone must own DDL and schema migration after a target moves. Do not assume a Hydra load automatically creates, alters or converts a table exactly as a Flowman relation did."
+    },
+    {
+      "words": 24,
+      "question": "What metrics matter in a Flowman comparison?",
+      "answer": "Correctness, schema, representative elapsed time, memory, cluster cost, partition behavior and recovery. Code length or 14-row browser output is not a performance measure."
+    },
+    {
+      "words": 19,
+      "question": "Does the simulator execute Spark?",
+      "answer": "No. It models one tiny transformation in the browser and does not start Flowman, Spark or the Hydra engine."
+    },
+    {
+      "words": 27,
+      "question": "How can a Flowman migration be rolled back?",
+      "answer": "Retain the original project and schedule entry. Restore the Flowman target as the consumer source and rerun the affected parameter range after checking for partial Hydra output."
+    },
+    {
+      "words": 29,
+      "question": "How do you migrate a Flowman job to Hydra ETL?",
+      "answer": "Inventory Flowman relations, mappings, targets, jobs and Spark-specific settings. Translate one small supported pipeline into Hydra job files, then compare output schema and rows using the same snapshot."
+    },
+    {
+      "words": 30,
+      "question": "Can Hydra replace Flowman Spark execution?",
+      "answer": "Hydra should not be presented as a general Spark replacement. Evaluate it for smaller supported ETL workloads; retain Flowman where distributed Spark processing, scale or Spark-specific operators are required."
+    },
+    {
+      "words": 34,
+      "question": "How do Flowman relations map to Hydra sources and destinations?",
+      "answer": "A Flowman relation can represent input or output data depending on its role in the job. Map each relation to a Hydra source or destination only after checking location, format, schema and write behavior."
+    },
+    {
+      "words": 29,
+      "question": "How do Flowman mappings compare with Hydra transformations?",
+      "answer": "Flowman mappings define a chain of operations over relations; Hydra transformations define ordered job steps. Compare filters, joins, aggregates and type casts on representative rows, including nulls and duplicates."
+    },
+    {
+      "words": 31,
+      "question": "Is Flowman or Hydra better for large data volumes?",
+      "answer": "Flowman uses Spark for distributed workloads. Hydra may use pandas or DuckDB for supported jobs, but performance and memory depend on workload shape; benchmark the actual data and environment before deciding."
+    },
+    {
+      "words": 33,
+      "question": "What is a practical Flowman-to-Hydra handoff?",
+      "answer": "Flowman can keep a Spark-heavy upstream stage and write a stable file or table that Hydra reads for a smaller downstream task. Set one writer per target and verify the handoff schema."
+    },
+    {
+      "words": 27,
+      "question": "Does Hydra understand Flowman YAML files?",
+      "answer": "No direct format compatibility is claimed. Both tools use YAML, but their schemas and runtime concepts differ; migrate semantics into Hydra files rather than copying Flowman configuration."
+    },
+    {
+      "words": 30,
+      "question": "What is a safe first Flowman-to-Hydra pilot?",
+      "answer": "Choose a modest CSV or database job with a simple filter, aggregate and destination, no Spark-only feature and a frozen fixture. Compare rows, types, runtime memory and rerun behavior."
+    },
+    {
+      "words": 25,
+      "question": "How should Flowman partitioning be handled in Hydra?",
+      "answer": "Record partition keys, file layout and downstream expectations. Test whether the proposed Hydra output preserves the required partition contract; otherwise keep that stage in Flowman."
+    },
+    {
+      "words": 27,
+      "question": "How do you roll back a Flowman migration?",
+      "answer": "Keep the original Spark job and output available. Stop the Hydra schedule, restore consumers to the Flowman target and reconcile writes made since the last matching checkpoint."
+    }
+  ],
+  "dbt": [
+    {
+      "words": 45,
+      "question": "Is Hydra ETL a replacement for dbt?",
+      "answer": "Usually it is a complement. dbt specializes in warehouse SQL models and their tests, documentation and lineage. Hydra can move and prepare data before dbt. Replace a model only if its consumers and quality contract have been inventoried and the new behavior has been verified."
+    },
+    {
+      "words": 32,
+      "question": "Where should Hydra hand data to dbt?",
+      "answer": "Use an explicit staging table or file that dbt can declare as a source. Document its schema, update cadence and readiness condition. Run dbt only after the Hydra job has completed successfully."
+    },
+    {
+      "words": 43,
+      "question": "Can Hydra execute dbt models directly?",
+      "answer": "Hydra can be placed in a workflow that invokes an external command where the deployment supports that action, or an existing scheduler can call hdrctl followed by dbt. This guide uses the second, transparent pattern and does not imply a special dbt connector."
+    },
+    {
+      "words": 32,
+      "question": "Should I remove dbt tests when moving ingestion to Hydra?",
+      "answer": "No. Keep model and source tests during the pilot. They are a valuable acceptance gate for the new ingestion path and may catch type, null or duplicate changes that row counts miss."
+    },
+    {
+      "words": 36,
+      "question": "What happens to dbt ref() dependencies?",
+      "answer": "They remain in dbt if the models remain. Before deleting any model, inspect its downstream ref() users, selectors and exposures. A Hydra output table is not automatically a drop-in replacement for a dbt graph node."
+    },
+    {
+      "words": 36,
+      "question": "Does Hydra upsert equal a dbt incremental model?",
+      "answer": "No. A dbt incremental model has a SQL selection predicate, materialization rules and possibly a unique key. A Hydra upsert describes destination writes. Compare first, repeated, late and full-refresh runs before treating them as equivalent."
+    },
+    {
+      "words": 29,
+      "question": "Can dbt still own transformations after Hydra is added?",
+      "answer": "Yes. This is often the preferred design: Hydra ingests and performs limited pre-cleanup, then dbt builds warehouse models and runs tests. Each layer has a clear output contract."
+    },
+    {
+      "words": 32,
+      "question": "How do I avoid duplicate schedules?",
+      "answer": "Choose one scheduler for the combined chain. Disable the previous loader’s trigger only after the Hydra path has succeeded in parallel, and ensure dbt is invoked once per completed input batch."
+    },
+    {
+      "words": 33,
+      "question": "Can the browser simulator benchmark dbt against Hydra?",
+      "answer": "No. It uses 14 local sample rows and executes neither dbt SQL on a warehouse nor the Hydra engine. It is useful for understanding the displayed transformation, not for cost or performance claims."
+    },
+    {
+      "words": 30,
+      "question": "What is the safe rollback if the new ingestion fails?",
+      "answer": "Restore the previous loader or source table, keep the dbt project unchanged and rerun the selected dbt models. An isolated Hydra staging target allows this without repairing dbt model definitions."
+    },
+    {
+      "words": 36,
+      "question": "How do Hydra ETL and dbt work together?",
+      "answer": "Hydra can extract and prepare data across systems, then load a staging table that dbt uses as a source. dbt can retain warehouse models, tests and documentation while one orchestrator owns the sequence and failure policy."
+    },
+    {
+      "words": 33,
+      "question": "Should Hydra replace dbt models?",
+      "answer": "Usually keep dbt models when warehouse SQL, lineage and tests are important. Evaluate a Hydra replacement only for a small transformation whose inputs, output contract and operational behavior can be reproduced and verified."
+    },
+    {
+      "words": 38,
+      "question": "Can Hydra ETL run before dbt build?",
+      "answer": "Yes, through a controlled workflow or external scheduler that runs Hydra, checks its exit status and then starts dbt build. Make sure the dbt source reads the committed Hydra target and that retries do not create duplicate loads."
+    },
+    {
+      "words": 34,
+      "question": "What is the difference between dbt incremental models and Hydra upsert?",
+      "answer": "A dbt incremental model governs SQL selection and warehouse writes inside dbt. Hydra upsert governs writes to a supported destination; it does not automatically reproduce the model SQL, unique key policy or incremental predicates."
+    },
+    {
+      "words": 31,
+      "question": "How do you map dbt tests to a Hydra migration?",
+      "answer": "Preserve existing dbt tests against the new staging table where possible. Add explicit checks for row counts, unique keys, nulls and freshness, and keep dbt test failures visible to the scheduler."
+    },
+    {
+      "words": 36,
+      "question": "Can dbt transform data from a Hydra ETL pipeline?",
+      "answer": "Yes. Configure Hydra to load a warehouse staging table, declare that table as a dbt source and run dbt after the load completes. Validate the column types and load mode before allowing dependent models to build."
+    },
+    {
+      "words": 33,
+      "question": "Is Hydra ETL an alternative to dbt for cross-system data movement?",
+      "answer": "Hydra can read supported files and databases and write to supported destinations, while dbt primarily transforms data already available to the SQL engine. Connector and transformation requirements determine which product owns each stage."
+    },
+    {
+      "words": 36,
+      "question": "How do you migrate a dbt model to Hydra YAML?",
+      "answer": "Freeze the model SQL, materialization, tests and expected output. Translate only supported operations, compare all output columns and key behavior on a representative fixture, and retain dbt for SQL constructs the Hydra DSL does not express."
+    },
+    {
+      "words": 30,
+      "question": "What are the main risks of replacing dbt with Hydra?",
+      "answer": "The risks include losing warehouse-specific SQL behavior, materialization semantics, tests, documentation or lineage. Audit those dependencies before moving a model and retain a rollback path to the original relation."
+    },
+    {
+      "words": 32,
+      "question": "How do you roll back a Hydra and dbt integration?",
+      "answer": "Keep the prior dbt source relation and build configuration. Stop the new Hydra load, restore the original source reference or target table, then rerun dbt tests and models against the verified input."
+    }
+  ]
+}

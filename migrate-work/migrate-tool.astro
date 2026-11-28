@@ -1,0 +1,159 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MigrateSimulator from '../../components/MigrateSimulator.astro';
+import { pages, type MigratePage } from '../../data/migrate-pages';
+import { deepPages } from '../../data/migrate-deep';
+import { searchFaqs } from '../../data/migrate-seo';
+import { researchPages } from '../../data/migrate-research';
+import { caseStudies } from '../../data/migrate-case';
+import { decisionNotes } from '../../data/migrate-decisions';
+import { faqExpansions } from '../../data/migrate-faq';
+import { faqSupplement } from '../../data/migrate-faq-supplement';
+import '../../styles/migrate-reference.css';
+
+export function getStaticPaths() {
+  return pages.map((page) => ({ params: { tool: page.slug }, props: { page } }));
+}
+
+const { page } = Astro.props as { page: MigratePage };
+const deep = deepPages[page.slug];
+const additionalFaqs = searchFaqs[page.slug];
+const faqDetails = faqExpansions[page.slug];
+const renderFaq = (faq: { question: string; answer: string }, index: number) => {
+  const detail = faqDetails[index];
+  const supplement = faqSupplement[page.slug]?.[index];
+  return { faq, detail, supplement };
+};
+const research = researchPages[page.slug];
+const caseStudy = caseStudies[page.slug];
+const indefiniteArticle = /^[aeiou]/i.test(page.name) ? 'an' : 'a';
+const canonical = `https://hydraetl.com/migrate/${page.slug}/`;
+const metaDescriptions: Record<string, string> = {
+  dlt: 'Hydra ETL vs dlt: compare Python ELT with YAML ETL, schema handling, transformations and a practical migration path.',
+  talend: 'Hydra ETL vs Talend: compare visual Jobs with YAML pipelines, component coverage, reviewability and a staged migration.',
+  dbt: 'Hydra ETL vs dbt: compare cross-system ETL with warehouse SQL models, tests and an integration path for both tools.',
+  airbyte: 'Hydra ETL vs Airbyte: compare connector-based replication with in-job transformation and plan a safe integration.',
+  meltano: 'Hydra ETL vs Meltano: compare plugin-based ELT with YAML ETL jobs and learn where the tools can work together.',
+  airflow: 'Hydra ETL vs Airflow orchestration: compare DAGs, schedules, dependencies, YAML authoring and ETL integration.',
+  kestra: 'Hydra ETL vs Kestra: compare YAML workflows, task plugins and built-in ETL, with a practical coexistence plan.',
+  flowman: 'Hydra ETL vs Flowman: compare declarative YAML ETL, Spark execution and a safe path for smaller data jobs.',
+  dagster: 'Hydra ETL vs Dagster: compare ETL workflows with asset-oriented orchestration, lineage and staged integration.',
+};
+const graph = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'WebPage', '@id': canonical, url: canonical, name: `Hydra ETL vs ${page.name}: comparison and migration guide`, description: metaDescriptions[page.slug], dateModified: '2026-11-17', citation: [page.source.url, ...deep.extraSources.map(source => source.url), 'https://hydraetl.com/dsl/'], about: [{ '@type': 'SoftwareApplication', name: 'Hydra ETL' }, { '@type': 'SoftwareApplication', name: page.name }], isPartOf: { '@id': 'https://hydraetl.com/#website' }, inLanguage: 'en' },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://hydraetl.com/' },
+      { '@type': 'ListItem', position: 2, name: 'Compare and migrate', item: 'https://hydraetl.com/migrate/' },
+      { '@type': 'ListItem', position: 3, name: `Hydra vs ${page.name}`, item: canonical },
+    ] },
+  ],
+};
+---
+
+<BaseLayout exactTitle={`Hydra ETL vs ${page.name} | Comparison & migration`} title={`Hydra ETL vs ${page.name}`} description={metaDescriptions[page.slug]}>
+  <script type="application/ld+json" set:html={JSON.stringify(graph)} />
+  <div class="migrate-shell">
+    <aside class="migrate-sidebar" aria-label="Compare Hydra with other tools">
+      <a class="migrate-sidebar-brand" href="/migrate/">← All comparisons</a>
+      <div class="migrate-sidebar-label">Compare with Hydra ETL</div>
+      <nav>
+        {pages.map((item) => <a href={`/migrate/${item.slug}/`} aria-current={item.slug === page.slug ? 'page' : undefined}><span>{item.name}</span><small>{item.category}</small></a>)}
+      </nav>
+      <a class="migrate-sidebar-cta" href="/cli/">Explore Hydra CLI <span aria-hidden="true">↗</span></a>
+    </aside>
+    <main class="migrate-main">
+      <div class="migrate-crumb"><a href="/migrate/">Compare & migrate</a><span>/</span><span>{page.name}</span></div>
+      <div class="migrate-hero">
+        <div class="migrate-eyebrow">Product comparison · {page.category}</div>
+        <h1>Hydra ETL vs {page.name}</h1>
+        <p class="migrate-lead">{page.answer}</p>
+        <p class="migrate-scope"><strong>Scope:</strong> {page.scope} <span class="migrate-review">Reviewed <time datetime="2026-11-17">17 November 2026</time></span></p>
+      </div>
+      <div class="migrate-tabbar" role="tablist" aria-label={`${page.name} comparison sections`}>
+        <button type="button" role="tab" id="tab-comparison" aria-controls="panel-comparison" aria-selected="true" data-tab="comparison">Comparison</button>
+        <button type="button" role="tab" id="tab-simulator" aria-controls="panel-simulator" aria-selected="false" data-tab="simulator">Simulator</button>
+        <button type="button" role="tab" id="tab-migration" aria-controls="panel-migration" aria-selected="false" data-tab="migration">Migration & integration</button>
+      </div>
+      <section id="panel-comparison" role="tabpanel" aria-labelledby="tab-comparison" class="migrate-panel">
+        <div class="migrate-section-head"><span>01 / Compare</span><h2>Where the tools overlap and diverge</h2></div>
+        <div class="migrate-answer"><strong>Short answer</strong><p>{page.answer}</p></div>
+        <div class="migrate-toc" aria-label="On this comparison"><a href="#product-context">Product context</a><a href="#capabilities">Capabilities</a><a href="#detailed-analysis">Detailed analysis</a><a href="#technical-evaluation">Technical evaluation</a><a href="#worked-evaluation">Worked example</a><a href="#decision">Decision</a><a href="#questions">20 questions</a></div>
+        <div id="product-context" class="migrate-prose">
+          <h3>What {page.name} does, and what Hydra changes</h3>
+          {deep.overview.map(paragraph => <p>{paragraph}</p>)}
+        </div>
+        <h3 id="capabilities">What both can do</h3>
+        <ul class="migrate-checks">{page.common.map((item) => <li>{item}</li>)}</ul>
+        <h3>Key differences</h3>
+        <div class="migrate-table-wrap"><table class="migrate-table"><thead><tr><th>Area</th><th>{page.name}</th><th>Hydra ETL</th></tr></thead><tbody>{page.differences.map((row) => <tr><th scope="row">{row.area}</th><td>{row.competitor}</td><td>{row.hydra}</td></tr>)}</tbody></table></div>
+        <div id="detailed-analysis" class="migrate-analysis">
+          <h3>Detailed comparison for a production decision</h3>
+          {deep.analysis.map((item) => <section><h4>{item.title}</h4>{item.paragraphs.map(paragraph => <p>{paragraph}</p>)}<p class="migrate-evidence">Product documentation: <a href={deep.extraSources[item.source].url} target="_blank" rel="noopener noreferrer">{deep.extraSources[item.source].label} ↗</a></p></section>)}
+        </div>
+        <div id="technical-evaluation" class="migrate-analysis migrate-research">
+          <h3>Technical evaluation: {page.name} and Hydra ETL in production</h3>
+          {research.map((item) => <section><h4>{item.title}</h4>{item.paragraphs.map(paragraph => <p>{paragraph}</p>)}<p class="migrate-evidence">Further reading: <a href={item.source.url} target="_blank" rel="noopener noreferrer">{item.source.label} ↗</a></p></section>)}
+        </div>
+        <div id="worked-evaluation" class="migrate-analysis migrate-case-study">
+          <h3>{caseStudy.title}</h3>
+          {caseStudy.paragraphs.map(paragraph => <p>{paragraph}</p>)}
+          <p class="migrate-evidence">Related product documentation: <a href={caseStudy.source.url} target="_blank" rel="noopener noreferrer">{caseStudy.source.label} ↗</a></p>
+        </div>
+        <div class="migrate-analysis migrate-decision-notes">
+          <h3>Decision criteria for an existing {page.name} deployment</h3>
+          {decisionNotes[page.slug].map(paragraph => <p>{paragraph}</p>)}
+        </div>
+        <h3 id="decision">Where each approach fits</h3>
+        <div class="migrate-fit-grid"><div><h3>Keep {page.name} when</h3><p>{page.keep}</p></div><div><h3>Evaluate Hydra when</h3><p>{page.chooseHydra}</p></div></div>
+        <h3>Should you replace {page.name} with Hydra ETL?</h3>
+        <p>{page.keep} {page.chooseHydra} For a first test, {page.steps[0].charAt(0).toLowerCase() + page.steps[0].slice(1)} <a href="#migration" data-open-panel="migration">See the complete integration plan.</a></p>
+        <h3 id="questions">Frequently asked questions about {page.name} and Hydra ETL</h3>
+        <p class="migrate-faq-intro">These answers cover product fit, data movement, orchestration, migration testing and rollback. Check the linked product documentation for version-specific behavior.</p>
+        <div class="migrate-faq">{deep.faqs.map((faq, index) => { const { detail, supplement } = renderFaq(faq, index); return <details><summary>{faq.question}</summary><p>{faq.answer}</p><p><strong>How it works:</strong> {detail.mechanism}</p><p><strong>Practical check:</strong> {detail.practice}</p><p><strong>Pitfall to avoid:</strong> {detail.pitfall}</p>{supplement && <p>{supplement}</p>}</details>; })}</div>
+        <h4 class="migrate-faq-more-title">Migration and integration questions</h4>
+        <div class="migrate-faq">{additionalFaqs.map((faq, index) => { const { detail, supplement } = renderFaq(faq, index + deep.faqs.length); return <details><summary>{faq.question}</summary><p>{faq.answer}</p><p><strong>How it works:</strong> {detail.mechanism}</p><p><strong>Practical check:</strong> {detail.practice}</p><p><strong>Pitfall to avoid:</strong> {detail.pitfall}</p>{supplement && <p>{supplement}</p>}</details>; })}</div>
+        <div class="migrate-sources"><strong>Sources and method</strong><p>The product descriptions were checked against the vendor references below and the <a href="/dsl/">Hydra DSL documentation</a>. The comparison concerns the stated workflow, not all features or editions. The browser simulator is neither an engine run nor a performance benchmark.</p><ul><li><a href={page.source.url} target="_blank" rel="noopener noreferrer">{page.source.label} ↗</a></li>{deep.extraSources.map(source => <li><a href={source.url} target="_blank" rel="noopener noreferrer">{source.label} ↗</a></li>)}</ul></div>
+      </section>
+      <section id="panel-simulator" role="tabpanel" aria-labelledby="tab-simulator" class="migrate-panel" hidden>
+        <div class="migrate-section-head"><span>02 / Try</span><h2>{page.name} vs Hydra: sample pipeline</h2></div>
+        <MigrateSimulator page={page} />
+      </section>
+      <section id="panel-migration" role="tabpanel" aria-labelledby="tab-migration" class="migrate-panel" hidden>
+        <div class="migrate-section-head"><span>03 / Integrate</span><h2>Introduce Hydra in {indefiniteArticle} {page.name} environment</h2></div>
+        <p class="migrate-migration-intro">Start with a reversible pilot. Keep the current system running until the new output and failure behavior are verified.</p>
+        <h3>Before you change a schedule or destination</h3>
+        <ul class="migrate-checks migrate-prereqs">{deep.prerequisites.map(item => <li>{item}</li>)}</ul>
+        <h3>Step-by-step integration and migration</h3>
+        <ol class="migrate-steps migrate-steps-deep">{deep.procedure.map((step, index) => <li><span>{String(index + 1).padStart(2, '0')}</span><div><h4>{step.title}</h4><p>{step.detail}</p></div></li>)}</ol>
+        <div class="migrate-command"><h3>{deep.commandTitle}</h3><pre><code>{deep.command}</code></pre><p>Adapt the paths, project files and credentials to your deployment. The runnable <a href="/migrate/orders-simulator.zip">orders fixture ZIP</a> is a safe starting point for the Hydra side; its local YAML was validated with Hydra 0.22.0.</p></div>
+        <h3>Acceptance checks before cutover</h3>
+        <ul class="migrate-verification">{deep.verification.map(item => <li>{item}</li>)}</ul>
+        <div class="migrate-rollback"><h3>Rollback plan</h3><p>{deep.rollback}</p></div>
+        <div class="migrate-pitfalls"><h3>Practical pitfalls</h3><ul>{page.pitfalls.map((item) => <li>{item}</li>)}</ul></div>
+        <div class="migrate-next"><strong>Build the pilot</strong><p>Use the <a href="/cli/">CLI reference</a> to create and validate a project, then use the <a href="/dsl/">DSL guide</a> for source, transformation and destination syntax.</p></div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const tabs = [...document.querySelectorAll<HTMLButtonElement>('.migrate-tabbar [data-tab]')];
+    const activate = (name: string, updateHash = true) => {
+      if (!['comparison', 'simulator', 'migration'].includes(name)) name = 'comparison';
+      tabs.forEach((tab) => { const on = tab.dataset.tab === name; tab.setAttribute('aria-selected', String(on)); tab.tabIndex = on ? 0 : -1; });
+      document.querySelectorAll<HTMLElement>('.migrate-panel').forEach((panel) => { panel.hidden = panel.id !== `panel-${name}`; });
+      if (updateHash) history.replaceState(null, '', `#${name}`);
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => activate(tab.dataset.tab || 'comparison'));
+      tab.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+        activate(next.dataset.tab || 'comparison'); next.focus();
+      });
+    });
+    activate(location.hash.slice(1), false);
+    addEventListener('hashchange', () => activate(location.hash.slice(1), false));
+  </script>
+</BaseLayout>

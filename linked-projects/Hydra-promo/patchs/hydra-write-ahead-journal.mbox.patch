@@ -1,0 +1,269 @@
+From 843e3c9856eea5216fe28b21d9c189472418609d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 13:43:13 +0100
+Subject: [PATCH] rollback: write the undo journal before moving the previous
+ file
+
+With rollback: true, a CSV or Parquet output in replace mode is published by
+renaming the previous file to .hydra-bak-*, then putting the new one in place.
+The journal was written after that, so a hard kill in between left no journal
+and an orphan backup: the next run overwrote the half-published outputs
+silently. The load session now announces the move to the journal first
+(push_pending); push_job replaces the entry once the load is sealed. A run
+killed in between is refused at the next start and 'hdrctl workflow undo'
+restores the previous files.
+
+Replace-mode file outputs only; database outputs and append mode unchanged.
+Found with the crash scenario of hydra-etl-benchmark.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011X5H6WN7YFXx8LCdr73MxR
+---
+ CHANGELOG.md                                  | 10 ++++
+ hydra_etl/internal/connector/csv_connector.py |  8 ++-
+ hydra_etl/internal/connector/load_session.py  |  9 +++
+ .../internal/connector/parquet_connector.py   |  8 ++-
+ hydra_etl/internal/connector/undo.py          |  4 ++
+ hydra_etl/internal/runner/executor.py         |  5 ++
+ hydra_etl/workflow/rollback.py                | 11 ++++
+ hydra_etl/workflow/runner.py                  |  2 +
+ tests/test_rollback.py                        | 59 +++++++++++++++++++
+ 9 files changed, 112 insertions(+), 4 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index acd6f56..e43a237 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,16 @@ and versions follow [Semantic Versioning](https://semver.org/).
+ 
+ ## [Unreleased]
+ 
++### Fixed
++
++- `rollback: true`: the undo journal is now written **before** a CSV or Parquet output is moved,
++  not after. A hard kill (SIGKILL, power loss) between the move of the previous file and the
++  journal write used to leave no journal and an orphan `.hydra-bak-*` file, so the next run
++  overwrote the half-published outputs without a word. Now the next run refuses to start and
++  `hdrctl workflow undo <workflow>` restores the previous files. Replace-mode file outputs only;
++  database outputs and append mode are unchanged. Found with the crash scenario of the
++  [benchmark](https://github.com/bejaouibechir/hydra-etl-benchmark).
++
+ ## [0.22.0] — 2026-11-16
+ 
+ ### Added
+diff --git a/hydra_etl/internal/connector/csv_connector.py b/hydra_etl/internal/connector/csv_connector.py
+index e838d42..c4a354a 100644
+--- a/hydra_etl/internal/connector/csv_connector.py
++++ b/hydra_etl/internal/connector/csv_connector.py
+@@ -1284,8 +1284,12 @@ class _CSVLoadSession(LoadSession):
+         self._close()
+         backup = None
+         if self.write_path != self.path and self._started:
+-            if self._undo and self.path.exists():
+-                backup = backup_path_for(self.path)
++            planned = backup_path_for(self.path) if (self._undo and self.path.exists()) else None
++            if self._undo:                             # écriture préalable : le journal sait, avant le renommage
++                self._announce(FileUndo(target=str(self.path), mode=self.mode, existed=self._existed,
++                                        backup=str(planned) if planned else None))
++            if planned is not None:
++                backup = planned
+                 os.replace(self.path, backup)          # ancien fichier gardé jusqu'à la fin du workflow
+             try:
+                 replace_file(self.write_path, self.path)
+diff --git a/hydra_etl/internal/connector/load_session.py b/hydra_etl/internal/connector/load_session.py
+index ef97be9..706bfe8 100644
+--- a/hydra_etl/internal/connector/load_session.py
++++ b/hydra_etl/internal/connector/load_session.py
+@@ -71,6 +71,7 @@ class LoadSession:
+         self.batches_committed = 0        # lots déjà visibles (sans tout ou rien)
+         self.state = "open"               # open | published | aborted
+         self.undo_record = None           # undo.UndoRecord (rollback du workflow)
++        self.intent_sink = None           # rollback: appelé AVANT de toucher à la destination
+         self._lock = _lock_for(target)
+         if not self._lock.acquire(blocking=False):
+             logger.info("Waiting for another job writing to %s", target)
+@@ -126,6 +127,14 @@ class LoadSession:
+     def _abort(self) -> None:
+         pass
+ 
++    def _announce(self, record: Any) -> None:
++        """Écriture préalable (rollback: true) : dit au journal ce qu'on va déplacer,
++        AVANT de le déplacer. Un arrêt brutal entre le renommage de l'ancien fichier et
++        l'écriture du journal ne laisse alors plus de fichier orphelin ni d'état mixte
++        silencieux : le run suivant le voit et refuse de repartir (hdrctl workflow undo)."""
++        if self.intent_sink is not None:
++            self.intent_sink(record)
++
+     def _release(self) -> None:
+         if self._held:
+             self._held = False
+diff --git a/hydra_etl/internal/connector/parquet_connector.py b/hydra_etl/internal/connector/parquet_connector.py
+index 3712d87..f1c58eb 100644
+--- a/hydra_etl/internal/connector/parquet_connector.py
++++ b/hydra_etl/internal/connector/parquet_connector.py
+@@ -405,8 +405,12 @@ class _ParquetLoadSession(LoadSession):
+         self.writer.close()
+         self.writer = None
+         backup = None
+-        if self._undo and self.path.exists():
+-            backup = backup_path_for(self.path)
++        planned = backup_path_for(self.path) if (self._undo and self.path.exists()) else None
++        if self._undo:                                  # écriture préalable : le journal sait, avant le renommage
++            self._announce(FileUndo(target=str(self.path), mode=self.mode, existed=self._existed,
++                                    backup=str(planned) if planned else None))
++        if planned is not None:
++            backup = planned
+             os.replace(self.path, backup)               # ancien fichier gardé jusqu'à la fin du workflow
+         try:
+             replace_file(self.tmp, self.path)
+diff --git a/hydra_etl/internal/connector/undo.py b/hydra_etl/internal/connector/undo.py
+index cd253cf..487afbe 100644
+--- a/hydra_etl/internal/connector/undo.py
++++ b/hydra_etl/internal/connector/undo.py
+@@ -97,6 +97,10 @@ class FileUndo(UndoRecord):
+             raise UndoConflict(f"{path} changed after this run wrote it (size or date): "
+                                f"not restored, to keep the other changes")
+         if self.backup:
++            if self.after is None and not Path(self.backup).exists():
++                # écriture préalable (journal écrit avant le renommage) : l'arrêt est
++                # survenu avant que l'ancien fichier ne soit déplacé, il est intact
++                return f"{path}: nothing to undo (the previous file was never moved)"
+             os.replace(self.backup, path)
+             return f"{path}: previous file restored"
+         if self.orig_size is not None:
+diff --git a/hydra_etl/internal/runner/executor.py b/hydra_etl/internal/runner/executor.py
+index dec1c63..1e057dc 100644
+--- a/hydra_etl/internal/runner/executor.py
++++ b/hydra_etl/internal/runner/executor.py
+@@ -75,12 +75,15 @@ class JobExecutor:
+         profile: Optional[bool] = None,
+         undo: bool = False,
+         stop: Optional[Any] = None,
++        undo_intent: Optional[Any] = None,
+     ) -> None:
+         """Initialise l'executor.
+ 
+         undo=True (workflow en `rollback: true`) : le chargement garde de quoi
+         être annulé après publication (JobResult.undo, voir connector/undo.py)."""
+         self._undo = bool(undo)
++        # rollback: true — appelé avant que la destination ne soit touchée (journal en écriture préalable)
++        self._undo_intent = undo_intent
+         # timeout du thread (workflow/stop.py) : arrêt entre deux lots
+         self._stop = stop
+         self.job_dir = Path(job_dir).resolve()
+@@ -333,6 +336,8 @@ class JobExecutor:
+                             dest_connector, table=load_table, mode=load_mode,
+                             key=load_key if (load_mode == "upsert" or self._undo) else None,
+                             atomic=atomic, undo=self._undo)
++                        if self._undo and self._undo_intent is not None:
++                            session.intent_sink = self._undo_intent
+                     session.stage(out_batch)
+ 
+                 first_batch_written = True
+diff --git a/hydra_etl/workflow/rollback.py b/hydra_etl/workflow/rollback.py
+index 86fe8a9..6558df3 100644
+--- a/hydra_etl/workflow/rollback.py
++++ b/hydra_etl/workflow/rollback.py
+@@ -119,8 +119,19 @@ class UndoStack:
+         st.entries = list(data.get("entries", []))
+         return st
+ 
++    def push_pending(self, step: str, record: Any) -> None:
++        """Écriture préalable : le job va déplacer un fichier. Le journal est écrit AVANT
++        le déplacement ; `push_job` remplace cette entrée par l'enregistrement scellé.
++        Un arrêt brutal entre les deux laisse l'entrée : le run suivant la voit."""
++        with self._lock:
++            self.entries = [e for e in self.entries if not (e.get("pending") and e["step"] == step)]
++            self.entries.append({"step": step, "type": "job", "record": record.to_dict(),
++                                 "pending": True, "_record": record, "_connector": None})
++            self._save()
++
+     def push_job(self, step: str, record: Any, connector: Any = None) -> None:
+         with self._lock:
++            self.entries = [e for e in self.entries if not (e.get("pending") and e["step"] == step)]
+             self.entries.append({"step": step, "type": "job", "record": record.to_dict(),
+                                  "_record": record, "_connector": connector})
+             self._save()
+diff --git a/hydra_etl/workflow/runner.py b/hydra_etl/workflow/runner.py
+index 90bb990..fdacf8d 100644
+--- a/hydra_etl/workflow/runner.py
++++ b/hydra_etl/workflow/runner.py
+@@ -600,6 +600,8 @@ class WorkflowRunner:
+             job_dir=job_path, root_dir=self.project_root, env=self.env,
+             params=runtime_snapshot, undo=self._undo_stack is not None,
+             stop=self._stop,
++            undo_intent=((lambda rec, _s=step.name: self._undo_stack.push_pending(_s, rec))
++                         if self._undo_stack is not None else None),
+         )
+         # Détails internes du job (env, connecteurs, scripts...) -> log du step
+         capture = _JobLogCapture(step_log, threading.get_ident())
+diff --git a/tests/test_rollback.py b/tests/test_rollback.py
+index 95998ef..115bbc1 100644
+--- a/tests/test_rollback.py
++++ b/tests/test_rollback.py
+@@ -238,3 +238,62 @@ def test_undo_is_only_for_actions_and_is_validated():
+         {"name": "a", "type": "action", "action": "bash", "params": {"command": "x"},
+          "undo": {"action": "bash", "params": {"command": "y"}}}])
+     assert w.steps[0].undo.action == "bash"
++
++
++# ── écriture préalable du journal : arrêt brutal pendant la publication ────────
++class _Killed(BaseException):
++    """Simule un arrêt brutal (SIGKILL) : rien ne s'exécute après, pas même les except Exception."""
++
++
++def _kill_at_first_rename(monkeypatch, *, after_the_move: bool) -> None:
++    import os as _os
++    real = _os.replace
++    calls = []
++
++    def fake(src, dst, *a, **kw):
++        if ".hydra-bak-" in str(dst) and not calls:   # le renommage de l'ancien fichier en .hydra-bak
++            calls.append((src, dst))
++            if after_the_move:
++                real(src, dst, *a, **kw)
++            raise _Killed()
++        return real(src, dst, *a, **kw)               # y compris l'écriture du journal lui-même
++
++    monkeypatch.setattr(_os, "replace", fake)
++
++
++@pytest.mark.parametrize("after_the_move", [True, False])
++def test_kill_during_publication_leaves_a_journal_that_undo_can_finish(proj, monkeypatch, after_the_move):
++    """Avant : un arrêt entre le renommage de l'ancien fichier et l'écriture du journal ne
++    laissait aucun journal (et un .hydra-bak orphelin). Maintenant le journal est écrit avant."""
++    body = """\
++        - name: load1
++          type: job
++          job: ../jobs/j1
++        """
++    path = workflow(proj, body)
++    with monkeypatch.context() as m:
++        _kill_at_first_rename(m, after_the_move=after_the_move)
++        with pytest.raises(_Killed):
++            run(path)
++    jp = journal_path(proj, "wf")
++    assert jp.exists(), "the journal must exist before the file is moved"
++    entry = json.loads(jp.read_text(encoding="utf-8"))["entries"][0]
++    assert entry["pending"] is True and entry["record"]["kind"] == "file"
++    out1 = proj / "data" / "out1.csv"
++    assert out1.exists() is (not after_the_move)          # déplacé, ou intact
++
++    r = run(path)                                          # le run suivant refuse de repartir
++    assert not r.success and "stopped before undoing" in r.error
++
++    monkeypatch.chdir(proj)
++    res = CliRunner().invoke(cli, ["workflow", "undo", "wf", "--lang", "en"])
++    assert res.exit_code == 0, res.output
++    assert read(out1) == "id,v\nold,1\n"                   # l'ancien fichier est revenu, ou n'a pas bougé
++    assert not jp.exists()
++    assert not list((proj / "data").glob(".*hydra-bak*"))
++
++
++def test_successful_run_leaves_no_pending_entry(proj):
++    r = run(workflow(proj, "        - name: load1\n          type: job\n          job: ../jobs/j1\n"))
++    assert r.success and not journal_path(proj, "wf").exists()
++    assert read(proj / "data" / "out1.csv").splitlines() == ["id,v", "1,a", "2,b"]
+-- 
+2.43.0
+

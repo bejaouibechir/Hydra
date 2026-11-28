@@ -1,0 +1,15 @@
+order_id,customer_id,amount,status
+1001,C-01,45,paid
+1002,C-02,120,paid
+1003,C-01,300,refunded
+1004,C-03,89,paid
+1005,C-02,250,pending
+1006,C-04,170,paid
+1007,C-05,60,paid
+1008,C-03,420,paid
+1009,C-01,15,refunded
+1010,C-04,210,pending
+1011,C-02,95,paid
+1012,C-05,330,paid
+1013,C-03,78,refunded
+1014,C-01,145,pending

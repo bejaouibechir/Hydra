@@ -1,0 +1,1447 @@
+From b0473945918d77ecd3dafb0411838495a681c539 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 13:43:07 +0100
+Subject: [PATCH] Add scenario 5: visibility and hard kill during publication
+
+Raised by Tim Urista on the article: os.replace is atomic per file, not for the
+set of reports. shared/crash_scenario.py runs a concurrent reader (observe) or
+a SIGKILL between the two publications (kill) on a stack and reports what is
+left, what the next run does, and the state after the stack's recovery command.
+shared/make_probe_dag.py widens the Airflow window so it can be hit on purpose.
+Results measured in a Linux sandbox, not on the EC2 machine.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011X5H6WN7YFXx8LCdr73MxR
+---
+ .gitignore                                    |   2 +
+ README.md                                     |  42 +++-
+ .../airflow_dlt_dbt_kill_probe.json           |  96 +++++++++
+ .../airflow_dlt_dbt_observe.json              |  98 ++++++++++
+ ...0+write-ahead-patch_kill_during_step2.json | 182 ++++++++++++++++++
+ ...22.0+write-ahead-patch_kill_immediate.json | 182 ++++++++++++++++++
+ .../hydra_0.22.0_kill_during_step2.json       | 182 ++++++++++++++++++
+ .../hydra_0.22.0_kill_immediate.json          | 173 +++++++++++++++++
+ .../hydra_0.22.0_observe.json                 | 182 ++++++++++++++++++
+ shared/crash_scenario.py                      | 146 ++++++++++++++
+ shared/make_probe_dag.py                      |  21 ++
+ 11 files changed, 1305 insertions(+), 1 deletion(-)
+ create mode 100644 results/scenario5_visibility_and_kill/airflow_dlt_dbt_kill_probe.json
+ create mode 100644 results/scenario5_visibility_and_kill/airflow_dlt_dbt_observe.json
+ create mode 100644 results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_during_step2.json
+ create mode 100644 results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_immediate.json
+ create mode 100644 results/scenario5_visibility_and_kill/hydra_0.22.0_kill_during_step2.json
+ create mode 100644 results/scenario5_visibility_and_kill/hydra_0.22.0_kill_immediate.json
+ create mode 100644 results/scenario5_visibility_and_kill/hydra_0.22.0_observe.json
+ create mode 100644 shared/crash_scenario.py
+ create mode 100644 shared/make_probe_dag.py
+
+diff --git a/.gitignore b/.gitignore
+index 064608b..5e16a3f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -11,3 +11,5 @@ airbyte/.credentials.json
+ !results/logs/
+ __pycache__/
+ *.pyc
++modern/dags/daily_revenue_safe_probe.py
++modern/staging/
+diff --git a/README.md b/README.md
+index 7555682..aaaafc6 100644
+--- a/README.md
++++ b/README.md
+@@ -19,6 +19,7 @@ Before every run, the outputs hold the day-before-yesterday's reports (198,000 o
+ | `missing_source` | `data/orders.csv` is missing |
+ | `bad_amount` | one amount is `abc`: the first report fails |
+ | `bad_date` | one date is `2026-13-45`: only the second report fails |
++| `crash` (scenario 5) | the run is killed between the two publications, or a reader looks during the run: see below |
+ 
+ Each stack has two variants:
+ 
+@@ -44,6 +45,44 @@ pip install matplotlib
+ python charts/make_charts.py results charts
+ ```
+ 
++## Scenario 5: visibility and hard kill during publication
++
++Added on November 18, 2026 after a comment by Tim Urista on the article: `os.replace` is atomic for one file, but not for the set of reports. A reader can see two generations at once, and a process killed between the two renames leaves a mix on disk. The four scenarios above only check the state after the run has finished, so they cannot see this.
++
++`shared/crash_scenario.py` runs one stack in two modes:
++
++- `observe`: a reader polls both outputs while a normal run publishes them and records every (country, month) pair of versions it sees.
++- `kill`: the reader sends `SIGKILL` to the whole run the moment the country report is today's and the month report is still the day-before-yesterday's. It then reports what is left on disk, what the next run does, and the state after the stack's own recovery command.
++
++```bash
++# Hydra ETL
++python3 shared/crash_scenario.py hydra "hdrctl run ." observe --repeat 5
++python3 shared/crash_scenario.py hydra "hdrctl run ." kill --repeat 3 --kill-delay 0.3 --recover "hdrctl workflow undo daily_revenue"
++# Airflow + dlt + dbt: kill needs a DAG whose window between the two renames is long enough to hit
++python3 shared/make_probe_dag.py 2
++python3 shared/crash_scenario.py modern ". ~/bench-envs/modern/bin/activate && . ./env.sh && airflow dags test daily_revenue_safe_probe" kill
++```
++
++`--kill-delay` waits that many seconds after the pair is seen: `0` is the earliest possible moment, `0.3` falls during the second step.
++
++`make_probe_dag.py` writes a copy of the safe DAG with a 2 s pause between the two `os.replace` calls. The real window is a few milliseconds; the pause does not change what the code does, it only makes the window possible to hit on purpose.
++
++Results (`results/scenario5_visibility_and_kill/`), measured on November 18, 2026 in a Linux sandbox (Python 3.13, Hydra ETL 0.22.0, Airflow 3.3.2), **not on the EC2 machine of the other results**:
++
++| | Hydra ETL 0.22.0 | Hydra ETL 0.22.0 + write-ahead journal (unreleased patch) | Airflow + dlt + dbt |
++|---|---|---|---|
++| Reader during a normal run | mixed pair visible about 0.4 s of a 1.5 s run (5 of 5 runs) | same (the patch does not change visibility) | window of a few ms: 1 mixed observation in 3 runs, not conclusive |
++| Kill after the first report | mixed state stays on disk | mixed state stays on disk | mixed state stays on disk |
++| Next run, kill during step 2 | refuses to start, `hdrctl workflow undo` restores `previous \| previous` | same | overwrites silently, nothing detected |
++| Next run, kill just after the rename | **overwrites silently**, orphan `.hydra-bak-*` files left | refuses to start, `hdrctl workflow undo` restores `previous \| previous` | overwrites silently |
++
++What this says, and does not say:
++
++- "All-or-nothing" holds once the run has finished, for all three stacks. It does not hold for a reader that looks while the run publishes, and none of the three stacks closes that on its own. Closing it needs the reader to cooperate: publish each run into its own directory, switch a manifest at the end, and have each reader resolve the manifest once. That is the approach Tim describes; it is not implemented here.
++- The Hydra ETL gap found by this test (journal written after the previous file was moved) is fixed by an unreleased patch: the journal is now written before. It covers CSV and Parquet outputs in `replace` mode only; database outputs and `append` mode are unchanged.
++- The reader reads the two files one after the other, so a single "mixed" sample a few milliseconds long (as for Airflow) can be a reading artefact. The 0.4 s window of Hydra ETL is not.
++- Few runs: five for Hydra's observe test and three for each of its kill tests; three for Airflow's observe test and two for its kill test. Not yet replayed on the EC2 machine, nor on the Airbyte stack.
++
+ ## Layout
+ 
+ | Folder | Content |
+@@ -51,7 +90,7 @@ python charts/make_charts.py results charts
+ | `hydra/`, `hydra_simple/` | Hydra ETL project, safe and simple variants (YAML only) |
+ | `modern/` | Airflow DAGs + dlt ingestion + dbt models (DuckDB) |
+ | `airbyte/` | Airflow DAGs + Airbyte sync and setup scripts + dbt models (PostgreSQL) |
+-| `shared/` | data generator, failure scenarios, line counter, report |
++| `shared/` | data generator, failure scenarios, line counter, report; `crash_scenario.py` and `make_probe_dag.py` (scenario 5) |
+ | `run.py` | runs every phase with confirmations, progress and resume points |
+ | `volume/` | separate volume test (200,000 to 20 million rows, without Airflow) |
+ | `charts/` | charts and the script that draws them |
+@@ -84,6 +123,7 @@ python3 -m venv ~/hv && ~/hv/bin/pip install hydra-etl pandas
+ 
+ - Measured on October 28, 2026 with Hydra ETL 0.14.0, Airflow 3.3.2 and the dlt, dbt and Airbyte versions current that day (see `results/logs/`). The four failures were replayed with Hydra ETL 0.19.1 on November 5, 2026, with the same results.
+ - One machine, 200,000 rows.
++- Scenario 5 was added later and measured in a sandbox, not on that machine; see its section.
+ - Three runs per scenario (median), one for Airbyte.
+ - Airflow runs use `airflow dags test`, which pays Airflow's start-up on every run; in production the scheduler runs continuously.
+ - Airbyte runs in `--low-resource-mode`, with its file source read over SFTP.
+diff --git a/results/scenario5_visibility_and_kill/airflow_dlt_dbt_kill_probe.json b/results/scenario5_visibility_and_kill/airflow_dlt_dbt_kill_probe.json
+new file mode 100644
+index 0000000..d57355a
+--- /dev/null
++++ b/results/scenario5_visibility_and_kill/airflow_dlt_dbt_kill_probe.json
+@@ -0,0 +1,96 @@
++[
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 1928,
++    "seconds": 17.8031
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "2026-11-18T12:10:56.095575Z [info     ] [DAG TEST] starting task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1501",
++   "2026-11-18T12:10:56.095679Z [info     ] [DAG TEST] running task <TaskInstance: daily_revenue_safe_probe.publish manual__2026-11-18T12:10:40.300062+00:00 [TaskInstanceState.SCHEDULED] ti_id=01a1ee90-f761-7cb9-be51-38839046ff69> [airflow.sdk.definitions.dag] loc=dag.py:1504",
++   "2026-11-18T12:10:56.106152Z [info     ] Task started                   [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee91-34e1-7480-90af-99fe40193918 hostname=vm loc=task_instances.py:226 previous_state=queued ti_id=01a1ee90-f761-7cb9-be51-38839046ff69",
++   "2026-11-18T12:10:56.107054Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee91-34e1-7480-90af-99fe40193918 loc=task_instances.py:254 rows_affected=1 ti_id=01a1ee90-f761-7cb9-be51-38839046ff69",
++   "2026-11-18T12:10:56.126903Z [info     ] Updating RenderedTaskInstanceFields [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee91-34f6-70f9-8726-68c8697a9636 field_count=3 loc=task_instances.py:1017 ti_id=01a1ee90-f761-7cb9-be51-38839046ff69",
++   "2026-11-18T12:10:56.133490Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2232"
++  ],
++  "next_run": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "2026-11-18T12:11:15.540927Z [info     ] Pushing xcom                   [task] loc=task_runner.py:2280 ti=RuntimeTaskInstance(id=UUID('01a1ee91-3ce4-74ae-a16e-afd1cdcc9f08'), task_id='publish', dag_id='daily_revenue_safe_probe', run_id='manual__2026-11-18T12:10:58.102016+00:00', try_number=1, dag_version_id=UUID('01a1ee90-eb20-7ee4-8a02-6a86fa16ec87'), map_index=-1, hostname='vm', context_carrier=None, queue='default', task=<Task(_PythonDecoratedOperator): publish>, max_tries=0, start_date=datetime.datetime(2026, 11, 18, 12, 11, 11, 505823, tzinfo=datetime.timezone.utc), end_date=None, state=<TaskInstanceState.RUNNING: 'running'>, is_mapped=False, rendered_map_index=None, sentry_integration='')",
++    "2026-11-18T12:11:15.566150Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee91-80e6-78dd-b41c-57ae4013a50b loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a1ee91-3ce4-74ae-a16e-afd1cdcc9f08",
++    "2026-11-18T12:11:15.569487Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379",
++    "2026-11-18T12:11:15.573353Z [info     ] [DAG TEST] end task task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563",
++    "2026-11-18T12:11:15.574898Z [info     ] Marking run <DagRun daily_revenue_safe_probe @ 2026-11-18 12:10:57.997148+00:00: manual__2026-11-18T12:10:58.102016+00:00, state:running, queued_at: None. run_type: manual> successful [airflow.models.dagrun.DagRun] loc=dagrun.py:1249",
++    "2026-11-18T12:11:15.575413Z [info     ] DagRun Finished: dag_id=daily_revenue_safe_probe, logical_date=2026-11-18 12:10:57.997148+00:00, run_id=manual__2026-11-18T12:10:58.102016+00:00, run_start_date=2026-11-18 12:10:57.997148+00:00, run_end_date=2026-11-18 12:11:15.574994+00:00, run_duration=17.577846, state=success, run_type=manual, data_interval_start=2026-11-18 12:10:57.997148+00:00, data_interval_end=2026-11-18 12:10:57.997148+00:00, [airflow.models.dagrun.DagRun] loc=dagrun.py:1315"
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 1940,
++    "seconds": 16.0168
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "2026-11-18T12:11:33.225187Z [info     ] [DAG TEST] starting task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1501",
++   "2026-11-18T12:11:33.225347Z [info     ] [DAG TEST] running task <TaskInstance: daily_revenue_safe_probe.publish manual__2026-11-18T12:11:19.242872+00:00 [TaskInstanceState.SCHEDULED] ti_id=01a1ee91-8f8a-73b9-9284-7df83930a49c> [airflow.sdk.definitions.dag] loc=dag.py:1504",
++   "2026-11-18T12:11:33.235318Z [info     ] Task started                   [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee91-c5eb-7a22-bada-71711ae6251c hostname=vm loc=task_instances.py:226 previous_state=queued ti_id=01a1ee91-8f8a-73b9-9284-7df83930a49c",
++   "2026-11-18T12:11:33.236430Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee91-c5eb-7a22-bada-71711ae6251c loc=task_instances.py:254 rows_affected=1 ti_id=01a1ee91-8f8a-73b9-9284-7df83930a49c",
++   "2026-11-18T12:11:33.255089Z [info     ] Updating RenderedTaskInstanceFields [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee91-c602-7224-87f6-221ae47794b0 field_count=3 loc=task_instances.py:1017 ti_id=01a1ee91-8f8a-73b9-9284-7df83930a49c",
++   "2026-11-18T12:11:33.259846Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2232"
++  ],
++  "next_run": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "2026-11-18T12:11:52.920931Z [info     ] Pushing xcom                   [task] loc=task_runner.py:2280 ti=RuntimeTaskInstance(id=UUID('01a1ee91-ce75-717c-bb35-b4743942ea6c'), task_id='publish', dag_id='daily_revenue_safe_probe', run_id='manual__2026-11-18T12:11:35.366883+00:00', try_number=1, dag_version_id=UUID('01a1ee90-eb20-7ee4-8a02-6a86fa16ec87'), map_index=-1, hostname='vm', context_carrier=None, queue='default', task=<Task(_PythonDecoratedOperator): publish>, max_tries=0, start_date=datetime.datetime(2026, 11, 18, 12, 11, 48, 875846, tzinfo=datetime.timezone.utc), end_date=None, state=<TaskInstanceState.RUNNING: 'running'>, is_mapped=False, rendered_map_index=None, sentry_integration='')",
++    "2026-11-18T12:11:52.951111Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee92-12e9-7593-8bd8-7776471b38d8 loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a1ee91-ce75-717c-bb35-b4743942ea6c",
++    "2026-11-18T12:11:52.956803Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379",
++    "2026-11-18T12:11:52.965727Z [info     ] [DAG TEST] end task task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563",
++    "2026-11-18T12:11:52.969658Z [info     ] Marking run <DagRun daily_revenue_safe_probe @ 2026-11-18 12:11:35.284620+00:00: manual__2026-11-18T12:11:35.366883+00:00, state:running, queued_at: None. run_type: manual> successful [airflow.models.dagrun.DagRun] loc=dagrun.py:1249",
++    "2026-11-18T12:11:52.971103Z [info     ] DagRun Finished: dag_id=daily_revenue_safe_probe, logical_date=2026-11-18 12:11:35.284620+00:00, run_id=manual__2026-11-18T12:11:35.366883+00:00, run_start_date=2026-11-18 12:11:35.284620+00:00, run_end_date=2026-11-18 12:11:52.969906+00:00, run_duration=17.685286, state=success, run_type=manual, data_interval_start=2026-11-18 12:11:35.284620+00:00, data_interval_end=2026-11-18 12:11:35.284620+00:00, [airflow.models.dagrun.DagRun] loc=dagrun.py:1315"
++   ]
++  }
++ }
++]
+\ No newline at end of file
+diff --git a/results/scenario5_visibility_and_kill/airflow_dlt_dbt_observe.json b/results/scenario5_visibility_and_kill/airflow_dlt_dbt_observe.json
+new file mode 100644
+index 0000000..c659966
+--- /dev/null
++++ b/results/scenario5_visibility_and_kill/airflow_dlt_dbt_observe.json
+@@ -0,0 +1,98 @@
++[
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 1948,
++    "seconds": 16.6686
++   },
++   "main | main": {
++    "samples": 325,
++    "seconds": 1.8782
++   }
++  },
++  "inconsistent_seconds": 0,
++  "inconsistent_pairs": [],
++  "log_tail": [
++   "2026-11-18T12:12:15.173631Z [info     ] Pushing xcom                   [task] loc=task_runner.py:2280 ti=RuntimeTaskInstance(id=UUID('01a1ee92-317c-7f30-aeb0-ee4a86a00fa5'), task_id='publish', dag_id='daily_revenue_safe', run_id='manual__2026-11-18T12:12:00.718059+00:00', try_number=1, dag_version_id=UUID('01a1ee8f-0601-70fe-a930-2500be826602'), map_index=-1, hostname='vm', context_carrier=None, queue='default', task=<Task(_PythonDecoratedOperator): publish>, max_tries=0, start_date=datetime.datetime(2026, 11, 18, 12, 12, 15, 132777, tzinfo=datetime.timezone.utc), end_date=None, state=<TaskInstanceState.RUNNING: 'running'>, is_mapped=False, rendered_map_index=None, sentry_integration='')",
++   "2026-11-18T12:12:15.195962Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee92-69d0-75e0-a4ed-41378c26f675 loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a1ee92-317c-7f30-aeb0-ee4a86a00fa5",
++   "2026-11-18T12:12:15.202213Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379",
++   "2026-11-18T12:12:15.207433Z [info     ] [DAG TEST] end task task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563",
++   "2026-11-18T12:12:15.209650Z [info     ] Marking run <DagRun daily_revenue_safe @ 2026-11-18 12:12:00.630471+00:00: manual__2026-11-18T12:12:00.718059+00:00, state:running, queued_at: None. run_type: manual> successful [airflow.models.dagrun.DagRun] loc=dagrun.py:1249",
++   "2026-11-18T12:12:15.210425Z [info     ] DagRun Finished: dag_id=daily_revenue_safe, logical_date=2026-11-18 12:12:00.630471+00:00, run_id=manual__2026-11-18T12:12:00.718059+00:00, run_start_date=2026-11-18 12:12:00.630471+00:00, run_end_date=2026-11-18 12:12:15.209783+00:00, run_duration=14.579312, state=success, run_type=manual, data_interval_start=2026-11-18 12:12:00.630471+00:00, data_interval_end=2026-11-18 12:12:00.630471+00:00, [airflow.models.dagrun.DagRun] loc=dagrun.py:1315"
++  ]
++ },
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 1896,
++    "seconds": 15.9602
++   },
++   "main | main": {
++    "samples": 351,
++    "seconds": 2.0291
++   }
++  },
++  "inconsistent_seconds": 0,
++  "inconsistent_pairs": [],
++  "log_tail": [
++   "2026-11-18T12:12:33.077594Z [info     ] Pushing xcom                   [task] loc=task_runner.py:2280 ti=RuntimeTaskInstance(id=UUID('01a1ee92-78c7-7875-abad-b6dae7294835'), task_id='publish', dag_id='daily_revenue_safe', run_id='manual__2026-11-18T12:12:18.967108+00:00', try_number=1, dag_version_id=UUID('01a1ee8f-0601-70fe-a930-2500be826602'), map_index=-1, hostname='vm', context_carrier=None, queue='default', task=<Task(_PythonDecoratedOperator): publish>, max_tries=0, start_date=datetime.datetime(2026, 11, 18, 12, 12, 33, 48697, tzinfo=datetime.timezone.utc), end_date=None, state=<TaskInstanceState.RUNNING: 'running'>, is_mapped=False, rendered_map_index=None, sentry_integration='')",
++   "2026-11-18T12:12:33.097508Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee92-afc0-7e16-8b2a-2fae2a9bd9d5 loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a1ee92-78c7-7875-abad-b6dae7294835",
++   "2026-11-18T12:12:33.100634Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379",
++   "2026-11-18T12:12:33.106796Z [info     ] [DAG TEST] end task task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563",
++   "2026-11-18T12:12:33.109084Z [info     ] Marking run <DagRun daily_revenue_safe @ 2026-11-18 12:12:18.880550+00:00: manual__2026-11-18T12:12:18.967108+00:00, state:running, queued_at: None. run_type: manual> successful [airflow.models.dagrun.DagRun] loc=dagrun.py:1249",
++   "2026-11-18T12:12:33.110000Z [info     ] DagRun Finished: dag_id=daily_revenue_safe, logical_date=2026-11-18 12:12:18.880550+00:00, run_id=manual__2026-11-18T12:12:18.967108+00:00, run_start_date=2026-11-18 12:12:18.880550+00:00, run_end_date=2026-11-18 12:12:33.109208+00:00, run_duration=14.228658, state=success, run_type=manual, data_interval_start=2026-11-18 12:12:18.880550+00:00, data_interval_end=2026-11-18 12:12:18.880550+00:00, [airflow.models.dagrun.DagRun] loc=dagrun.py:1315"
++  ]
++ },
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 1906,
++    "seconds": 16.252
++   },
++   "previous | main": {
++    "samples": 1,
++    "seconds": 0.0055
++   },
++   "main | main": {
++    "samples": 333,
++    "seconds": 1.8829
++   }
++  },
++  "inconsistent_seconds": 0.0055,
++  "inconsistent_pairs": [
++   "previous | main"
++  ],
++  "log_tail": [
++   "2026-11-18T12:12:51.429396Z [info     ] Pushing xcom                   [task] loc=task_runner.py:2280 ti=RuntimeTaskInstance(id=UUID('01a1ee92-bf8d-7ba4-b8dc-aebe2caee40e'), task_id='publish', dag_id='daily_revenue_safe', run_id='manual__2026-11-18T12:12:37.082018+00:00', try_number=1, dag_version_id=UUID('01a1ee8f-0601-70fe-a930-2500be826602'), map_index=-1, hostname='vm', context_carrier=None, queue='default', task=<Task(_PythonDecoratedOperator): publish>, max_tries=0, start_date=datetime.datetime(2026, 11, 18, 12, 12, 51, 384653, tzinfo=datetime.timezone.utc), end_date=None, state=<TaskInstanceState.RUNNING: 'running'>, is_mapped=False, rendered_map_index=None, sentry_integration='')",
++   "2026-11-18T12:12:51.450542Z [info     ] Task instance state updated    [airflow.api_fastapi.execution_api.routes.task_instances] correlation_id=01a1ee92-f770-715b-b9dd-ed47639d2389 loc=task_instances.py:485 new_state=success rows_affected=1 ti_id=01a1ee92-bf8d-7ba4-b8dc-aebe2caee40e",
++   "2026-11-18T12:12:51.453764Z [info     ] ::endgroup::                   [task] loc=task_runner.py:2379",
++   "2026-11-18T12:12:51.460573Z [info     ] [DAG TEST] end task task_id=publish map_index=-1 [airflow.sdk.definitions.dag] loc=dag.py:1563",
++   "2026-11-18T12:12:51.463330Z [info     ] Marking run <DagRun daily_revenue_safe @ 2026-11-18 12:12:36.994827+00:00: manual__2026-11-18T12:12:37.082018+00:00, state:running, queued_at: None. run_type: manual> successful [airflow.models.dagrun.DagRun] loc=dagrun.py:1249",
++   "2026-11-18T12:12:51.464323Z [info     ] DagRun Finished: dag_id=daily_revenue_safe, logical_date=2026-11-18 12:12:36.994827+00:00, run_id=manual__2026-11-18T12:12:37.082018+00:00, run_start_date=2026-11-18 12:12:36.994827+00:00, run_end_date=2026-11-18 12:12:51.463439+00:00, run_duration=14.468612, state=success, run_type=manual, data_interval_start=2026-11-18 12:12:36.994827+00:00, data_interval_end=2026-11-18 12:12:36.994827+00:00, [airflow.models.dagrun.DagRun] loc=dagrun.py:1315"
++  ]
++ }
++]
+\ No newline at end of file
+diff --git a/results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_during_step2.json b/results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_during_step2.json
+new file mode 100644
+index 0000000..a8466e2
+--- /dev/null
++++ b/results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_during_step2.json
+@@ -0,0 +1,182 @@
++[
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 100,
++    "seconds": 0.9063
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 116,
++    "seconds": 0.9573
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 143,
++    "seconds": 1.1483
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ }
++]
+\ No newline at end of file
+diff --git a/results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_immediate.json b/results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_immediate.json
+new file mode 100644
+index 0000000..1be3bc8
+--- /dev/null
++++ b/results/scenario5_visibility_and_kill/hydra_0.22.0+write-ahead-patch_kill_immediate.json
+@@ -0,0 +1,182 @@
++[
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 113,
++    "seconds": 1.038
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 99,
++    "seconds": 0.8376
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 107,
++    "seconds": 1.0414
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ }
++]
+\ No newline at end of file
+diff --git a/results/scenario5_visibility_and_kill/hydra_0.22.0_kill_during_step2.json b/results/scenario5_visibility_and_kill/hydra_0.22.0_kill_during_step2.json
+new file mode 100644
+index 0000000..c172ff0
+--- /dev/null
++++ b/results/scenario5_visibility_and_kill/hydra_0.22.0_kill_during_step2.json
+@@ -0,0 +1,182 @@
++[
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 108,
++    "seconds": 0.9737
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 107,
++    "seconds": 1.0001
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 93,
++    "seconds": 1.0206
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 1,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "     \u23ed  Step 'by_country' skipped",
++    "     \u23ed  Step 'by_month' skipped",
++    "  \u2717  Workflow 'daily_revenue' failed (0.0s): a previous run of 'daily_revenue' stopped before undoing its changes (/home/claude/bejaouibechir/hydra-etl-benchmark/hydra/.hydra/undo/daily_revenue.json). Finish it with: hdrctl workflow undo daily_revenue \u2014 or delete that file if the data is fine.; fallback 'daily_revenue_backup' not started: a run of 'daily_revenue' left changes to undo (finish with: hdrctl workflow undo daily_revenue)",
++    "",
++    "",
++    "  \u274c Project 'hydra' failed after 0.0s \u2014 failed: daily_revenue"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "previous",
++    "revenue_by_month": "previous"
++   },
++   "log_tail": [
++    "\u21a9  Step 'by_country' undone",
++    "     \u2502 /home/claude/bejaouibechir/hydra-etl-benchmark/hydra/output/revenue_by_country.csv: previous file restored",
++    "",
++    "  \u2705 Workflow 'daily_revenue': 1 step(s) undone."
++   ]
++  }
++ }
++]
+\ No newline at end of file
+diff --git a/results/scenario5_visibility_and_kill/hydra_0.22.0_kill_immediate.json b/results/scenario5_visibility_and_kill/hydra_0.22.0_kill_immediate.json
+new file mode 100644
+index 0000000..5902de6
+--- /dev/null
++++ b/results/scenario5_visibility_and_kill/hydra_0.22.0_kill_immediate.json
+@@ -0,0 +1,173 @@
++[
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 101,
++    "seconds": 0.8294
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "     \u2713  Step 'by_country' OK (0.6s)",
++    "     \u2713  Step 'by_month' OK (0.4s)",
++    "  \u2713  Workflow 'daily_revenue' OK (1.0s)",
++    "",
++    "",
++    "  \u2705 Project 'hydra' completed in 1.1s \u2014 1/1 workflow(s) OK"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "Nothing to undo for 'daily_revenue'."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 91,
++    "seconds": 0.9502
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "     \u2713  Step 'by_country' OK (0.8s)",
++    "     \u2713  Step 'by_month' OK (0.4s)",
++    "  \u2713  Workflow 'daily_revenue' OK (1.2s)",
++    "",
++    "",
++    "  \u2705 Project 'hydra' completed in 1.2s \u2014 1/1 workflow(s) OK"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "Nothing to undo for 'daily_revenue'."
++   ]
++  }
++ },
++ {
++  "mode": "kill",
++  "exit_code": -9,
++  "killed": true,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "previous"
++  },
++  "consistent_after_run": false,
++  "pairs": {
++   "previous | previous": {
++    "samples": 99,
++    "seconds": 0.8995
++   },
++   "main | previous": {
++    "samples": 1,
++    "seconds": 0.0
++   }
++  },
++  "inconsistent_seconds": 0.0,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "",
++   "  \u25b6  Project hydra \u2014 1 workflow(s) in 1 stage(s)",
++   "",
++   "  Stage 1/1 \u2014 sequential",
++   "  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
++   "  \u25b6  Workflow  daily_revenue"
++  ],
++  "next_run": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "     \u2713  Step 'by_country' OK (0.8s)",
++    "     \u2713  Step 'by_month' OK (0.5s)",
++    "  \u2713  Workflow 'daily_revenue' OK (1.2s)",
++    "",
++    "",
++    "  \u2705 Project 'hydra' completed in 1.2s \u2014 1/1 workflow(s) OK"
++   ]
++  },
++  "recovery": {
++   "exit_code": 0,
++   "after": {
++    "revenue_by_country": "main",
++    "revenue_by_month": "main"
++   },
++   "log_tail": [
++    "Nothing to undo for 'daily_revenue'."
++   ]
++  }
++ }
++]
+\ No newline at end of file
+diff --git a/results/scenario5_visibility_and_kill/hydra_0.22.0_observe.json b/results/scenario5_visibility_and_kill/hydra_0.22.0_observe.json
+new file mode 100644
+index 0000000..f817298
+--- /dev/null
++++ b/results/scenario5_visibility_and_kill/hydra_0.22.0_observe.json
+@@ -0,0 +1,182 @@
++[
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 94,
++    "seconds": 0.8788
++   },
++   "main | previous": {
++    "samples": 67,
++    "seconds": 0.4292
++   },
++   "main | main": {
++    "samples": 32,
++    "seconds": 0.1825
++   }
++  },
++  "inconsistent_seconds": 0.4292,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "     \u2713  Step 'by_country' OK (0.7s)",
++   "     \u2713  Step 'by_month' OK (0.4s)",
++   "  \u2713  Workflow 'daily_revenue' OK (1.1s)",
++   "",
++   "",
++   "  \u2705 Project 'hydra' completed in 1.1s \u2014 1/1 workflow(s) OK"
++  ]
++ },
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 110,
++    "seconds": 0.9372
++   },
++   "main | previous": {
++    "samples": 60,
++    "seconds": 0.4093
++   },
++   "main | main": {
++    "samples": 36,
++    "seconds": 0.1777
++   }
++  },
++  "inconsistent_seconds": 0.4093,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "     \u2713  Step 'by_country' OK (0.8s)",
++   "     \u2713  Step 'by_month' OK (0.4s)",
++   "  \u2713  Workflow 'daily_revenue' OK (1.2s)",
++   "",
++   "",
++   "  \u2705 Project 'hydra' completed in 1.2s \u2014 1/1 workflow(s) OK"
++  ]
++ },
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 98,
++    "seconds": 0.9334
++   },
++   "main | previous": {
++    "samples": 73,
++    "seconds": 0.6407
++   },
++   "main | main": {
++    "samples": 35,
++    "seconds": 0.2185
++   }
++  },
++  "inconsistent_seconds": 0.6407,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "     \u2713  Step 'by_country' OK (0.7s)",
++   "     \u2713  Step 'by_month' OK (0.7s)",
++   "  \u2713  Workflow 'daily_revenue' OK (1.3s)",
++   "",
++   "",
++   "  \u2705 Project 'hydra' completed in 1.3s \u2014 1/1 workflow(s) OK"
++  ]
++ },
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 85,
++    "seconds": 0.8443
++   },
++   "main | previous": {
++    "samples": 60,
++    "seconds": 0.4172
++   },
++   "main | main": {
++    "samples": 34,
++    "seconds": 0.1705
++   }
++  },
++  "inconsistent_seconds": 0.4172,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "     \u2713  Step 'by_country' OK (0.6s)",
++   "     \u2713  Step 'by_month' OK (0.4s)",
++   "  \u2713  Workflow 'daily_revenue' OK (1.1s)",
++   "",
++   "",
++   "  \u2705 Project 'hydra' completed in 1.1s \u2014 1/1 workflow(s) OK"
++  ]
++ },
++ {
++  "mode": "observe",
++  "exit_code": 0,
++  "killed": false,
++  "after_run": {
++   "revenue_by_country": "main",
++   "revenue_by_month": "main"
++  },
++  "consistent_after_run": true,
++  "pairs": {
++   "previous | previous": {
++    "samples": 105,
++    "seconds": 0.782
++   },
++   "main | previous": {
++    "samples": 64,
++    "seconds": 0.4057
++   },
++   "main | main": {
++    "samples": 34,
++    "seconds": 0.1584
++   }
++  },
++  "inconsistent_seconds": 0.4057,
++  "inconsistent_pairs": [
++   "main | previous"
++  ],
++  "log_tail": [
++   "     \u2713  Step 'by_country' OK (0.6s)",
++   "     \u2713  Step 'by_month' OK (0.4s)",
++   "  \u2713  Workflow 'daily_revenue' OK (1.0s)",
++   "",
++   "",
++   "  \u2705 Project 'hydra' completed in 1.0s \u2014 1/1 workflow(s) OK"
++  ]
++ }
++]
+\ No newline at end of file
+diff --git a/shared/crash_scenario.py b/shared/crash_scenario.py
+new file mode 100644
+index 0000000..0381156
+--- /dev/null
++++ b/shared/crash_scenario.py
+@@ -0,0 +1,146 @@
++"""Scenario 5 — visibility boundary and hard kill during publication.
++
++Raised by Tim Urista on the article: each os.replace can be atomic without the
++set of reports becoming visible atomically. This script tests two things that the
++four original scenarios do not:
++
++  observe : a reader polls both outputs while a normal run publishes them and
++            records every (country, month) pair of versions it sees.
++  kill    : the same reader sends SIGKILL to the whole run the moment the first
++            report is today's and the second is still the previous one, then
++            reports what is left on disk, what a second run does, and the state
++            after the stack's own recovery command (if any).
++
++  python crash_scenario.py <stack dir> "<run command>" observe|kill
++         [--repeat N] [--kill-delay SECONDS] [--recover "<command>"] [--out file.json]
++
++Versions are computed by scenarios.py, independently of the stacks.
++"""
++from __future__ import annotations
++
++import json
++import os
++import signal
++import subprocess
++import sys
++import threading
++import time
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).parent))
++import scenarios as S  # noqa: E402
++
++
++class Reader(threading.Thread):
++    """Reads both outputs in a loop; optionally kills the run at a given pair."""
++
++    def __init__(self, stack: Path, vers: dict, pid_group: int | None, kill_on: tuple | None,
++                 delay: float = 0.0):
++        super().__init__(daemon=True)
++        self.delay = delay
++        self.out, self.vers, self.pgid, self.kill_on = stack / "output", vers, pid_group, kill_on
++        self.stop = threading.Event()
++        self.samples: list[tuple[float, str, str]] = []
++        self.killed_at: float | None = None
++
++    def run(self) -> None:
++        t0 = time.monotonic()
++        while not self.stop.is_set():
++            pair = tuple(S.label(self.out / f"{n}.csv", self.vers, n) for n in S.OUTPUTS)
++            now = time.monotonic() - t0
++            self.samples.append((now, *pair))
++            if self.kill_on and pair == self.kill_on and self.killed_at is None:
++                time.sleep(self.delay)      # 0 = the earliest possible moment
++                try:
++                    os.killpg(self.pgid, signal.SIGKILL)
++                except ProcessLookupError:
++                    pass
++                self.killed_at = now
++                return
++            time.sleep(0.001)
++
++
++def summarize(samples: list) -> dict:
++    """Distinct pairs seen, and total time spent in pairs that mix generations
++    or show a missing / unreadable file."""
++    pairs: dict[str, dict] = {}
++    for i, (t, a, b) in enumerate(samples):
++        dt = (samples[i + 1][0] - t) if i + 1 < len(samples) else 0.0
++        k = f"{a} | {b}"
++        e = pairs.setdefault(k, {"samples": 0, "seconds": 0.0})
++        e["samples"] += 1
++        e["seconds"] = round(e["seconds"] + dt, 4)
++    bad = {k: v for k, v in pairs.items() if k.split(" | ")[0] != k.split(" | ")[1]}
++    return {"pairs": pairs, "inconsistent_seconds": round(sum(v["seconds"] for v in bad.values()), 4),
++            "inconsistent_pairs": sorted(bad)}
++
++
++def run_once(stack: Path, vers: dict, cmd: str, mode: str, recover: str | None,
++             delay: float = 0.0) -> dict:
++    S.prepare(stack, vers, "normal")
++    p = subprocess.Popen(["bash", "-c", cmd], cwd=stack, stdout=subprocess.PIPE,
++                         stderr=subprocess.STDOUT, text=True, start_new_session=True)
++    kill_on = ("main", "previous") if mode == "kill" else None
++    rd = Reader(stack, vers, os.getpgid(p.pid), kill_on, delay)
++    rd.start()
++    try:
++        log, _ = p.communicate(timeout=300)
++    except subprocess.TimeoutExpired:
++        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
++        log, _ = p.communicate()
++    time.sleep(0.05)
++    rd.stop.set()
++    rd.join()
++    after = {n: S.label(stack / "output" / f"{n}.csv", vers, n) for n in S.OUTPUTS}
++    row = {"mode": mode, "exit_code": p.returncode, "killed": rd.killed_at is not None,
++           "after_run": after, "consistent_after_run": len(set(after.values())) == 1,
++           **summarize(rd.samples), "log_tail": log.strip().splitlines()[-6:]}
++    if mode == "kill":
++        # what does the next scheduled run do?
++        q = subprocess.run(["bash", "-c", cmd], cwd=stack, capture_output=True, text=True, timeout=300)
++        nxt = {n: S.label(stack / "output" / f"{n}.csv", vers, n) for n in S.OUTPUTS}
++        row["next_run"] = {"exit_code": q.returncode, "after": nxt,
++                           "log_tail": (q.stdout + q.stderr).strip().splitlines()[-6:]}
++        if recover:
++            r = subprocess.run(["bash", "-c", recover], cwd=stack, capture_output=True, text=True, timeout=300)
++            rec = {n: S.label(stack / "output" / f"{n}.csv", vers, n) for n in S.OUTPUTS}
++            row["recovery"] = {"exit_code": r.returncode, "after": rec,
++                               "log_tail": (r.stdout + r.stderr).strip().splitlines()[-6:]}
++    return row
++
++
++def main() -> int:
++    a = sys.argv[1:]
++    repeat, out, recover, delay = 1, None, None, 0.0
++    for flag in ("--repeat", "--out", "--recover", "--kill-delay"):
++        if flag in a:
++            i = a.index(flag)
++            v = a[i + 1]
++            del a[i:i + 2]
++            if flag == "--repeat":
++                repeat = int(v)
++            elif flag == "--kill-delay":
++                delay = float(v)
++            elif flag == "--out":
++                out = Path(v)
++            else:
++                recover = v
++    stack, cmd, mode = Path(a[0]).resolve(), a[1], a[2]
++    vers = S.versions()
++    rows = []
++    for k in range(1, repeat + 1):
++        row = run_once(stack, vers, cmd, mode, recover, delay)
++        rows.append(row)
++        print(f"PROGRESS {k}/{repeat} {mode} killed={row['killed']} after={row['after_run']} "
++              f"inconsistent={row['inconsistent_seconds']}s", flush=True)
++    text = json.dumps(rows, indent=1)
++    if out:
++        out.parent.mkdir(parents=True, exist_ok=True)
++        out.write_text(text)
++    else:
++        print(text)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/shared/make_probe_dag.py b/shared/make_probe_dag.py
+new file mode 100644
+index 0000000..1bca829
+--- /dev/null
++++ b/shared/make_probe_dag.py
+@@ -0,0 +1,21 @@
++"""Writes modern/dags/daily_revenue_safe_probe.py: a copy of the safe DAG with one
++change, a pause between the two os.replace calls of publish(). It makes the
++window that Tim Urista described long enough to hit with SIGKILL on purpose.
++The real window is microseconds; the pause does not change what the code does.
++
++  python make_probe_dag.py [seconds]      (default 2)
++"""
++import sys
++from pathlib import Path
++
++secs = sys.argv[1] if len(sys.argv) > 1 else "2"
++src = Path(__file__).resolve().parents[1] / "modern" / "dags" / "daily_revenue_safe.py"
++t = src.read_text()
++old = "                    os.replace(HOME / \"output\" / (f + \".tmp\"), HOME / \"output\" / f)\n"
++assert t.count(old) == 1
++new = old + f"                    time.sleep({secs})   # PROBE: widens the window between the two renames\n"
++t = t.replace(old, new).replace("import os\n", "import os\nimport time\n", 1)
++t = t.replace("def daily_revenue_safe():", "def daily_revenue_safe_probe():").replace(
++    "daily_revenue_safe()\n", "daily_revenue_safe_probe()\n")
++(src.parent / "daily_revenue_safe_probe.py").write_text(t)
++print("written", src.parent / "daily_revenue_safe_probe.py")
+-- 
+2.43.0
+

@@ -9,6 +9,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `hdrctl serve --open`: the browser opened after a fixed 1.5 s delay and showed « Unable to connect »
+  when the server was slower to start. It now waits until the port accepts connections (60 s max)
+  before opening, and uses `127.0.0.1` when listening on `0.0.0.0`.
 - `rollback: true`: the undo journal is now written **before** a CSV or Parquet output is moved,
   not after. A hard kill (SIGKILL, power loss) between the move of the previous file and the
   journal write used to leave no journal and an orphan `.hydra-bak-*` file, so the next run

@@ -2,6 +2,11 @@
 
 **Your data pipelines are described, not programmed.**
 
+Hydra ETL is an open-source declarative ETL engine for Python: pipelines are YAML
+manifests, validated before any data is read or written, and run from the `hdrctl`
+CLI, a REST API or a visual editor. Full documentation, guides, video tutorials and
+a browser playground: **https://hydraetl.com**
+
 [![CI](https://github.com/bejaouibechir/Hydra/actions/workflows/ci.yml/badge.svg)](https://github.com/bejaouibechir/Hydra/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
 [![Python](https://img.shields.io/pypi/pyversions/hydra-etl.svg)](https://pypi.org/project/hydra-etl/)
@@ -10,7 +15,7 @@
 [![Glama quality score](https://glama.ai/mcp/servers/bejaouibechir/Hydra/badges/score.svg)](https://glama.ai/mcp/servers/bejaouibechir/Hydra)
 <a href="https://www.saashub.com/hydra-etl?utm_source=badge&utm_campaign=badge&utm_content=hydra-etl&badge_variant=color&badge_kind=approved"><img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="Hydra ETL on SaaSHub" height="20"></a>
 
-**[Website](https://hydraetl.com)** · **[Video tutorials](https://hydraetl.com/academy/?utm_source=github&utm_medium=readme&utm_campaign=academy)** · **[Docs & playground](https://hydraetl.com/playground)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](CHANGELOG.md)**
+**[Website](https://hydraetl.com)** · **[Video tutorials](https://hydraetl.com/academy/?utm_source=github&utm_medium=readme&utm_campaign=academy)** · **[Documentation](https://hydraetl.com/guide/)** · **[Playground](https://hydraetl.com/playground/)** · **[MCP server](docs/MCP.md)** · **[VS Code extension](#vs-code-extension)** · **[Changelog](https://hydraetl.com/changelog/)**
 
 <p align="center">
   <a href="https://youtu.be/9cCMWptQEgE"><img src="assets/readme/teaser-cli2.jpg" alt="Video (4:35): create a Hydra ETL project with hdrctl init and explore its structure" width="820"></a>

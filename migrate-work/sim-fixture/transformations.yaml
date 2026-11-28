@@ -1,0 +1,12 @@
+steps:
+  - cast:
+      mapping: { amount: float }
+  - filter:
+      expr: "amount > 50"
+  - aggregate:
+      by: [status]
+      agg:
+        total: { func: sum, col: amount }
+  - sort:
+      by: [total]
+      ascending: false

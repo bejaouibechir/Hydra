@@ -104,11 +104,18 @@ dev = [
 ]
 
 [project.urls]
+# PyPI affiche ces liens dans l'encadre de droite, dans cet ordre, et les
+# indexeurs comme les LLM les lisent comme metadonnees structurees. Chaque
+# entree pointant vers hydraetl.com est un point d'entree de plus vers le
+# site plutot que vers GitHub.
 Homepage = "https://hydraetl.com"
-Documentation = "https://hydraetl.com"
+Documentation = "https://hydraetl.com/guide/"
+Changelog = "https://hydraetl.com/changelog/"
+Playground = "https://hydraetl.com/playground/"
+"Video tutorials" = "https://hydraetl.com/academy/"
+"VS Code extension" = "https://hydraetl.com/vscode/"
 Repository = "https://github.com/bejaouibechir/Hydra"
 Issues = "https://github.com/bejaouibechir/Hydra/issues"
-Changelog = "https://github.com/bejaouibechir/Hydra/blob/main/CHANGELOG.md"
 
 [project.scripts]
 hydra = "hydra_etl.cli.hdrctl:main"
